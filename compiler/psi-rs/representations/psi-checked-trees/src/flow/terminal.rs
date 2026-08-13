@@ -358,9 +358,16 @@ pub struct CheckedStructuralReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
-    pub input: CheckedUnitStructuralParameterPlan,
+    /// Exact structural signature in dense terminal order. The established
+    /// root-only form has one parameter; the first cleanup extension has two.
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Dense parameter index of the whole root transferred to the result.
+    pub returned_parameter_index: u32,
     pub result: CheckedStructuralResultPlan,
     pub entry_claim: CheckedUnitEntryClaimPlan,
+    /// Exact reverse-declaration affine cleanup positions committed after
+    /// result materialization. The first accepted extension has one row.
+    pub trivial_affine_discards: Vec<u32>,
     /// Exact identity shared by the entry claim, normalized claim outcome, and
     /// identity-reshuffle fact.
     pub transferred_claim: psi_language_semantics::PermissionClaimIdentity,

@@ -10,7 +10,7 @@ use omega_terminal_abstract_operations::{
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_image_emission::{
-    build_terminal_installation_record, build_terminal_object_artifact,
+    TerminalInstallationError, build_terminal_installation_record, build_terminal_object_artifact,
     decode_terminal_installation_record, emit_terminal_executable_image,
     emit_terminal_object_container, encode_terminal_installation_record,
     validate_terminal_installation_record,
@@ -132,8 +132,7 @@ fn checked_source() -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
-#[test]
-fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop() {
+fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
     let checked = checked_source();
     let planned_structural_returns = checked
         .facts
@@ -151,8 +150,8 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
                 .as_str()
         })
         .collect::<Vec<_>>();
-    assert_eq!(planned_structural_returns, ["Main::forward"]);
-    let lowered = lower_machine(&checked, "Main::forward")
+    assert!(planned_structural_returns.contains(&machine_name));
+    let lowered = lower_machine(&checked, machine_name)
         .expect("exact whole-root passthrough should lower to terminal Psi");
     let original_identity =
         terminal_psi_identity(&lowered.semantic_module).expect("terminal identity");
@@ -183,9 +182,20 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
     else {
         panic!("fixture must transfer its structural input")
     };
+    let expected_cleanup = machine
+        .structural_parameters
+        .iter()
+        .skip(1)
+        .rev()
+        .map(|parameter| parameter.place)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        machine.structural_parameters.len(),
+        usize::from(cleanup) + 1
+    );
     assert_eq!(*source, machine.structural_parameters[0].place);
     assert_eq!(returned_claims, &[entry_claim.claim]);
-    assert!(trivial_affine_discards.is_empty());
+    assert_eq!(trivial_affine_discards, &expected_cleanup);
     assert_eq!(machine.content_entry_claims[0].claim, entry_claim.claim);
     assert_eq!(
         machine.content_identity_reshuffles[0].claim,
@@ -204,12 +214,20 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
         structural_type: result.structural_type,
         qualifications: result.qualifications.clone(),
     };
+    let mut structural_arguments = vec![argument.clone()];
+    if let Some(cleanup_parameter) = machine.structural_parameters.get(1) {
+        structural_arguments.push(TerminalStructuralValue {
+            opaque_identity: 0xd15c_a4d,
+            structural_type: cleanup_parameter.structural_type,
+            qualifications: cleanup_parameter.qualifications.clone(),
+        });
+    }
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        &structural_arguments,
     )
     .expect("decoded structural artifact starts without frontend state");
     assert_eq!(
@@ -224,7 +242,8 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
         ))
     );
 
-    let structural_parameter = machine.structural_parameters[0].clone();
+    let structural_parameters = machine.structural_parameters.clone();
+    let structural_parameter = structural_parameters[0].clone();
     let structural_result = result.clone();
     let source_place = *source;
     let return_edge = match &machine.blocks[0].terminator {
@@ -245,7 +264,7 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
     );
     assert_eq!(
         abstract_function.structural_parameters,
-        [structural_parameter.clone()]
+        structural_parameters
     );
     assert_eq!(abstract_function.entry_claims, [entry_claim.clone()]);
     assert!(matches!(
@@ -258,8 +277,25 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
         }] if *psi_edge == return_edge
             && *source == source_place
             && returned_claims == &[claim]
-            && trivial_affine_discards.is_empty()
+            && trivial_affine_discards == &expected_cleanup
     ));
+    if cleanup {
+        let mut missing_cleanup = abstract_plan.clone();
+        let [
+            TerminalAbstractOperation::ReturnStructural {
+                trivial_affine_discards,
+                ..
+            },
+        ] = missing_cleanup.functions[0].operations.as_mut_slice()
+        else {
+            unreachable!("structural return checked above")
+        };
+        trivial_affine_discards.clear();
+        assert!(
+            lower_to_target_operations(&missing_cleanup, NativeTarget::linux_x64()).is_err(),
+            "target lowering must reject incomplete verified cleanup custody"
+        );
+    }
 
     for case in target_cases() {
         let target_plan =
@@ -272,6 +308,7 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
         };
         let TerminalTargetOperation::ReturnStructuralParameter {
             call_plan,
+            parameters,
             source,
             result,
             shape,
@@ -279,11 +316,13 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
             result_placement,
             psi_edge,
             returned_claims,
+            trivial_affine_discards,
         } = &target_function.operation
         else {
             panic!("structural passthrough must remain distinct from scalar and Unit returns")
         };
         assert_eq!(call_plan.policy, case.policy);
+        assert_eq!(parameters, &machine.structural_parameters);
         assert_eq!(source, &structural_parameter);
         assert_eq!(result, &structural_result);
         assert_eq!(*shape, ValueShape::integer(8, 8));
@@ -291,12 +330,14 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
         assert_direct_register_placement(result_placement, case.result);
         assert_eq!(*psi_edge, return_edge);
         assert_eq!(returned_claims, &[claim]);
+        assert_eq!(trivial_affine_discards, &expected_cleanup);
 
         let assigned = assign_registers(&target_plan).unwrap_or_else(|error| {
             panic!("{:?} structural assignment failed: {error:?}", case.target)
         });
         let TerminalAssignedOperation::ReturnStructuralParameter {
             call_plan: assigned_call_plan,
+            parameters: assigned_parameters,
             source: assigned_source,
             result: assigned_result,
             shape: assigned_shape,
@@ -304,11 +345,13 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
             result_placement: assigned_result_placement,
             psi_edge: assigned_edge,
             returned_claims: assigned_claims,
+            trivial_affine_discards: assigned_cleanup,
         } = &assigned.functions[0].operation
         else {
             panic!("assignment must retain the typed structural return")
         };
         assert_eq!(assigned_call_plan, call_plan);
+        assert_eq!(assigned_parameters, parameters);
         assert_eq!(assigned_source, source);
         assert_eq!(assigned_result, result);
         assert_eq!(assigned_shape, shape);
@@ -316,6 +359,22 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
         assert_eq!(assigned_result_placement, result_placement);
         assert_eq!(assigned_edge, psi_edge);
         assert_eq!(assigned_claims, returned_claims);
+        assert_eq!(assigned_cleanup, trivial_affine_discards);
+        if cleanup {
+            let mut noncanonical_cleanup = target_plan.clone();
+            let TerminalTargetOperation::ReturnStructuralParameter {
+                trivial_affine_discards,
+                ..
+            } = &mut noncanonical_cleanup.functions[0].operation
+            else {
+                unreachable!("structural target operation checked above")
+            };
+            trivial_affine_discards[0] = source.place;
+            assert!(
+                assign_registers(&noncanonical_cleanup).is_err(),
+                "assignment must reject cleanup outside reverse-declaration affine order"
+            );
+        }
 
         let machine_code = emit_machine_code(&assigned).unwrap_or_else(|error| {
             panic!("{:?} structural emission failed: {error:?}", case.target)
@@ -332,12 +391,15 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
             .as_ref()
             .expect("machine code must retain zero-runtime structural custody");
         assert_eq!(custody.psi_edge, return_edge);
+        assert_eq!(custody.parameters, machine.structural_parameters);
+        assert_eq!(custody.parameter_placements, call_plan.parameters);
         assert_eq!(custody.source, structural_parameter);
         assert_eq!(custody.result, structural_result);
         assert_eq!(custody.shape, ValueShape::integer(8, 8));
         assert_eq!(&custody.source_placement, source_placement);
         assert_eq!(&custody.result_placement, result_placement);
         assert_eq!(custody.returned_claims, [claim]);
+        assert_eq!(custody.trivial_affine_discards, expected_cleanup);
         assert_eq!(custody.code_offset, 0);
         assert_eq!(custody.byte_count, case.bytes.len());
 
@@ -353,6 +415,33 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
             "{:?} object validation must reject a silently dropped live claim",
             case.target
         );
+        if cleanup {
+            let mut dropped_cleanup = machine_code.clone();
+            dropped_cleanup.functions[0]
+                .structural_return
+                .as_mut()
+                .expect("structural custody row")
+                .trivial_affine_discards
+                .clear();
+            assert!(
+                build_terminal_object_artifact(&dropped_cleanup).is_err(),
+                "{:?} object validation must reject missing cleanup custody",
+                case.target
+            );
+
+            let mut aliased_parameter = machine_code.clone();
+            let aliased_custody = aliased_parameter.functions[0]
+                .structural_return
+                .as_mut()
+                .expect("structural custody row");
+            aliased_custody.parameters[1].place = aliased_custody.source.place;
+            aliased_custody.trivial_affine_discards[0] = aliased_custody.source.place;
+            assert!(
+                build_terminal_object_artifact(&aliased_parameter).is_err(),
+                "{:?} object validation must reject an affine parameter aliased to the returned place",
+                case.target
+            );
+        }
 
         let object = build_terminal_object_artifact(&machine_code).unwrap_or_else(|error| {
             panic!("{:?} structural object failed: {error:?}", case.target)
@@ -396,6 +485,14 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
 
         let mut custody_suffix = Vec::new();
         custody_suffix.extend_from_slice(&claim.get().to_le_bytes());
+        custody_suffix.extend_from_slice(
+            &u32::try_from(expected_cleanup.len())
+                .expect("cleanup count fits u32")
+                .to_le_bytes(),
+        );
+        for place in &expected_cleanup {
+            custody_suffix.extend_from_slice(&place.get().to_le_bytes());
+        }
         custody_suffix.extend_from_slice(&0_u64.to_le_bytes());
         custody_suffix.extend_from_slice(
             &u64::try_from(case.bytes.len())
@@ -406,7 +503,7 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
             .windows(custody_suffix.len())
             .enumerate()
             .filter_map(|(offset, window)| (window == custody_suffix).then_some(offset))
-            .last()
+            .next()
             .expect("canonical installation must contain the structural-custody suffix");
         let mut changed_claim_bytes = installation_bytes.clone();
         changed_claim_bytes[custody_offset..custody_offset + 8]
@@ -425,19 +522,39 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
             validate_terminal_installation_record(&changed_claim, &image).is_err(),
             "installation validation must reject a changed structural custody claim"
         );
+        if cleanup {
+            let mut changed_cleanup_bytes = installation_bytes.clone();
+            let cleanup_place_offset = custody_offset + 8 + 4;
+            changed_cleanup_bytes[cleanup_place_offset..cleanup_place_offset + 8]
+                .copy_from_slice(&source.place.get().to_le_bytes());
+            assert_eq!(
+                decode_terminal_installation_record(&changed_cleanup_bytes),
+                Err(TerminalInstallationError::InvalidStructuralReturn(
+                    machine.id
+                )),
+                "canonical installation decoding must reject changed cleanup custody"
+            );
+        }
 
         #[cfg(unix)]
         if case.target == NativeTarget::host() {
             assert!(host_structural_round_trip(
                 case.bytes,
-                OPAQUE_REGION_IDENTITY
+                OPAQUE_REGION_IDENTITY,
+                cleanup
             ));
         }
     }
 }
 
+#[test]
+fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop() {
+    assert_source_structural_return("Main::forward", false);
+    assert_source_structural_return("Main::forward_and_drop", true);
+}
+
 #[cfg(unix)]
-fn host_structural_round_trip(bytes: &[u8], value: u64) -> bool {
+fn host_structural_round_trip(bytes: &[u8], value: u64, has_cleanup: bool) -> bool {
     let nonce = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("wall clock after epoch")
@@ -466,11 +583,19 @@ fn host_structural_round_trip(bytes: &[u8], value: u64) -> bool {
             ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {encoded_bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
         )
     };
-    let driver = format!(
-        "#include <stdint.h>\n\
+    let driver = if has_cleanup {
+        format!(
+            "#include <stdint.h>\n\
+extern uint64_t terminal_entry(uint64_t, uint64_t);\n\
+int main(void) {{ return terminal_entry(UINT64_C({value}), UINT64_C(0xcafe)) == UINT64_C({value}) ? 0 : 1; }}\n"
+        )
+    } else {
+        format!(
+            "#include <stdint.h>\n\
 extern uint64_t terminal_entry(uint64_t);\n\
 int main(void) {{ return terminal_entry(UINT64_C({value})) == UINT64_C({value}) ? 0 : 1; }}\n"
-    );
+        )
+    };
     std::fs::write(&assembly_path, assembly).expect("write structural-return assembly harness");
     std::fs::write(&driver_path, driver).expect("write structural-return C harness");
     let link = Command::new("cc")

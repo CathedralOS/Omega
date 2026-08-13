@@ -125,19 +125,21 @@ pub(crate) fn build_checked_structural_return_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            [
-                plan.attachment_type_identity.as_str(),
-                plan.input.type_identity.as_str(),
-                plan.result.type_identity.as_str(),
-            ]
+            std::iter::once(plan.attachment_type_identity.as_str())
+                .chain(
+                    plan.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+                .chain(std::iter::once(plan.result.type_identity.as_str()))
         })
         .collect::<BTreeSet<_>>();
     let retained_domains = machines
         .iter()
         .flat_map(|plan| {
-            plan.input
-                .qualifications
+            plan.structural_parameters
                 .iter()
+                .flat_map(|parameter| &parameter.qualifications)
                 .chain(&plan.result.qualifications)
                 .map(|domain| domain.0)
         })
@@ -174,10 +176,14 @@ fn build_structural_return_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
         structural_signature(program, shapes, machine, state, &binders)?;
-    let [input] = structural_parameters.as_slice() else {
-        return None;
-    };
-    if input.multiplicity != Multiplicity::Linear || input.is_self {
+    let input = structural_parameters.first()?;
+    if !matches!(structural_parameters.len(), 1 | 2)
+        || input.multiplicity != Multiplicity::Linear
+        || input.is_self
+        || structural_parameters.get(1).is_some_and(|discarded| {
+            discarded.multiplicity != Multiplicity::Affine || discarded.is_self
+        })
+    {
         return None;
     }
     let source_parameters = program.state_parameters(state);
@@ -224,6 +230,22 @@ fn build_structural_return_machine(
         || !entry_claim.field_path.is_empty()
         || entry_claim.carry != CarryPolicy::STRICT
     {
+        return None;
+    }
+    let trivial_affine_discards = return_unit_affine_discards(
+        facts,
+        machine.symbol,
+        state.symbol,
+        &structural_parameters,
+        source_parameters,
+        &[],
+    )?;
+    let expected_discards: &[u32] = if structural_parameters.len() == 2 {
+        &[1]
+    } else {
+        &[]
+    };
+    if trivial_affine_discards != expected_discards {
         return None;
     }
     let outcome_maps = facts
@@ -299,13 +321,15 @@ fn build_structural_return_machine(
         machine: machine.symbol,
         state: state.symbol,
         attachment_type_identity,
-        input: input.clone(),
+        structural_parameters,
+        returned_parameter_index: 0,
         result: CheckedStructuralResultPlan {
             type_identity: result_type_identity,
             multiplicity: Multiplicity::Linear,
             qualifications: result_qualifications,
         },
         entry_claim: entry_claim.clone(),
+        trivial_affine_discards,
         transferred_claim: entry_claim.claim_identity,
     })
 }

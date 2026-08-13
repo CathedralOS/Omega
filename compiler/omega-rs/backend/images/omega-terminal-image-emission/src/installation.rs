@@ -27,7 +27,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 4;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 5;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -923,12 +923,15 @@ fn validate_record_shape(
         let expected_plan = evaluate_call_plan(
             CallingPolicy::native_for_target(record.target),
             &CallSignature {
-                parameters: vec![returned.shape],
+                parameters: returned
+                    .parameter_placements
+                    .iter()
+                    .map(|placement| placement.shape)
+                    .collect(),
                 result: Some(returned.shape),
             },
         )
         .map_err(|_| TerminalInstallationError::InvalidStructuralReturn(installed.machine))?;
-        let expected_source = expected_plan.parameters.as_slice();
         let expected_result = expected_plan.result.as_ref();
         if previous_return.is_some_and(|previous| previous >= installed.machine)
             || returned.code_offset != 0
@@ -941,7 +944,36 @@ fn validate_record_shape(
             || returned.source.qualifications != returned.result.qualifications
             || returned.source.place == returned.result.place
             || returned.shape != ValueShape::integer(8, 8)
-            || expected_source != [returned.source_placement.clone()]
+            || returned.source_placement.shape != returned.shape
+            || returned.result_placement.shape != returned.shape
+            || !(1..=2).contains(&returned.parameters.len())
+            || returned.parameters.first() != Some(&returned.source)
+            || returned.parameters.iter().skip(1).any(|parameter| {
+                parameter.place == returned.source.place || parameter.place == returned.result.place
+            })
+            || returned.parameter_placements.len() != returned.parameters.len()
+            || expected_plan.parameters != returned.parameter_placements
+            || returned.parameter_placements.first() != Some(&returned.source_placement)
+            || returned
+                .parameters
+                .iter()
+                .enumerate()
+                .any(|(index, parameter)| {
+                    parameter.is_self || usize::try_from(parameter.position) != Ok(index)
+                })
+            || returned.trivial_affine_discards
+                != returned
+                    .parameters
+                    .iter()
+                    .skip(1)
+                    .rev()
+                    .map(|parameter| parameter.place)
+                    .collect::<Vec<_>>()
+            || returned
+                .parameters
+                .iter()
+                .skip(1)
+                .any(|parameter| parameter.multiplicity != StructuralMultiplicity::Affine)
             || expected_result != Some(&returned.result_placement)
             || returned.returned_claims.len() != 1
         {
@@ -1119,6 +1151,22 @@ fn encode_structural_return(
     let returned = &installed.returned;
     push_u64(bytes, installed.machine.get());
     push_u64(bytes, returned.psi_edge.get());
+    push_u32(
+        bytes,
+        u32::try_from(returned.parameters.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
+    );
+    for parameter in &returned.parameters {
+        encode_structural_parameter(bytes, parameter)?;
+    }
+    push_u32(
+        bytes,
+        u32::try_from(returned.parameter_placements.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
+    );
+    for placement in &returned.parameter_placements {
+        encode_placement(bytes, placement)?;
+    }
     encode_structural_parameter(bytes, &returned.source)?;
     encode_structural_result(bytes, &returned.result)?;
     encode_shape(bytes, returned.shape)?;
@@ -1131,6 +1179,14 @@ fn encode_structural_return(
     );
     for claim in &returned.returned_claims {
         push_u64(bytes, claim.get());
+    }
+    push_u32(
+        bytes,
+        u32::try_from(returned.trivial_affine_discards.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
+    );
+    for place in &returned.trivial_affine_discards {
+        push_u64(bytes, place.get());
     }
     push_u64(
         bytes,
@@ -1227,6 +1283,18 @@ fn decode_structural_return(
     let psi_edge = EdgeId::new(reader.u64()?).ok_or(
         TerminalInstallationError::ZeroStructuralReturnIdentity("edge"),
     )?;
+    let parameter_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
+    let mut parameters = Vec::with_capacity(parameter_count);
+    for _ in 0..parameter_count {
+        parameters.push(decode_structural_parameter(reader)?);
+    }
+    let placement_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
+    let mut parameter_placements = Vec::with_capacity(placement_count);
+    for _ in 0..placement_count {
+        parameter_placements.push(decode_placement(reader)?);
+    }
     let source = decode_structural_parameter(reader)?;
     let result = decode_structural_result(reader)?;
     let shape = decode_shape(reader)?;
@@ -1240,16 +1308,27 @@ fn decode_structural_return(
             TerminalInstallationError::ZeroStructuralReturnIdentity("claim"),
         )?);
     }
+    let cleanup_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    let mut trivial_affine_discards = Vec::with_capacity(cleanup_count);
+    for _ in 0..cleanup_count {
+        trivial_affine_discards.push(PlaceId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("cleanup place"),
+        )?);
+    }
     Ok(TerminalInstalledStructuralReturn {
         machine,
         returned: TerminalStructuralReturnRecord {
             psi_edge,
+            parameters,
+            parameter_placements,
             source,
             result,
             shape,
             source_placement,
             result_placement,
             returned_claims,
+            trivial_affine_discards,
             code_offset: usize::try_from(reader.u64()?)
                 .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
             byte_count: usize::try_from(reader.u64()?)
@@ -1376,6 +1455,9 @@ fn register_tag(register: MachineRegister) -> Result<u8, TerminalInstallationErr
         MachineRegister::X86Rcx => Ok(2),
         MachineRegister::X86Rdi => Ok(3),
         MachineRegister::Aarch64X(0) => Ok(4),
+        MachineRegister::X86Rsi => Ok(5),
+        MachineRegister::X86Rdx => Ok(6),
+        MachineRegister::Aarch64X(1) => Ok(7),
         _ => Err(TerminalInstallationError::UnsupportedStructuralReturnRegister(register)),
     }
 }
@@ -1386,6 +1468,9 @@ fn decode_register(value: u8) -> Result<MachineRegister, TerminalInstallationErr
         2 => Ok(MachineRegister::X86Rcx),
         3 => Ok(MachineRegister::X86Rdi),
         4 => Ok(MachineRegister::Aarch64X(0)),
+        5 => Ok(MachineRegister::X86Rsi),
+        6 => Ok(MachineRegister::X86Rdx),
+        7 => Ok(MachineRegister::Aarch64X(1)),
         _ => Err(TerminalInstallationError::InvalidStructuralReturnRegister(
             value,
         )),
@@ -1537,7 +1622,9 @@ pub enum TerminalInstallationError {
     TooManyProviderPlans,
     TooManyInstalledFunctions,
     TooManyStructuralReturns,
+    TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
+    TooManyStructuralReturnCleanups,
     TooManyStructuralQualifications,
     TooManyFuelAttributions,
     TooManyPortEffects,

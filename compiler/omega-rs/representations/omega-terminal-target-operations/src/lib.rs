@@ -194,6 +194,10 @@ pub enum TerminalTargetOperation {
     /// native ABI while retaining its zero-runtime custody metadata.
     ReturnStructuralParameter {
         call_plan: CallPlan,
+        /// Complete ordered structural input signature used to derive the ABI
+        /// plan. Cleanup-only parameters remain semantic inputs even though
+        /// disposing them emits no instruction.
+        parameters: Vec<StructuralParameterDeclaration>,
         source: StructuralParameterDeclaration,
         result: StructuralResultDeclaration,
         shape: ValueShape,
@@ -201,6 +205,8 @@ pub enum TerminalTargetOperation {
         result_placement: ValuePlacement,
         psi_edge: EdgeId,
         returned_claims: Vec<ClaimId>,
+        /// Exact verifier-owned reverse-declaration cleanup order.
+        trivial_affine_discards: Vec<PlaceId>,
     },
     /// End the execution domain at one verified terminal-Psi crash edge.
     Crash {
