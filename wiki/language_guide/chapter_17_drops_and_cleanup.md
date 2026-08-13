@@ -42,11 +42,11 @@ declared service reach, but automatic cleanup is always:
 
 The implemented terminal subset is deliberately narrower: one root-only Unit
 return may invoke an empty attached `drop` for one whole claim-free,
-unqualified affine record that is empty or has up to two relevant Boolean or
+unqualified affine record that is empty or contains only relevant Boolean or
 integer fields. Psi preserves the whole receiver and executes the cleanup-machine
 edge; Omega gives a nonempty receiver its ordinary ABI home while preserving
-the cleanup ledger. The empty cleanup body emits no cleanup bytes. Wider-than-two or
-nested receivers, executable drop bodies, and multiple ordered cleanup actions
+the cleanup ledger. The empty cleanup body emits no cleanup bytes. Nested or
+erased receivers, executable drop bodies, and multiple ordered cleanup actions
 remain pending engineering work under the rules below.
 
 A release that waits, suspends, may fail, or promises protocol completion is an
