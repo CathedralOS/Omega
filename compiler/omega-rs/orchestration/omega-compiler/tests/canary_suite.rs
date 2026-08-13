@@ -15767,22 +15767,14 @@ fn f32_field_binary_to_local_cast_exit_canary_runs() {
     // hardcoded `addsd` over f32 bits. The binary operand threads its resolved
     // 4-byte width so producer (addss) and convert consumer (cvttss2si) agree.
     let canary = pass_canary("expressions/f32_field_binary_to_local_cast");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-f32-field-binary-local-cast-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32_field_binary_to_local_cast canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32_field_binary_to_local_cast canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32_field_binary_to_local_cast canary should run");
 
@@ -15794,7 +15786,7 @@ fn f32_field_binary_to_local_cast_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15803,22 +15795,14 @@ fn f32_to_f64_local_cast_exit_canary_runs() {
     // a folded cast). classify now types a Cast as its target, so the convert
     // chain (cvtss2sd -> cvttsd2si) builds instead of the write being dropped.
     let canary = pass_canary("expressions/f32_to_f64_local_cast");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-f32-to-f64-local-cast-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32_to_f64_local_cast canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32_to_f64_local_cast canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32_to_f64_local_cast canary should run");
 
@@ -15830,7 +15814,7 @@ fn f32_to_f64_local_cast_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15840,22 +15824,14 @@ fn f32_deep_chain_binary_exit_canary_runs() {
     // every level emits `addss`, not `addsd`. Depth 3 was where the old
     // re-derivation stopped agreeing.
     let canary = pass_canary("expressions/f32_deep_chain_binary");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-f32-deep-chain-binary-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32_deep_chain_binary canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32_deep_chain_binary canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32_deep_chain_binary canary should run");
 
@@ -15867,7 +15843,7 @@ fn f32_deep_chain_binary_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]

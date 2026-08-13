@@ -39,37 +39,65 @@ pub(super) fn carried_float_provider_plan(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> CarriedFloatProviderPlan {
-    let expression = match canonical_checked_operator_expression(
+    let canonical = canonical_checked_operator_expression(
         input.program,
         source_key,
         statement_index,
         expressions,
         expression,
-    ) {
-        CanonicalOperatorExpression::Resolved(expression) => expression,
+    );
+    match canonical {
+        CanonicalOperatorExpression::Resolved { expression, origin } => {
+            let Some((source_key, statement_index)) = operator_origin_key(origin) else {
+                return CarriedFloatProviderPlan::Invalid;
+            };
+            let carried = carried_float_provider_plan_in_control_flow(
+                input.control_flow,
+                source_key,
+                statement_index,
+                expression,
+            );
+            let checked = checked_float_provider_plan_for_statement(
+                input.program,
+                source_key,
+                statement_index,
+                expression,
+            );
+            return reconcile_float_provider_plan_evidence(checked, carried);
+        }
         CanonicalOperatorExpression::Missing => return CarriedFloatProviderPlan::Missing,
         CanonicalOperatorExpression::Invalid => return CarriedFloatProviderPlan::Invalid,
-    };
-    let carried = carried_float_provider_plan_in_control_flow(
-        input.control_flow,
-        source_key,
-        statement_index,
-        expression,
-    );
-    let checked = checked_float_provider_plan_for_statement(
-        input.program,
-        source_key,
-        statement_index,
-        expression,
-    );
-    reconcile_float_provider_plan_evidence(checked, carried)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanonicalOperatorExpression {
     Missing,
-    Resolved(ExpressionHandle),
+    Resolved {
+        expression: ExpressionHandle,
+        origin: psi_checked_trees::CheckedValueOrigin,
+    },
     Invalid,
+}
+
+fn operator_origin_key(origin: psi_checked_trees::CheckedValueOrigin) -> Option<(StateKey, usize)> {
+    let psi_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        ..
+    } = origin
+    else {
+        return None;
+    };
+    Some((
+        StateKey {
+            machine: machine_symbol,
+            state: state_symbol,
+            segment_index: 0,
+        },
+        statement_index,
+    ))
 }
 
 /// Recover the canonical checked-tree identity of an operator after downstream
@@ -82,7 +110,7 @@ enum CanonicalOperatorExpression {
 fn canonical_checked_operator_expression(
     program: &psi_checked_trees::CheckedTrees,
     source_key: StateKey,
-    statement_index: usize,
+    _statement_index: usize,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> CanonicalOperatorExpression {
@@ -112,16 +140,13 @@ fn canonical_checked_operator_expression(
         let psi_checked_trees::CheckedValueOrigin::StateStatement {
             machine_symbol,
             state_symbol,
-            statement_index: candidate_statement,
+            statement_index: _,
             ..
         } = origin
         else {
             continue;
         };
-        if machine_symbol != source_key.machine
-            || state_symbol != source_key.state
-            || candidate_statement != statement_index
-        {
+        if machine_symbol != source_key.machine || state_symbol != source_key.state {
             continue;
         }
         let same_expression = if table_is_canonical {
@@ -134,26 +159,26 @@ fn canonical_checked_operator_expression(
             continue;
         }
         match resolved {
-            Some(existing) if existing != candidate_expression => {
+            Some((existing, _)) if existing != candidate_expression => {
                 return CanonicalOperatorExpression::Invalid;
             }
-            None => resolved = Some(candidate_expression),
+            None => resolved = Some((candidate_expression, origin)),
             _ => {}
         }
     }
 
-    if let Some(expression) = resolved {
-        return CanonicalOperatorExpression::Resolved(expression);
+    if let Some((expression, origin)) = resolved {
+        return CanonicalOperatorExpression::Resolved { expression, origin };
     }
 
-    // Float realization can rebuild one already-checked operator into a
-    // private expression table without carrying its authored span. Bridge
-    // that synthetic node only when every same-statement fact with the same
-    // normalized operation shape agrees on both one exact nonzero
-    // ProviderPlan identity and one policy adapter. Repeated uses of the same
-    // requirement are therefore valid; mixed F32/F64 or policy evidence stays
-    // ambiguous and fails closed.
+    // Float realization and local substitution can rebuild one already-checked
+    // operator into a private expression table without carrying its authored
+    // span. Bridge that synthetic node only when every same-machine/state fact
+    // with the same normalized operation shape agrees on one exact identity,
+    // policy, and source occurrence. Repeated uses at different statements are
+    // intentionally ambiguous and fail closed.
     let mut shape_match = None;
+    let mut shape_origin = None;
     let mut shape_identity = None;
     let mut shape_policy = None;
     for (candidate_expression, origin, identity, policy_adapter) in program
@@ -188,16 +213,13 @@ fn canonical_checked_operator_expression(
         let psi_checked_trees::CheckedValueOrigin::StateStatement {
             machine_symbol,
             state_symbol,
-            statement_index: candidate_statement,
+            statement_index: _,
             ..
         } = origin
         else {
             continue;
         };
-        if machine_symbol != source_key.machine
-            || state_symbol != source_key.state
-            || candidate_statement != statement_index
-        {
+        if machine_symbol != source_key.machine || state_symbol != source_key.state {
             continue;
         }
         if !same_normalized_operator_shape(
@@ -225,12 +247,21 @@ fn canonical_checked_operator_expression(
             None => shape_policy = Some(policy_adapter),
             _ => {}
         }
+        match shape_origin {
+            Some(existing) if existing != origin => {
+                return CanonicalOperatorExpression::Invalid;
+            }
+            None => shape_origin = Some(origin),
+            _ => {}
+        }
         shape_match.get_or_insert(candidate_expression);
     }
-    shape_match.map_or(
-        CanonicalOperatorExpression::Missing,
-        CanonicalOperatorExpression::Resolved,
-    )
+    shape_match.map_or(CanonicalOperatorExpression::Missing, |expression| {
+        CanonicalOperatorExpression::Resolved {
+            expression,
+            origin: shape_origin.expect("a shape match retains its checked origin"),
+        }
+    })
 }
 
 fn same_normalized_operator_shape(
@@ -478,17 +509,38 @@ pub(super) fn carried_float_policy_domain(
     expression: ExpressionHandle,
     byte_width: usize,
 ) -> CarriedFloatPolicyDomain {
-    let expression = match canonical_checked_operator_expression(
+    let canonical = canonical_checked_operator_expression(
         input.program,
         source_key,
         statement_index,
         expressions,
         expression,
-    ) {
-        CanonicalOperatorExpression::Resolved(expression) => expression,
+    );
+    match canonical {
+        CanonicalOperatorExpression::Resolved { expression, origin } => {
+            let Some((source_key, statement_index)) = operator_origin_key(origin) else {
+                return CarriedFloatPolicyDomain::Invalid;
+            };
+            return carried_float_policy_domain_for_canonical(
+                input,
+                source_key,
+                statement_index,
+                expression,
+                byte_width,
+            );
+        }
         CanonicalOperatorExpression::Missing => return CarriedFloatPolicyDomain::Missing,
         CanonicalOperatorExpression::Invalid => return CarriedFloatPolicyDomain::Invalid,
-    };
+    }
+}
+
+fn carried_float_policy_domain_for_canonical(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    byte_width: usize,
+) -> CarriedFloatPolicyDomain {
     let Some(state) = input.control_flow.state_by_key(source_key).or_else(|| {
         input
             .control_flow
