@@ -12115,22 +12115,15 @@ fn runtime_method_view_write_after_last_use_exit_canary_runs() {
     // USE, so a later write to another field of the same receiver compiles
     // and both writes land (7 + 63 = 70).
     let canary = pass_canary("borrow/runtime_method_view_write_after_last_use_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-method-view-after-last-use-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("method-view write-after-last-use canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("method-view write-after-last-use canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("method-view write-after-last-use canary should run");
 
@@ -12142,7 +12135,7 @@ fn runtime_method_view_write_after_last_use_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12151,20 +12144,13 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
     // (pick -> &mut Cell, narrow -> &mut i32). The elision linkage composes
     // and the two-hop write lands in the root machine-owned storage.
     let canary = pass_canary("borrow/runtime_view_of_view_chain_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-view-of-view-chain-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("view-of-view chain canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("view-of-view chain canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("view-of-view chain canary should run");
 
@@ -12176,7 +12162,7 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
