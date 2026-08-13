@@ -521,6 +521,114 @@ fn ordered_nominal_affine_cleanups_run_one_executable_body_before_the_empty_acti
 }
 
 #[test]
+fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order() {
+    let module = ordered_two_distinct_executable_nominal_affine_module();
+    let semantic = encode_module(&module).expect("two executable nominal cleanups encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 86,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 87,
+            structural_type: structural_type_id(2),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+    )
+    .expect("two distinct executable nominal cleanups should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    for (consumed, site) in [
+        FuelChargeSite::Edge(edge_id(1)),
+        FuelChargeSite::Operation(operation_id(1)),
+        FuelChargeSite::Edge(edge_id(4)),
+        FuelChargeSite::Edge(edge_id(3)),
+        FuelChargeSite::Operation(operation_id(2)),
+        FuelChargeSite::Edge(edge_id(5)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                site: exhausted_site,
+                ..
+            }) if exhausted_site == site
+        ));
+        assert_eq!(meter.usage().total_units(), consumed as u64);
+        meter.replenish(1).unwrap();
+    }
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 7);
+}
+
+#[test]
+fn ordered_nominal_affine_cleanups_repeat_a_shared_executable_target_and_helper() {
+    let module = ordered_shared_executable_nominal_affine_module();
+    let semantic = encode_module(&module).expect("shared executable nominal cleanup encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 88,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 89,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+    )
+    .expect("shared executable nominal cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(7);
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 7);
+    for site in [
+        FuelChargeSite::Operation(operation_id(1)),
+        FuelChargeSite::Edge(edge_id(3)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ] {
+        assert_eq!(
+            meter
+                .usage()
+                .at(site)
+                .expect("shared site charged")
+                .executions(),
+            2,
+            "the shared cleanup body is invoked once per cleanup action"
+        );
+    }
+}
+
+#[test]
 fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order() {
     let module = executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("executable nominal cleanup encodes");
@@ -1632,6 +1740,72 @@ fn ordered_one_executable_nominal_affine_module() -> TerminalModule {
     };
     helper.contract.id = contract_id(4);
     module.machines[2].blocks[0].operations.push(Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(helper);
+    module
+}
+
+fn ordered_two_distinct_executable_nominal_affine_module() -> TerminalModule {
+    let mut module = ordered_one_executable_nominal_affine_module();
+    let helper_type = structural_type_id(4);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: helper_type,
+        identity: "SecondHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut helper = module.machines[3].clone();
+    helper.id = machine_id(5);
+    helper.attachment = Some(helper_type);
+    helper.entry = block_id(5);
+    helper.blocks[0].id = block_id(5);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(5),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(5);
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(2),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(helper);
+    module
+}
+
+fn ordered_shared_executable_nominal_affine_module() -> TerminalModule {
+    let mut module = ordered_empty_nominal_affine_module(true);
+    let helper_type = structural_type_id(2);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: helper_type,
+        identity: "SharedHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut helper = module.machines[1].clone();
+    helper.id = machine_id(3);
+    helper.attachment = Some(helper_type);
+    helper.entry = block_id(3);
+    helper.blocks[0].id = block_id(3);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(3);
+    module.machines[1].blocks[0].operations.push(Operation {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

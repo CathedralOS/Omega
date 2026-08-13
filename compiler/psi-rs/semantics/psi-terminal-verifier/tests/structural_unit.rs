@@ -51,7 +51,7 @@ fn two_nominal_affine_roots_validate_in_reverse_order_and_may_share_a_target() {
 }
 
 #[test]
-fn two_nominal_affine_roots_allow_exactly_one_executable_cleanup_body() {
+fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies() {
     let module = two_root_one_executable_nominal_affine_module();
     validate_module(&module).expect("one executable cleanup action should validate");
     verify_module(
@@ -85,10 +85,13 @@ fn two_nominal_affine_roots_allow_exactly_one_executable_cleanup_body() {
             },
         });
     two_executable.machines.push(second_helper);
-    assert!(matches!(
-        validate_module(&two_executable),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&two_executable).expect("two distinct executable cleanup bodies validate");
+    verify_module(
+        &two_executable,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("two distinct executable cleanup bodies verify");
 
     let mut shared_executable = two_root_nominal_affine_module();
     let mut helper = shared_executable.machines[1].clone();
@@ -114,10 +117,13 @@ fn two_nominal_affine_roots_allow_exactly_one_executable_cleanup_body() {
             },
         });
     shared_executable.machines.push(helper);
-    assert!(matches!(
-        validate_module(&shared_executable),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&shared_executable).expect("shared executable cleanup target validates");
+    verify_module(
+        &shared_executable,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("shared executable cleanup target and helper verify once as a closure");
 }
 
 #[test]

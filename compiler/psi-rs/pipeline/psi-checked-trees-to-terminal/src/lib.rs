@@ -3886,7 +3886,6 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
 
     let mut roots = Vec::new();
     let mut cleanup_helpers = Vec::new();
-    let mut executable_cleanup_count = 0_usize;
     for cleanup in &nominal.cleanups {
         let target = unique_unit_machine(
             &checked.facts.flow.terminal_unit_effects,
@@ -3914,17 +3913,14 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         else {
             return unsupported("ordered nominal cleanup target does not end in Unit return");
         };
-        if !target_calls.is_empty() {
-            executable_cleanup_count += 1;
-        }
-        if executable_cleanup_count > 1
-            || target_calls.len() > 2
+        if target_calls.len() > 2
             || usize::try_from(*statement_index).ok() != Some(target_calls.len())
             || !trivial_affine_local_discard_ordinals.is_empty()
             || !trivial_affine_discards.is_empty()
         {
             return unsupported("ordered nominal cleanup target operation sequence drifted");
         }
+        let collect_helpers = !roots.contains(&cleanup.cleanup_machine);
         for (statement_index, operation) in target_calls.iter().enumerate() {
             let CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
@@ -3942,21 +3938,29 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 || coordinate.call_ordinal != 0
                 || *target_machine == plan.machine
                 || *target_machine == cleanup.cleanup_machine
-                || cleanup_helpers
-                    .iter()
-                    .any(|(_, helper, _, _)| helper == target_machine)
+                || target_calls[..statement_index].iter().any(|earlier| {
+                    matches!(
+                        earlier,
+                        CheckedUnitEffectOperationPlan::CallUnit {
+                            target_machine: earlier_target,
+                            ..
+                        } if earlier_target == target_machine
+                    )
+                })
                 || !service_summary_is_empty(*service_reach)
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
             {
                 return unsupported("ordered nominal cleanup helper call is not exact");
             }
-            cleanup_helpers.push((
-                cleanup.cleanup_machine,
-                *target_machine,
-                *target_state,
-                *target_contract_fingerprint,
-            ));
+            if collect_helpers {
+                cleanup_helpers.push((
+                    cleanup.cleanup_machine,
+                    *target_machine,
+                    *target_state,
+                    *target_contract_fingerprint,
+                ));
+            }
         }
         if target.state != cleanup.cleanup_state
             || target.contract_fingerprint != cleanup.cleanup_contract_fingerprint
@@ -4057,7 +4061,11 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     let closure = checked_unit_call_closure_including(&staged, plan.machine, &roots)?;
     let mut expected = vec![plan.machine];
     expected.extend(&roots);
-    expected.extend(cleanup_helpers.iter().map(|(_, helper, _, _)| *helper));
+    for &(_, helper, _, _) in &cleanup_helpers {
+        if !expected.contains(&helper) {
+            expected.push(helper);
+        }
+    }
     if closure != expected {
         return unsupported("ordered nominal cleanup closure is not exact");
     }
@@ -10902,7 +10910,7 @@ mod tests {
     }
 
     #[test]
-    fn ordered_nominal_cleanup_lowering_rejects_a_second_executable_action() {
+    fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_actions() {
         let mut checked = ordered_one_executable_nominal_affine_checked_fixture();
         let plan = checked
             .facts
@@ -10941,12 +10949,37 @@ mod tests {
         };
         *statement_index = 1;
 
-        assert!(matches!(
-            lower_nominal_affine_unit_cleanup_machine(&checked, &plan),
-            Err(LoweringError::Unsupported(
-                "ordered nominal cleanup target operation sequence drifted"
-            ))
-        ));
+        let lowered = lower_nominal_affine_unit_cleanup_machine(&checked, &plan)
+            .expect("two executable cleanup actions may share one exact helper");
+        assert_eq!(
+            lowered.semantic_module.machines.len(),
+            4,
+            "the shared helper appears once in the exact machine closure"
+        );
+        let entry = &lowered.semantic_module.machines[0];
+        let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator
+        else {
+            panic!("ordered nominal cleanup return")
+        };
+        let helper_ids = cleanups
+            .iter()
+            .map(|cleanup| {
+                let target = lowered
+                    .semantic_module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == cleanup.cleanup_machine)
+                    .expect("cleanup target");
+                let [operation] = target.blocks[0].operations.as_slice() else {
+                    panic!("each cleanup target calls one helper")
+                };
+                let OperationKind::CallUnit { callee, .. } = operation.kind else {
+                    panic!("cleanup helper call")
+                };
+                callee
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(helper_ids[0], helper_ids[1]);
     }
 
     fn partial_affine_unit_checked_fixture() -> CheckedTrees {
