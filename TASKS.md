@@ -61,12 +61,15 @@ Remaining:
   target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
   entry explicitly. The CLI basics cohort and the five deployable proof
   samples, the eight CLI algorithm samples, the six CLI interpreter samples,
-  seven deployable CLI game samples, and ten deployable CLI text samples now
-  author all four hosted roots; the two proof-only samples remain targetless.
+  seven deployable CLI game samples, ten deployable CLI text samples, and ten
+  deployable CLI rendering samples now author all four hosted roots; the two
+  proof-only samples remain targetless.
   `dungeon_crawler_cli` still has a non-Unit `main` plus an existing Linux
   host-call argument lowering gap and remains in the legacy staging set.
   `fletcher_checksum` has a recursive value-call terminal without a selected
   return-write, so it remains unrooted and outside the runnable native corpus.
+  `bouncing_ball_2d` remains unrooted until mutable floating-point machine-field
+  storage and value lowering are implemented.
   Sample refresh names the exact host and never invents an entry;
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including

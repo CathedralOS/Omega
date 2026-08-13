@@ -1,4 +1,4 @@
-// mandelbrot is deployable on every hosted target.
+// bouncing_particles is deployable on every hosted target.
 
 target windows_x64 {
 }

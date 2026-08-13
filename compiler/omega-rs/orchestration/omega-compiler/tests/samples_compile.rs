@@ -31,6 +31,8 @@
 //!    migrated games cohort has the same exact hosted-root guarantees.
 //!  * `text_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated text cohort has the same exact hosted-root guarantees.
+//!  * `rendering_samples_compile_from_authored_program_entry_bindings` — the
+//!    migrated rendering cohort has the same exact hosted-root guarantees.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -116,6 +118,18 @@ const EXPLICIT_ENTRY_TEXT_SAMPLES: &[&str] = &[
     "string_hash",
     "substring_search",
     "text_padding",
+];
+const EXPLICIT_ENTRY_RENDERING_SAMPLES: &[&str] = &[
+    "bouncing_ball",
+    "bouncing_console",
+    "bouncing_particles",
+    "dungeon_render",
+    "histogram",
+    "mandelbrot",
+    "mandelbrot_zoom",
+    "pixel_canvas",
+    "ripple_field",
+    "tick_marquee",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -588,6 +602,11 @@ fn text_samples_compile_from_authored_program_entry_bindings() {
 }
 
 #[test]
+fn rendering_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_cohort("rendering", EXPLICIT_ENTRY_RENDERING_SAMPLES);
+}
+
+#[test]
 fn temperature_sample_retains_exact_float_operator_evidence() {
     let main_path = repo_root().join("samples/cli/basics/temperature_convert/main.omg");
     let checked = compile_to_checked(&main_path, Some(host_target_name()))
@@ -775,10 +794,14 @@ fn samples_with_documented_exit_run_correctly() {
         };
         let name = sample_name(main_path);
         if !filter.as_deref().is_none_or(|filter| {
-            filter
-                .split(',')
-                .map(str::trim)
-                .any(|candidate| !candidate.is_empty() && name.contains(candidate))
+            filter.split(',').map(str::trim).any(|candidate| {
+                candidate
+                    .strip_prefix('=')
+                    .is_some_and(|exact| name == exact)
+                    || (!candidate.is_empty()
+                        && !candidate.starts_with('=')
+                        && name.contains(candidate))
+            })
         }) {
             continue;
         }

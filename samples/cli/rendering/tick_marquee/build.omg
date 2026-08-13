@@ -1,4 +1,4 @@
-// mandelbrot is deployable on every hosted target.
+// tick_marquee is deployable on every hosted target.
 
 target windows_x64 {
 }
