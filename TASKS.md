@@ -206,15 +206,17 @@ Remaining:
   claim-free, unqualified affine parameters whose records are empty or contain
   only relevant Boolean/integer fields. One attached `T::drop` may be empty or
   make up to two source-ordered calls to distinct exact-empty helpers. Two
-  attached drops execute in reverse parameter order, may share one cleanup
-  target, and currently must both be empty. Checked production, canonical
+  attached drops execute in reverse parameter order and may share one empty
+  cleanup target. At most one body in the two-action list may use the same
+  bounded helper-call form. Checked production, canonical
   terminal encoding, independent verification, interpretation, and fixed fuel
   preserve each whole receiver, charge the root edge once, and count every
   cleanup invocation. Omega carries one ordered cleanup-action stream through
-  all five object/image/install paths. Empty drops add no call; the one-drop
-  executable form emits an edge-owned call before return teardown and retains
-  source-ordered operation-owned helper custody. Nested/erased receivers,
-  three-or-more-call bodies, wider or executable cleanup lists, locals, claims,
+  all five object/image/install paths. Empty drops add no call; each accepted
+  executable form emits a call owned by its exact edge/action ordinal before
+  return teardown and retains source-ordered operation-owned helper custody.
+  Nested/erased receivers, three-or-more-call bodies, wider lists or two
+  executable actions, locals, claims,
   qualifications, contracts, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
@@ -440,10 +442,11 @@ reach or trust, and private proof improvements do not change public identity.
   artifact paths. The cleanup may be empty or make up to two source-ordered
   zero-argument calls to mutually distinct exact-empty helpers; native
   artifacts retain the cleanup edge and helper operations as distinct call
-  owners. Two empty nominal cleanups now run in reverse parameter order through
-  interpretation, fuel, and every native artifact path, including repeated use
-  of one cleanup target. Add wider executable nominal cleanup and cleanup
-  lists, contextual cleanup-contract checking,
+  owners. Two nominal cleanups now run in reverse parameter order through
+  interpretation, fuel, and every native artifact path. They may share an
+  empty target, or exactly one action may use the bounded executable body; its
+  native call retains the exact edge/action ordinal. Add wider executable
+  nominal cleanup and cleanup lists, contextual cleanup-contract checking,
   wider structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
