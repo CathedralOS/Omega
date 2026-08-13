@@ -123,7 +123,9 @@ The same normalized geometry may feed different compiler-owned consumers:
   shape; the Omega realization seam supplies target byte order. Erased bindings
   remain required semantic terms but contribute no bytes or initialization
   work; an owned record whose fields are all erased therefore validates its
-  complete semantic value while materializing only zeroed plan storage. This
+  complete semantic value while materializing only zeroed plan storage. A
+  relevant nested field with that erased-only shape likewise remains mandatory
+  semantically but receives no physical plan entry. This
   does not create a by-value public ABI carrier. Schema/type mismatch, duplicate
   or missing fields, out-of-range scalars,
   sum/generic/reference shapes, and unsupported recursion reject before
