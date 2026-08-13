@@ -229,9 +229,10 @@ Current ownership is:
   index coarsens it. Deeper index trees and
   recursive or opaque free/attached view producers remain fences. An exact
   member projection may follow a helper result before the view; the suffix
-  composes before view preservation and index coarsening. The indexed argument
-  may project through a stable helper-local mutable alias; that alias's
-  established origin supplies the collection. It may also index a
+  composes before view preservation and index coarsening, while a member after
+  the index remains absorbed by the coarse backing collection. The indexed
+  argument may project through a stable helper-local mutable alias; that
+  alias's established origin supplies the collection. It may also index a
   structurally transparent helper result directly; the helper's returned-place
   relation
   supplies the collection without an intermediate binding. This includes an
