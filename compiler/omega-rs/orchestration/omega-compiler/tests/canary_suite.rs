@@ -13487,17 +13487,11 @@ fn runtime_bfs_traversal_exit_canary_runs() {
     // set): from node 0 the frontier expands level by level, visit order 0,1,2,3, all four
     // reached -> exit 70.
     let canary = pass_canary("collections/runtime_bfs_traversal_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bfs traversal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bfs traversal canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bfs traversal canary should run");
     assert_eq!(
@@ -13507,7 +13501,7 @@ fn runtime_bfs_traversal_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13516,16 +13510,11 @@ fn runtime_hash_table_exit_canary_runs() {
     // keys/vals/used arrays, hash k%8, probe forward with wrap past occupied slots, look
     // back up. Keys 6,14,7,15 collide and force a wrap; their values sum to 246 -> exit 70.
     let canary = pass_canary("collections/runtime_hash_table_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-hash-table-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("hash table canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-hash-table-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("hash table canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("hash table canary should run");
     assert_eq!(
@@ -13535,7 +13524,7 @@ fn runtime_hash_table_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
