@@ -13920,17 +13920,11 @@ fn runtime_whole_struct_value_copy_exit_canary_runs() {
     // record complement of runtime_whole_array_value_copy_exit: p1 stays {30, 40}
     // even after p2.x = 99 -> exit 70.
     let canary = pass_canary("collections/runtime_whole_struct_value_copy_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-whole-struct-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("whole-struct value copy canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("whole-struct value copy canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("whole-struct value copy canary should run");
     assert_eq!(
@@ -13940,7 +13934,7 @@ fn runtime_whole_struct_value_copy_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13951,17 +13945,11 @@ fn runtime_rule90_automaton_exit_canary_runs() {
     // double buffer. The live-cell counts of the first four generations (1,2,2,4) sum
     // to 9, so it exits 70 only when the computation is exactly right.
     let canary = pass_canary("collections/runtime_rule90_automaton_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-rule90-automaton-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("rule90 automaton canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("rule90 automaton canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("rule90 automaton canary should run");
     assert_eq!(
@@ -13971,7 +13959,7 @@ fn runtime_rule90_automaton_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13982,22 +13970,13 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // element 0. The canary writes two distinct elements and guards each; a dropped
     // index exits 71 instead of 70.
     let canary = pass_canary("expressions/runtime_fixed_array_field_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-fixed-array-field-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("fixed-array field guard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("fixed-array field guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("fixed-array field guard canary should run");
 
@@ -14009,7 +13988,7 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
