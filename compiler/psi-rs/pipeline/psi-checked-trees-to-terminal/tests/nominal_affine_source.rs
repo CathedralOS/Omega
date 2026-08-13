@@ -8,6 +8,10 @@ use psi_terminal::{
     StructuralTypeShape, Terminator,
 };
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use psi_terminal_interpreter::{
+    AcceptTerminalEffects, TerminalExecutionResult, TerminalStructuralValue,
+    interpret_terminal_artifact_with_effect_handler_measured,
+};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -167,6 +171,23 @@ const EXECUTABLE_SOURCE: &str = r#"
 
     data Root {}
     machine Root::enter(token: Token) {}
+"#;
+
+const CONTEXTUAL_EXECUTABLE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token { ready: bool; padding: u8; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {
+        Helper::touch();
+    }
+
+    data Root {}
+    machine Root::enter(first: Token, second: Token)
+    requires second.ready, first.ready
+    {}
 "#;
 
 const TWO_CALL_SOURCE: &str = r#"
@@ -956,6 +977,97 @@ fn two_nominal_roots_may_repeat_one_executable_cleanup_target_and_helper() {
     .expect("shared executable cleanup target verifies");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn contextual_roots_may_share_one_executable_cleanup_target_and_helper() {
+    let tokens = Lexer::new(CONTEXTUAL_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize contextual executable cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse contextual executable cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual executable cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type contextual executable cleanup");
+    let checked = lower_typed_trees(typed).expect("check contextual executable cleanup");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("contextual executable cleanup lowers");
+
+    let entry = &lowered.semantic_module.machines[0];
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("contextual executable caller retains two roots")
+    };
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("contextual executable cleanup uses nominal return")
+    };
+    let [second_cleanup, first_cleanup] = cleanups.as_slice() else {
+        panic!("contextual executable cleanup retains both actions")
+    };
+    assert_eq!(
+        [second_cleanup.place, first_cleanup.place],
+        [second.place, first.place]
+    );
+    assert_eq!(
+        second_cleanup.cleanup_machine,
+        first_cleanup.cleanup_machine
+    );
+    assert_eq!(
+        second_cleanup.cleanup_receiver,
+        first_cleanup.cleanup_receiver
+    );
+    assert!(second_cleanup.cleanup_receiver.is_some());
+    assert_ne!(
+        second_cleanup.requirement_obligations,
+        first_cleanup.requirement_obligations
+    );
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == second_cleanup.cleanup_machine)
+        .expect("shared contextual cleanup target");
+    assert_eq!(target.contract.requires.len(), 1);
+    assert_eq!(target.blocks[0].operations.len(), 1);
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("contextual executable cleanup verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof_bytes).unwrap(),
+        lowered.proof_bundle
+    );
+    let structural_arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: first.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 2,
+            structural_type: second.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut handler = AcceptTerminalEffects;
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+        &structural_arguments,
+        &mut handler,
+    )
+    .expect("contextual executable cleanup interprets from canonical artifact sections");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), 7);
+    assert!(measured.effects().is_empty());
 }
 
 #[test]
