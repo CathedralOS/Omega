@@ -8869,20 +8869,14 @@ fn runtime_funnel_guard_agreement_exit_canary_runs() {
 #[test]
 fn runtime_guarded_binary_operand_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_binary_operand_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-guarded-bin-operand-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded binary operand canary should compile");
+    let host_scratch = scratch.join("host");
+    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+        .expect("guarded binary operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(host_scratch.join("out").join(executable_name()))
         .output()
         .expect("guarded binary operand canary should run");
 
@@ -8895,27 +8889,10 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
-
-    let arm_scratch = std::env::temp_dir().join(format!(
-        "omega-guarded-bin-operand-arm-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&arm_scratch);
-    let arm_source = arm_scratch.join("src");
-    fs::create_dir_all(&arm_source).expect("guarded binary arm source directory");
-    fs::copy(canary.join("main.omg"), arm_source.join("main.omg"))
-        .expect("copy guarded binary arm canary");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write guarded binary arm target manifest");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_scratch.join("out")),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("guarded direct binary write should cross-compile for linux_arm64");
-    let _ = fs::remove_dir_all(&arm_scratch);
+    let arm_scratch = scratch.join("linux-arm64");
+    compile_single_file_hosted_main(&canary, &arm_scratch, "linux_arm64")
+        .expect("guarded direct binary write should cross-compile for linux_arm64");
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The guarded-COPY narrowing: an UNRANGED `yv` copied into `y: [0..=9]` under
