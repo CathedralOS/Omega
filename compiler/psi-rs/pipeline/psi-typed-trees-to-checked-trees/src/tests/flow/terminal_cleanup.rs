@@ -80,6 +80,52 @@ fn structural_conditional_edges_retain_independent_affine_parameter_cleanup() {
 }
 
 #[test]
+fn structural_control_only_fences_edges_that_discard_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Nominal {}
+        machine Nominal::drop(&mut self) {}
+        data Wrapper { value: Nominal; }
+        data Plain { value: u64; }
+
+        machine route(value: Plain) {
+            transition { _ -> keep(value) }
+            state keep(value: Plain) {}
+        }
+
+        machine lose(value: Wrapper) {
+            transition { _ -> done() }
+            state done() {}
+        }
+        "#,
+    );
+
+    let (route, route_entry) = machine_and_entry_state(&checked, "route");
+    let route_plan = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_state(route, route_entry)
+        .expect("plain whole-value transfer remains in the structural-control slice");
+    assert!(
+        route_plan.edges[0]
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+    );
+
+    let (lose, lose_entry) = machine_and_entry_state(&checked, "lose");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_state(lose, lose_entry)
+            .is_none(),
+        "an edge requiring nominal cleanup cannot publish a no-code discard row"
+    );
+}
+
+#[test]
 fn structural_jump_retains_reverse_order_cleanup_after_transfer() {
     let checked = checked(
         r#"

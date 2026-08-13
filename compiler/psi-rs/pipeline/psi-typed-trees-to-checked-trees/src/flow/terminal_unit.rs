@@ -204,10 +204,7 @@ fn build_structural_return_machine(
             let StatementNode::LocalData(local) = statement else {
                 unreachable!("the local prefix contains only local declarations")
             };
-            let TypeReferenceNode::Named {
-                name: local_type_name,
-                ..
-            } = program
+            let TypeReferenceNode::Named { .. } = program
                 .type_reference_table
                 .type_reference(local.type_reference)
             else {
@@ -219,15 +216,7 @@ fn build_structural_return_machine(
                     != Multiplicity::Affine
                 || !parameter_qualifications(program, shapes, local.type_reference, &binders)?
                     .is_empty()
-                // Psi validation currently recognizes the reserved nominal
-                // cleanup shape by this canonical qualified machine spelling.
-                // Do not classify such a type as trivial no-code disposal.
-                || program.machines().iter().any(|candidate| {
-                    candidate.name.as_str().ends_with("::drop")
-                        && candidate.attached_data.as_ref().is_some_and(|attached| {
-                            local_type_name == attached
-                        })
-                })
+                || type_graph_requires_nominal_drop(program, local.type_reference)
             {
                 return None;
             }
@@ -346,6 +335,7 @@ fn build_structural_return_machine(
         return None;
     }
     let trivial_affine_discards = return_unit_affine_discards(
+        program,
         facts,
         machine.symbol,
         state.symbol,
@@ -681,6 +671,8 @@ fn build_structural_scalar_return_machine(
     ) {
         return None;
     }
+    let trivial_affine_discard_parameter_positions =
+        checked_no_code_affine_discard_positions(program, facts, machine.symbol, state)?;
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -690,16 +682,7 @@ fn build_structural_scalar_return_machine(
         bindings,
         result_type,
         return_statement_ordinal,
-        trivial_affine_discard_parameter_positions:
-            super::terminal_cleanup::checked_whole_affine_discard_parameters(
-                program,
-                facts,
-                machine.symbol,
-                state,
-            )?
-            .into_iter()
-            .map(|(_, position)| position)
-            .collect(),
+        trivial_affine_discard_parameter_positions,
     })
 }
 
@@ -947,15 +930,7 @@ fn build_structural_unit_control_machine(
         let terminator = match statements {
             [] => CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
                 trivial_affine_discard_parameter_positions:
-                    super::terminal_cleanup::checked_whole_affine_discard_parameters(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state,
-                    )?
-                    .into_iter()
-                    .map(|(_, position)| position)
-                    .collect(),
+                    checked_no_code_affine_discard_positions(program, facts, machine.symbol, state)?,
             },
             [StatementNode::Transition(transition)]
                 if transition.exit == TransitionExit::Ordinary
@@ -1474,6 +1449,7 @@ fn build_checked_machine(
             .map(|ordinal| u32::try_from(ordinal).ok())
             .collect::<Option<Vec<_>>>()?,
         trivial_affine_discards: return_unit_affine_discards(
+            program,
             facts,
             machine.symbol,
             state.symbol,
@@ -1524,10 +1500,7 @@ fn build_unit_trivial_affine_locals(
             let StatementNode::LocalData(local) = statement else {
                 return None;
             };
-            let TypeReferenceNode::Named {
-                name: local_type_name,
-                ..
-            } = program
+            let TypeReferenceNode::Named { .. } = program
                 .type_reference_table
                 .type_reference(local.type_reference)
             else {
@@ -1539,16 +1512,7 @@ fn build_unit_trivial_affine_locals(
                     != Multiplicity::Affine
                 || !parameter_qualifications(program, shapes, local.type_reference, binders)?
                     .is_empty()
-                // Psi validation currently recognizes the reserved nominal
-                // cleanup shape by this canonical qualified machine spelling.
-                // Do not classify such a type as trivial no-code disposal.
-                || program.machines().iter().any(|candidate| {
-                    candidate.name.as_str().ends_with("::drop")
-                        && candidate
-                            .attached_data
-                            .as_ref()
-                            .is_some_and(|attached| local_type_name == attached)
-                })
+                || type_graph_requires_nominal_drop(program, local.type_reference)
             {
                 return None;
             }
@@ -2437,6 +2401,7 @@ fn entry_claims(
 }
 
 fn return_unit_affine_discards(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -2509,7 +2474,9 @@ fn return_unit_affine_discards(
         }
         let parameter_index = parameter_index?;
         let parameter = &structural_parameters[parameter_index];
+        let source_parameter = source_parameters.get(parameter.position as usize)?;
         if parameter.multiplicity != Multiplicity::Affine
+            || type_graph_requires_nominal_drop(program, source_parameter.type_reference)
             || output.contains(&(parameter_index as u32))
         {
             return None;
@@ -2520,6 +2487,31 @@ fn return_unit_affine_discards(
         }
     }
     Some(output)
+}
+
+fn checked_no_code_affine_discard_positions(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &psi_typed_trees::state::State,
+) -> Option<Vec<u32>> {
+    let positions = super::terminal_cleanup::checked_whole_affine_discard_parameters(
+        program, facts, machine, state,
+    )?
+    .into_iter()
+    .map(|(_, position)| position)
+    .collect::<Vec<_>>();
+    if positions.iter().any(|position| {
+        program
+            .state_parameters(state)
+            .get(*position as usize)
+            .is_none_or(|parameter| {
+                type_graph_requires_nominal_drop(program, parameter.type_reference)
+            })
+    }) {
+        return None;
+    }
+    Some(positions)
 }
 
 fn terminal_field_identity(program: &TypedTrees, symbol: SymbolHandle) -> Option<String> {
@@ -2750,6 +2742,162 @@ fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -
             _ => return false,
         }
     }
+}
+
+/// True when automatic disposal would have to run a reachable nominal
+/// `::drop`. The currently accepted Terminal Psi cleanup carrier represents
+/// only checked no-code affine disposal, so producers must fail closed here.
+pub(super) fn type_graph_requires_nominal_drop(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    type_graph_requires_nominal_drop_with_substitutions(
+        program,
+        type_reference,
+        &[],
+        &mut BTreeSet::new(),
+    )
+}
+
+fn type_graph_requires_nominal_drop_with_substitutions(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return false,
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some((_, replacement)) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)
+                else {
+                    break;
+                };
+                if *replacement == type_reference {
+                    return false;
+                }
+                type_reference = *replacement;
+            }
+            _ => break,
+        }
+    }
+
+    let identity = program
+        .normalized_type_identity_with_binders_and_substitutions(type_reference, &[], substitutions)
+        .into_string();
+    if !visited.insert(identity) {
+        return false;
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => false,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_graph_requires_nominal_drop_with_substitutions(
+                program,
+                *base_type,
+                substitutions,
+                visited,
+            )
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_graph_requires_nominal_drop_with_substitutions(
+                program,
+                *element_type,
+                substitutions,
+                visited,
+            )
+        }
+        TypeReferenceNode::Named { symbol, name } => program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol || data.name.as_str() == name.as_str())
+            .is_some_and(|data| {
+                data_graph_requires_nominal_drop_with_substitutions(
+                    program,
+                    data,
+                    substitutions,
+                    visited,
+                )
+            }),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == *base_symbol)
+            else {
+                return false;
+            };
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            let parameters = program.data_type_parameters(data);
+            if arguments.len() != parameters.len() {
+                return false;
+            }
+            let mut nested_substitutions = substitutions.to_vec();
+            nested_substitutions.extend(
+                parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
+            );
+            data_graph_requires_nominal_drop_with_substitutions(
+                program,
+                data,
+                &nested_substitutions,
+                visited,
+            )
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
+    }
+}
+
+fn data_graph_requires_nominal_drop_with_substitutions(
+    program: &TypedTrees,
+    data: &psi_typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    if program.machines().iter().any(|machine| {
+        machine.name.as_str().ends_with("::drop")
+            && machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|attached| attached == &data.name)
+    }) {
+        return true;
+    }
+    program
+        .data_members(data)
+        .iter()
+        .any(|member| match member {
+            DataMember::Field(field) => type_graph_requires_nominal_drop_with_substitutions(
+                program,
+                field.type_reference,
+                substitutions,
+                visited,
+            ),
+            DataMember::Variant(variant) => {
+                program.data_payload_fields(variant).iter().any(|field| {
+                    type_graph_requires_nominal_drop_with_substitutions(
+                        program,
+                        field.type_reference,
+                        substitutions,
+                        visited,
+                    )
+                })
+            }
+        })
 }
 
 fn is_unit(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {

@@ -96,6 +96,51 @@ fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
         );
     }
 }
+
+#[test]
+fn no_code_unit_and_scalar_returns_reject_reachable_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Nominal {}
+        machine Nominal::drop(&mut self) {}
+        data Wrapper<T> { value: T; }
+        data Plain { value: u64; }
+        data Root {}
+
+        machine Root::plain_unit(value: Plain) {}
+        machine Root::nested_unit(value: Wrapper<Nominal>) {}
+        machine Root::nested_scalar(value: Wrapper<Nominal>) -> u64 { 7 }
+        "#,
+    );
+
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "plain_unit"))
+            .is_some(),
+        "ordinary affine records remain eligible for checked no-code disposal"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "nested_unit"))
+            .is_none(),
+        "Unit return must not erase nested generic nominal cleanup"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, "nested_scalar"))
+            .is_none(),
+        "scalar return must not erase nested generic nominal cleanup"
+    );
+}
 use psi_checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,

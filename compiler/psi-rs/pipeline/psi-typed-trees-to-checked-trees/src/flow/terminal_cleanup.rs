@@ -43,6 +43,7 @@ fn build_state_plan(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
+    let parameters = program.state_parameters(state);
     let discard_parameters =
         checked_whole_affine_discard_parameters(program, facts, machine.symbol, state)?;
 
@@ -119,13 +120,26 @@ fn build_state_plan(
             }
             transferred.insert(*position);
         }
+        let trivial_affine_discard_parameter_positions = discard_parameters
+            .iter()
+            .filter_map(|(symbol, position)| {
+                (!transferred.contains(position)).then_some((*symbol, *position))
+            })
+            .map(|(symbol, position)| {
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == symbol)?;
+                (!super::terminal_unit::type_graph_requires_nominal_drop(
+                    program,
+                    parameter.type_reference,
+                ))
+                .then_some(position)
+            })
+            .collect::<Option<Vec<_>>>()?;
         edges.push(CheckedStructuralControlEdgeCleanupPlan {
             statement_ordinal: u32::try_from(statement_index).ok()?,
             target_state: path.symbol,
-            trivial_affine_discard_parameter_positions: discard_parameters
-                .iter()
-                .filter_map(|(_, position)| (!transferred.contains(position)).then_some(*position))
-                .collect(),
+            trivial_affine_discard_parameter_positions,
         });
     }
     (!edges.is_empty()).then_some(CheckedStructuralControlStateCleanupPlan {
