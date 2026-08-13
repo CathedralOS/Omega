@@ -3863,8 +3863,11 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     let source = r#"
     data Main {
         value: u64;
+        other_value: u64;
         cells: [u64; 2];
         other_cells: [u64; 2];
+        matrix: [[u64; 2]; 2];
+        other_matrix: [[u64; 2]; 2];
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -3922,6 +3925,14 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 1;
     }
 
+    machine Main::repeated_call_index_alias(&mut self) {
+        let alias: &mut u64 =
+            &mut self.matrix[write_index(&mut self.value)][
+                write_index(&mut self.other_value)
+            ];
+        alias = 1;
+    }
+
     machine Main::call_index_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut self.other_cells[make_index()];
@@ -3973,6 +3984,22 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = &mut self.other_cells[recursive_index()];
         alias = 1;
     }
+
+    machine Main::repeated_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_matrix[write_index(&mut self.value)][
+            write_index(&mut self.other_value)
+        ];
+        alias = 1;
+    }
+
+    machine Main::deep_repeated_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_matrix[
+            identity_index(identity_index(make_index()))
+        ][make_index()];
+        alias = 1;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -4010,6 +4037,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         (
             "Main::nested_write_call_index_alias",
             vec!["self.cells", "self.value"],
+        ),
+        (
+            "Main::repeated_call_index_alias",
+            vec!["self.matrix", "self.other_value", "self.value"],
         ),
     ] {
         let machine = typed
@@ -4075,6 +4106,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::nested_write_call_index_alias_rebind",
             vec!["self.other_cells", "self.value"],
         ),
+        (
+            "Main::repeated_call_index_alias_rebind",
+            vec!["self.other_matrix", "self.other_value", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -4104,6 +4139,7 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         "Main::deep_call_index_alias_rebind",
         "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
+        "Main::deep_repeated_call_index_alias_rebind",
     ] {
         let machine = typed
             .machines()
