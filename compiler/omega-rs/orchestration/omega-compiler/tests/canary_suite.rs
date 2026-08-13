@@ -12192,22 +12192,15 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
     // handing `take` the data pointer's low bytes instead of the element.
     // 10+20+15+25 threaded one step behind sums to 70 in machine state.
     let canary = pass_canary("termination/runtime_shrinking_slice_recursion_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-shrinking-slice-recursion-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shrinking slice recursion canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("shrinking slice recursion canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("shrinking slice recursion canary should run");
 
@@ -12219,7 +12212,7 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
