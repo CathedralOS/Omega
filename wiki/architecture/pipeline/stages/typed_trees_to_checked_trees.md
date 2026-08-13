@@ -187,16 +187,17 @@ Current ownership is:
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
   relational handling. Targets include exact transparent
-  call-produced places. An indexed target may use the same complete,
-  non-rebinding direct-call tree through depth two; its collection-coarse write
-  and every index-call write remain published. Deeper, binding-reborrow,
-  recursive, or opaque indexed targets remain fences. The bounded indexed
-  target and bounded non-reference value tree may coexist on one assignment;
-  their frames compose independently, while either side exceeding its rail
-  fences the relation. Other ordinary exact frames remain published, and
-  effect-free discarded expressions and direct Unit statement calls with
-  complete non-rebinding frames are neutral, including exact sibling direct
-  value-call arguments and their bounded two-level direct-call trees. An
+  call-produced places. An indexed target may contain one or more indexes whose
+  non-rebinding direct-call trees are independently complete through depth two;
+  the first index fixes the collection-coarse write, later indexes are
+  absorbing, and every index-call write remains published. Deeper,
+  binding-reborrow, recursive, or opaque indexed targets remain fences. The
+  bounded indexed target and bounded non-reference value tree may coexist on
+  one assignment; their frames compose independently, while either side
+  exceeding its rail fences the relation. Other ordinary exact frames remain
+  published, and effect-free discarded expressions and direct Unit statement
+  calls with complete non-rebinding frames are neutral, including exact sibling
+  direct value-call arguments and their bounded two-level direct-call trees. An
   internal statement call may also take a mutable indexed argument whose index
   is such a tree: caller-alias-aware instantiation coarsens callee writes to the
   argument's collection and publishes index-call writes. The indexed argument
