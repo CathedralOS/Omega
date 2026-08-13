@@ -7099,9 +7099,21 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 #[test]
 fn transparent_returned_place_accepts_bounded_value_call_assignments() {
     let source = r#"
+    data Pair {
+        first: u64;
+        second: u64;
+    }
+
+    data GenericPair<T> {
+        first: T;
+        second: u64;
+    }
+
     data Main {
         value: u64;
         other: u64;
+        pair: Pair;
+        generic_pair: GenericPair<u64>;
         cells: [u64; 2];
     }
 
@@ -7185,6 +7197,43 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_record_value_calls<'cells, 'pair, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: identity(compute(first)),
+            second: identity(identity(compute(second)))
+        };
+        cells
+    }
+
+    machine return_after_generic_record_value_call<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut GenericPair<u64>,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = GenericPair {
+            first: 0,
+            second: compute(value)
+        };
+        cells
+    }
+
+    machine return_after_computed_record_field<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: compute(value) + 1,
+            second: 0
+        };
+        cells
+    }
+
     machine return_after_too_deep_value_call<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -7259,6 +7308,34 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::record_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_record_value_calls(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value,
+            &mut self.other
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::generic_record_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_generic_record_value_call(
+            &mut self.cells,
+            &mut self.generic_pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::computed_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_computed_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::too_deep_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_too_deep_value_call(&mut self.cells, &mut self.value);
@@ -7314,6 +7391,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             "Main::four_level_value_call_assignment_result",
             vec!["self.cells", "self.value"],
         ),
+        (
+            "Main::record_value_call_assignment_result",
+            vec!["self.cells", "self.other", "self.pair", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -7344,6 +7425,8 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::reborrow_sibling_value_call_assignment_result",
         "Main::binding_reborrow_value_call_assignment_result",
         "Main::recursive_value_call_assignment_result",
+        "Main::generic_record_value_call_assignment_result",
+        "Main::computed_record_field_assignment_result",
     ] {
         let machine = typed
             .machines()

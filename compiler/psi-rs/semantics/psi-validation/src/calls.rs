@@ -17,7 +17,9 @@ use psi_facts::NormalizedWriteFrame;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataMember, TypeParameterKind};
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use psi_typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableStructLiteral,
+};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::StateParameter;
@@ -2382,7 +2384,7 @@ fn transparent_callee_result_origin(
                     {
                         return None;
                     }
-                    if value_call_assignment_preserves_transparent_result(
+                    if value_expression_assignment_preserves_transparent_result(
                         program,
                         callee_machine,
                         assignment.value,
@@ -2628,9 +2630,53 @@ fn statement_call_preserves_transparent_result(
 
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
-/// non-reference. Reference results continue through the alias-rebinding path;
-/// unknown return types fail closed.
+/// non-reference. One primitive-only record literal may independently
+/// contain such a tree in each field. Reference-bearing or generic literals,
+/// computed field expressions, and unknown return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
+
+fn value_expression_assignment_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
+            program,
+            current_machine,
+            expression,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+        ),
+        ExpressionNode::StructLiteral(literal)
+            if struct_literal_type_is_caller_isolated(program, literal) =>
+        {
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .all(|field| {
+                    !expression_is_effectful_for_transparent_result(program, field.value)
+                        || value_call_assignment_preserves_transparent_result(
+                            program,
+                            current_machine,
+                            field.value,
+                            symbols,
+                            active_states,
+                            parameters,
+                            aliases,
+                        )
+                })
+        }
+        _ => false,
+    }
+}
 
 fn value_call_assignment_preserves_transparent_result(
     program: &TypedTrees,
@@ -3238,32 +3284,10 @@ fn type_is_caller_isolated_local_inner(
             let Some(definition) = definitions.next() else {
                 return false;
             };
-            if definitions.next().is_some()
-                || !definition.type_parameters.is_empty()
-                || visiting.contains(&definition.symbol)
-            {
+            if definitions.next().is_some() {
                 return false;
             }
-            visiting.push(definition.symbol);
-            let isolated = program
-                .data_members(definition)
-                .iter()
-                .all(|member| match member {
-                    DataMember::Field(field) => {
-                        type_is_caller_isolated_local_inner(program, field.type_reference, visiting)
-                    }
-                    DataMember::Variant(variant) => {
-                        program.data_payload_fields(variant).iter().all(|field| {
-                            type_is_caller_isolated_local_inner(
-                                program,
-                                field.type_reference,
-                                visiting,
-                            )
-                        })
-                    }
-                });
-            visiting.pop();
-            isolated
+            data_definition_is_caller_isolated(program, definition, visiting)
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
@@ -3272,6 +3296,54 @@ fn type_is_caller_isolated_local_inner(
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => false,
     }
+}
+
+fn struct_literal_type_is_caller_isolated(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+) -> bool {
+    if literal.case_name.is_some() {
+        return false;
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name == literal.type_name);
+    let Some(definition) = definitions.next() else {
+        return false;
+    };
+    definitions.next().is_none()
+        && program
+            .data_members(definition)
+            .iter()
+            .all(|member| matches!(member, DataMember::Field(_)))
+        && data_definition_is_caller_isolated(program, definition, &mut Vec::new())
+}
+
+fn data_definition_is_caller_isolated(
+    program: &TypedTrees,
+    definition: &psi_typed_trees::data::DataDefinition,
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !definition.type_parameters.is_empty() || visiting.contains(&definition.symbol) {
+        return false;
+    }
+    visiting.push(definition.symbol);
+    let isolated = program
+        .data_members(definition)
+        .iter()
+        .all(|member| match member {
+            DataMember::Field(field) => {
+                type_is_caller_isolated_local_inner(program, field.type_reference, visiting)
+            }
+            DataMember::Variant(variant) => {
+                program.data_payload_fields(variant).iter().all(|field| {
+                    type_is_caller_isolated_local_inner(program, field.type_reference, visiting)
+                })
+            }
+        });
+    visiting.pop();
+    isolated
 }
 
 fn rebase_local_alias_path(relative: &str, aliases: &[(String, FramePlaceOrigin)]) -> String {

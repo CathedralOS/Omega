@@ -385,7 +385,11 @@ when its right-hand side is a typed non-reference direct-call tree of maximum
 depth four and every frame is complete. Sibling branches are admitted
 independently, and every nested-call write remains published. One deeper,
 binding-reborrow, recursive, or opaque branch fences the whole right-hand side;
-reference-valued roots retain their existing relational handling.
+reference-valued roots retain their existing relational handling. One
+top-level concrete primitive-only record literal may likewise contain
+an independently bounded call tree in each direct field. Generic, recursive,
+reference-bearing, and case-bearing carriers and nested computed field shapes
+remain fences.
 A value-shaped assignment through an indexed target likewise preserves a
 separately returned parameter origin when the collection projects through a
 stable helper-local mutable alias or an exact transparent helper result and
