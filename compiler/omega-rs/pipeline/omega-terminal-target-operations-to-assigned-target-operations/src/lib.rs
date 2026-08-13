@@ -121,9 +121,11 @@ fn assign_function(
                     TerminalTargetUnitOperation::Return {
                         psi_edge,
                         trivial_affine_discards,
+                        residual_affine_discards,
                     } => TerminalAssignedUnitOperation::Return {
                         psi_edge: *psi_edge,
                         trivial_affine_discards: trivial_affine_discards.clone(),
+                        residual_affine_discards: residual_affine_discards.clone(),
                     },
                 })
                 .collect();

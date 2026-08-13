@@ -710,6 +710,32 @@ fn lower_machine(
                 operations.push(TerminalAbstractOperation::ReturnUnit {
                     psi_edge: *edge,
                     trivial_affine_discards: trivial_affine_discards.clone(),
+                    residual_affine_discards: Vec::new(),
+                });
+            }
+            Terminator::ReturnUnitPartialAffine {
+                edge,
+                trivial_affine_discards,
+                residual_affine_discards,
+            } => {
+                if result.is_some() {
+                    return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
+                }
+                let expected_locals = lowered_unit_affine_locals
+                    .iter()
+                    .rev()
+                    .map(|(_, place, _)| place.id)
+                    .collect::<Vec<_>>();
+                if !trivial_affine_discards.starts_with(&expected_locals) {
+                    return Err(LoweringError::UnsupportedStructuralReturn {
+                        machine: machine.id,
+                        edge: *edge,
+                    });
+                }
+                operations.push(TerminalAbstractOperation::ReturnUnit {
+                    psi_edge: *edge,
+                    trivial_affine_discards: trivial_affine_discards.clone(),
+                    residual_affine_discards: residual_affine_discards.clone(),
                 });
             }
             Terminator::ReturnStructural { edge, .. } => {

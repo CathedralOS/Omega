@@ -722,6 +722,7 @@ fn emit_unit_body(
             TerminalAssignedUnitOperation::Return {
                 psi_edge,
                 trivial_affine_discards,
+                residual_affine_discards,
             } => {
                 let expected_local_prefix = established_affine_locals
                     .iter()
@@ -729,7 +730,8 @@ fn emit_unit_body(
                     .map(|(_, place, _)| place.id)
                     .collect::<Vec<_>>();
                 let expected_discards = expected_local_prefix
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .chain(
                         body.parameters
                             .iter()
@@ -741,7 +743,34 @@ fn emit_unit_body(
                             .map(|parameter| parameter.place),
                     )
                     .collect::<Vec<_>>();
-                if trivial_affine_discards != &expected_discards {
+                let partial_cleanup_valid = match residual_affine_discards.as_slice() {
+                    [] => trivial_affine_discards == &expected_discards,
+                    [residual] => {
+                        trivial_affine_discards == &expected_local_prefix
+                            && residual.path.len() == 1
+                            && body.parameters.iter().any(|parameter| {
+                                parameter.place == residual.place
+                                    && parameter.multiplicity
+                                        == psi_terminal::StructuralMultiplicity::Affine
+                                    && parameter.structural_type != residual.structural_type
+                            })
+                            && body.operations[..operation_ordinal]
+                                .iter()
+                                .any(|operation| {
+                                    matches!(
+                                        operation,
+                                        TerminalAssignedUnitOperation::Call { copies, .. }
+                                            if copies.iter().any(|copy| {
+                                            copy.place == residual.place
+                                                && copy.path.len() == 1
+                                                && copy.path != residual.path
+                                        })
+                                    )
+                                })
+                    }
+                    _ => false,
+                };
+                if !partial_cleanup_valid {
                     return Err(EmissionError::UnsupportedAggregatePlacement);
                 }
                 edge_site = Some(*psi_edge);
@@ -775,6 +804,7 @@ fn emit_unit_body(
                         psi_edge: *psi_edge,
                         locals: established_affine_locals.clone(),
                         discards: trivial_affine_discards.clone(),
+                        residual_discards: residual_affine_discards.clone(),
                         code_offset,
                         byte_count: bytes.len() - code_offset,
                     },
@@ -5474,6 +5504,7 @@ mod tests {
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: root_return,
                                 trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5505,6 +5536,7 @@ mod tests {
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: leaf_return,
                                 trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5617,6 +5649,7 @@ mod tests {
                         TerminalTargetUnitOperation::Return {
                             psi_edge: EdgeId::new(1).unwrap(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         },
                     ],
                 }),
@@ -5688,6 +5721,7 @@ mod tests {
                                 TerminalTargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(1).unwrap(),
                                     trivial_affine_discards: Vec::new(),
+                                    residual_affine_discards: Vec::new(),
                                 },
                             ],
                         }),
@@ -5701,6 +5735,7 @@ mod tests {
                             operations: vec![TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(2).unwrap(),
                                 trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
                             }],
                         }),
                     },
@@ -5777,6 +5812,7 @@ mod tests {
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(1).unwrap(),
                                 trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5790,6 +5826,7 @@ mod tests {
                         operations: vec![TerminalTargetUnitOperation::Return {
                             psi_edge: EdgeId::new(2).unwrap(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         }],
                     }),
                 },
@@ -5866,6 +5903,7 @@ mod tests {
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(1).unwrap(),
                                 trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5879,6 +5917,7 @@ mod tests {
                         operations: vec![TerminalTargetUnitOperation::Return {
                             psi_edge: EdgeId::new(2).unwrap(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         }],
                     }),
                 },
@@ -5993,6 +6032,7 @@ mod tests {
                                 TerminalTargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(1).unwrap(),
                                     trivial_affine_discards: Vec::new(),
+                                    residual_affine_discards: Vec::new(),
                                 },
                             ],
                         }),
@@ -6006,6 +6046,7 @@ mod tests {
                             operations: vec![TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(2).unwrap(),
                                 trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
                             }],
                         }),
                     },
@@ -6088,6 +6129,7 @@ mod tests {
                                     TerminalTargetUnitOperation::Return {
                                         psi_edge: EdgeId::new(1).unwrap(),
                                         trivial_affine_discards: Vec::new(),
+                                        residual_affine_discards: Vec::new(),
                                     },
                                 ],
                             }),
@@ -6101,6 +6143,7 @@ mod tests {
                                 operations: vec![TerminalTargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(2).unwrap(),
                                     trivial_affine_discards: Vec::new(),
+                                    residual_affine_discards: Vec::new(),
                                 }],
                             }),
                         },

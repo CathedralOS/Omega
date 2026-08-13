@@ -13,8 +13,9 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
+    StructuralAffineDiscard, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -341,6 +342,8 @@ pub enum TerminalAbstractOperation {
     ReturnUnit {
         psi_edge: EdgeId,
         trivial_affine_discards: Vec<PlaceId>,
+        /// Exact projected no-code cleanup actions retained from verified Psi.
+        residual_affine_discards: Vec<StructuralAffineDiscard>,
     },
     /// Transfer one verified structural root and its complete live claim set
     /// into the function's declared structural result. Omega realization must

@@ -455,6 +455,7 @@ pub fn build_terminal_object_artifact(
                 )?,
                 call_stack,
                 custody,
+                function.unit_affine_cleanup.as_ref(),
             )?;
         }
         match (&function.unit_stack, &function.unit_affine_cleanup) {
@@ -464,6 +465,7 @@ pub fn build_terminal_object_artifact(
                 &function.bytes,
                 &function.fuel_attribution,
                 &function.unit_parameter_homes,
+                &function.internal_unit_calls,
                 cleanup,
             )?,
             (None, None) => {}
@@ -822,6 +824,7 @@ fn validate_unit_affine_cleanup(
     bytes: &[u8],
     fuel: &[TerminalNativeFuelAttribution],
     parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
+    internal_unit_calls: &[omega_terminal_machine_code::TerminalInternalUnitCallRecord],
     cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
@@ -889,7 +892,32 @@ fn validate_unit_affine_cleanup(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != cleanup.discards.len()
-        || suffix != expected_parameter_suffix
+        || match cleanup.residual_discards.as_slice() {
+            [] => suffix != expected_parameter_suffix,
+            [residual] => {
+                let parameter_type = parameter_homes
+                    .iter()
+                    .find(|parameter| parameter.place == residual.place)
+                    .map(|parameter| parameter.structural_type);
+                !suffix.is_empty()
+                    || expected_parameter_suffix.as_slice() != [residual.place]
+                    || !matches!(
+                        residual.path.as_slice(),
+                        [psi_terminal::StructuralPathSegment::Field(identity)] if !identity.is_empty()
+                    )
+                    || parameter_type.is_none()
+                    || parameter_type == Some(residual.structural_type)
+                    || !internal_unit_calls.iter().any(|call| {
+                        call.arguments.iter().any(|argument| {
+                            argument.place == residual.place
+                                && Some(argument.root_structural_type) == parameter_type
+                                && argument.path.len() == 1
+                                && argument.path != residual.path
+                        })
+                    })
+            }
+            _ => true,
+        }
         || fuel
             .iter()
             .filter(|attribution| {
@@ -1128,6 +1156,7 @@ fn validate_internal_unit_call_custody(
     validated_function_stack: &TerminalObjectUnitStack,
     validated_call_stack: &TerminalObjectUnitCallStack,
     custody: &omega_terminal_machine_code::TerminalInternalUnitCallRecord,
+    affine_cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidInternalUnitCallEvidence(machine);
     let Some(relocation) = relocations.iter().find(|relocation| {
@@ -1319,10 +1348,35 @@ fn validate_internal_unit_call_custody(
                                     != Some(u64::from(argument.source.shape.byte_size))
                                 || argument.source.shape.alignment != argument.shape.alignment
                         }
+                        [psi_terminal::StructuralPathSegment::Field(identity)] => {
+                            identity.is_empty()
+                                || argument.root_structural_type == argument.structural_type
+                                || argument.fixed_array_length.is_some()
+                                || argument.element_stride.is_some()
+                                || !argument
+                                    .source_byte_offset
+                                    .is_multiple_of(u32::from(argument.shape.alignment))
+                        }
                         _ => true,
                     }
             })
-        || !projected_argument_indexes.is_subset(&transferred_argument_indexes)
+        || projected_argument_indexes.iter().any(|index| {
+            if transferred_argument_indexes.contains(index) {
+                return false;
+            }
+            let Some(argument) = custody.arguments.get(*index) else {
+                return true;
+            };
+            !matches!(
+                affine_cleanup.map(|cleanup| cleanup.residual_discards.as_slice()),
+                Some([residual])
+                    if argument.path.len() == 1
+                        && residual.place == argument.place
+                        && residual.path.len() == 1
+                        && residual.path != argument.path
+                        && residual.structural_type != argument.root_structural_type
+            )
+        })
         || custody.claim_transfers.iter().any(|transfer| {
             usize::try_from(transfer.argument_index)
                 .map_or(true, |index| index >= custody.arguments.len())
