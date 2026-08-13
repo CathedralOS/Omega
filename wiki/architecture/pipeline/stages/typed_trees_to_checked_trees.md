@@ -186,11 +186,11 @@ Current ownership is:
   sibling branches are admitted independently and all nested-call writes remain
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
-  relational handling. One top-level concrete primitive-only record
-  literal may likewise contain an independently bounded call tree in each
-  direct field. Generic, recursive, reference-bearing, and case-bearing
-  carriers and nested computed field shapes remain fences. Targets may project
-  through a stable helper-local
+  relational handling. One top-level concrete primitive-only record or
+  selected-case literal may likewise contain an independently bounded call
+  tree in each direct common or payload field. Generic, recursive, or
+  reference-bearing carriers and nested computed field shapes remain fences.
+  Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are
   independently complete through depth two; the first index fixes the

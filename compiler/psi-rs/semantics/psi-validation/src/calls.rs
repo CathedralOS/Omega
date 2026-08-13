@@ -2630,9 +2630,10 @@ fn statement_call_preserves_transparent_result(
 
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
-/// non-reference. One primitive-only record literal may independently
-/// contain such a tree in each field. Reference-bearing or generic literals,
-/// computed field expressions, and unknown return types fail closed.
+/// non-reference. One primitive-only record or selected-case literal may
+/// independently contain such a tree in each field. Reference-bearing or
+/// generic literals, computed field expressions, and unknown return types fail
+/// closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 
 fn value_expression_assignment_preserves_transparent_result(
@@ -3302,9 +3303,6 @@ fn struct_literal_type_is_caller_isolated(
     program: &TypedTrees,
     literal: &TableStructLiteral,
 ) -> bool {
-    if literal.case_name.is_some() {
-        return false;
-    }
     let mut definitions = program
         .data_definitions()
         .iter()
@@ -3312,11 +3310,24 @@ fn struct_literal_type_is_caller_isolated(
     let Some(definition) = definitions.next() else {
         return false;
     };
-    definitions.next().is_none()
-        && program
+    let unique_shape = match literal.case_name.as_ref() {
+        None => program
             .data_members(definition)
             .iter()
-            .all(|member| matches!(member, DataMember::Field(_)))
+            .all(|member| matches!(member, DataMember::Field(_))),
+        Some(case_name) => {
+            let mut variants = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Variant(variant) if variant.name == *case_name => Some(variant),
+                    _ => None,
+                });
+            variants.next().is_some() && variants.next().is_none()
+        }
+    };
+    definitions.next().is_none()
+        && unique_shape
         && data_definition_is_caller_isolated(program, definition, &mut Vec::new())
 }
 
