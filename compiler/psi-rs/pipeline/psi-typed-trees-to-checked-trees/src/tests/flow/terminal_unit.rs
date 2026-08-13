@@ -362,10 +362,9 @@ fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization(
         .for_machine(machine_named(&checked, "measure"))
         .expect("scalar return retains its nominal cleanup");
     assert!(plan.trivial_affine_discard_parameter_positions.is_empty());
-    let cleanup = plan
-        .nominal_cleanup
-        .as_ref()
-        .expect("scalar return cleanup is nominal");
+    let [cleanup] = plan.nominal_cleanups.as_slice() else {
+        panic!("scalar return cleanup is exactly one nominal action")
+    };
     assert_eq!(cleanup.source_parameter_index, 0);
     assert!(cleanup.requirements.is_empty());
     let target = checked
@@ -381,6 +380,79 @@ fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization(
             CheckedUnitEffectOperationPlan::ReturnUnit { .. }
         ]
     ));
+}
+
+#[test]
+fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order() {
+    let checked = checked(
+        r#"
+        data First { value: u64; }
+        machine First::drop(&mut self) {}
+        data Helper {}
+        machine Helper::touch() {}
+        data Second { value: u64; }
+        machine Second::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::measure(first: First, second: Second) -> u64 { 7u64 }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("scalar return retains its complete nominal cleanup frontier");
+    assert!(plan.trivial_affine_discard_parameter_positions.is_empty());
+    assert_eq!(
+        plan.nominal_cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0],
+        "nominal scalar-return cleanup order is reverse authored order"
+    );
+    assert!(
+        plan.nominal_cleanups
+            .iter()
+            .all(|cleanup| cleanup.requirements.is_empty())
+    );
+    let target_operation_lengths = plan
+        .nominal_cleanups
+        .iter()
+        .map(|cleanup| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(cleanup.cleanup_machine)
+                .expect("each nominal cleanup target remains executable")
+                .operations
+                .len()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(target_operation_lengths, vec![2, 1]);
+}
+
+#[test]
+fn scalar_return_fences_mixed_trivial_and_nominal_cleanup_roots() {
+    let checked = checked(
+        r#"
+        data Plain { value: u64; }
+        data Token { value: u64; }
+        machine Token::drop(&mut self) {}
+        data Root {}
+        machine Root::measure(plain: Plain, token: Token) -> u64 { 7u64 }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, "measure"))
+            .is_none(),
+        "the first nominal scalar-return slice must not partially retain a mixed frontier"
+    );
 }
 
 #[test]

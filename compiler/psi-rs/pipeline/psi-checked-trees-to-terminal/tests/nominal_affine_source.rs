@@ -236,6 +236,32 @@ const SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
     machine Root::measure(token: Token) -> u64 { 7u64 }
 "#;
 
+const ORDERED_SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
+    data FirstHelper {}
+    machine FirstHelper::touch() {}
+    data SecondHelper {}
+    machine SecondHelper::touch() {}
+
+    data First { value: u64; }
+    machine First::drop(&mut self) { FirstHelper::touch(); }
+    data Second { value: u64; }
+    machine Second::drop(&mut self) { SecondHelper::touch(); }
+
+    data Root {}
+    machine Root::measure(first: First, second: Second) -> u64 { 7u64 }
+"#;
+
+const SHARED_SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token { value: u64; }
+    machine Token::drop(&mut self) { Helper::touch(); }
+
+    data Root {}
+    machine Root::measure(first: Token, second: Token) -> u64 { 7u64 }
+"#;
+
 #[test]
 fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_codec() {
     let tokens = Lexer::new(SCALAR_RETURN_EXECUTABLE_SOURCE)
@@ -289,6 +315,129 @@ fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_cod
         &AdmissionProfile::default(),
     )
     .expect("scalar nominal cleanup verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn ordered_scalar_return_retains_distinct_cleanup_targets_and_helpers() {
+    let tokens = Lexer::new(ORDERED_SCALAR_RETURN_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("ordered scalar return with distinct executable cleanups lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 5);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("ordered scalar entry has two roots")
+    };
+    let [block] = entry.blocks.as_slice() else {
+        panic!("ordered scalar entry has one block")
+    };
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &block.terminator
+    else {
+        panic!("ordered scalar entry returns a value")
+    };
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+        TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("ordered scalar return carries two nominal cleanup actions")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(first_cleanup.place, first.place);
+    assert_ne!(
+        second_cleanup.cleanup_machine,
+        first_cleanup.cleanup_machine
+    );
+    let helper = |cleanup: &psi_terminal::NominalAffineCleanup| {
+        let target = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == cleanup.cleanup_machine)
+            .expect("cleanup target");
+        let [operation] = target.blocks[0].operations.as_slice() else {
+            panic!("cleanup target calls one helper")
+        };
+        let OperationKind::CallUnit { callee, .. } = operation.kind else {
+            panic!("cleanup target operation calls a Unit helper")
+        };
+        callee
+    };
+    assert_ne!(helper(second_cleanup), helper(first_cleanup));
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("ordered scalar nominal cleanups verify");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn ordered_scalar_return_reuses_one_shared_cleanup_target_and_helper() {
+    let tokens = Lexer::new(SHARED_SCALAR_RETURN_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("ordered scalar return with one shared executable cleanup lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("shared scalar entry has two roots")
+    };
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("shared scalar entry returns a value")
+    };
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+        TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("shared scalar return carries two nominal cleanup actions")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(first_cleanup.place, first.place);
+    assert_eq!(
+        second_cleanup.cleanup_machine,
+        first_cleanup.cleanup_machine
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("shared scalar nominal cleanups verify");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
 }
