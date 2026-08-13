@@ -211,12 +211,12 @@ cleanup positions to structural places. A final short-circuit Boolean return is
 expanded into explicit decision blocks: internal conditional edges preserve the
 unchanged structural frontier, and every terminal value leaf carries the same
 checked complete cleanup list. The verifier reconstructs that requirement on
-each path. Exactly one short-circuit Boolean local is also accepted within an
+each path. Up to two short-circuit Boolean locals are also accepted within an
 otherwise branch-free primitive binding sequence: prefix values dominate the
-decision tree, whose leaves jump without cleanup to one typed Boolean
-convergence parameter, then the branch-free suffix and return perform the
-complete cleanup. Multiple short-circuit stages remain fenced until repeated
-carried continuations are represented explicitly.
+first decision tree, each tree's leaves jump without cleanup to one typed
+Boolean convergence parameter, and branch-free work in that continuation may
+lead to the next tree or the final return and complete cleanup. A third
+short-circuit stage remains fenced pending wider repeated-control composition.
 Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.

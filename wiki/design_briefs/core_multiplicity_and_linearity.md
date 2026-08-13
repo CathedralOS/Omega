@@ -207,12 +207,12 @@ reconstructs exact-operation proofs before publication and performs
 reverse-declaration cleanup on the return edge. Final short-circuit Boolean
 returns preserve the full frontier across internal decisions and repeat that
 exact cleanup on every terminal value leaf, which the verifier checks
-independently. Calls, mutable or non-scalar locals, multiple short-circuit local
-stages, claims, and richer exits remain fail-closed rather than weakening the
-frontier model. Branch-free primitive work may surround that one stage: the
-prefix preserves custody through every decision edge, the Boolean value enters
-one typed convergence parameter, the suffix executes in that continuation, and
-cleanup remains only on its subsequent branch-free return.
+independently. Calls, mutable or non-scalar locals, a third short-circuit local
+stage, claims, and richer exits remain fail-closed rather than weakening the
+frontier model. Branch-free primitive work may surround and separate the two
+accepted stages: each prefix preserves custody through every decision edge,
+each Boolean value enters one typed convergence parameter, and cleanup remains
+only on the subsequent branch-free return.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
