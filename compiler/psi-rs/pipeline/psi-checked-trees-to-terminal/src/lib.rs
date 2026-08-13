@@ -2273,7 +2273,7 @@ fn lower_structural_unit_control_machine(
             .terminal_structural_unit_controls
             .structural_types,
     )?;
-    for state in &plan.states {
+    for (state_index, state) in plan.states.iter().enumerate() {
         if state.structural_parameters.is_empty() {
             return unsupported("structural Unit state has no structural parameters");
         }
@@ -2290,6 +2290,48 @@ fn lower_structural_unit_control_machine(
             }
             lookup_type_id(&type_ids, &parameter.type_identity)?;
         }
+        for parameter in &state.scalar_parameters {
+            if !positions.insert(parameter.source_position)
+                || terminal_scalar_type(parameter.primitive_type)? != ScalarType::Boolean
+            {
+                return unsupported(
+                    "structural Unit scalar inputs are not disjoint Boolean guard custody",
+                );
+            }
+        }
+        if state_index != 0 && !state.scalar_parameters.is_empty() {
+            return unsupported(
+                "structural Unit scalar guard inputs are supported only on the entry state",
+            );
+        }
+        if positions.len() != state.structural_parameters.len() + state.scalar_parameters.len()
+            || positions
+                .iter()
+                .copied()
+                .enumerate()
+                .any(|(index, position)| u32::try_from(index).ok() != Some(position))
+        {
+            return unsupported(
+                "structural Unit parameter maps do not partition authored positions",
+            );
+        }
+        match &state.terminator {
+            CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                guard_scalar_parameter_index,
+                ..
+            } if state.scalar_parameters.len() == 1 && *guard_scalar_parameter_index == 0 => {}
+            CheckedStructuralUnitControlTerminatorPlan::Conditional { .. } => {
+                return unsupported(
+                    "structural Unit conditional must select one Boolean scalar guard input",
+                );
+            }
+            _ if state.scalar_parameters.is_empty() => {}
+            _ => {
+                return unsupported(
+                    "structural Unit scalar inputs are supported only on conditional states",
+                );
+            }
+        }
     }
     let mut next_place = 1_u64;
     let entry_parameters = lower_unit_parameters(
@@ -2301,6 +2343,17 @@ fn lower_structural_unit_control_machine(
     if entry_parameters.is_empty() {
         return unsupported("structural Unit control entry has no structural parameters");
     }
+    let scalar_parameters = plan.states[0]
+        .scalar_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            Ok(ValueDeclaration {
+                id: value_id(dense_identity(index)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let entry_places = entry_parameters
         .iter()
         .map(|parameter| parameter.place)
@@ -2341,7 +2394,7 @@ fn lower_structural_unit_control_machine(
         if source.len() != plan.states[index].structural_parameters.len() {
             return unsupported("structural Unit state binding has the wrong arity");
         }
-        let (target_state, transfers, cleanup_positions) = match &plan.states[index].terminator {
+        let successors = match &plan.states[index].terminator {
             CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
                 trivial_affine_discard_parameter_positions,
             } => {
@@ -2363,95 +2416,115 @@ fn lower_structural_unit_control_machine(
                 transfers,
                 trivial_affine_discard_parameter_positions,
                 ..
-            } => (
+            } => vec![(
                 target_state,
                 transfers,
                 trivial_affine_discard_parameter_positions,
-            ),
+            )],
+            CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![
+                (
+                    &when_true.target_state,
+                    &when_true.transfers,
+                    &when_true.trivial_affine_discard_parameter_positions,
+                ),
+                (
+                    &when_false.target_state,
+                    &when_false.transfers,
+                    &when_false.trivial_affine_discard_parameter_positions,
+                ),
+            ],
         };
-        let target_state_index = plan
-            .states
-            .iter()
-            .position(|state| state.state == *target_state)
-            .ok_or(LoweringError::Unsupported(
-                "structural Unit jump targets an unknown checked state",
-            ))?;
-        if bindings[target_state_index].is_some() {
-            return unsupported(
-                "structural Unit control joins and cycles require an explicit frontier map",
-            );
-        }
-        let target_arity = plan.states[target_state_index].structural_parameters.len();
-        if transfers.len() != target_arity {
-            return unsupported("structural Unit transfer map does not fill its target frontier");
-        }
-        let mut target = vec![None; target_arity];
-        let mut used_sources = BTreeSet::new();
-        for transfer in transfers {
-            let source_index = usize::try_from(transfer.source_parameter_index).map_err(|_| {
-                LoweringError::Unsupported("structural Unit source parameter exceeds usize")
-            })?;
-            let target_parameter_index =
-                usize::try_from(transfer.target_parameter_index).map_err(|_| {
-                    LoweringError::Unsupported("structural Unit target parameter exceeds usize")
-                })?;
-            let place = *source.get(source_index).ok_or(LoweringError::Unsupported(
-                "structural Unit transfer names an unknown source parameter",
-            ))?;
-            let source_parameter = &plan.states[index].structural_parameters[source_index];
-            let target_parameter = plan.states[target_state_index]
-                .structural_parameters
-                .get(target_parameter_index)
+        for (target_state, transfers, cleanup_positions) in successors {
+            let target_state_index = plan
+                .states
+                .iter()
+                .position(|state| state.state == *target_state)
                 .ok_or(LoweringError::Unsupported(
-                    "structural Unit transfer names an unknown target parameter",
+                    "structural Unit jump targets an unknown checked state",
                 ))?;
-            if source_parameter.type_identity != target_parameter.type_identity
-                || source_parameter.multiplicity != target_parameter.multiplicity
-                || source_parameter.qualifications != target_parameter.qualifications
-            {
+            if bindings[target_state_index].is_some() {
                 return unsupported(
-                    "structural Unit transfer changes its checked structural signature",
+                    "structural Unit control joins and cycles require an explicit frontier map",
                 );
             }
-            let slot = target
-                .get_mut(target_parameter_index)
-                .ok_or(LoweringError::Unsupported(
-                    "structural Unit transfer names an unknown target parameter",
-                ))?;
-            if slot.replace(place).is_some() || !used_sources.insert(source_index) {
-                return unsupported("structural Unit transfer map is not one-to-one");
+            let target_arity = plan.states[target_state_index].structural_parameters.len();
+            if transfers.len() != target_arity {
+                return unsupported(
+                    "structural Unit transfer map does not fill its target frontier",
+                );
             }
-        }
-        let expected_cleanup = plan.states[index]
-            .structural_parameters
-            .iter()
-            .enumerate()
-            .rev()
-            .filter_map(|(parameter_index, parameter)| {
-                (!used_sources.contains(&parameter_index)).then_some(parameter.position)
-            })
-            .collect::<Vec<_>>();
-        if *cleanup_positions != expected_cleanup {
-            return unsupported(
-                "structural Unit jump transfer and cleanup do not partition its exact frontier",
-            );
-        }
-        let target =
-            target
-                .into_iter()
-                .collect::<Option<Vec<_>>>()
-                .ok_or(LoweringError::Unsupported(
-                    "structural Unit transfer map leaves a target parameter unbound",
+            let mut target = vec![None; target_arity];
+            let mut used_sources = BTreeSet::new();
+            for transfer in transfers {
+                let source_index =
+                    usize::try_from(transfer.source_parameter_index).map_err(|_| {
+                        LoweringError::Unsupported("structural Unit source parameter exceeds usize")
+                    })?;
+                let target_parameter_index = usize::try_from(transfer.target_parameter_index)
+                    .map_err(|_| {
+                        LoweringError::Unsupported("structural Unit target parameter exceeds usize")
+                    })?;
+                let place = *source.get(source_index).ok_or(LoweringError::Unsupported(
+                    "structural Unit transfer names an unknown source parameter",
                 ))?;
-        if target
-            .windows(2)
-            .any(|pair| entry_place_order[&pair[0]] >= entry_place_order[&pair[1]])
-        {
-            return unsupported(
-                "structural Unit target frontier reorders entry custody outside terminal representation",
-            );
+                let source_parameter = &plan.states[index].structural_parameters[source_index];
+                let target_parameter = plan.states[target_state_index]
+                    .structural_parameters
+                    .get(target_parameter_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural Unit transfer names an unknown target parameter",
+                    ))?;
+                if source_parameter.type_identity != target_parameter.type_identity
+                    || source_parameter.multiplicity != target_parameter.multiplicity
+                    || source_parameter.qualifications != target_parameter.qualifications
+                {
+                    return unsupported(
+                        "structural Unit transfer changes its checked structural signature",
+                    );
+                }
+                let slot =
+                    target
+                        .get_mut(target_parameter_index)
+                        .ok_or(LoweringError::Unsupported(
+                            "structural Unit transfer names an unknown target parameter",
+                        ))?;
+                if slot.replace(place).is_some() || !used_sources.insert(source_index) {
+                    return unsupported("structural Unit transfer map is not one-to-one");
+                }
+            }
+            let expected_cleanup = plan.states[index]
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .rev()
+                .filter_map(|(parameter_index, parameter)| {
+                    (!used_sources.contains(&parameter_index)).then_some(parameter.position)
+                })
+                .collect::<Vec<_>>();
+            if *cleanup_positions != expected_cleanup {
+                return unsupported(
+                    "structural Unit jump transfer and cleanup do not partition its exact frontier",
+                );
+            }
+            let target = target.into_iter().collect::<Option<Vec<_>>>().ok_or(
+                LoweringError::Unsupported(
+                    "structural Unit transfer map leaves a target parameter unbound",
+                ),
+            )?;
+            if target
+                .windows(2)
+                .any(|pair| entry_place_order[&pair[0]] >= entry_place_order[&pair[1]])
+            {
+                return unsupported(
+                    "structural Unit target frontier reorders entry custody outside terminal representation",
+                );
+            }
+            bindings[target_state_index] = Some(target);
         }
-        bindings[target_state_index] = Some(target);
     }
     if bindings.iter().any(Option::is_none) || completed.len() != plan.states.len() {
         return unsupported("structural Unit control graph is cyclic or unreachable");
@@ -2518,6 +2591,52 @@ fn lower_structural_unit_control_machine(
                     )?,
                 }
             }
+            CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                guard_scalar_parameter_index,
+                when_true,
+                when_false,
+            } => {
+                if when_true.statement_ordinal != 0 || when_false.statement_ordinal != 1 {
+                    return unsupported(
+                        "structural Unit conditional successors are not in canonical order",
+                    );
+                }
+                let condition = scalar_parameters
+                    .get(usize::try_from(*guard_scalar_parameter_index).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "structural Unit guard scalar index exceeds usize",
+                        )
+                    })?)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural Unit conditional names an unknown scalar guard",
+                    ))?;
+                let lower_successor =
+                    |successor: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
+                     edge: EdgeId|
+                     -> Result<SuccessorEdge, LoweringError> {
+                        Ok(SuccessorEdge {
+                            edge,
+                            target: state_ids
+                                .iter()
+                                .find_map(|(state, block)| {
+                                    (*state == successor.target_state).then_some(*block)
+                                })
+                                .ok_or(LoweringError::Unsupported(
+                                    "structural Unit conditional target has no terminal block",
+                                ))?,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: lower_discards(
+                                &successor.trivial_affine_discard_parameter_positions,
+                            )?,
+                        })
+                    };
+                let false_edge = edge_id(allocate_dense(&mut next_edge)?);
+                Terminator::Conditional {
+                    condition: condition.id,
+                    when_true: lower_successor(when_true, edge)?,
+                    when_false: lower_successor(when_false, false_edge)?,
+                }
+            }
         };
         blocks.push(Block {
             id: state_ids[index].1,
@@ -2529,7 +2648,7 @@ fn lower_structural_unit_control_machine(
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
-        parameters: Vec::new(),
+        parameters: scalar_parameters,
         structural_parameters: entry_parameters.clone(),
         result: TerminalMachineResult::Unit,
         structural_places: entry_parameters
@@ -8707,6 +8826,7 @@ mod tests {
                         psi_checked_trees::CheckedStructuralUnitControlStatePlan {
                             state: entry,
                             structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
+                            scalar_parameters: Vec::new(),
                             terminator: CheckedStructuralUnitControlTerminatorPlan::Jump {
                                 statement_ordinal: 0,
                                 target_state: leaf,
@@ -8722,10 +8842,87 @@ mod tests {
                         psi_checked_trees::CheckedStructuralUnitControlStatePlan {
                             state: leaf,
                             structural_parameters: vec![affine_parameter(0)],
+                            scalar_parameters: Vec::new(),
                             terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
                         },
+                    ],
+                }],
+            };
+    }
+
+    fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
+        let root = SymbolHandle::from_arena_index(1);
+        let entry = SymbolHandle::from_arena_index(11);
+        let true_leaf = SymbolHandle::from_arena_index(12);
+        let false_leaf = SymbolHandle::from_arena_index(13);
+        let affine_parameter = |position| psi_checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: "example::Acknowledgement".to_owned(),
+            multiplicity: Multiplicity::Affine,
+            qualifications: Vec::new(),
+        };
+        let leaf = |state| psi_checked_trees::CheckedStructuralUnitControlStatePlan {
+            state,
+            structural_parameters: vec![affine_parameter(0)],
+            scalar_parameters: Vec::new(),
+            terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                trivial_affine_discard_parameter_positions: vec![0],
+            },
+        };
+        checked.facts.flow.terminal_structural_unit_controls =
+            psi_checked_trees::CheckedStructuralUnitControlPlans {
+                structural_types: checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .structural_types
+                    .clone(),
+                machines: vec![CheckedStructuralUnitControlMachinePlan {
+                    machine: root,
+                    attachment_type_identity: "example::Root".to_owned(),
+                    states: vec![
+                        psi_checked_trees::CheckedStructuralUnitControlStatePlan {
+                            state: entry,
+                            structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
+                            scalar_parameters: vec![
+                                psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                                    source_position: 2,
+                                    primitive_type: PrimitiveType::Bool,
+                                },
+                            ],
+                            terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                                guard_scalar_parameter_index: 0,
+                                when_true:
+                                    psi_checked_trees::CheckedStructuralControlSuccessorPlan {
+                                        statement_ordinal: 0,
+                                        target_state: true_leaf,
+                                        transfers: vec![
+                                            psi_checked_trees::CheckedStructuralControlTransferPlan {
+                                                source_parameter_index: 0,
+                                                target_parameter_index: 0,
+                                            },
+                                        ],
+                                        trivial_affine_discard_parameter_positions: vec![1],
+                                    },
+                                when_false:
+                                    psi_checked_trees::CheckedStructuralControlSuccessorPlan {
+                                        statement_ordinal: 1,
+                                        target_state: false_leaf,
+                                        transfers: vec![
+                                            psi_checked_trees::CheckedStructuralControlTransferPlan {
+                                                source_parameter_index: 1,
+                                                target_parameter_index: 0,
+                                            },
+                                        ],
+                                        trivial_affine_discard_parameter_positions: vec![0],
+                                    },
+                            },
+                        },
+                        leaf(true_leaf),
+                        leaf(false_leaf),
                     ],
                 }],
             };
@@ -8880,6 +9077,102 @@ mod tests {
                 .expect("canonical structural control bytes should decode"),
             lowered.semantic_module
         );
+    }
+
+    #[test]
+    fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_unit_conditional_fixture(&mut checked);
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("exact structural conditional frontiers should lower");
+        let [machine] = lowered.semantic_module.machines.as_slice() else {
+            panic!("structural conditional slice lowers one attached machine")
+        };
+        assert!(matches!(
+            machine.parameters.as_slice(),
+            [ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Boolean,
+            }] if *id == value_id(1)
+        ));
+        assert_eq!(machine.blocks.len(), 3);
+        assert!(matches!(
+            &machine.blocks[0].terminator,
+            Terminator::Conditional {
+                condition,
+                when_true: SuccessorEdge {
+                    target: true_target,
+                    arguments: true_arguments,
+                    trivial_affine_discards: true_discards,
+                    ..
+                },
+                when_false: SuccessorEdge {
+                    target: false_target,
+                    arguments: false_arguments,
+                    trivial_affine_discards: false_discards,
+                    ..
+                },
+            } if *condition == value_id(1)
+                && *true_target == block_id(2)
+                && true_arguments.is_empty()
+                && true_discards == &[place_id(2)]
+                && *false_target == block_id(3)
+                && false_arguments.is_empty()
+                && false_discards == &[place_id(1)]
+        ));
+        assert!(matches!(
+            &machine.blocks[1].terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards == &[place_id(1)]
+        ));
+        assert!(matches!(
+            &machine.blocks[2].terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards == &[place_id(2)]
+        ));
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("structural conditional cleanup should verify independently");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("structural conditional should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("structural conditional should decode canonically"),
+            lowered.semantic_module
+        );
+
+        let CheckedStructuralUnitControlTerminatorPlan::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &mut checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0]
+            .states[0]
+            .terminator
+        else {
+            unreachable!()
+        };
+        std::mem::swap(
+            &mut when_true.statement_ordinal,
+            &mut when_false.statement_ordinal,
+        );
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural Unit conditional successors are not in canonical order"
+            ))
+        ));
     }
 
     #[test]

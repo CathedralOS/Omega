@@ -49,9 +49,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 .map(|parameter| program.primitive_type_reference(parameter.type_reference))
                 .collect::<Option<Vec<_>>>()
                 .expect("filtered scalar parameters retain primitive carriers");
-            let Some(result_type) = program.primitive_type_reference(state.return_type) else {
-                continue;
-            };
+            let result_type = program.primitive_type_reference(state.return_type);
             for (statement_index, statement) in program
                 .statement_table
                 .statements(state.statement_nodes)
@@ -114,16 +112,18 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         });
                     }
                     StatementNode::Expression(expression) => {
-                        if let Some(expression) = lower_return_expression(
-                            program,
-                            operators,
-                            *expression,
-                            &scalar_parameters,
-                            &parameter_types,
-                            &locals,
-                            result_type,
-                            exact_integer_casts,
-                        ) {
+                        if let Some(result_type) = result_type
+                            && let Some(expression) = lower_return_expression(
+                                program,
+                                operators,
+                                *expression,
+                                &scalar_parameters,
+                                &parameter_types,
+                                &locals,
+                                result_type,
+                                exact_integer_casts,
+                            )
+                        {
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
                                 statement_ordinal,
