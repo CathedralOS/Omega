@@ -718,7 +718,7 @@ fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target()
 }
 
 #[test]
-fn contextual_multi_root_nominal_cleanup_fails_closed_until_its_complete_slice() {
+fn contextual_multi_root_nominal_cleanup_crosses_source_codec_and_verifier() {
     let tokens = Lexer::new(TWO_ROOT_CONTEXTUAL_SOURCE)
         .tokenize()
         .expect("tokenize contextual two-root cleanup");
@@ -727,12 +727,58 @@ fn contextual_multi_root_nominal_cleanup_fails_closed_until_its_complete_slice()
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type contextual two-root cleanup source");
     let checked = lower_typed_trees(typed).expect("check contextual two-root cleanup source");
-    assert!(matches!(
-        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter"),
-        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
-            "ordered nominal cleanup caller requirements are outside the root-only contextual slice"
-        ))
-    ));
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("contextual two-root cleanup lowers");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("terminal entry");
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("contextual caller retains two owned roots")
+    };
+    assert_eq!(entry.contract.requires.len(), 2);
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("contextual multi-root cleanup uses nominal return")
+    };
+    let [second_cleanup, first_cleanup] = cleanups.as_slice() else {
+        panic!("contextual multi-root cleanup retains both actions")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(first_cleanup.place, first.place);
+    assert_eq!(
+        second_cleanup.cleanup_machine,
+        first_cleanup.cleanup_machine
+    );
+    assert_eq!(
+        second_cleanup.cleanup_receiver,
+        first_cleanup.cleanup_receiver
+    );
+    assert!(second_cleanup.cleanup_receiver.is_some());
+    assert_eq!(second_cleanup.requirement_obligations.len(), 1);
+    assert_eq!(first_cleanup.requirement_obligations.len(), 1);
+    assert_ne!(
+        second_cleanup.requirement_obligations,
+        first_cleanup.requirement_obligations
+    );
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently discharges both root-specific cleanup goals");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(
+        decode_module(&bytes).expect("semantic module decodes"),
+        lowered.semantic_module
+    );
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof_bytes).expect("proof bundle decodes"),
+        lowered.proof_bundle
+    );
 }
 
 #[test]

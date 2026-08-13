@@ -3989,11 +3989,6 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let plan = &nominal.machine;
-    if !nominal.caller_requirements.is_empty() {
-        return unsupported(
-            "ordered nominal cleanup caller requirements are outside the root-only contextual slice",
-        );
-    }
     let service_summary_is_empty = |summary: ServiceReachSummary| {
         checked
             .facts
@@ -4064,7 +4059,6 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             || cleanup.type_identity != parameter.type_identity
             || cleanup.cleanup_machine == plan.machine
             || cleanup.cleanup_contract_fingerprint == 0
-            || !cleanup.requirements.is_empty()
         {
             return unsupported("ordered nominal cleanup parameter join drifted");
         }
@@ -4105,6 +4099,104 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             ))?;
         if !is_bounded_nominal_cleanup_record(&shape.shape) {
             return unsupported("ordered nominal cleanup parameter shape is outside the bound");
+        }
+    }
+
+    let checked_contextual_field =
+        |source_parameter_index: u32, field_identity: &str, expected: bool| {
+            if !expected {
+                return Err(LoweringError::Unsupported(
+                    "contextual nominal cleanup Boolean requirement must expect true",
+                ));
+            }
+            let parameter = plan
+                .structural_parameters
+                .get(usize::try_from(source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "contextual nominal cleanup caller requirement root is out of range",
+                    )
+                })?)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup caller requirement root is absent",
+                ))?;
+            let shape = nominal_types
+                .iter()
+                .find(|candidate| candidate.identity == parameter.type_identity)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup receiver shape is absent",
+                ))?;
+            let CheckedUnitStructuralTypeShape::Record { fields } = &shape.shape else {
+                unreachable!("bounded nominal cleanup receiver is a record")
+            };
+            fields
+            .iter()
+            .find(|field| field.identity == field_identity)
+            .filter(|field| {
+                !field.relevance.is_erased()
+                    && field.field_type
+                        == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Bool)
+            })
+            .map(|field| field.identity.clone())
+            .ok_or(LoweringError::Unsupported(
+                "contextual nominal cleanup requirement field is absent, erased, or non-Boolean",
+            ))
+        };
+    let contextual_caller_requirements = nominal
+        .caller_requirements
+        .iter()
+        .map(|requirement| {
+            checked_contextual_field(
+                requirement.source_parameter_index,
+                &requirement.field_identity,
+                requirement.expected,
+            )
+            .map(|field| (requirement.source_parameter_index, field))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if contextual_caller_requirements
+        .iter()
+        .collect::<BTreeSet<_>>()
+        .len()
+        != contextual_caller_requirements.len()
+    {
+        return unsupported("contextual nominal cleanup caller requirements are duplicated");
+    }
+    let contextual_cleanup_requirements = nominal
+        .cleanups
+        .iter()
+        .map(|cleanup| {
+            let requirements = cleanup
+                .requirements
+                .iter()
+                .map(|requirement| {
+                    checked_contextual_field(
+                        cleanup.source_parameter_index,
+                        &requirement.field_identity,
+                        requirement.expected,
+                    )
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            if requirements.iter().collect::<BTreeSet<_>>().len() != requirements.len()
+                || requirements.iter().any(|field| {
+                    !contextual_caller_requirements.iter().any(|(root, caller_field)| {
+                        *root == cleanup.source_parameter_index && caller_field == field
+                    })
+                })
+            {
+                return unsupported(
+                    "contextual nominal cleanup requirements are duplicated or lack a caller premise",
+                );
+            }
+            Ok(requirements)
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    for (index, cleanup) in nominal.cleanups.iter().enumerate() {
+        if let Some(earlier) = nominal.cleanups[..index]
+            .iter()
+            .position(|candidate| candidate.cleanup_machine == cleanup.cleanup_machine)
+            && contextual_cleanup_requirements[earlier] != contextual_cleanup_requirements[index]
+        {
+            return unsupported("shared nominal cleanup target requirements drifted");
         }
     }
 
@@ -4307,32 +4399,229 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         .ok_or(LoweringError::Unsupported(
             "ordered nominal cleanup entry is absent",
         ))?;
-    let entry_parameters = &lowered.semantic_module.machines[entry_index].structural_parameters;
-    let terminal_cleanups = nominal
-        .cleanups
-        .iter()
-        .map(|cleanup| {
+    let entry_parameters = lowered.semantic_module.machines[entry_index]
+        .structural_parameters
+        .clone();
+    if !contextual_caller_requirements.is_empty()
+        && (!lowered.proof_bundle.evidence.is_empty()
+            || lowered.semantic_module.machines.iter().any(|machine| {
+                !machine.contract.requires.is_empty() || !machine.contract.ensures.is_empty()
+            }))
+    {
+        return unsupported("contextual nominal cleanup obligation namespace is not isolated");
+    }
+    let terminal_field =
+        |source_parameter_index: u32,
+         field_identity: &str|
+         -> Result<(PlaceId, StructuralTypeId, StructuralFieldId), LoweringError> {
             let parameter = plan
                 .structural_parameters
-                .get(usize::try_from(cleanup.source_parameter_index).ok()?)?;
+                .get(usize::try_from(source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "contextual nominal cleanup terminal root is out of range",
+                    )
+                })?)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup terminal root is absent",
+                ))?;
             let terminal_parameter = entry_parameters
                 .iter()
-                .find(|candidate| candidate.position == parameter.position)?;
-            let machine_index = closure
+                .find(|candidate| candidate.position == parameter.position)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup terminal parameter is absent",
+                ))?;
+            let structural_type = lookup_type_id(&type_ids, &parameter.type_identity)?;
+            let field = lowered
+                .semantic_module
+                .structural_types
                 .iter()
-                .position(|candidate| *candidate == cleanup.cleanup_machine)?;
-            Some(NominalAffineCleanup {
-                place: terminal_parameter.place,
-                structural_type: lookup_type_id(&type_ids, &cleanup.type_identity).ok()?,
-                cleanup_machine: machine_id(dense_identity(machine_index).ok()?),
-                cleanup_receiver: None,
-                requirement_obligations: Vec::new(),
-            })
+                .find(|declaration| declaration.id == structural_type)
+                .and_then(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => {
+                        fields.iter().find(|field| field.identity == field_identity)
+                    }
+                    StructuralTypeShape::FixedArray { .. } => None,
+                })
+                .filter(|field| {
+                    !field.relevance.is_erased()
+                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                })
+                .map(|field| field.id)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup terminal field identity drifted",
+                ))?;
+            Ok((terminal_parameter.place, structural_type, field))
+        };
+    let mut caller_clauses = contextual_caller_requirements
+        .iter()
+        .map(|(root, field_identity)| {
+            let (place, _, field) = terminal_field(*root, field_identity)?;
+            Ok((
+                (place, field),
+                Proposition::Equal(
+                    ScalarTerm::boolean(true),
+                    ScalarTerm::boolean_field(place, field),
+                ),
+            ))
         })
-        .collect::<Option<Vec<_>>>()
-        .ok_or(LoweringError::Unsupported(
-            "ordered nominal cleanup identities could not be lowered",
-        ))?;
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    caller_clauses
+        .sort_by_key(|((root, field), _)| (root.get().to_le_bytes(), field.get().to_le_bytes()));
+    let caller_requires = caller_clauses
+        .iter()
+        .map(|(_, proposition)| proposition.clone())
+        .collect::<Vec<_>>();
+
+    let mut next_proof_root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.structural_places.iter())
+        .map(|place| place.id.get())
+        .max()
+        .unwrap_or(0);
+    let mut target_contexts = Vec::<(
+        psi_symbols::SymbolHandle,
+        Option<PlaceId>,
+        Vec<(StructuralFieldId, Proposition)>,
+    )>::new();
+    for (cleanup, requirements) in nominal
+        .cleanups
+        .iter()
+        .zip(&contextual_cleanup_requirements)
+    {
+        if target_contexts
+            .iter()
+            .any(|(target, _, _)| *target == cleanup.cleanup_machine)
+        {
+            continue;
+        }
+        let receiver = if requirements.is_empty() {
+            None
+        } else {
+            next_proof_root = next_proof_root
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup proof-root identity space is exhausted",
+                ))?;
+            Some(place_id(next_proof_root))
+        };
+        let mut clauses = requirements
+            .iter()
+            .map(|field_identity| {
+                let (_, _, field) = terminal_field(cleanup.source_parameter_index, field_identity)?;
+                let receiver = receiver.expect(
+                    "a nonempty contextual cleanup requirement set has a proof-only receiver",
+                );
+                Ok((
+                    field,
+                    Proposition::Equal(
+                        ScalarTerm::boolean(true),
+                        ScalarTerm::boolean_field(receiver, field),
+                    ),
+                ))
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        clauses.sort_by_key(|(field, _)| field.get().to_le_bytes());
+        target_contexts.push((cleanup.cleanup_machine, receiver, clauses));
+    }
+    for (target_symbol, _, clauses) in &target_contexts {
+        let target_index = closure
+            .iter()
+            .position(|candidate| candidate == target_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup target was not retained",
+            ))?;
+        let target_id = machine_id(dense_identity(target_index)?);
+        let target = lowered
+            .semantic_module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == target_id)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup target was not retained",
+            ))?;
+        target.contract.requires = clauses
+            .iter()
+            .map(|(_, proposition)| proposition.clone())
+            .collect();
+    }
+
+    let mut next_obligation_identity = 0_u64;
+    let mut evidence = Vec::new();
+    let mut terminal_cleanups = Vec::with_capacity(nominal.cleanups.len());
+    for cleanup in &nominal.cleanups {
+        let parameter = plan
+            .structural_parameters
+            .get(
+                usize::try_from(cleanup.source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "ordered nominal cleanup source root is out of range",
+                    )
+                })?,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup source root is absent",
+            ))?;
+        let terminal_parameter = entry_parameters
+            .iter()
+            .find(|candidate| candidate.position == parameter.position)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup terminal parameter is absent",
+            ))?;
+        let machine_index = closure
+            .iter()
+            .position(|candidate| *candidate == cleanup.cleanup_machine)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup target is absent",
+            ))?;
+        let (_, receiver, target_clauses) = target_contexts
+            .iter()
+            .find(|(target, _, _)| *target == cleanup.cleanup_machine)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup target context is absent",
+            ))?;
+        let mut requirement_obligations = Vec::with_capacity(target_clauses.len());
+        for (field, _) in target_clauses {
+            let assumption_index = caller_clauses
+                .iter()
+                .position(|((root, caller_field), _)| {
+                    *root == terminal_parameter.place && caller_field == field
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup caller requirement is absent",
+                ))?;
+            next_obligation_identity =
+                next_obligation_identity
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "contextual nominal cleanup obligation identity space is exhausted",
+                    ))?;
+            let obligation = obligation_id(next_obligation_identity);
+            requirement_obligations.push(obligation);
+            evidence.push(ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(next_obligation_identity)
+                        .expect("terminal obligation identity is nonzero"),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: caller_requires[assumption_index].clone(),
+                        rule: ProofRule::Assumption {
+                            index: assumption_index,
+                        },
+                    },
+                }),
+            });
+        }
+        terminal_cleanups.push(NominalAffineCleanup {
+            place: terminal_parameter.place,
+            structural_type: lookup_type_id(&type_ids, &cleanup.type_identity)?,
+            cleanup_machine: machine_id(dense_identity(machine_index)?),
+            cleanup_receiver: *receiver,
+            requirement_obligations,
+        });
+    }
     for (cleanup, checked_cleanup) in terminal_cleanups.iter().zip(&nominal.cleanups) {
         let target = lowered
             .semantic_module
@@ -4380,6 +4669,18 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                             )
                     },
                 );
+        let expected_target_requires = target_contexts
+            .iter()
+            .find(|(target_symbol, _, _)| *target_symbol == checked_cleanup.cleanup_machine)
+            .map(|(_, _, clauses)| {
+                clauses
+                    .iter()
+                    .map(|(_, proposition)| proposition.clone())
+                    .collect::<Vec<_>>()
+            })
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup target context is absent",
+            ))?;
         if target.attachment != Some(cleanup.structural_type)
             || !target.parameters.is_empty()
             || !target.structural_parameters.is_empty()
@@ -4401,7 +4702,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 } if trivial_affine_discards.is_empty()
             )
             || !target.contract.crash_routes.is_empty()
-            || !target.contract.requires.is_empty()
+            || target.contract.requires != expected_target_requires
             || !target.contract.ensures.is_empty()
         {
             return unsupported("ordered nominal cleanup target terminal machine is not exact");
@@ -4467,6 +4768,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
     let entry = &mut lowered.semantic_module.machines[entry_index];
+    entry.contract.requires = caller_requires.clone();
     let [block] = entry.blocks.as_mut_slice() else {
         return unsupported("ordered nominal cleanup entry control drifted");
     };
@@ -4491,7 +4793,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         || !block.operations.is_empty()
         || !trivial_affine_discards.is_empty()
         || !entry.contract.crash_routes.is_empty()
-        || !entry.contract.requires.is_empty()
+        || entry.contract.requires != caller_requires
         || !entry.contract.ensures.is_empty()
     {
         return unsupported("ordered nominal cleanup terminal caller is not exact");
@@ -4500,6 +4802,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         edge: *edge,
         cleanups: terminal_cleanups,
     };
+    lowered.proof_bundle.evidence = evidence;
     Ok(lowered)
 }
 
@@ -11373,7 +11676,7 @@ mod tests {
         assert!(matches!(
             lower_nominal_affine_unit_cleanup_machine(&checked, &contextual),
             Err(LoweringError::Unsupported(
-                "ordered nominal cleanup caller requirements are outside the root-only contextual slice"
+                "contextual nominal cleanup requirement field is absent, erased, or non-Boolean"
             ))
         ));
     }

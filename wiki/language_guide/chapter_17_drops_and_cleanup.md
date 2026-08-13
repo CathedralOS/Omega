@@ -263,11 +263,14 @@ The implemented root-return subset currently proves a finite canonical set of
 direct relevant Boolean receiver-field requirements on an empty `drop` body
 from matching caller facts. For example, `requires self.ready, self.armed` is
 available for automatic cleanup at a Unit return whose caller establishes both
-facts for `token`; unrelated supported caller facts do not need to appear in
-the `drop` contract. Psi records and independently replays every exact receiver
-substitution in the proof artifact; none is a native argument or Omega runtime
-contract. Other predicates, facts changed by a nonempty body, and multiple
-contextual cleanup roots remain outside this bounded subset.
+facts for each affected value; unrelated supported caller facts do not need to
+appear in the `drop` contract. A finite list of roots is accepted and runs in
+reverse parameter order. Roots sharing one cleanup target share its target-local
+proof receiver, but every cleanup action receives distinct obligations for its
+own caller root. Psi independently replays every exact receiver substitution in
+the proof artifact; none is a native argument or Omega runtime contract. Other
+predicates and facts changed by a nonempty body remain outside this bounded
+subset.
 
 Diagnostics name both the edge and the missing cleanup premise:
 
