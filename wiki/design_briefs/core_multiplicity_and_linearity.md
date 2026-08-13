@@ -208,10 +208,10 @@ checked facts retain each dense declaration ordinal and type identity, terminal
 Psi explicitly establishes them in declaration order, and return cleanup orders
 them in reverse before any affine parameter. This does not generalize local
 cleanup to control edges, nominal drop, or partial values. The flat
-partial-value slice separately admits one direct field move from a claim-free
-affine record and preserves every residual structural field in reverse
-declaration order through terminal Psi and Omega artifacts; nested paths and
-multiple moves remain fenced.
+partial-value slice separately admits a finite source-ordered run of distinct
+direct field moves from one claim-free affine record and preserves every
+residual structural field in reverse declaration order through terminal Psi
+and Omega artifacts; nested paths remain fenced.
 Checked facts retain the first per-edge cleanup subset for ordinary named
 transitions: each exact source-state/statement/target row names the whole,
 claim-free affine parameter positions discarded on that arm after subtracting
