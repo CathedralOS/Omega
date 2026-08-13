@@ -3974,21 +3974,36 @@ fn select_runtime_dispatch_local_initializer_write(
         expressions,
     );
     let resolved_initializer_source_key = resolved_initializer.source_key;
-    let preserve_authored_float_initializer = !matches!(
-        super::lookups::carried_float_provider_plan(
+    // State calls have already been sequenced and their values materialized in
+    // ordinal result slots before this write. Keep the authored call node in a
+    // compound initializer so table operand resolution can consume that slot.
+    // Re-simplifying `let s = self.classify(x) + 67` can inline `classify` to
+    // its terminal expression after scheduling, severing the AssignmentValue
+    // call identity and either re-evaluating the callee body or dropping the
+    // local write entirely. Bare calls still take the direct-copy path below.
+    let initializer_has_assignment_value_call = initializer_statement_has_assignment_value_call(
+        input
+            .state_calls
+            .calls_for_statement(source_key, statement_index)
+            .map(|call| call.role),
+    );
+    let preserve_authored_initializer = initializer_has_assignment_value_call
+        || !matches!(
+            super::lookups::carried_float_provider_plan(
+                input,
+                resolved_initializer_source_key,
+                statement_index,
+                expressions,
+                resolved_initializer.expression,
+            ),
+            super::lookups::CarriedFloatProviderPlan::Missing
+        )
+        || expression_contains_runtime_float_builtin(
             input,
-            resolved_initializer_source_key,
-            statement_index,
             expressions,
             resolved_initializer.expression,
-        ),
-        super::lookups::CarriedFloatProviderPlan::Missing
-    ) || expression_contains_runtime_float_builtin(
-        input,
-        expressions,
-        resolved_initializer.expression,
-    );
-    let resolved_initializer = if preserve_authored_float_initializer {
+        );
+    let resolved_initializer = if preserve_authored_initializer {
         // Provider-selected float expressions and compiler-owned unary float
         // builtins must consume their authored checked expression. Simplifying
         // a prior local Name into its initializer moves nested float work
@@ -4279,6 +4294,31 @@ fn select_runtime_dispatch_local_initializer_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+fn initializer_statement_has_assignment_value_call(
+    roles: impl IntoIterator<Item = StateCallRole>,
+) -> bool {
+    roles
+        .into_iter()
+        .any(|role| role == StateCallRole::AssignmentValue)
+}
+
+#[cfg(test)]
+mod local_initializer_call_tests {
+    use super::{StateCallRole, initializer_statement_has_assignment_value_call};
+
+    #[test]
+    fn only_assignment_value_calls_preserve_authored_local_initializers() {
+        assert!(initializer_statement_has_assignment_value_call([
+            StateCallRole::AssignmentValue,
+        ]));
+        assert!(!initializer_statement_has_assignment_value_call([
+            StateCallRole::Statement,
+            StateCallRole::CallArgument,
+            StateCallRole::TransitionArgument,
+        ]));
+    }
 }
 
 fn expression_contains_runtime_float_builtin(
