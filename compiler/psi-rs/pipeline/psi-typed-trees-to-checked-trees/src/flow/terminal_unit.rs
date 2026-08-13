@@ -795,6 +795,10 @@ fn build_structural_scalar_return_machine(
         })
         .collect::<Option<Vec<_>>>()?;
     let bindings_are_branch_free = bindings.iter().all(|(_, branch_free)| *branch_free);
+    let binding_branch_free = bindings
+        .iter()
+        .map(|(_, branch_free)| *branch_free)
+        .collect::<Vec<_>>();
     let bindings = bindings
         .into_iter()
         .map(|(binding, _)| binding)
@@ -819,6 +823,36 @@ fn build_structural_scalar_return_machine(
         scalar_parameters.len(),
         binding_count,
     );
+    let final_binding_is_inlined_short_circuit_return = binding_count > 0
+        && binding_branch_free[..binding_count - 1]
+            .iter()
+            .all(|branch_free| *branch_free)
+        && !binding_branch_free[binding_count - 1]
+        && bindings[binding_count - 1].primitive_type == PrimitiveType::Bool
+        && facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                u32::try_from(binding_count - 1).ok()?,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: u32::try_from(binding_count - 1).ok()?,
+                },
+            )
+            .is_some_and(|expression| {
+                is_single_top_level_short_circuit_boolean_return(
+                    expression,
+                    scalar_parameters.len(),
+                    binding_count - 1,
+                )
+            })
+        && matches!(
+            return_expression,
+            CheckedScalarExpression::Boolean(expression)
+                if matches!(expression.as_ref(),
+                    psi_checked_trees::CheckedBooleanExpression::Local { position }
+                        if *position == scalar_parameters.len() + binding_count - 1)
+        );
     if !is_structural_scalar_return_expression(
         return_expression,
         scalar_parameters.len(),
@@ -841,8 +875,9 @@ fn build_structural_scalar_return_machine(
     });
     if has_nominal_cleanup
         && (structural_parameters.len() != whole_discards.len()
-            || !bindings_are_branch_free
-            || !(return_is_branch_free || return_is_one_short_circuit_boolean))
+            || !(bindings_are_branch_free
+                && (return_is_branch_free || return_is_one_short_circuit_boolean)
+                || final_binding_is_inlined_short_circuit_return))
     {
         return None;
     }

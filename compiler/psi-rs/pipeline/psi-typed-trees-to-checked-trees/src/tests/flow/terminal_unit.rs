@@ -957,7 +957,7 @@ fn nominal_scalar_cleanup_retains_contextual_short_circuit_return() {
 }
 
 #[test]
-fn nominal_scalar_cleanup_fences_nested_short_circuit_mutable_call_and_effect_bodies() {
+fn nominal_scalar_cleanup_accepts_one_final_short_circuit_local_and_fences_wider_bodies() {
     let checked = checked(
         r#"
         data Token {}
@@ -991,8 +991,16 @@ fn nominal_scalar_cleanup_fences_nested_short_circuit_mutable_call_and_effect_bo
         }
         "#,
     );
+    let short_circuit = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "short_circuit"))
+        .expect("one final short-circuit local returned directly retains cleanup");
+    assert_eq!(short_circuit.bindings.len(), 1);
+    assert_eq!(short_circuit.return_statement_ordinal, 1);
+
     for machine in [
-        "short_circuit",
         "nested_short_circuit",
         "repeated_short_circuit",
         "mutable_local",

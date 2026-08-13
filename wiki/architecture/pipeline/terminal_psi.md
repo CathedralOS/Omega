@@ -326,9 +326,11 @@ calls in an exact lifetime frame; object construction validates the frame,
 stores, loads, calls, and stack ceiling from emitted bytes. The bounded Boolean
 form instead retains three edge-specific cleanup intervals and validates the
 result and return-link lifetime independently on every native path.
-Contextual short-circuit locals, nested or repeated decisions, calls, effects,
-nested nominal ownership, projections, and wider cleanup shapes still fail
-closed.
+One final top-level short-circuit Boolean local returned directly is inlined
+into the same three proof-bearing cleanup leaves without a convergence block.
+Converging or repeated contextual short-circuit locals, nested decisions,
+calls, effects, nested nominal ownership, projections, and wider cleanup shapes
+still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

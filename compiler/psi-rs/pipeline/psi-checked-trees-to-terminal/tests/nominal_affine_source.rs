@@ -372,7 +372,8 @@ const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     requires token.ready, plain.observed
     {
         let inverted: bool = !right;
-        left && inverted
+        let staged: bool = left && inverted;
+        staged
     }
 "#;
 
