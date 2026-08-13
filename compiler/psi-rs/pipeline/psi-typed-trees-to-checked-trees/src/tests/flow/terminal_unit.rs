@@ -641,7 +641,7 @@ fn scalar_return_retains_mixed_contextual_facts_and_cleanup_order() {
 }
 
 #[test]
-fn contextual_scalar_cleanup_keeps_all_trivial_roots_and_wider_bodies_fenced() {
+fn contextual_scalar_cleanup_keeps_all_trivial_roots_fenced() {
     let all_trivial = checked(
         r#"
         data Plain { observed: bool; }
@@ -660,31 +660,126 @@ fn contextual_scalar_cleanup_keeps_all_trivial_roots_and_wider_bodies_fenced() {
             .is_none(),
         "contextual scalar cleanup remains tied to at least one nominal action",
     );
+}
 
-    let wider = checked(
+#[test]
+fn nominal_scalar_cleanup_retains_finite_branch_free_primitive_locals() {
+    let checked = checked(
         r#"
         data Token { ready: bool; }
         machine Token::drop(&mut self)
         requires self.ready
         {}
+        data Plain { observed: bool; }
         data Root {}
-        machine Root::measure(token: Token) -> u64
-        requires token.ready
+        machine Root::measure(token: Token, plain: Plain) -> u64
+        requires token.ready, plain.observed
         {
-            let result: u64 = 7u64;
-            result
+            let base: u64 = 3u64 + 4u64;
+            let doubled: u64 = base * 2u64;
+            doubled
         }
         "#,
     );
-    assert!(
-        wider
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine_named(&wider, "measure"))
-            .is_none(),
-        "contextual cleanup remains limited to one immediate closed scalar value",
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("finite dependency-ordered scalar locals compose with mixed contextual cleanup");
+    assert_eq!(
+        plan.bindings
+            .iter()
+            .map(|binding| (binding.statement_ordinal, binding.primitive_type))
+            .collect::<Vec<_>>(),
+        vec![(0, PrimitiveType::U64), (1, PrimitiveType::U64)],
     );
+    assert_eq!(plan.return_statement_ordinal, 2);
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(0, "ready", true), (1, "observed", true)],
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("mixed cleanup remains reverse-authored after the scalar binding prefix")
+    };
+    assert_eq!(cleanup.source_parameter_index, 0);
+    assert_eq!(
+        cleanup
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![("ready", true)],
+    );
+}
+
+#[test]
+fn nominal_scalar_cleanup_fences_branching_mutable_call_effect_and_scalar_input_bodies() {
+    let checked = checked(
+        r#"
+        data Token {}
+        machine Token::drop(&mut self) {}
+        data Helper {}
+        machine Helper::value() -> u64 { 1u64 }
+        machine Helper::touch() {}
+        data Root {}
+
+        machine Root::short_circuit(token: Token) -> bool {
+            let staged: bool = true && false;
+            staged
+        }
+        machine Root::direct_short_circuit(token: Token) -> bool {
+            true && false
+        }
+        machine Root::mutable_local(token: Token) -> u64 {
+            let mut staged: u64 = 1u64;
+            staged
+        }
+        machine Root::call_local(token: Token) -> u64 {
+            let staged: u64 = Helper::value();
+            staged
+        }
+        machine Root::effect_before_return(token: Token) -> u64 {
+            Helper::touch();
+            1u64
+        }
+        machine Root::scalar_input(token: Token, offset: u64) -> u64 {
+            let staged: u64 = offset + 1u64;
+            staged
+        }
+        "#,
+    );
+    for machine in [
+        "short_circuit",
+        "direct_short_circuit",
+        "mutable_local",
+        "call_local",
+        "effect_before_return",
+        "scalar_input",
+    ] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside nominal scalar cleanup with finite locals",
+        );
+    }
 }
 
 #[test]

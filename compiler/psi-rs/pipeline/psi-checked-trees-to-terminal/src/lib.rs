@@ -2649,10 +2649,14 @@ fn lower_nominal_structural_scalar_return_machine(
     if plan.structural_parameters.is_empty()
         || plan.cleanup_actions.len() != plan.structural_parameters.len()
         || !plan.scalar_parameters.is_empty()
-        || !plan.bindings.is_empty()
-        || plan.return_statement_ordinal != 0
     {
         return unsupported("nominal scalar return exceeds its first bounded slice");
+    }
+    let expected_return_ordinal = u32::try_from(plan.bindings.len()).map_err(|_| {
+        LoweringError::Unsupported("nominal scalar return binding count exceeds u32")
+    })?;
+    if plan.return_statement_ordinal != expected_return_ordinal {
+        return unsupported("nominal scalar return coordinates are not a contiguous prefix");
     }
     let parameter_count = plan.structural_parameters.len();
     for (position, parameter) in plan.structural_parameters.iter().enumerate() {
@@ -2804,20 +2808,7 @@ fn lower_nominal_structural_scalar_return_machine(
         }
     }
     let mut lowered = lower_nominal_affine_unit_cleanup_machine(&staged, &nominal)?;
-    let expression = lower_checked_scalar_expression_at(
-        checked,
-        plan.state,
-        plan.return_statement_ordinal,
-        CheckedScalarExpressionRole::Return,
-    )?;
-    if !is_structural_scalar_return_expression(&expression, 0, 0) {
-        return unsupported("nominal scalar return expression exceeds its checked value slice");
-    }
     let result_type = terminal_scalar_type(plan.result_type)?;
-    if expression.scalar_type() != result_type {
-        return unsupported("nominal scalar return value does not match its checked result type");
-    }
-    validate_direct_parameter_types(&expression, &[])?;
     retain_additional_structural_types(
         &mut lowered.semantic_module,
         &checked
@@ -3134,7 +3125,75 @@ fn lower_nominal_structural_scalar_return_machine(
     }
     let mut next_value = 1_u64;
     let mut operations = OperationBuffer::new(operation_identity_base);
-    let value = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
+    let mut scalar_values = Vec::with_capacity(plan.bindings.len());
+    for (binding_index, binding) in plan.bindings.iter().enumerate() {
+        let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
+            LoweringError::Unsupported("nominal scalar return binding index exceeds u32")
+        })?;
+        if binding.statement_ordinal != statement_ordinal
+            || binding.value != CheckedScalarBindingValue::Expression
+        {
+            return unsupported(
+                "nominal scalar return bindings are not a direct expression prefix",
+            );
+        }
+        let scalar_type = terminal_scalar_type(binding.primitive_type)?;
+        let expression = lower_checked_scalar_expression_at(
+            checked,
+            plan.state,
+            statement_ordinal,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: statement_ordinal,
+            },
+        )?;
+        if !is_branch_free_structural_scalar_expression(&expression, 0, binding_index) {
+            return unsupported("nominal scalar binding is not one branch-free local expression");
+        }
+        if expression.scalar_type() != scalar_type {
+            return unsupported(
+                "nominal scalar binding value does not match its checked local type",
+            );
+        }
+        validate_direct_parameter_types(
+            &expression,
+            &scalar_values
+                .iter()
+                .map(|value: &ValueDeclaration| value.scalar_type)
+                .collect::<Vec<_>>(),
+        )?;
+        let id = emit_direct_expression(
+            &expression,
+            &scalar_values,
+            &mut next_value,
+            &mut operations,
+        );
+        scalar_values.push(ValueDeclaration { id, scalar_type });
+    }
+    let expression = lower_checked_scalar_expression_at(
+        checked,
+        plan.state,
+        plan.return_statement_ordinal,
+        CheckedScalarExpressionRole::Return,
+    )?;
+    if !is_branch_free_structural_scalar_expression(&expression, 0, plan.bindings.len()) {
+        return unsupported("nominal scalar return expression is not branch-free");
+    }
+    if expression.scalar_type() != result_type {
+        return unsupported("nominal scalar return value does not match its checked result type");
+    }
+    validate_direct_parameter_types(
+        &expression,
+        &scalar_values
+            .iter()
+            .map(|value| value.scalar_type)
+            .collect::<Vec<_>>(),
+    )?;
+    let value = emit_direct_expression(
+        &expression,
+        &scalar_values,
+        &mut next_value,
+        &mut operations,
+    );
     let entry = &mut lowered.semantic_module.machines[entry_index];
     let [block] = entry.blocks.as_mut_slice() else {
         return unsupported("nominal scalar return entry control is not a single block");

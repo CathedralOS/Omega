@@ -299,21 +299,24 @@ claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
 One narrower nominal branch admits a finite nonempty list of direct affine
 structural parameters that may mix no-code and nominal roots, no scalar inputs
-or locals, no authored contract, and one immediate supported scalar result.
-After materializing that result, its return edge executes the complete cleanup
-stream in reverse authored order. No-code roots retain their exact position
-without invoking a machine; nominal targets may be distinct or shared, and
-each drop may be empty or contain the bounded source-ordered zero-argument
-helper-call body accepted by the Unit nominal slice. Terminal production
-retains the cleanup targets and helpers in the same closed module. Contextual
-cleanup requirements are accepted for a finite mixed root list in the same
-direct-Boolean subset as Unit cleanup. Checked production binds every target
-premise to the exact nominal caller root and retains supported caller-only facts
-on no-code roots; terminal Psi carries canonical caller requirements,
-proof-only receivers, and distinct action obligations. Omega consumes those
-facts only after verification and projects the proof metadata away before
-target lowering. Nested nominal ownership, projections, and wider
-cleanup/control shapes still fail closed.
+and no authored contract beyond the direct-Boolean contextual subset below,
+plus a finite source-ordered prefix of immutable branch-free primitive locals
+and one branch-free scalar result over those locals. Terminal production
+materializes the local and result operations in
+source order, then executes the complete cleanup stream in reverse authored
+root order. No-code roots retain their exact position without invoking a
+machine; nominal targets may be distinct or shared, and each drop may be empty
+or contain the bounded source-ordered zero-argument helper-call body accepted
+by the Unit nominal slice. Terminal production retains the cleanup targets and
+helpers in the same closed module. Contextual cleanup requirements are accepted
+for a finite mixed root list in the same direct-Boolean subset as Unit cleanup.
+Checked production binds every target premise to the exact nominal caller root
+and retains supported caller-only facts on no-code roots; terminal Psi carries
+canonical caller requirements, proof-only receivers, and distinct action
+obligations. Omega consumes those facts only after verification and projects
+the proof metadata away before target lowering. Scalar inputs,
+short-circuit/control bodies, calls, effects, nested nominal ownership,
+projections, and wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -467,7 +470,7 @@ composes every nominal invocation. Omega preserves the same action order and
 call ownership through target assignment, all five machine emitters, object and
 image custody, and canonical installation; no-code actions emit no target
 instruction. Current source production covers the wider trivial-discard scalar
-slice plus the finite mixed no-code/nominal, closed-result branch described
+slice plus the finite mixed no-code/nominal, branch-free-local branch described
 above, including direct-Boolean contextual cleanup across mixed roots.
 
 The proof kernel, proposition representation, total primitive judgments,
