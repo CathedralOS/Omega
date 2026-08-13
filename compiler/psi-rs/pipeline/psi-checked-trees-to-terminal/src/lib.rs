@@ -4316,29 +4316,57 @@ fn lower_partial_affine_unit_cleanup_machine(
     if partial.residual_affine_discards.is_empty() {
         return unsupported("partial affine Unit cleanup requires residual actions");
     }
-    let [
-        CheckedUnitEffectOperationPlan::CallUnit {
+    let Some((return_operation, call_operations)) = plan.operations.split_last() else {
+        return unsupported("partial affine Unit cleanup operation sequence drifted");
+    };
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index,
+        trivial_affine_local_discard_ordinals,
+        trivial_affine_discards,
+    } = return_operation
+    else {
+        return unsupported("partial affine Unit cleanup operation sequence drifted");
+    };
+    if call_operations.is_empty() {
+        return unsupported("partial affine Unit cleanup requires projected calls");
+    }
+    let mut moved_fields = Vec::<(&str, &str, psi_symbols::SymbolHandle)>::new();
+    for (operation_ordinal, operation) in call_operations.iter().enumerate() {
+        let CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             target_machine,
             structural_arguments,
             claim_transfers,
             ..
-        },
-        CheckedUnitEffectOperationPlan::ReturnUnit {
-            statement_index,
-            trivial_affine_local_discard_ordinals,
-            trivial_affine_discards,
-        },
-    ] = plan.operations.as_slice()
-    else {
-        return unsupported("partial affine Unit cleanup operation sequence drifted");
-    };
-    let [argument] = structural_arguments.as_slice() else {
-        return unsupported("partial affine Unit cleanup requires one structural argument");
-    };
-    let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice() else {
-        return unsupported("partial affine Unit transfer is not one direct field");
-    };
+        } = operation
+        else {
+            return unsupported("partial affine Unit cleanup operation sequence drifted");
+        };
+        let [argument] = structural_arguments.as_slice() else {
+            return unsupported("partial affine Unit cleanup requires one structural argument");
+        };
+        let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice()
+        else {
+            return unsupported("partial affine Unit transfer is not one direct field");
+        };
+        if coordinate.statement_index
+            != u32::try_from(operation_ordinal)
+                .map_err(|_| LoweringError::Unsupported("partial affine call count exceeds u32"))?
+            || coordinate.call_ordinal != 0
+            || !claim_transfers.is_empty()
+            || argument.source_parameter_index != 0
+            || moved_fields
+                .iter()
+                .any(|(earlier, _, _)| *earlier == moved_field)
+        {
+            return unsupported("partial affine Unit cleanup signature or coordinates drifted");
+        }
+        moved_fields.push((
+            moved_field.as_str(),
+            argument.type_identity.as_str(),
+            *target_machine,
+        ));
+    }
     if partial.residual_affine_discards.iter().any(|residual| {
         !matches!(
             residual.path.as_slice(),
@@ -4354,11 +4382,7 @@ fn lower_partial_affine_unit_cleanup_machine(
         || !plan.trivial_affine_locals.is_empty()
         || !plan.entry_claims.is_empty()
         || !plan.body_qualifications.is_empty()
-        || coordinate.statement_index != 0
-        || coordinate.call_ordinal != 0
-        || *statement_index != 1
-        || !claim_transfers.is_empty()
-        || argument.source_parameter_index != 0
+        || usize::try_from(*statement_index).ok() != Some(call_operations.len())
         || partial
             .residual_affine_discards
             .iter()
@@ -4419,14 +4443,20 @@ fn lower_partial_affine_unit_cleanup_machine(
             || fields[..index]
                 .iter()
                 .any(|earlier| earlier.identity == field.identity)
-    }) || checked_field_type(moved_field) != Some(argument.type_identity.as_str())
+    }) || moved_fields
+        .iter()
+        .any(|(moved_field, moved_type, _)| checked_field_type(moved_field) != Some(*moved_type))
     {
         return unsupported("partial affine Unit field path or type identity drifted");
     }
     let expected_residuals = fields
         .iter()
         .rev()
-        .filter(|field| field.identity != *moved_field)
+        .filter(|field| {
+            !moved_fields
+                .iter()
+                .any(|(moved, _, _)| *moved == field.identity.as_str())
+        })
         .map(|field| CheckedUnitPartialAffineDiscardPlan {
             source_parameter_index: 0,
             path: vec![CheckedUnitStructuralPathSegment::Field(
@@ -4440,16 +4470,19 @@ fn lower_partial_affine_unit_cleanup_machine(
     if partial.residual_affine_discards != expected_residuals {
         return unsupported("partial affine Unit residual field partition drifted");
     }
-    let target = unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
-    let [target_parameter] = target.structural_parameters.as_slice() else {
-        return unsupported("partial affine Unit target signature drifted");
-    };
-    if target_parameter.type_identity != argument.type_identity
-        || target_parameter.is_self
-        || target_parameter.multiplicity != Multiplicity::Affine
-        || !target_parameter.qualifications.is_empty()
-    {
-        return unsupported("partial affine Unit target parameter drifted");
+    for (_, moved_type, target_machine) in &moved_fields {
+        let target =
+            unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
+        let [target_parameter] = target.structural_parameters.as_slice() else {
+            return unsupported("partial affine Unit target signature drifted");
+        };
+        if target_parameter.type_identity != *moved_type
+            || target_parameter.is_self
+            || target_parameter.multiplicity != Multiplicity::Affine
+            || !target_parameter.qualifications.is_empty()
+        {
+            return unsupported("partial affine Unit target parameter drifted");
+        }
     }
 
     // Reuse the ordinary closure lowerer only after validating the separate
@@ -11019,6 +11052,7 @@ mod tests {
             data Root {}
             machine Root::enter(value: Quartet) {
                 Sink::take(value.third);
+                Sink::take(value.first);
             }
         "#;
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -11048,22 +11082,31 @@ mod tests {
             .iter()
             .find(|machine| machine.id == lowered.semantic_module.entry)
             .expect("terminal entry");
-        let [call] = entry.blocks[0].operations.as_slice() else {
-            panic!("partial cleanup entry should contain its one call")
+        let [first_call, second_call] = entry.blocks[0].operations.as_slice() else {
+            panic!("partial cleanup entry should contain both source-ordered calls")
         };
-        let OperationKind::CallUnit {
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = &call.kind
-        else {
-            panic!("partial cleanup entry should call Unit")
-        };
+        let moved_paths = [first_call, second_call]
+            .into_iter()
+            .map(|call| {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } = &call.kind
+                else {
+                    panic!("partial cleanup entry should call Unit")
+                };
+                assert!(claim_transfers.is_empty());
+                structural_arguments[0].path.clone()
+            })
+            .collect::<Vec<_>>();
         assert_eq!(
-            structural_arguments[0].path,
-            [StructuralPathSegment::Field("third".to_owned())]
+            moved_paths,
+            vec![
+                vec![StructuralPathSegment::Field("third".to_owned())],
+                vec![StructuralPathSegment::Field("first".to_owned())],
+            ]
         );
-        assert!(claim_transfers.is_empty());
         let Terminator::ReturnUnitPartialAffine {
             trivial_affine_discards,
             residual_affine_discards,
@@ -11073,7 +11116,7 @@ mod tests {
             panic!("partial cleanup requires its distinct terminal return")
         };
         assert!(trivial_affine_discards.is_empty());
-        assert_eq!(residual_affine_discards.len(), 3);
+        assert_eq!(residual_affine_discards.len(), 2);
         assert_eq!(
             residual_affine_discards
                 .iter()
@@ -11082,7 +11125,6 @@ mod tests {
             vec![
                 vec![StructuralPathSegment::Field("fourth".to_owned())],
                 vec![StructuralPathSegment::Field("second".to_owned())],
-                vec![StructuralPathSegment::Field("first".to_owned())],
             ]
         );
         for residual in residual_affine_discards {
@@ -11155,6 +11197,33 @@ mod tests {
             lower_partial_affine_unit_cleanup_machine(&checked, &stale),
             Err(LoweringError::Unsupported(
                 "partial affine Unit residual field partition drifted"
+            ))
+        ));
+
+        let mut stale = original.clone();
+        let [first, second, _] = stale.machine.operations.as_mut_slice() else {
+            unreachable!()
+        };
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments: first_arguments,
+            ..
+        } = first
+        else {
+            unreachable!()
+        };
+        let first_path = first_arguments[0].path.clone();
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments: second_arguments,
+            ..
+        } = second
+        else {
+            unreachable!()
+        };
+        second_arguments[0].path = first_path;
+        assert!(matches!(
+            lower_partial_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "partial affine Unit cleanup signature or coordinates drifted"
             ))
         ));
 

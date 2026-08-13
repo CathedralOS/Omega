@@ -27,6 +27,7 @@ const SOURCE: &str = r#"
     data Root {}
     machine Root::enter(value: Quintet) {
         Sink::take(value.third);
+        Sink::take(value.first);
     }
 "#;
 
@@ -52,24 +53,35 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let [block] = entry.blocks.as_slice() else {
         panic!("partial affine source slice has one block")
     };
-    let [call] = block.operations.as_slice() else {
-        panic!("partial affine source slice has one projected call")
+    let [first_call, second_call] = block.operations.as_slice() else {
+        panic!("partial affine source slice has two projected calls")
     };
-    let OperationKind::CallUnit {
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = &call.kind
-    else {
-        panic!("expected direct Unit call")
-    };
-    assert!(claim_transfers.is_empty());
-    assert!(matches!(
-        structural_arguments.as_slice(),
-        [argument]
-            if argument.place == root.place
-                && argument.path == [StructuralPathSegment::Field("third".into())]
-    ));
+    let moved_paths = [first_call, second_call]
+        .into_iter()
+        .map(|call| {
+            let OperationKind::CallUnit {
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &call.kind
+            else {
+                panic!("expected direct Unit call")
+            };
+            assert!(claim_transfers.is_empty());
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("each projected call has one argument")
+            };
+            assert_eq!(argument.place, root.place);
+            argument.path.clone()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        moved_paths,
+        vec![
+            vec![StructuralPathSegment::Field("third".into())],
+            vec![StructuralPathSegment::Field("first".into())],
+        ]
+    );
 
     let Terminator::ReturnUnitPartialAffine {
         edge,
@@ -92,7 +104,6 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
             vec![StructuralPathSegment::Field("fifth".into())],
             vec![StructuralPathSegment::Field("fourth".into())],
             vec![StructuralPathSegment::Field("second".into())],
-            vec![StructuralPathSegment::Field("first".into())],
         ]
     );
 
@@ -128,7 +139,7 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     // The projected call and callee return commit first. With no remaining
     // allowance, the caller suspends at its return edge while every residual
     // remains live; cleanup commits only after replenishment.
-    let mut meter = TerminalFuelMeter::with_allowance(2);
+    let mut meter = TerminalFuelMeter::with_allowance(4);
     assert_eq!(
         execution
             .resume(&mut meter)
@@ -157,5 +168,5 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
-    assert_eq!(meter.usage().total_units(), 3);
+    assert_eq!(meter.usage().total_units(), 5);
 }
