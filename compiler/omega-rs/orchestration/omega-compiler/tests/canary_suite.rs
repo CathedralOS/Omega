@@ -9916,20 +9916,12 @@ stderr:
 #[test]
 fn runtime_slice_element_machine_roundtrip_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_element_machine_roundtrip_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-slice-elem-rt-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-slice-elem-rt-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("slice element machine roundtrip canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("slice element machine roundtrip canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("slice element machine roundtrip canary should run");
 
@@ -9943,27 +9935,19 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // RUNTIME-index slice-descriptor element read into a machine field. -> 1.
 #[test]
 fn runtime_slice_element_runtime_index_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_element_runtime_index_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-slice-elem-ri-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-slice-elem-ri-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("slice element runtime index read canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("slice element runtime index read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("slice element runtime index read canary should run");
 
@@ -9977,7 +9961,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A MEMBER-expression value-call arg (`self.grab(self.bx.inner)`) with a
@@ -10057,20 +10041,12 @@ stderr:
 #[test]
 fn runtime_machine_bounded_subslice_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_machine_bounded_subslice_local_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-mach-subslice-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-mach-subslice-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine-bounded subslice canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("machine-bounded subslice canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("machine-bounded subslice canary should run");
 
@@ -10084,7 +10060,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // Runtime-START subslice POINTER correctness (the ptr write was width-0 and
@@ -10092,19 +10068,12 @@ stderr:
 #[test]
 fn runtime_subslice_start_pointer_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_start_pointer_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-subslice-ptr-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-subslice-ptr-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("subslice start pointer canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("subslice start pointer canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("subslice start pointer canary should run");
 
@@ -10118,7 +10087,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // LOOP-CARRIED accumulator through the dispatch self-loop: transition args
