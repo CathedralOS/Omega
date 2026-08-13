@@ -138,6 +138,26 @@ const INTEGER_MEMBER_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_SOURCE: &str = r#"
+    data Metrics { current: u64; limit: u64; }
+    data Batch { metrics: Metrics; shadow: Metrics; }
+    data Envelope { batch: Batch; spare: Batch; }
+    data Helper {}
+    machine Helper::inspect(metrics: Metrics)
+    crashes Abort
+        metrics.limit <= metrics.current && metrics.current != metrics.limit
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.batch.metrics.limit <= envelope.batch.metrics.current
+            && envelope.batch.metrics.current != envelope.batch.metrics.limit
+    {
+        Helper::inspect(envelope.batch.metrics);
+    }
+"#;
+
 #[test]
 fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretation() {
     struct Accept;
@@ -900,6 +920,256 @@ fn integer_member_comparisons_rebase_and_validate_exact_leaf_types_end_to_end() 
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected integer-member validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn paths(
+        proposition: &Proposition,
+    ) -> (
+        &[CanonicalStructuralPathSegment],
+        &[CanonicalStructuralPathSegment],
+        &[CanonicalStructuralPathSegment],
+        &[CanonicalStructuralPathSegment],
+    ) {
+        let Proposition::Conjunction(conjuncts) = proposition else {
+            panic!("projected integer member route is one conjunction")
+        };
+        let [inequality, ordered] = conjuncts.as_slice() else {
+            panic!("projected integer route retains both comparisons")
+        };
+        let Proposition::Equal(
+            ScalarTerm::Boolean(true),
+            ScalarTerm::IntegerLessOrEqual { left, right, .. },
+        ) = ordered
+        else {
+            panic!("ordered comparison remains terminal")
+        };
+        let (
+            ScalarTerm::IntegerField {
+                path: ordered_left, ..
+            },
+            ScalarTerm::IntegerField {
+                path: ordered_right,
+                ..
+            },
+        ) = (left.as_ref(), right.as_ref())
+        else {
+            panic!("ordered operands remain integer member paths")
+        };
+        let Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::BooleanNot { operand }) =
+            inequality
+        else {
+            panic!("inequality remains a negated equality")
+        };
+        let ScalarTerm::IntegerEqual { left, right, .. } = operand.as_ref() else {
+            panic!("inequality retains its integer equality")
+        };
+        let (
+            ScalarTerm::IntegerField {
+                path: unequal_left, ..
+            },
+            ScalarTerm::IntegerField {
+                path: unequal_right,
+                ..
+            },
+        ) = (left.as_ref(), right.as_ref())
+        else {
+            panic!("inequality operands remain integer member paths")
+        };
+        (ordered_left, ordered_right, unequal_left, unequal_right)
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected integer member crash route lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let envelope = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_parameters[0].structural_type)
+        .expect("Envelope type");
+    let StructuralTypeShape::Record { fields } = &envelope.shape else {
+        panic!("Envelope is a record")
+    };
+    let batch = fields
+        .iter()
+        .find(|field| field.identity == "batch")
+        .expect("batch field");
+    let StructuralFieldType::Structural(batch_type) = batch.field_type else {
+        panic!("batch has a structural type")
+    };
+    let batch_declaration = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == batch_type)
+        .expect("Batch type");
+    let StructuralTypeShape::Record {
+        fields: batch_fields,
+    } = &batch_declaration.shape
+    else {
+        panic!("Batch is a record")
+    };
+    let metrics = batch_fields
+        .iter()
+        .find(|field| field.identity == "metrics")
+        .expect("metrics field");
+    let shadow = batch_fields
+        .iter()
+        .find(|field| field.identity == "shadow")
+        .expect("shadow field");
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected structural Unit call")
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        [
+            StructuralPathSegment::Field("batch".into()),
+            StructuralPathSegment::Field("metrics".into())
+        ]
+    );
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one integer member route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one integer member route")
+    };
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains one guarded crash continuation")
+    };
+    assert_eq!(continuation, root_route);
+    let (root_ordered_left, root_ordered_right, root_unequal_left, root_unequal_right) =
+        paths(root_route.proposition());
+    let (helper_ordered_left, helper_ordered_right, helper_unequal_left, helper_unequal_right) =
+        paths(helper_route.proposition());
+    for (caller_path, callee_path) in [
+        root_ordered_left,
+        root_ordered_right,
+        root_unequal_left,
+        root_unequal_right,
+    ]
+    .into_iter()
+    .zip([
+        helper_ordered_left,
+        helper_ordered_right,
+        helper_unequal_left,
+        helper_unequal_right,
+    ]) {
+        assert_eq!(
+            &caller_path[..2],
+            [
+                CanonicalStructuralPathSegment::Field(batch.id),
+                CanonicalStructuralPathSegment::Field(metrics.id),
+            ]
+        );
+        assert_eq!(&caller_path[2..], callee_path);
+    }
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently composes every projected integer member path");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("projected integer route has an acyclic fixed-fuel certificate");
+    assert_eq!(fixed.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 23,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("projected integer contract remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let CrashRouteGuard::Predicate(predicate) = &mut crash_continuations[0].alternatives[0] else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Conjunction(conjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(Proposition::Equal(_, ScalarTerm::IntegerLessOrEqual { left, .. })) =
+        conjuncts.iter_mut().find(|conjunct| {
+            matches!(
+                conjunct,
+                Proposition::Equal(_, ScalarTerm::IntegerLessOrEqual { .. })
+            )
+        })
+    else {
+        unreachable!()
+    };
+    let ScalarTerm::IntegerField { path, .. } = left.as_mut() else {
+        unreachable!()
+    };
+    path[1] = CanonicalStructuralPathSegment::Field(shadow.id);
+    *predicate = CrashPredicateTerm::new(proposition);
+    let invalid_result = psi_terminal_verifier::validate_module(&redirected);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected projected integer validation result: {invalid_result:?}"
     );
 }
 

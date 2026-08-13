@@ -406,12 +406,15 @@ paths and literals; every nested path is independently traversed and rebased.
 Equality, inequality, and ordered comparisons also accept same-typed relevant
 fixed-integer member paths; terminal terms retain both the canonical path and
 the exact integer type, and the verifier checks that annotation against the
-declared leaf. Whole-root structural calls reconstruct those predicates across
-the callee boundary. Disjunction, projected-call prefixes for integer-member
-predicates, whole-aggregate equality, arithmetic over members, case-payload
-paths, and imported crash capsules remain fail-closed. Structural/content
-contracts reject because custody effects require their own vertical slice
-rather than an ordinary scalar flag.
+declared leaf. Whole-root and all-field-projected structural calls reconstruct
+those predicates across the callee boundary by prepending the caller's canonical
+argument path to every callee-relative integer-member path. The verifier repeats
+that substitution independently and rejects a redirected continuation even when
+the redirected path reaches another valid same-typed leaf. Disjunction,
+whole-aggregate equality, arithmetic over members, case-payload paths, and
+imported crash capsules remain fail-closed. Structural/content contracts reject
+because custody effects require their own vertical slice rather than an ordinary
+scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

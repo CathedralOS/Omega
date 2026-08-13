@@ -319,11 +319,11 @@ Remaining:
   inequality, negation, and conjunction now compose and rebase every retained
   path. Same-typed relevant fixed-integer members now retain canonical paths
   through equality, inequality, and ordered comparisons, including conjunction,
-  whole-root structural calls, both codecs, and independent leaf-type checking.
-  Continue with terminal proposition disjunction, projected-call prefixes for
-  integer-member predicates, whole-aggregate equality, arithmetic over members,
-  and case-payload paths. Imported crash capsules remain design-blocked on
-  artifact identity and certificate binding.
+  whole-root and all-field-projected structural calls, both codecs, and
+  independent leaf-type checking. Continue with terminal proposition
+  disjunction, whole-aggregate equality, arithmetic over members, and
+  case-payload paths. Imported crash capsules remain design-blocked on artifact
+  identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
