@@ -11098,20 +11098,13 @@ fn runtime_text_builder_canary_runs() {
 #[test]
 fn utf8_return_view_equals_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_return_view_equals_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-utf8-return-view-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 return view canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("utf8 return view canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("utf8 return view canary should run");
 
@@ -11123,7 +11116,7 @@ fn utf8_return_view_equals_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11272,22 +11265,15 @@ fn integer_literal_suffix_exit_canary_runs() {
 #[test]
 fn runtime_value_position_branching_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_position_branching_call_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-value-position-branching-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-position branching call canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value-position branching call canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value-position branching call canary should run");
 
@@ -11299,7 +11285,7 @@ fn runtime_value_position_branching_call_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11311,20 +11297,13 @@ fn runtime_free_machine_value_call_exit_canary_runs() {
     // pick(self.v)` silently left n at 0 and a field target failed loudly. Covers
     // both a `let` local and a field target, both arms; exits 70 only when correct.
     let canary = pass_canary("calls/runtime_free_machine_value_call_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-value-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("free-machine value call canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("free-machine value call canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("free-machine value call canary should run");
 
@@ -11336,7 +11315,7 @@ fn runtime_free_machine_value_call_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11353,20 +11332,13 @@ fn runtime_free_machine_struct_arg_exit_canary_runs() {
     // rung 2 = 2-field struct with explicit `move` (72). Exits 70 only when
     // both callees saw the real runtime field values.
     let canary = pass_canary("calls/runtime_free_machine_struct_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-struct-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("free-machine struct arg canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("free-machine struct arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("free-machine struct arg canary should run");
 
@@ -11378,7 +11350,7 @@ fn runtime_free_machine_struct_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
