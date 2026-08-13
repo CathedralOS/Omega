@@ -1623,7 +1623,7 @@ fn build_nominal_affine_unit_cleanup_machine(
     let (attachment_type_identity, structural_parameters) =
         structural_signature(program, shapes, machine, state, &binders)?;
     let source_parameters = program.state_parameters(state);
-    if !(1..=2).contains(&source_parameters.len())
+    if !(1..=3).contains(&source_parameters.len())
         || source_parameters.len() != structural_parameters.len()
     {
         return None;

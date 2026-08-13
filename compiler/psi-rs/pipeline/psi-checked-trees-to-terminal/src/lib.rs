@@ -3296,11 +3296,11 @@ fn lower_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if nominal.cleanups.len() == 2 {
+    if (2..=3).contains(&nominal.cleanups.len()) {
         return lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal);
     }
     let [cleanup] = nominal.cleanups.as_slice() else {
-        return unsupported("nominal affine Unit cleanup list must contain one or two actions");
+        return unsupported("nominal affine Unit cleanup list must contain one to three actions");
     };
     let plan = &nominal.machine;
     if checked
@@ -3794,12 +3794,10 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 .services(plan.checked_inferred)
                 .is_empty()
     };
-    let [first_parameter, second_parameter] = plan.structural_parameters.as_slice() else {
-        return unsupported("ordered nominal cleanup requires exactly two structural parameters");
-    };
-    let [second_cleanup, first_cleanup] = nominal.cleanups.as_slice() else {
-        return unsupported("ordered nominal cleanup requires exactly two cleanup actions");
-    };
+    let parameter_count = plan.structural_parameters.len();
+    if !(2..=3).contains(&parameter_count) || nominal.cleanups.len() != parameter_count {
+        return unsupported("ordered nominal cleanup requires two or three matched actions");
+    }
     let [
         CheckedUnitEffectOperationPlan::ReturnUnit {
             statement_index: 0,
@@ -3824,17 +3822,13 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         || !service_plan_is_empty(plan.contract_service_reach)
         || !trivial_affine_local_discard_ordinals.is_empty()
         || !trivial_affine_discards.is_empty()
-        || second_cleanup.source_parameter_index != 1
-        || first_cleanup.source_parameter_index != 0
     {
         return unsupported("ordered nominal cleanup caller signature drifted");
     }
-    for (position, (parameter, cleanup)) in [first_parameter, second_parameter]
-        .into_iter()
-        .zip([first_cleanup, second_cleanup])
-        .enumerate()
-    {
+    for (position, parameter) in plan.structural_parameters.iter().enumerate() {
+        let cleanup = &nominal.cleanups[parameter_count - position - 1];
         if usize::try_from(parameter.position).ok() != Some(position)
+            || usize::try_from(cleanup.source_parameter_index).ok() != Some(position)
             || parameter.is_self
             || parameter.multiplicity != Multiplicity::Affine
             || !parameter.qualifications.is_empty()
@@ -3872,7 +3866,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     {
         return unsupported("ordered nominal cleanup attachment is not an empty record");
     }
-    for parameter in [first_parameter, second_parameter] {
+    for parameter in &plan.structural_parameters {
         let shape = nominal_types
             .iter()
             .find(|candidate| candidate.identity == parameter.type_identity)
@@ -4252,8 +4246,8 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     else {
         return unsupported("ordered nominal cleanup entry return drifted");
     };
-    if entry.structural_parameters.len() != 2
-        || entry.structural_places.len() != 2
+    if entry.structural_parameters.len() != parameter_count
+        || entry.structural_places.len() != parameter_count
         || !entry.parameters.is_empty()
         || entry.result != TerminalMachineResult::Unit
         || !entry.entry_claims.is_empty()

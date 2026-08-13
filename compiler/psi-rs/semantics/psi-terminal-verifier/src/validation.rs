@@ -2125,7 +2125,7 @@ fn validate_nominal_affine_cleanup_shape(
         || !block.parameters.is_empty()
         || !block.operations.is_empty()
         || machine.parameters.len() != 0
-        || !(1..=2).contains(&cleanups.len())
+        || !(1..=3).contains(&cleanups.len())
         || machine.structural_parameters.len() != cleanups.len()
         || machine.structural_places.len() != cleanups.len()
         || !machine.entry_claims.is_empty()

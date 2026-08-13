@@ -622,6 +622,8 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
         data Root {}
         machine Root::exact(token: Token) {}
         machine Root::two(first: Token, second: Token) {}
+        machine Root::three(first: Token, second: Token, third: Token) {}
+        machine Root::four(first: Token, second: Token, third: Token, fourth: Token) {}
         machine Root::with_local(token: Token) {
             let local: Empty = Empty {};
         }
@@ -667,7 +669,27 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
         ordered.cleanups[0].cleanup_machine, ordered.cleanups[1].cleanup_machine,
         "same-type roots may share their exact cleanup target"
     );
+    let three = plans
+        .for_machine(machine_named(&checked, "three"))
+        .expect("three whole affine roots have an ordered cleanup plan");
+    assert_eq!(
+        three
+            .cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        [2, 1, 0],
+        "three independent roots clean in reverse declaration order"
+    );
+    assert!(
+        three
+            .cleanups
+            .iter()
+            .all(|cleanup| cleanup.cleanup_machine == three.cleanups[0].cleanup_machine),
+        "same-type roots may share one exact cleanup target"
+    );
     for machine in [
+        "four",
         "with_local",
         "with_call",
         "with_contract",
@@ -691,7 +713,7 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
     }
     assert_eq!(
         plans.machines.len(),
-        2,
+        3,
         "rejected candidates must not leave partial cleanup plans"
     );
 }
