@@ -7177,11 +7177,19 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
-    machine return_after_too_deep_value_call<'cells, 'value>(
+    machine return_after_four_level_value_call<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
     ) -> &'cells mut [u64; 2] {
         cells[0] = identity(identity(identity(compute(value))));
+        cells
+    }
+
+    machine return_after_too_deep_value_call<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = identity(identity(identity(identity(compute(value)))));
         cells
     }
 
@@ -7245,6 +7253,12 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::four_level_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_four_level_value_call(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
     machine Main::too_deep_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_too_deep_value_call(&mut self.cells, &mut self.value);
@@ -7295,6 +7309,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         (
             "Main::deep_sibling_value_call_assignment_result",
             vec!["self.cells", "self.other", "self.value"],
+        ),
+        (
+            "Main::four_level_value_call_assignment_result",
+            vec!["self.cells", "self.value"],
         ),
     ] {
         let machine = typed
@@ -7428,7 +7446,7 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
         source_value: &'source mut u64
     ) -> &'cells mut [u64; 2] {
         cells[identity_index(write_index(target_value))] =
-            identity(identity(compute(source_value)));
+            identity(identity(identity(compute(source_value))));
         cells
     }
 

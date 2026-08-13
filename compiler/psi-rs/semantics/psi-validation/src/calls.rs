@@ -2630,7 +2630,7 @@ fn statement_call_preserves_transparent_result(
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. Reference results continue through the alias-rebinding path;
 /// unknown return types fail closed.
-const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 3;
+const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 
 fn value_call_assignment_preserves_transparent_result(
     program: &TypedTrees,

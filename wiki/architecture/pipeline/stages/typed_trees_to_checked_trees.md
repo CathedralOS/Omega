@@ -182,7 +182,7 @@ Current ownership is:
   directly as a statement-call argument.
   Value-shaped assignments may write through those origins without changing
   the relation when the right-hand side is effect-free or a typed
-  non-reference direct-call tree through depth three with complete frames;
+  non-reference direct-call tree through depth four with complete frames;
   sibling branches are admitted independently and all nested-call writes remain
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
@@ -214,8 +214,9 @@ Current ownership is:
   one assignment; their frames compose independently, while either side
   exceeding its rail fences the relation. A compiler-owned mutable-slice view
   on the target collection is neutral to that composition: the target index
-  and value tree retain independent depth-two budgets and publish all call
-  writes. Other ordinary exact frames remain published, and effect-free
+  and value tree retain independent depth-two and depth-four budgets,
+  respectively, and publish all call writes. Other ordinary exact frames
+  remain published, and effect-free
   discarded expressions and direct Unit statement calls with complete
   non-rebinding frames are neutral, including exact sibling direct value-call
   arguments and their bounded two-level direct-call trees. An
