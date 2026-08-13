@@ -2391,13 +2391,62 @@ fn lower_structural_unit_control_machine(
         return unsupported("structural Unit control plan contains duplicate states");
     }
 
+    let mut predecessor_counts = vec![0_usize; plan.states.len()];
+    for state in &plan.states {
+        let targets = match &state.terminator {
+            CheckedStructuralUnitControlTerminatorPlan::ReturnUnit { .. } => Vec::new(),
+            CheckedStructuralUnitControlTerminatorPlan::Jump { target_state, .. } => {
+                vec![*target_state]
+            }
+            CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                if when_true.target_state == when_false.target_state {
+                    return unsupported(
+                        "structural Unit conditional successors must remain distinct",
+                    );
+                }
+                vec![when_true.target_state, when_false.target_state]
+            }
+        };
+        for target in targets {
+            let target_index = plan
+                .states
+                .iter()
+                .position(|candidate| candidate.state == target)
+                .ok_or(LoweringError::Unsupported(
+                    "structural Unit jump targets an unknown checked state",
+                ))?;
+            predecessor_counts[target_index] += 1;
+            if predecessor_counts[target_index] > 2 {
+                return unsupported("structural Unit join supports exactly two incoming frontiers");
+            }
+        }
+    }
+    if predecessor_counts[0] != 0 {
+        return unsupported("structural Unit control entry has an incoming edge");
+    }
+    if predecessor_counts
+        .iter()
+        .filter(|count| **count == 2)
+        .count()
+        > 1
+    {
+        return unsupported("structural Unit control supports at most one join state");
+    }
+
     let mut bindings = vec![None; plan.states.len()];
     bindings[0] = Some(entry_places);
+    let mut received_predecessors = vec![0_usize; plan.states.len()];
     let mut completed = BTreeSet::new();
     loop {
-        let Some(index) = (0..plan.states.len())
-            .find(|index| bindings[*index].is_some() && !completed.contains(index))
-        else {
+        let Some(index) = (0..plan.states.len()).find(|index| {
+            bindings[*index].is_some()
+                && !completed.contains(index)
+                && (*index == 0 || received_predecessors[*index] == predecessor_counts[*index])
+        }) else {
             break;
         };
         completed.insert(index);
@@ -2468,10 +2517,8 @@ fn lower_structural_unit_control_machine(
                 .ok_or(LoweringError::Unsupported(
                     "structural Unit jump targets an unknown checked state",
                 ))?;
-            if bindings[target_state_index].is_some() {
-                return unsupported(
-                    "structural Unit control joins and cycles require an explicit frontier map",
-                );
+            if completed.contains(&target_state_index) {
+                return unsupported("structural Unit control graph contains a cycle");
             }
             let target_arity = plan.states[target_state_index].structural_parameters.len();
             if transfers.len() != target_arity {
@@ -2582,7 +2629,16 @@ fn lower_structural_unit_control_machine(
                     "structural Unit target frontier reorders entry custody outside terminal representation",
                 );
             }
-            bindings[target_state_index] = Some(target);
+            if bindings[target_state_index]
+                .as_ref()
+                .is_some_and(|existing| existing != &target)
+            {
+                return unsupported(
+                    "structural Unit join predecessors reconstruct different custody frontiers",
+                );
+            }
+            bindings[target_state_index].get_or_insert(target);
+            received_predecessors[target_state_index] += 1;
         }
     }
     if bindings.iter().any(Option::is_none) || completed.len() != plan.states.len() {
@@ -9204,6 +9260,67 @@ mod tests {
         assert_eq!(plan.states[1].state, nested_state);
     }
 
+    fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
+        install_structural_unit_conditional_fixture(checked);
+        let plan = &mut checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0];
+        let affine_parameter = |position| psi_checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: "example::Acknowledgement".to_owned(),
+            multiplicity: Multiplicity::Affine,
+            qualifications: Vec::new(),
+        };
+        plan.states[0].scalar_parameters.push(
+            psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 4,
+                primitive_type: PrimitiveType::I32,
+            },
+        );
+        let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_false, .. } =
+            &mut plan.states[0].terminator
+        else {
+            unreachable!()
+        };
+        when_false.transfers[0].source_parameter_index = 0;
+        when_false.scalar_arguments[0].source_scalar_parameter_index = 2;
+        when_false.trivial_affine_discard_parameter_positions = vec![1];
+
+        let join = SymbolHandle::from_arena_index(14);
+        for state in &mut plan.states[1..3] {
+            state.terminator = CheckedStructuralUnitControlTerminatorPlan::Jump {
+                statement_ordinal: 0,
+                target_state: join,
+                transfers: vec![psi_checked_trees::CheckedStructuralControlTransferPlan {
+                    source_parameter_index: 0,
+                    target_parameter_index: 0,
+                }],
+                scalar_arguments: vec![psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                    argument_ordinal: 1,
+                    source_scalar_parameter_index: 0,
+                    target_scalar_parameter_index: 0,
+                    primitive_type: PrimitiveType::I32,
+                }],
+                trivial_affine_discard_parameter_positions: Vec::new(),
+            };
+        }
+        plan.states
+            .push(psi_checked_trees::CheckedStructuralUnitControlStatePlan {
+                state: join,
+                structural_parameters: vec![affine_parameter(0)],
+                scalar_parameters: vec![psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                    source_position: 1,
+                    primitive_type: PrimitiveType::I32,
+                }],
+                terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                    trivial_affine_discard_parameter_positions: vec![0],
+                },
+            });
+    }
+
     fn install_structural_scalar_return_fixture(checked: &mut CheckedTrees) {
         let root = SymbolHandle::from_arena_index(1);
         let entry = SymbolHandle::from_arena_index(11);
@@ -9699,6 +9816,143 @@ mod tests {
                 .expect("two-decision structural tree should decode canonically"),
             lowered.semantic_module
         );
+    }
+
+    #[test]
+    fn structural_unit_diamond_requires_one_exact_join_frontier() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_unit_join_fixture(&mut checked);
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("one exact structural diamond should lower");
+        let [machine] = lowered.semantic_module.machines.as_slice() else {
+            panic!("structural diamond lowers one attached machine")
+        };
+        assert_eq!(machine.blocks.len(), 4);
+        assert!(matches!(
+            &machine.blocks[0].terminator,
+            Terminator::Conditional {
+                condition,
+                when_true: SuccessorEdge {
+                    target: true_target,
+                    arguments: true_arguments,
+                    trivial_affine_discards: true_discards,
+                    ..
+                },
+                when_false: SuccessorEdge {
+                    target: false_target,
+                    arguments: false_arguments,
+                    trivial_affine_discards: false_discards,
+                    ..
+                },
+            } if *condition == value_id(1)
+                && *true_target == block_id(2)
+                && true_arguments == &[value_id(2)]
+                && true_discards == &[place_id(2)]
+                && *false_target == block_id(3)
+                && false_arguments == &[value_id(3)]
+                && false_discards == &[place_id(2)]
+        ));
+        assert!(matches!(
+            &machine.blocks[1].terminator,
+            Terminator::Jump {
+                target,
+                arguments,
+                trivial_affine_discards,
+                ..
+            } if *target == block_id(4)
+                && arguments == &[value_id(4)]
+                && trivial_affine_discards.is_empty()
+        ));
+        assert!(matches!(
+            &machine.blocks[2].terminator,
+            Terminator::Jump {
+                target,
+                arguments,
+                trivial_affine_discards,
+                ..
+            } if *target == block_id(4)
+                && arguments == &[value_id(5)]
+                && trivial_affine_discards.is_empty()
+        ));
+        assert!(matches!(
+            machine.blocks[3].parameters.as_slice(),
+            [ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(6)
+        ));
+        assert!(matches!(
+            &machine.blocks[3].terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards == &[place_id(1)]
+        ));
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("the independent verifier should reconstruct one identical join frontier");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("structural diamond should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("structural diamond should decode canonically"),
+            lowered.semantic_module
+        );
+
+        let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_false, .. } =
+            &mut checked
+                .facts
+                .flow
+                .terminal_structural_unit_controls
+                .machines[0]
+                .states[0]
+                .terminator
+        else {
+            unreachable!()
+        };
+        when_false.transfers[0].source_parameter_index = 1;
+        when_false.trivial_affine_discard_parameter_positions = vec![0];
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural Unit join predecessors reconstruct different custody frontiers"
+            ))
+        ));
+
+        install_structural_unit_join_fixture(&mut checked);
+        let entry = checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0]
+            .states[0]
+            .state;
+        checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0]
+            .states[3]
+            .terminator = CheckedStructuralUnitControlTerminatorPlan::Jump {
+            statement_ordinal: 0,
+            target_state: entry,
+            transfers: vec![psi_checked_trees::CheckedStructuralControlTransferPlan {
+                source_parameter_index: 0,
+                target_parameter_index: 0,
+            }],
+            scalar_arguments: Vec::new(),
+            trivial_affine_discard_parameter_positions: Vec::new(),
+        };
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural Unit control entry has an incoming edge"
+            ))
+        ));
     }
 
     #[test]

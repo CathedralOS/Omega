@@ -523,6 +523,64 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
 }
 
 #[test]
+fn structural_unit_diamond_retains_one_join_and_exact_scalar_edges() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(
+            token: Token,
+            choose_left: bool,
+            left_value: i32,
+            right_value: i32
+        ) {
+            transition choose_left {
+                true -> left(token, left_value)
+                _ -> right(token, right_value)
+            }
+            state left(token: Token, value: i32) {
+                transition { _ -> join(token, value) }
+            }
+            state right(token: Token, value: i32) {
+                transition { _ -> join(token, value) }
+            }
+            state join(token: Token, value: i32) {}
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("one structural Unit diamond should retain exact edge maps");
+    assert_eq!(plan.states.len(), 4);
+    let join = plan.states[3].state;
+    for state in &plan.states[1..3] {
+        assert!(matches!(
+            &state.terminator,
+            psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+                target_state,
+                transfers,
+                scalar_arguments,
+                trivial_affine_discard_parameter_positions,
+                ..
+            } if *target_state == join
+                && transfers.len() == 1
+                && scalar_arguments.len() == 1
+                && trivial_affine_discard_parameter_positions.is_empty()
+        ));
+    }
+}
+
+#[test]
 fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
     let checked = checked(
         r#"

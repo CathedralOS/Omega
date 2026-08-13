@@ -897,6 +897,39 @@ fn build_structural_unit_control_machine(
     {
         return None;
     }
+    let mut predecessor_counts = vec![0_usize; checked_states.len()];
+    for state in &checked_states {
+        let targets = match &state.terminator {
+            CheckedStructuralUnitControlTerminatorPlan::ReturnUnit { .. } => Vec::new(),
+            CheckedStructuralUnitControlTerminatorPlan::Jump { target_state, .. } => {
+                vec![*target_state]
+            }
+            CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target_state, when_false.target_state],
+        };
+        for target in targets {
+            let target_index = checked_states
+                .iter()
+                .position(|candidate| candidate.state == target)?;
+            let count = predecessor_counts.get_mut(target_index)?;
+            *count += 1;
+            if *count > 2 {
+                return None;
+            }
+        }
+    }
+    if predecessor_counts[0] != 0
+        || predecessor_counts
+            .iter()
+            .filter(|count| **count == 2)
+            .count()
+            > 1
+    {
+        return None;
+    }
     Some(CheckedStructuralUnitControlMachinePlan {
         machine: machine.symbol,
         attachment_type_identity: attachment_type_identity?,
