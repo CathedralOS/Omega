@@ -215,7 +215,9 @@ each path. Any finite sequence of short-circuit Boolean locals is also accepted
 within an otherwise branch-free primitive binding sequence: prefix values
 dominate the first decision tree, each tree's leaves jump without cleanup to one
 typed Boolean convergence parameter, and branch-free work in that continuation
-may lead to the next tree or the final return and complete cleanup.
+may lead to the next local tree or to the return expression. That final return
+may itself be a short-circuit Boolean tree; every one of its value leaves then
+performs the same complete cleanup.
 Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
