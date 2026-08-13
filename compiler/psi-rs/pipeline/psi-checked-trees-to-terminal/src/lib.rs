@@ -1615,6 +1615,32 @@ fn lower_structural_scalar_return_machine(
         }
         lookup_type_id(&type_ids, &parameter.type_identity)?;
     }
+    for parameter in &plan.scalar_parameters {
+        if !positions.insert(parameter.source_position) {
+            return unsupported(
+                "structural scalar return parameter maps overlap or repeat a source position",
+            );
+        }
+        terminal_scalar_type(parameter.primitive_type)?;
+    }
+    let parameter_count = plan
+        .structural_parameters
+        .len()
+        .checked_add(plan.scalar_parameters.len())
+        .ok_or(LoweringError::Unsupported(
+            "structural scalar return parameter count exceeds usize",
+        ))?;
+    if positions.len() != parameter_count
+        || positions
+            .iter()
+            .copied()
+            .enumerate()
+            .any(|(index, position)| u32::try_from(index).ok() != Some(position))
+    {
+        return unsupported(
+            "structural scalar return parameter maps do not partition source positions",
+        );
+    }
     let expected_cleanup = plan
         .structural_parameters
         .iter()
@@ -1639,17 +1665,43 @@ fn lower_structural_scalar_return_machine(
         .trivial_affine_discard_parameter_positions
         .iter()
         .map(|position| {
-            structural_parameters
+            let parameter_index = plan
+                .structural_parameters
                 .iter()
-                .find_map(|parameter| (parameter.position == *position).then_some(parameter.place))
+                .position(|parameter| parameter.position == *position)
                 .ok_or(LoweringError::Unsupported(
                     "structural scalar return cleanup position is absent from its signature",
+                ))?;
+            structural_parameters
+                .get(parameter_index)
+                .map(|parameter| parameter.place)
+                .ok_or(LoweringError::Unsupported(
+                    "structural scalar return cleanup position has no terminal place",
                 ))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut operations = OperationBuffer::new(0);
     let mut next_value = 1_u64;
-    let mut scalar_values = Vec::with_capacity(plan.bindings.len());
+    let scalar_parameters = plan
+        .scalar_parameters
+        .iter()
+        .map(|parameter| {
+            let value = ValueDeclaration {
+                id: value_id(allocate_dense(&mut next_value)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            };
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let scalar_parameter_count = scalar_parameters.len();
+    let mut scalar_values = Vec::with_capacity(
+        scalar_parameter_count
+            .checked_add(plan.bindings.len())
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar value namespace exceeds usize",
+            ))?,
+    );
+    scalar_values.extend_from_slice(&scalar_parameters);
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
         let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar return binding index exceeds u32")
@@ -1670,7 +1722,11 @@ fn lower_structural_scalar_return_machine(
                 binding_ordinal: statement_ordinal,
             },
         )?;
-        if !is_branch_free_structural_scalar_expression(&expression, scalar_values.len()) {
+        if !is_branch_free_structural_scalar_expression(
+            &expression,
+            scalar_parameter_count,
+            binding_index,
+        ) {
             return unsupported(
                 "structural scalar binding is not one branch-free local expression",
             );
@@ -1701,7 +1757,11 @@ fn lower_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    if !is_branch_free_structural_scalar_expression(&expression, scalar_values.len()) {
+    if !is_branch_free_structural_scalar_expression(
+        &expression,
+        scalar_parameter_count,
+        plan.bindings.len(),
+    ) {
         return unsupported("structural scalar return is not one branch-free local expression");
     }
     if expression.scalar_type() != result_type {
@@ -1729,7 +1789,7 @@ fn lower_structural_scalar_return_machine(
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
-        parameters: Vec::new(),
+        parameters: scalar_parameters,
         structural_parameters: structural_parameters.clone(),
         result: TerminalMachineResult::Scalar(result),
         structural_places: structural_parameters
@@ -1786,59 +1846,96 @@ fn lower_structural_scalar_return_machine(
 
 fn is_branch_free_structural_integer_expression(
     expression: &LoweredDirectExpression,
+    scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => true,
         LoweredDirectExpression::IntegerBinary { left, right, .. } => {
-            is_branch_free_structural_integer_expression(left, available_locals)
-                && is_branch_free_structural_integer_expression(right, available_locals)
+            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_integer_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
         }
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. }
         | LoweredDirectExpression::IntegerWiden { operand, .. }
         | LoweredDirectExpression::IntegerExactCast { operand, .. } => {
-            is_branch_free_structural_integer_expression(operand, available_locals)
+            is_branch_free_structural_integer_expression(
+                operand,
+                scalar_parameters,
+                available_locals,
+            )
         }
-        LoweredDirectExpression::Local { position, .. } => *position < available_locals,
-        LoweredDirectExpression::Parameter { .. } | LoweredDirectExpression::Boolean { .. } => {
-            false
+        LoweredDirectExpression::Parameter { position, .. } => *position < scalar_parameters,
+        LoweredDirectExpression::Local { position, .. } => {
+            *position >= scalar_parameters
+                && *position < scalar_parameters.saturating_add(available_locals)
         }
+        LoweredDirectExpression::Boolean { .. } => false,
     }
 }
 
 fn is_branch_free_structural_scalar_expression(
     expression: &LoweredDirectExpression,
+    scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
     match expression {
         LoweredDirectExpression::Boolean { expression } => {
-            is_branch_free_structural_boolean_expression(expression, available_locals)
+            is_branch_free_structural_boolean_expression(
+                expression,
+                scalar_parameters,
+                available_locals,
+            )
         }
-        expression => is_branch_free_structural_integer_expression(expression, available_locals),
+        expression => is_branch_free_structural_integer_expression(
+            expression,
+            scalar_parameters,
+            available_locals,
+        ),
     }
 }
 
 fn is_branch_free_structural_boolean_expression(
     expression: &LoweredBooleanReturnExpression,
+    scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => true,
         LoweredBooleanReturnExpression::Not { operand } => {
-            is_branch_free_structural_boolean_expression(operand, available_locals)
+            is_branch_free_structural_boolean_expression(
+                operand,
+                scalar_parameters,
+                available_locals,
+            )
         }
         LoweredBooleanReturnExpression::Equal { left, right } => {
-            is_branch_free_structural_boolean_expression(left, available_locals)
-                && is_branch_free_structural_boolean_expression(right, available_locals)
+            is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_boolean_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
         }
         LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
-            is_branch_free_structural_integer_expression(left, available_locals)
-                && is_branch_free_structural_integer_expression(right, available_locals)
+            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_integer_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
         }
-        LoweredBooleanReturnExpression::Local { position } => *position < available_locals,
-        LoweredBooleanReturnExpression::Parameter { .. }
-        | LoweredBooleanReturnExpression::And { .. }
-        | LoweredBooleanReturnExpression::Or { .. } => false,
+        LoweredBooleanReturnExpression::Parameter { position } => *position < scalar_parameters,
+        LoweredBooleanReturnExpression::Local { position } => {
+            *position >= scalar_parameters
+                && *position < scalar_parameters.saturating_add(available_locals)
+        }
+        LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
+            false
+        }
     }
 }
 
@@ -8337,6 +8434,7 @@ mod tests {
                     state: entry,
                     attachment_type_identity: "example::Root".to_owned(),
                     structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
+                    scalar_parameters: Vec::new(),
                     bindings: Vec::new(),
                     result_type: PrimitiveType::I32,
                     return_statement_ordinal: 0,
@@ -9810,6 +9908,92 @@ mod tests {
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
                 "structural scalar binding is not one branch-free local expression"
+            ))
+        ));
+    }
+
+    #[test]
+    fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_scalar_return_fixture(&mut checked);
+        let plan = &mut checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines[0];
+        plan.structural_parameters[1].position = 2;
+        plan.scalar_parameters = vec![
+            psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 1,
+                primitive_type: PrimitiveType::I32,
+            },
+            psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 3,
+                primitive_type: PrimitiveType::Bool,
+            },
+        ];
+        plan.result_type = PrimitiveType::Bool;
+        plan.trivial_affine_discard_parameter_positions = vec![2, 0];
+        checked.facts.values.scalar_expressions.expressions[0].expression =
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(Box::new(
+                CheckedBooleanExpression::Parameter { position: 1 },
+            ))));
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("exact mixed parameter map should lower before affine cleanup");
+        let machine = &lowered.semantic_module.machines[0];
+        assert!(matches!(
+            machine.parameters.as_slice(),
+            [
+                ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Integer(_),
+                },
+                ValueDeclaration {
+                    id: bool_id,
+                    scalar_type: ScalarType::Boolean,
+                }
+            ] if *id == value_id(1) && *bool_id == value_id(2)
+        ));
+        assert_eq!(machine.structural_parameters.len(), 2);
+        assert!(matches!(
+            machine.blocks[0].operations.as_slice(),
+            [Operation {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanNot { operand },
+                ..
+            }] if *id == value_id(3) && *operand == value_id(2)
+        ));
+        assert!(matches!(
+            &machine.blocks[0].terminator,
+            Terminator::Return {
+                value,
+                trivial_affine_discards,
+                ..
+            } if *value == value_id(3)
+                && trivial_affine_discards == &[place_id(2), place_id(1)]
+        ));
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("mixed scalar/structural parameter module should verify");
+
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines[0]
+            .scalar_parameters[0]
+            .source_position = 0;
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural scalar return parameter maps overlap or repeat a source position"
             ))
         ));
     }

@@ -323,34 +323,65 @@ fn attached_branch_free_scalar_locals_retain_exact_structural_cleanup() {
 }
 
 #[test]
-fn structural_scalar_return_rejects_short_circuit_or_mixed_parameter_shapes() {
-    for source in [
+fn structural_scalar_return_retains_interleaved_scalar_parameter_map() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(
+            first: Token,
+            offset: i32,
+            second: Token,
+            choose: bool
+        ) -> bool
+        {
+            !choose
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("mixed state parameters should publish an exact source-position partition");
+    assert_eq!(plan.structural_parameters.len(), 2);
+    assert_eq!(plan.structural_parameters[0].position, 0);
+    assert_eq!(plan.structural_parameters[1].position, 2);
+    assert_eq!(plan.scalar_parameters.len(), 2);
+    assert_eq!(plan.scalar_parameters[0].source_position, 1);
+    assert_eq!(plan.scalar_parameters[1].source_position, 3);
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [2, 0]);
+}
+
+#[test]
+fn structural_scalar_return_rejects_short_circuit_control() {
+    let checked = checked(
         r#"
         data Token { value: i32; }
         data Root {}
         machine Root::measure(token: Token) -> bool { true && false }
         "#,
-        r#"
-        data Token { value: i32; }
-        data Root {}
-        machine Root::measure(token: Token, scalar: i32) -> i32 { 7i32 }
-        "#,
-    ] {
-        let checked = checked(source);
-        let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str().ends_with("measure"))
-            .expect("measure machine")
-            .symbol;
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_structural_scalar_returns
-                .for_machine(machine)
-                .is_none(),
-            "unsupported scalar/structural shape must not publish a partial plan"
-        );
-    }
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine)
+            .is_none(),
+        "short-circuit control must not publish a branch-free cleanup plan"
+    );
 }
