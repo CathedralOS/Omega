@@ -13040,20 +13040,13 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
     // and shrinks, a second clear/push cycle overwrites slot 0, final length
     // is 1) and exits 70 only when all hold.
     let canary = pass_canary("collections/runtime_fixed_vec_round_trip_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-fixed-vec-round-trip-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("fixed vec round trip canary should compile");
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("fixed vec round trip canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("fixed vec round trip canary should run");
 
@@ -13065,7 +13058,7 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -47752,6 +47745,27 @@ fn compile_single_file_hosted_main(
     })
 }
 
+fn compile_hosted_main(
+    canary: &Path,
+    scratch: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let _ = fs::remove_dir_all(scratch);
+    let source = scratch.join("source");
+    copy_dir_recursive(canary, &source).expect("copy hosted canary source tree");
+    fs::write(
+        source.join("build.omg"),
+        hosted_main_program_entry_build(target),
+    )
+    .expect("write exact hosted ProgramEntry binding");
+    production_compile(CompileOptions {
+        root_path: source.join("main.omg"),
+        build_dir: Some(scratch.join("out")),
+        target_name: Some(target.into()),
+        write_output: true,
+    })
+}
+
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 fn native_hosted_target() -> &'static str {
     "windows_x64"
@@ -47780,9 +47794,6 @@ fn run_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/run").join(path)
 }
 
-// Only the `#[cfg(not(windows))]` native-dungeon repro test copies a sample
-// tree; gate the helper the same way so Windows builds don't warn it unused.
-#[cfg(not(windows))]
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     fs::create_dir_all(to)?;
     for entry in fs::read_dir(from)? {
