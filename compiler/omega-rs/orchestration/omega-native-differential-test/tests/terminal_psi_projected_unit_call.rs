@@ -58,7 +58,7 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
 "#;
 
 const NOMINAL_AFFINE_SOURCE: &str = r#"
-    data Token {}
+    data Token { payload: u32; }
     machine Token::drop(&mut self) {}
     data Root {}
     machine Root::enter(token: Token) {}
@@ -433,7 +433,7 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
 }
 
 #[test]
-fn empty_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
+fn one_field_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
     let plan = nominal_affine_plan();
     let caller_machine = plan.entry;
     let caller = plan
@@ -487,8 +487,8 @@ fn empty_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
         let TerminalTargetOperation::UnitBody(target_body) = &target_caller.operation else {
             panic!("caller remains Unit")
         };
-        assert_eq!(target_body.parameters[0].shape, ValueShape::integer(0, 1));
-        assert!(target_body.parameters[0].placement.locations.is_empty());
+        assert_eq!(target_body.parameters[0].shape, ValueShape::integer(4, 4));
+        assert!(!target_body.parameters[0].placement.locations.is_empty());
         let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
             trivial_affine_discards,
             residual_affine_discards,
@@ -554,7 +554,7 @@ fn empty_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
                 .find(|function| function.machine == caller_machine)
                 .unwrap()
                 .bytes,
-            "empty nominal cleanup adds no native instruction bytes"
+            "the empty cleanup body adds no native instruction bytes"
         );
 
         let mut forged_place = machine.clone();

@@ -1287,8 +1287,13 @@ fn validate_record_shape(
                                 != nominal.structural_type
                             || function.unit_parameter_homes[0].multiplicity
                                 != StructuralMultiplicity::Affine
-                            || function.unit_parameter_homes[0].shape != ValueShape::integer(0, 1)
-                            || !function.unit_parameter_homes[0].source.locations.is_empty()
+                            || !bounded_nominal_receiver_shape(
+                                function.unit_parameter_homes[0].shape,
+                            )
+                            || (function.unit_parameter_homes[0].shape.byte_size == 0
+                                && !function.unit_parameter_homes[0].source.locations.is_empty())
+                            || (function.unit_parameter_homes[0].shape.byte_size != 0
+                                && function.unit_parameter_homes[0].source.locations.is_empty())
                             || attachments.get(&nominal.cleanup_machine)
                                 != Some(&Some(nominal.structural_type))
                     }
@@ -1803,6 +1808,14 @@ fn validate_record_shape(
         previous_operation_ordinal = installed.settlement.operation_ordinal;
     }
     Ok(())
+}
+
+fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
+    shape == ValueShape::integer(0, 1)
+        || matches!(
+            (shape.byte_size, shape.alignment),
+            (1, 1) | (2, 2) | (4, 4) | (8, 8)
+        ) && shape.class == ValueClass::Integer
 }
 
 fn fingerprint_image(bytes: &[u8]) -> TerminalImageFingerprint {
