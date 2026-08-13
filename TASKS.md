@@ -202,12 +202,12 @@ Remaining:
   bytes. Nested/wider paths, multiple moves, claims/content, contracts, and
   nominal `drop` remain fenced for partial-record cleanup.
 
-  The bounded whole-root nominal cleanup slice is complete for one or two
+  The bounded whole-root nominal cleanup slice is complete for one to three
   claim-free, unqualified affine parameters whose records are empty or contain
   only relevant Boolean/integer fields. One attached `T::drop` may be empty or
-  make up to three source-ordered calls to distinct exact-empty helpers. Two
-  attached drops execute in reverse parameter order and may share one
-  cleanup target. Both bodies in the two-action list may use the same bounded
+  make up to three source-ordered calls to distinct exact-empty helpers.
+  Multiple attached drops execute in reverse parameter order and may share one
+  cleanup target. Every body in the three-action list may use the same bounded
   helper-call form, including a shared cleanup target or helper. Checked production, canonical
   terminal encoding, independent verification, interpretation, and fixed fuel
   preserve each whole receiver, charge the root edge once, and count every
@@ -215,7 +215,7 @@ Remaining:
   all five object/image/install paths. Empty drops add no call; each accepted
   executable form emits a call owned by its exact edge/action ordinal before
   return teardown and retains source-ordered operation-owned helper custody.
-  Nested/erased receivers, four-or-more-call bodies, wider lists, locals, claims,
+  Nested/erased receivers, four-or-more-call bodies or lists, locals, claims,
   qualifications, contracts, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
@@ -441,9 +441,9 @@ reach or trust, and private proof improvements do not change public identity.
   artifact paths. The cleanup may be empty or make up to three source-ordered
   zero-argument calls to mutually distinct exact-empty helpers; native
   artifacts retain the cleanup edge and helper operations as distinct call
-  owners. Two nominal cleanups now run in reverse parameter order through
-  interpretation, fuel, and every native artifact path. They may share an
-  target, and both actions may use the bounded executable body, including a
+  owners. Up to three nominal cleanups now run in reverse parameter order through
+  interpretation, fuel, and every native artifact path. They may share a
+  target, and every action may use the bounded executable body, including a
   shared cleanup target or helper; native calls retain exact edge/action
   ordinals. Add wider executable
   nominal cleanup and cleanup lists, contextual cleanup-contract checking,
