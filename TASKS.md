@@ -205,16 +205,17 @@ Remaining:
   The bounded whole-root nominal cleanup slice is complete: one root-only Unit
   machine with exactly one claim-free, unqualified affine parameter whose
   record is empty or contains only relevant Boolean/integer fields invokes its exact
-  attached `T::drop`: its body may be empty or exactly one ordinary
-  zero-argument call to a distinct exact-empty attached helper. Checked
+  attached `T::drop`: its body may be empty or contain up to two source-ordered
+  ordinary zero-argument calls to mutually distinct exact-empty attached
+  helpers. Checked
   production, canonical terminal encoding,
   independent verification, interpretation, and fixed fuel preserve the whole
   receiver and charge both edges. Omega assigns a nonempty receiver its
   ordinary ABI home while retaining parameter, attachment, and cleanup identity
   through all five object/image/install paths. Empty drops add no call; the
   executable form emits an edge-owned native call before return teardown and
-  retains distinct operation-owned helper-call custody. Nested/erased
-  receivers, wider executable bodies, ordered multiple cleanups, locals,
+  retains source-ordered operation-owned helper-call custody. Nested/erased
+  receivers, three-or-more-call bodies, ordered multiple cleanups, locals,
   claims, qualifications, contracts, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
@@ -437,9 +438,10 @@ reach or trust, and private proof improvements do not change public identity.
   all five native artifact paths. One whole affine parameter whose record is
   empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native
-  artifact paths. The cleanup may be empty or make one zero-argument call to
-  an exact-empty helper; native artifacts retain the cleanup edge and helper
-  operation as distinct call owners. Add wider executable nominal cleanup,
+  artifact paths. The cleanup may be empty or make up to two source-ordered
+  zero-argument calls to mutually distinct exact-empty helpers; native
+  artifacts retain the cleanup edge and helper operations as distinct call
+  owners. Add wider executable nominal cleanup,
   ordered cleanup lists, contextual cleanup-contract checking,
   wider structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
