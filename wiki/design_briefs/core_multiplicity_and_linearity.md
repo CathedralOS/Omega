@@ -195,11 +195,11 @@ content-bearing partitions stay outside this bounded carrier.
 
 Platform-entry writes, dispatch/state-call arguments, and synthesized
 continuations obey the same event and provenance rules. Affine exits run in
-reverse declaration order. The first nominal list slice realizes that rule for
-two whole affine Unit parameters with bounded attached drops. The ordered
+reverse declaration order. The bounded nominal list slice realizes that rule for
+up to three whole affine Unit parameters with bounded attached drops. The ordered
 actions may share one empty cleanup target because custody remains
-place-specific; Psi charges and executes both invocations while Omega preserves
-the list as one artifact action stream. Both actions may have bounded executable
+place-specific; Psi charges and executes every invocation while Omega preserves
+the list as one artifact action stream. Every action may have a bounded executable
 bodies and may share their cleanup target or helpers; each emitted cleanup call
 retains its exact edge/action ordinal. One
 root-only structural-result slice admits a
