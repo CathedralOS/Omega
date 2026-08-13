@@ -211,8 +211,8 @@ Remaining:
   internal call on all five targets, including indirect Windows homes. Exact
   path/type/layout/copy/claim custody survives object, image, and canonical
   installation validation. Dynamic or nested indexing, wider call signatures,
-  projected contracts, content-bearing splits, and partial returns remain
-  fenced.
+  contracts over fixed-index projections, content-bearing splits, and partial
+  returns remain fenced.
 
   The structural partial-value cleanup slice is complete for one claim-free
   affine record: source-ordered ordinary Unit calls may transfer a finite
@@ -223,8 +223,8 @@ Remaining:
   Checked plans, canonical terminal format, independent verification,
   interpretation/fuel, and all five Omega artifact/install paths preserve the
   exact root, field paths, and leaf types without a runtime bitmap or cleanup
-  bytes. Claims/content, contracts, arrays/cases, and nominal `drop` remain
-  fenced for partial-record cleanup.
+  bytes. Claims/content, non-crash contracts, wider crash predicates,
+  arrays/cases, and nominal `drop` remain fenced for partial-record cleanup.
 
   The whole-root nominal cleanup slice is complete for a finite nonempty list
   of claim-free, unqualified affine parameters whose records are empty or
@@ -274,11 +274,13 @@ Remaining:
   through all five targets. The bounded Boolean form retains two decisions and
   three distinct return edges; every leaf owns the same complete cleanup
   stream, and native artifacts retain three edge-specific cleanup intervals.
-  One final top-level short-circuit Boolean local returned directly is inlined
-  into the same three proof-bearing cleanup leaves. Converging or repeated
-  contextual short-circuit locals, nested decisions, calls, effects, nested
-  nominal ownership, and wider scalar bodies remain to be added as complete
-  vertical slices.
+  One final top-level short-circuit Boolean local may be consumed once by a
+  branch-free return suffix, including one intervening branch-free Boolean
+  continuation local returned directly; either form is source-distributed into
+  the same three proof-bearing cleanup leaves. Value reuse, a second
+  continuation local, repeated stages, explicit convergence to one cleanup
+  return, nested decisions, calls, effects, nested nominal ownership, and wider
+  scalar bodies remain to be added as complete vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
@@ -310,12 +312,13 @@ Remaining:
   substitutions, and emit verifier-reconstructed guarded continuations.
   Positional calls stage short-circuit arguments left-to-right; guarded staged
   calls bind their continuations from the fingerprint-pinned, parameter-relative
-  callee contract to exact terminal argument values. Direct relevant Boolean
-  fields of whole record parameters now retain canonical field identity, rebase
-  across structural Unit calls, round-trip through both codecs, and are checked
-  independently by the verifier. Add nested projections, projected structural
-  arguments, and wider aggregate/member predicates. Imported crash capsules
-  remain design-blocked on artifact identity and certificate binding.
+  callee contract to exact terminal argument values. Nonempty paths to relevant
+  Boolean fields of record parameters retain every canonical field identity,
+  rebase across whole-root and all-field-projected structural Unit calls,
+  round-trip through both codecs, and are checked independently by the
+  verifier. Add fixed-index argument prefixes and wider aggregate/member
+  predicate forms. Imported crash capsules remain design-blocked on artifact
+  identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
@@ -466,17 +469,21 @@ customer-shaped compiler concept is introduced.
   alias replacement; rebinding leaves earlier reborrows intact. The bounded
   non-reference direct-call expression class is complete through depth two,
   including member projection and one or more independently bounded indexes;
-  typed non-reference assignment-value call trees extend through depth three.
+  typed non-reference assignment-value call trees extend through depth four.
+  One top-level concrete primitive-only record literal may likewise contain an
+  independently bounded non-reference call tree in each direct field while
+  publishing every write.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
   record/sum locals remain isolated through nested fixed arrays.
 
   Continue with representable relational candidates. Recursive, boundary,
-  deeper, binding-reborrow, reference-valued/opaque, escaped, non-bijective,
-  generic, reference-bearing, and out-of-isolated-root shapes remain
-  conservative fences. Do not restore authored `stores` clauses or treat
-  lifetime elision as evidence; Git carries individual evidence cohorts.
+  beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
+  escaped, non-bijective, generic, reference-bearing, case-bearing or nested
+  computed record literals, and out-of-isolated-root shapes remain conservative
+  fences. Do not restore authored `stores` clauses or treat lifetime elision as
+  evidence; Git carries individual evidence cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
@@ -527,8 +534,12 @@ reach or trust, and private proof improvements do not change public identity.
   independently verifies the
   source-produced semantic/proof artifact, and removes proof metadata before
   all five Omega runtime carriers. Missing premises reject with an edge- and
-  cleanup-specific diagnostic. Extend contextual cleanup beyond this
-  direct-Boolean, receiver-independent-body subset; add wider structural partial-value cleanup,
+  cleanup-specific diagnostic. Contextual scalar cleanup distributes one
+  bounded short-circuit stage through at most one single-use branch-free
+  continuation local; unlike the claim-free scalar lane, it does not yet retain
+  a typed convergence block or shared cleanup edge. Extend contextual cleanup
+  beyond this direct-Boolean, receiver-independent-body subset; add wider
+  structural partial-value cleanup,
   repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
