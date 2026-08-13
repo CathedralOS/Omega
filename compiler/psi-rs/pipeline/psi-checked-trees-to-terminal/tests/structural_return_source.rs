@@ -139,6 +139,164 @@ const ORDINARY_INDEXED_CUSTODY_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_LOCAL_SOURCE: &str = r#"
+    data Empty {}
+    data Token { value: u64; }
+    data Root {}
+
+    machine Root::cleanup(first: Token, second: Token) {
+        let one: Empty = Empty {};
+        let two: Empty = Empty {};
+    }
+"#;
+
+#[test]
+fn source_unit_retains_ordered_empty_affine_local_cleanup() {
+    let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::cleanup")
+        .expect("bounded Unit local lowering");
+    let machine = lowered.semantic_module.machines.first().expect("machine");
+    let locals = machine
+        .structural_places
+        .iter()
+        .filter(|place| {
+            matches!(
+                place.kind,
+                psi_core::StructuralPlaceKind::TrivialAffineLocal { .. }
+            )
+        })
+        .map(|place| place.id)
+        .collect::<Vec<_>>();
+    assert_eq!(locals.len(), 2);
+    assert!(matches!(
+        machine.blocks[0].operations.as_slice(),
+        [
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::EstablishTrivialAffineLocal { destination: first },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::EstablishTrivialAffineLocal { destination: second },
+                ..
+            }
+        ] if [*first, *second] == locals.as_slice()
+    ));
+    let psi_terminal::Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        panic!("Unit return")
+    };
+    assert_eq!(
+        trivial_affine_discards,
+        &locals
+            .iter()
+            .rev()
+            .copied()
+            .chain(
+                machine
+                    .structural_parameters
+                    .iter()
+                    .rev()
+                    .map(|parameter| parameter.place)
+            )
+            .collect::<Vec<_>>()
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("Unit semantics encode");
+    assert_eq!(
+        decode_module(&semantic).expect("Unit semantics decode"),
+        lowered.semantic_module,
+        "the codec retains explicit local establishment and cleanup custody"
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("independent verifier reconstructs Unit local cleanup");
+
+    let mut missing_declaration = lowered.semantic_module.clone();
+    missing_declaration.machines[0]
+        .structural_places
+        .retain(|place| place.id != locals[0]);
+    assert!(
+        psi_terminal_verifier::validate_module_representation(&missing_declaration).is_err(),
+        "an establishment operation cannot outlive its typed local declaration"
+    );
+
+    let mut reordered_declarations = lowered.semantic_module.clone();
+    for place in &mut reordered_declarations.machines[0].structural_places {
+        if let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal,
+            ..
+        } = &mut place.kind
+        {
+            *declaration_ordinal = 1 - *declaration_ordinal;
+        }
+    }
+    assert!(
+        psi_terminal_verifier::validate_module_representation(&reordered_declarations).is_err(),
+        "local declarations are canonical source-order custody"
+    );
+
+    let mut reordered_cleanup = lowered.semantic_module.clone();
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut reordered_cleanup.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.swap(0, 1);
+    assert!(
+        psi_terminal_verifier::validate_module_representation(&reordered_cleanup).is_err(),
+        "reordered cleanup is not a valid terminal module"
+    );
+
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("Unit proof encodes");
+    let arguments = machine
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| TerminalStructuralValue {
+            opaque_identity: 0xaff1 + index as u64,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+    )
+    .expect("Unit affine-local artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    for expected_usage in 0..3 {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        assert_eq!(meter.usage().total_units(), expected_usage);
+        meter.replenish(1).unwrap();
+    }
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+}
+
 #[derive(Default)]
 struct RejectSecondEffect {
     accepted: usize,

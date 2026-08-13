@@ -58,6 +58,15 @@ fn assign_function(
                 .operations
                 .iter()
                 .map(|operation| match operation {
+                    TerminalTargetUnitOperation::EstablishTrivialAffineLocal {
+                        psi_operation,
+                        place,
+                        structural_type,
+                    } => TerminalAssignedUnitOperation::EstablishTrivialAffineLocal {
+                        psi_operation: *psi_operation,
+                        place: place.clone(),
+                        structural_type: structural_type.clone(),
+                    },
                     TerminalTargetUnitOperation::Call {
                         psi_operation,
                         callee,
@@ -109,11 +118,13 @@ fn assign_function(
                         arguments: arguments.clone(),
                         completion_receipts: completion_receipts.clone(),
                     },
-                    TerminalTargetUnitOperation::Return { psi_edge } => {
-                        TerminalAssignedUnitOperation::Return {
-                            psi_edge: *psi_edge,
-                        }
-                    }
+                    TerminalTargetUnitOperation::Return {
+                        psi_edge,
+                        trivial_affine_discards,
+                    } => TerminalAssignedUnitOperation::Return {
+                        psi_edge: *psi_edge,
+                        trivial_affine_discards: trivial_affine_discards.clone(),
+                    },
                 })
                 .collect();
             TerminalAssignedOperation::UnitBody(TerminalAssignedUnitBody {

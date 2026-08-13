@@ -145,6 +145,7 @@ pub struct TerminalTargetUnitBody {
 pub struct TerminalTargetStructuralParameter {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
+    pub multiplicity: psi_terminal::StructuralMultiplicity,
     pub shape: ValueShape,
     pub placement: ValuePlacement,
 }
@@ -168,6 +169,11 @@ pub struct TerminalTargetStructuralArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetUnitOperation {
+    EstablishTrivialAffineLocal {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+    },
     Call {
         psi_operation: OperationId,
         callee: MachineId,
@@ -190,6 +196,7 @@ pub enum TerminalTargetUnitOperation {
     },
     Return {
         psi_edge: EdgeId,
+        trivial_affine_discards: Vec<PlaceId>,
     },
 }
 

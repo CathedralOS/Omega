@@ -176,10 +176,13 @@ the list from state-exit permission events in reverse parameter declaration
 order. Terminal verification independently reconstructs the exact live affine
 frontier, and rejects missing, extra, reordered, unknown, or claim-bearing
 discards. Interpretation charges the return edge before removing those places,
-so sponsor exhaustion cannot perform cleanup early. Structural-result returns
-add one narrower local form below; general affine locals, nominal cleanup
-machines, partial values, and the whole-edge conservation witness remain
-outside this Unit/control slice. An
+so sponsor exhaustion cannot perform cleanup early. A one-state Unit/effect
+body may also begin with a finite source-ordered run of immutable, unqualified,
+empty-record affine locals. Each has an explicit fuel-charged establishment;
+the return discards locals in reverse order before eligible parameters. Their
+typed custody crosses Omega's five native artifact pipelines without runtime
+bytes. Nonempty, mutable, qualified, content-bearing, nominal-cleanup, and
+post-effect locals remain fenced. An
 unconditional jump and each ordered conditional successor may carry an
 independent canonical reverse-declaration subset of the same eligible
 parameters. Verification removes exactly those places from the corresponding

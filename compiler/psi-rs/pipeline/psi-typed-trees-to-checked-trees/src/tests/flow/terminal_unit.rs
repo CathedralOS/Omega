@@ -1,4 +1,101 @@
 use super::*;
+
+#[test]
+fn unit_body_retains_empty_affine_local_prefix_and_reverse_cleanup() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Token { value: u64; }
+        data Root {}
+
+        machine Root::cleanup(first: Token, second: Token) {
+            let one: Empty = Empty {};
+            let two: Empty = Empty {};
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "cleanup");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("bounded Unit local cleanup plan");
+    assert_eq!(plan.trivial_affine_locals.len(), 2);
+    assert_eq!(plan.trivial_affine_locals[0].declaration_ordinal, 0);
+    assert_eq!(plan.trivial_affine_locals[1].declaration_ordinal, 1);
+    assert!(matches!(
+        plan.operations.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                declaration_ordinal: 0,
+                ..
+            },
+            psi_checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                declaration_ordinal: 1,
+                ..
+            },
+            psi_checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+                ..
+            }
+        ] if trivial_affine_local_discard_ordinals == &[1, 0]
+            && trivial_affine_discards == &[1, 0]
+    ));
+}
+
+#[test]
+fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Nonempty { value: u64; }
+        data Qualified {}
+        domain Qualified::Owned;
+        data Nominal {}
+        machine Nominal::drop(&mut self) {}
+        data Root {}
+
+        machine Root::mutable_local() {
+            let mut local: Empty = Empty {};
+        }
+        machine Root::nonempty_local() {
+            let local: Nonempty = Nonempty { value: 1 };
+        }
+        machine Root::qualified_local(value: Qualified in Owned) {
+            let local: Qualified in Owned = value;
+        }
+        machine Root::nominal_cleanup_local() {
+            let local: Nominal = Nominal {};
+        }
+        machine Root::local_after_effect()
+        reaches PortIo
+        {
+            asm { out 32, 7 }
+            let local: Empty = Empty {};
+        }
+        "#,
+    );
+
+    for machine in [
+        "mutable_local",
+        "nonempty_local",
+        "qualified_local",
+        "nominal_cleanup_local",
+        "local_after_effect",
+    ] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside the bounded Unit affine-local slice"
+        );
+    }
+}
 use psi_checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,

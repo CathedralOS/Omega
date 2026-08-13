@@ -3330,6 +3330,7 @@ fn lower_attached_unit_closure(
                     }
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
         }
@@ -3483,9 +3484,48 @@ fn lower_attached_unit_closure(
             .iter()
             .find(|(symbol, _, _)| *symbol == plan.machine)
             .expect("every closure machine has lowered entry claims");
+        let local_places = plan
+            .trivial_affine_locals
+            .iter()
+            .map(|local| {
+                Ok(StructuralPlaceDeclaration {
+                    id: place_id(allocate_dense(&mut next_place)?),
+                    kind: StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal: local.declaration_ordinal,
+                        structural_type: lookup_type_id(&type_ids, &local.type_identity)?,
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         let mut operations = Vec::with_capacity(plan.operations.len().saturating_sub(1));
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let kind = match operation {
+                CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                    declaration_ordinal,
+                    type_identity,
+                    ..
+                } => {
+                    let local = local_places
+                        .get(usize::try_from(*declaration_ordinal).map_err(|_| {
+                            LoweringError::Unsupported("Unit local ordinal exceeds usize")
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit local ordinal is not dense",
+                        ))?;
+                    if !matches!(
+                        local.kind,
+                        StructuralPlaceKind::TrivialAffineLocal {
+                            declaration_ordinal: ordinal,
+                            structural_type,
+                        } if ordinal == *declaration_ordinal
+                            && structural_type == lookup_type_id(&type_ids, type_identity)?
+                    ) {
+                        return unsupported("Unit local declaration drifted from checked custody");
+                    }
+                    OperationKind::EstablishTrivialAffineLocal {
+                        destination: local.id,
+                    }
+                }
                 CheckedUnitEffectOperationPlan::CallUnit {
                     target_machine,
                     structural_arguments,
@@ -3636,15 +3676,26 @@ fn lower_attached_unit_closure(
             });
         }
         let CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
         } = plan.operations.last().expect("Unit sequence was validated")
         else {
             unreachable!()
         };
-        let trivial_affine_discards = trivial_affine_discards
+        let trivial_affine_discards = trivial_affine_local_discard_ordinals
             .iter()
-            .map(|parameter_index| {
+            .map(|ordinal| {
+                local_places
+                    .get(usize::try_from(*ordinal).map_err(|_| {
+                        LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
+                    })?)
+                    .map(|local| local.id)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit local cleanup ordinal is not dense",
+                    ))
+            })
+            .chain(trivial_affine_discards.iter().map(|parameter_index| {
                 parameters
                     .get(usize::try_from(*parameter_index).map_err(|_| {
                         LoweringError::Unsupported(
@@ -3655,7 +3706,7 @@ fn lower_attached_unit_closure(
                     .ok_or(LoweringError::Unsupported(
                         "Unit affine discard has an invalid parameter index",
                     ))
-            })
+            }))
             .collect::<Result<Vec<_>, _>>()?;
         let block = block_id(allocate_dense(&mut next_block)?);
         let edge = edge_id(allocate_dense(&mut next_edge)?);
@@ -3674,6 +3725,7 @@ fn lower_attached_unit_closure(
                         is_self: parameter.is_self,
                     },
                 })
+                .chain(local_places.iter().cloned())
                 .collect(),
             entry_claims: entry_claims.clone(),
             published_service_ceiling: lower_published_service_ceiling(
@@ -3818,6 +3870,14 @@ fn validate_unit_operation_sequence(
     let mut previous = None;
     for operation in &machine.operations[..machine.operations.len() - 1] {
         let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index,
+                declaration_ordinal,
+                ..
+            } => psi_checked_trees::CheckedUnitCallCoordinate {
+                statement_index: *statement_index,
+                call_ordinal: *declaration_ordinal,
+            },
             CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryCallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
@@ -3949,6 +4009,9 @@ fn lower_unit_structural_types(
         )?;
         for parameter in &machine.structural_parameters {
             collect(plans, &parameter.type_identity, &mut active, &mut selected)?;
+        }
+        for local in &machine.trivial_affine_locals {
+            collect(plans, &local.type_identity, &mut active, &mut selected)?;
         }
     }
     for (boundary, _) in boundaries {
@@ -4139,7 +4202,8 @@ fn lower_unit_services(
                 | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
-                CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
+                CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
         }
     }
@@ -9240,6 +9304,7 @@ mod tests {
                     state: root_state,
                     attachment_type_identity: "example::Root".to_owned(),
                     structural_parameters: vec![structural_parameter(7)],
+                    trivial_affine_locals: Vec::new(),
                     entry_claims: vec![entry_claim(root, root_state)],
                     body_qualifications: vec![domain],
                     contract_fingerprint: 0x101,
@@ -9271,6 +9336,7 @@ mod tests {
                         },
                         CheckedUnitEffectOperationPlan::ReturnUnit {
                             statement_index: 1,
+                            trivial_affine_local_discard_ordinals: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     ],
@@ -9280,6 +9346,7 @@ mod tests {
                     state: helper_state,
                     attachment_type_identity: "example::Helper".to_owned(),
                     structural_parameters: vec![structural_parameter(3)],
+                    trivial_affine_locals: Vec::new(),
                     entry_claims: vec![entry_claim(helper, helper_state)],
                     body_qualifications: vec![domain],
                     contract_fingerprint: 0x202,
@@ -9320,6 +9387,7 @@ mod tests {
                         },
                         CheckedUnitEffectOperationPlan::ReturnUnit {
                             statement_index: 2,
+                            trivial_affine_local_discard_ordinals: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     ],
@@ -10771,6 +10839,7 @@ mod tests {
         root.entry_claims.clear();
         root.operations = vec![CheckedUnitEffectOperationPlan::ReturnUnit {
             statement_index: 0,
+            trivial_affine_local_discard_ordinals: Vec::new(),
             trivial_affine_discards: vec![0],
         }];
 

@@ -357,11 +357,18 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     };
     *trivial_affine_discards = vec![second_extra, extra];
     let semantics = encode_module(&wider_cleanup).expect("two affine cleanups should encode");
+    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("a finite exact affine cleanup tail should enter Omega abstract operations");
+    let [function] = plan.functions.as_slice() else {
+        panic!("fixture has one terminal function")
+    };
+    assert_eq!(function.structural_parameters.len(), 3);
     assert!(matches!(
-        lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default()),
-        Err(ArtifactLoweringError::Lowering(
-            LoweringError::UnsupportedStructuralResult(machine)
-        )) if machine == machine_id(1)
+        function.operations.as_slice(),
+        [TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        }] if trivial_affine_discards == &[second_extra, extra]
     ));
 }
 

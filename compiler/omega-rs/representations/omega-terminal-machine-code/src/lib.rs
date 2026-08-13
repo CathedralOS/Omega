@@ -39,6 +39,9 @@ pub struct TerminalMachineCodeFunction {
     /// Object validation binds projected-call custody to this independently
     /// retained caller frame plan instead of trusting per-call offsets.
     pub unit_parameter_homes: Vec<TerminalUnitParameterHomeRecord>,
+    /// Independent ordered semantic signature for a Unit body. Object
+    /// validation binds each mutable ABI home back to this declaration row.
+    pub unit_parameters: Vec<TerminalUnitParameterRecord>,
     /// Exact ordered stack mutations and admitted control-flow shape for a
     /// scalar function. Object construction replays the target instructions
     /// and derives the numeric peak; unsupported scalar forms remain `None`.
@@ -50,6 +53,9 @@ pub struct TerminalMachineCodeFunction {
     pub internal_calls: Vec<TerminalInternalCallRelocation>,
     /// Complete ordered semantic and ABI custody for in-module Unit calls.
     pub internal_unit_calls: Vec<TerminalInternalUnitCallRecord>,
+    /// Exact zero-code affine-local establishment and Unit-return cleanup
+    /// custody for the bounded one-state Unit slice.
+    pub unit_affine_cleanup: Option<TerminalUnitAffineCleanupRecord>,
     /// Exact native byte intervals attributed to the current Psi logical-fuel
     /// schedule. These records are accounting provenance, not runtime charges.
     pub fuel_attribution: Vec<TerminalNativeFuelAttribution>,
@@ -67,13 +73,35 @@ pub struct TerminalMachineCodeFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalUnitAffineCleanupRecord {
+    pub psi_edge: EdgeId,
+    pub locals: Vec<(
+        OperationId,
+        StructuralPlaceDeclaration,
+        StructuralTypeDeclaration,
+    )>,
+    pub discards: Vec<PlaceId>,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalUnitParameterHomeRecord {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
+    pub multiplicity: psi_terminal::StructuralMultiplicity,
     pub shape: ValueShape,
     pub source: ValuePlacement,
     pub byte_offset: u32,
     pub indirect: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalUnitParameterRecord {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: psi_terminal::StructuralMultiplicity,
+    pub shape: ValueShape,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

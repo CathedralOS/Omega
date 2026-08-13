@@ -16,8 +16,8 @@ use omega_terminal_machine_code::{
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
     TerminalPortEffectRecord, TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord,
+    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -274,6 +274,7 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         aarch64_return_link: None,
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(&mut missing_call.functions[1]);
     assert_eq!(
         build_terminal_object_artifact(&missing_call),
         Err(TerminalObjectError::MissingUnitCallStackEvidence {
@@ -301,6 +302,7 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         aarch64_return_link: None,
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(&mut missing_adjustment.functions[1]);
     missing_adjustment.functions[1].internal_calls[0].unit_stack =
         Some(TerminalUnitCallStackEvidence { outbound: None });
     assert_eq!(
@@ -320,6 +322,13 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
             0x48, 0x83, 0xc4, 0x08, // unclaimed add rsp, 8
         ],
     );
+    let return_offset = unclaimed_adjustment.functions[1].bytes.len() - 1;
+    let cleanup = unclaimed_adjustment.functions[1]
+        .unit_affine_cleanup
+        .as_mut()
+        .unwrap();
+    cleanup.code_offset = return_offset;
+    unclaimed_adjustment.functions[1].fuel_attribution[1].code_offset = return_offset;
     assert_eq!(
         build_terminal_object_artifact(&unclaimed_adjustment),
         Err(TerminalObjectError::UnclaimedUnitStackAdjustment {
@@ -345,6 +354,9 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
     caller.internal_unit_calls[0].byte_count = 12;
     caller.fuel_attribution[0].byte_count = 12;
     caller.fuel_attribution[1].code_offset = 20;
+    let cleanup = caller.unit_affine_cleanup.as_mut().unwrap();
+    cleanup.code_offset = 20;
+    cleanup.byte_count = 12;
     let stack = caller.unit_stack.as_mut().expect("AArch64 Unit stack");
     stack
         .frame
@@ -378,6 +390,7 @@ fn x86_unit_stack_scan_uses_instruction_boundaries_not_immediate_substrings() {
         aarch64_return_link: None,
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(&mut plan.functions[0]);
     build_terminal_object_artifact(&plan)
         .expect("stack-like immediate bytes are not stack instructions");
 }
@@ -1065,6 +1078,7 @@ fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
         aarch64_return_link: None,
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(&mut plan.functions[0]);
     account_x86_unit_call(&mut plan);
     let artifact = build_terminal_object_artifact(&plan).expect("accounted Unit artifact");
     let demand = derive_terminal_unit_stack_demand(&artifact, machine_id(2))
@@ -1122,9 +1136,11 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 bytes: bytes.clone(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1200,7 +1216,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "58a6df8aa615a749d54d8b2d6e916ae067e16ca73122e956590cb157f18716b0"
+        "ac0c1176412d9b30fd3aef24f25fe4a966643279a101d34bcfcf7c33336d8119"
     );
 
     let mut changed_plan = plan;
@@ -1223,10 +1239,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&10_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&12_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(10))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(12))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -1287,9 +1303,11 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             bytes,
             unit_stack: None,
             unit_parameter_homes: Vec::new(),
+            unit_parameters: Vec::new(),
             scalar_stack: None,
             internal_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
+            unit_affine_cleanup: None,
             fuel_attribution: vec![
                 TerminalNativeFuelAttribution {
                     schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
@@ -1404,9 +1422,11 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 bytes: integer_return(3),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1421,9 +1441,11 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 bytes: integer_return(7),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1456,9 +1478,11 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 bytes: callee,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1473,6 +1497,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 bytes: caller,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: vec![TerminalInternalCallRelocation {
                     psi_operation: operation_id(2),
@@ -1482,6 +1507,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     offset: call_offset,
                 }],
                 internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -2050,6 +2076,7 @@ fn account_x86_unit_call(plan: &mut TerminalMachineCodePlan) {
         aarch64_return_link: None,
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(caller);
     caller.internal_calls[0].offset = 5;
     caller.internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
         outbound: Some(TerminalStackAdjustmentPair {
@@ -2126,6 +2153,7 @@ fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
         aarch64_return_link: Some(link),
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(&mut plan.functions[0]);
 
     let caller = &mut plan.functions[1];
     caller.bytes = aarch64_words(&[
@@ -2147,6 +2175,7 @@ fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
         }),
         stack_alignment: 16,
     });
+    add_empty_unit_cleanup(caller);
     caller.internal_calls[0].offset = 8;
     caller.internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence { outbound: None });
     caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
@@ -2188,6 +2217,34 @@ fn insert_aarch64_word(bytes: &mut Vec<u8>, offset: usize, word: u32) {
 
 fn integer_return(value: u8) -> Vec<u8> {
     vec![0xb8, value, 0, 0, 0, 0xc3]
+}
+
+fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {
+    let byte_count = if function.bytes.ends_with(&0xd65f_03c0_u32.to_le_bytes()) {
+        4
+    } else {
+        1
+    };
+    let code_offset = function.bytes.len() - byte_count;
+    function.unit_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
+        psi_edge: function.provenance.edges[0],
+        locals: Vec::new(),
+        discards: Vec::new(),
+        code_offset,
+        byte_count,
+    });
+    if function.fuel_attribution.is_empty() {
+        function
+            .fuel_attribution
+            .push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Edge(function.provenance.edges[0]),
+                units: 1,
+                operation_ordinal: 0,
+                code_offset,
+                byte_count,
+            });
+    }
 }
 
 fn machine_id(raw: u64) -> MachineId {

@@ -512,6 +512,11 @@ pub struct CheckedUnitClaimTransferPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    EstablishTrivialAffineLocal {
+        statement_index: u32,
+        declaration_ordinal: u32,
+        type_identity: String,
+    },
     CallUnit {
         coordinate: CheckedUnitCallCoordinate,
         target_machine: SymbolHandle,
@@ -538,6 +543,9 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     ReturnUnit {
         statement_index: u32,
+        /// Exact local declaration coordinates cleaned before parameters, in
+        /// reverse declaration order.
+        trivial_affine_local_discard_ordinals: Vec<u32>,
         /// Owned affine structural parameters discarded on this return edge,
         /// in reverse declaration order.
         trivial_affine_discards: Vec<u32>,
@@ -550,6 +558,9 @@ pub struct CheckedUnitEffectMachinePlan {
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Dense source-order declarations for the bounded empty-record affine
+    /// local prefix.
+    pub trivial_affine_locals: Vec<CheckedTrivialAffineStructuralLocalPlan>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Canonical sorted domains from `QualificationFacts`.
     pub body_qualifications: Vec<SemanticDomainId>,

@@ -67,6 +67,63 @@ fn unit_return_is_one_normal_edge_unit() {
 }
 
 #[test]
+fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
+    let local_type = structural_type_id(900);
+    let first = place_id(900);
+    let second = place_id(901);
+    let mut module = unit_fixture();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: local_type,
+        identity: "test::EmptyScratch".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    }];
+    let machine = &mut module.machines[0];
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: first,
+            kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type: local_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: second,
+            kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 1,
+                structural_type: local_type,
+            },
+        },
+    ];
+    machine.blocks[0].operations = vec![
+        Operation {
+            id: operation_id(900),
+            result: OperationResult::Unit,
+            kind: OperationKind::EstablishTrivialAffineLocal { destination: first },
+        },
+        Operation {
+            id: operation_id(901),
+            result: OperationResult::Unit,
+            kind: OperationKind::EstablishTrivialAffineLocal {
+                destination: second,
+            },
+        },
+    ];
+    machine.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(900),
+        trivial_affine_discards: vec![second, first],
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("Unit local cleanup verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
+    assert_eq!(certificate.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn structural_return_is_one_normal_edge_unit() {
     let structural_type = structural_type_id(900);
     let source = place_id(900);

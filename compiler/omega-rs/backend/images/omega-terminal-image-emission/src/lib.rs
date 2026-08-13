@@ -140,6 +140,9 @@ pub struct TerminalObjectFunction {
     pub unit_call_stacks: Vec<TerminalObjectUnitCallStack>,
     pub scalar_call_stacks: Vec<TerminalObjectScalarCallStack>,
     pub internal_unit_calls: Vec<omega_terminal_machine_code::TerminalInternalUnitCallRecord>,
+    pub unit_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
+    pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
+    pub unit_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<TerminalStructuralReturnRecord>,
@@ -454,6 +457,38 @@ pub fn build_terminal_object_artifact(
                 custody,
             )?;
         }
+        match (&function.unit_stack, &function.unit_affine_cleanup) {
+            (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
+                function.machine,
+                &function.provenance,
+                &function.bytes,
+                &function.fuel_attribution,
+                &function.unit_parameter_homes,
+                cleanup,
+            )?,
+            (None, None) => {}
+            _ => {
+                return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                    function.machine,
+                ));
+            }
+        }
+        if function.unit_parameters.len() != function.unit_parameter_homes.len()
+            || function
+                .unit_parameters
+                .iter()
+                .zip(&function.unit_parameter_homes)
+                .any(|(parameter, home)| {
+                    parameter.place != home.place
+                        || parameter.structural_type != home.structural_type
+                        || parameter.multiplicity != home.multiplicity
+                        || parameter.shape != home.shape
+                })
+        {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
         if let Some(stack) = function.unit_stack {
             validate_complete_unit_stack_evidence(
                 plan.target.architecture,
@@ -720,6 +755,9 @@ pub fn build_terminal_object_artifact(
             unit_call_stacks,
             scalar_call_stacks,
             internal_unit_calls: function.internal_unit_calls.clone(),
+            unit_parameters: function.unit_parameters.clone(),
+            unit_parameter_homes: function.unit_parameter_homes.clone(),
+            unit_affine_cleanup: function.unit_affine_cleanup.clone(),
             structural_return: function.structural_return.clone(),
         });
     }
@@ -776,6 +814,95 @@ pub fn build_terminal_object_artifact(
         port_effects,
         boundary_settlements,
     })
+}
+
+fn validate_unit_affine_cleanup(
+    machine: MachineId,
+    provenance: &TerminalPsiProvenance,
+    bytes: &[u8],
+    fuel: &[TerminalNativeFuelAttribution],
+    parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
+    cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
+) -> Result<(), TerminalObjectError> {
+    let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
+    let end = cleanup
+        .code_offset
+        .checked_add(cleanup.byte_count)
+        .ok_or_else(invalid)?;
+    let local_places = cleanup
+        .locals
+        .iter()
+        .map(|(_, place, _)| place.id)
+        .collect::<Vec<_>>();
+    let expected_local_prefix = local_places.iter().rev().copied().collect::<Vec<_>>();
+    let expected_parameter_suffix = parameter_homes
+        .iter()
+        .rev()
+        .filter(|home| home.multiplicity == psi_terminal::StructuralMultiplicity::Affine)
+        .map(|home| home.place)
+        .collect::<Vec<_>>();
+    let local_operations = cleanup
+        .locals
+        .iter()
+        .map(|(operation, _, _)| *operation)
+        .collect::<std::collections::BTreeSet<_>>();
+    let suffix = cleanup
+        .discards
+        .get(expected_local_prefix.len()..)
+        .ok_or_else(invalid)?;
+    if cleanup.byte_count == 0
+        || end != bytes.len()
+        || !provenance.edges.contains(&cleanup.psi_edge)
+        || local_operations.len() != cleanup.locals.len()
+        || cleanup.locals.iter().enumerate().any(
+            |(ordinal, (operation, place, structural_type))| {
+                !provenance.operations.contains(operation)
+                    || !matches!(
+                        place.kind,
+                        psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                            declaration_ordinal,
+                            structural_type: local_type,
+                        } if usize::try_from(declaration_ordinal) == Ok(ordinal)
+                            && local_type == structural_type.id
+                    )
+                    || !matches!(
+                        structural_type.shape,
+                        psi_terminal::StructuralTypeShape::Record { ref fields }
+                            if fields.is_empty()
+                    )
+                    || fuel
+                        .iter()
+                        .filter(|attribution| {
+                            attribution.site == TerminalNativeFuelSite::Operation(*operation)
+                                && attribution.byte_count == 0
+                        })
+                        .count()
+                        != 1
+            },
+        )
+        || cleanup.discards.get(..expected_local_prefix.len())
+            != Some(expected_local_prefix.as_slice())
+        || cleanup
+            .discards
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != cleanup.discards.len()
+        || suffix != expected_parameter_suffix
+        || fuel
+            .iter()
+            .filter(|attribution| {
+                attribution.site == TerminalNativeFuelSite::Edge(cleanup.psi_edge)
+                    && attribution.code_offset == cleanup.code_offset
+                    && attribution.byte_count == cleanup.byte_count
+            })
+            .count()
+            != 1
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn validate_structural_return_record(
@@ -3077,6 +3204,7 @@ pub enum TerminalObjectError {
         offset: usize,
     },
     InvalidInternalUnitCallEvidence(MachineId),
+    InvalidUnitAffineCleanupEvidence(MachineId),
     InternalCallOperationNotInProvenance {
         caller: MachineId,
         operation: psi_core::OperationId,
