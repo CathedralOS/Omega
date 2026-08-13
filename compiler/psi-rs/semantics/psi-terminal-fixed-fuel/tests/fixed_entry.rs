@@ -77,14 +77,22 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         id: structural_type,
         identity: "test::Token".into(),
         shape: StructuralTypeShape::Record {
-            fields: vec![StructuralFieldDeclaration {
-                identity: "payload".into(),
-                id: psi_core::StructuralFieldId::new(900).unwrap(),
-                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-                )),
-                relevance: psi_terminal::BindingRelevance::Relevant,
-            }],
+            fields: vec![
+                StructuralFieldDeclaration {
+                    identity: "tag".into(),
+                    id: psi_core::StructuralFieldId::new(900).unwrap(),
+                    field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                },
+                StructuralFieldDeclaration {
+                    identity: "payload".into(),
+                    id: psi_core::StructuralFieldId::new(901).unwrap(),
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                },
+            ],
         },
     }];
     let caller = &mut module.machines[0];

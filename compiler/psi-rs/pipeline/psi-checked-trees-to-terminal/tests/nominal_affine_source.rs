@@ -1,3 +1,4 @@
+use psi_core::{IntegerSign, IntegerType, ScalarType};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -16,7 +17,7 @@ const SOURCE: &str = r#"
 "#;
 
 const SCALAR_SOURCE: &str = r#"
-    data Token { value: u64; }
+    data Token { tag: u8; payload: i64; }
     machine Token::drop(&mut self) {}
 
     data Root {}
@@ -91,14 +92,14 @@ fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
 }
 
 #[test]
-fn one_scalar_field_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
+fn two_mixed_width_scalar_fields_cross_source_lowering_codec_and_verifier() {
     let tokens = Lexer::new(SCALAR_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
-        .expect("one-scalar-field nominal cleanup lowers");
+        .expect("two-scalar-field nominal cleanup lowers");
 
     let entry = lowered
         .semantic_module
@@ -118,19 +119,33 @@ fn one_scalar_field_nominal_cleanup_crosses_source_lowering_codec_and_verifier()
     let StructuralTypeShape::Record { fields } = &cleanup_type.shape else {
         panic!("cleanup type remains a record")
     };
-    let [field] = fields.as_slice() else {
-        panic!("bounded cleanup record retains one field")
+    let [tag, payload] = fields.as_slice() else {
+        panic!("bounded cleanup record retains two fields")
     };
-    assert_eq!(field.identity, "value");
-    assert!(!field.relevance.is_erased());
-    assert!(matches!(field.field_type, StructuralFieldType::Scalar(_)));
+    assert_eq!(tag.identity, "tag");
+    assert!(!tag.relevance.is_erased());
+    assert_eq!(payload.identity, "payload");
+    assert!(!payload.relevance.is_erased());
+    let (StructuralFieldType::Scalar(tag_type), StructuralFieldType::Scalar(payload_type)) =
+        (&tag.field_type, &payload.field_type)
+    else {
+        panic!("both bounded cleanup fields retain scalar carriers")
+    };
+    assert_eq!(
+        *tag_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"))
+    );
+    assert_eq!(
+        *payload_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"))
+    );
 
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("verifier accepts one-scalar-field nominal cleanup closure");
+    .expect("verifier accepts two-scalar-field nominal cleanup closure");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(
         decode_module(&bytes).expect("semantic module decodes"),
