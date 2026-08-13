@@ -53,26 +53,16 @@ Owners:
 Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Complete the physical entry bridge and explicit-entry
-  corpus migration. The recorded installation handoff now binds an exact mapped
-  receiver reservation, zeroes it, and carries its one exclusive activation
-  loan without releasing receiver-bound roots through an unchecked path. Bind
-  that handoff and the installer to the selected physical provider and generated
-  native bridge. Exact target-owned `ProgramEntry` selection is established for
-  the four hosted targets and representative provider, artifact, ABI, layout,
-  runtime, sample, and interpreter/native differential cohorts. Production and
-  development interpreter callers require that exact choice; checked-only
-  semantic compilation selects no program-storage root. Backend/Psi implicit
-  `Main::main` and `Main::run` discovery is retired, and temporary legacy ABI
-  probes name their fixture entry explicitly.
-
-  Finish classifying and migrating the remaining `Main::main` corpus: pure
-  language/checker fixtures stop at checked artifacts, while deployable or
-  provider/artifact/ABI/layout/native tests select an exact root. Fix ordinary
-  lowering/runtime defects exposed by documented sample execution separately
-  from entry selection. Representative runtime-text/indexing, provider syscall,
-  compiler-body, static-guard, and emitted-artifact cohorts already retain their
-  behavioral and target-specific assertions through exact roots; Git carries
-  the individual migration ledger. Final composition of firmware
+  corpus migration. Bind the exact mapped, zeroed receiver reservation and its
+  exclusive activation loan through installation to the selected physical
+  provider and generated native bridge. Finish classifying `Main::main`
+  fixtures: pure language/checker fixtures stop at checked artifacts, while
+  deployable/provider/artifact/ABI/layout/native tests select an exact
+  target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
+  entry explicitly. Production and development interpreter execution likewise
+  requires an exact choice, while checked-only compilation selects no storage
+  root. Fix unrelated lowering/runtime defects separately. Final firmware
+  composition of
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
@@ -122,33 +112,17 @@ Owners:
 - Finish source-visible materialization over owned storage, including
   non-scalar tiling and mutable views beyond current record/array/slice checks.
   Raw bytes establish no typed fact without a selected validated plan and exact
-  field identities. Fixed arrays of supported primitive elements now reflect
-  as one `Repeated` aggregate field and project through one validated `At`
-  extent in interpreter, native x64, Windows x64, and Linux AArch64 paths.
-  Scalar `Bits`, `IntegerAt`, and active `AccessPlan` decisions remain fenced
-  for that aggregate. Mutable byte-region views now write and reread individual
-  fixed-array elements through the same validated aggregate offset and stride
-  in interpreter, native x64, Windows x64, and Linux AArch64 paths. Recursively
-  nested fixed arrays composed of supported primitives or fixed checked-shape
-  records now retain the same one `Repeated` field, while stacked constant
-  indexing accumulates every nested stride and record offset on those execution
-  paths. Fixed records composed from supported
-  primitive/array/record shapes now likewise reflect as one `Nested` field with
-  one whole `At` extent; mutable fact-free byte views preserve compiler-derived
-  offsets inside that extent across interpreter, native x64, Windows x64, and
-  Linux AArch64 paths. The normalized layout foundation now atomically
-  materializes compiler-sized aggregate fields through whole `At` extents, and
-  the typed source-owned bridge derives complete fixed record/array bytes from
-  exact typed schemas while Omega supplies target byte order; erased fields stay
-  semantic but add no bytes or initialization work, including relevant nested
-  records and fixed arrays of records whose complete runtime shape is erased.
-  An admitted
-  zero-argument source machine may supply the value through Psi's checked
-  interpreter. Both paths zero padding and reject incomplete, mismatched,
-  overlapping, fragmented, unsupported, or out-of-bounds values before
-  mutation. Continue runtime source-visible establishment and mutable views
-  beyond this fixed aggregate subset; continue with sums only after their
-  placement vocabulary is settled.
+  field identities. The accepted fixed subset reflects primitive arrays and
+  recursively fixed arrays/records as one whole `Repeated` or `Nested` `At`
+  extent; compiler-derived strides and offsets drive interpreter and all three
+  native target paths. Mutable fact-free byte views write and reread through
+  those same extents. Typed owned materialization derives complete bytes from
+  the exact schema (or a checked zero-argument Psi evaluator) while Omega
+  supplies byte order, zeroes padding, and validates completely before mutation.
+  Erased terms remain semantically mandatory but add no bytes, including nested
+  records and fixed arrays whose entire runtime shape is erased. Scalar
+  placement/access semantics remain fenced for aggregates. Continue beyond
+  this fixed subset; sums wait for settled placement vocabulary.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
