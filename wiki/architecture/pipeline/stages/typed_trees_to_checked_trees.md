@@ -182,7 +182,7 @@ Current ownership is:
   directly as a statement-call argument.
   Value-shaped assignments may write through those origins without changing
   the relation when the right-hand side is effect-free or a typed
-  non-reference direct-call tree through depth two with complete frames;
+  non-reference direct-call tree through depth three with complete frames;
   sibling branches are admitted independently and all nested-call writes remain
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing

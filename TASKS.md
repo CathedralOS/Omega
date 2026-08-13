@@ -460,7 +460,8 @@ customer-shaped compiler concept is introduced.
   scratch locals, statement/value positions, stable mutable aliases, and direct
   alias replacement; rebinding leaves earlier reborrows intact. The bounded
   non-reference direct-call expression class is complete through depth two,
-  including member projection and one or more independently bounded indexes.
+  including member projection and one or more independently bounded indexes;
+  typed non-reference assignment-value call trees extend through depth three.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete

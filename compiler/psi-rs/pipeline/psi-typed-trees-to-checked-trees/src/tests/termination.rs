@@ -7177,6 +7177,14 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_too_deep_value_call<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = identity(identity(identity(compute(value))));
+        cells
+    }
+
     machine return_after_binding_reborrow_value_call<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -7237,6 +7245,12 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::too_deep_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_too_deep_value_call(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
     machine Main::binding_reborrow_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_binding_reborrow_value_call(
             &mut self.cells,
@@ -7274,6 +7288,14 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             "Main::sibling_value_call_assignment_result",
             vec!["self.cells", "self.other", "self.value"],
         ),
+        (
+            "Main::deep_value_call_assignment_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
+            "Main::deep_sibling_value_call_assignment_result",
+            vec!["self.cells", "self.other", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -7300,8 +7322,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
     }
 
     for name in [
-        "Main::deep_value_call_assignment_result",
-        "Main::deep_sibling_value_call_assignment_result",
+        "Main::too_deep_value_call_assignment_result",
         "Main::reborrow_sibling_value_call_assignment_result",
         "Main::binding_reborrow_value_call_assignment_result",
         "Main::recursive_value_call_assignment_result",
@@ -7514,6 +7535,7 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     for name in [
         "Main::composed_assignment_result",
         "Main::slice_view_composed_assignment_result",
+        "Main::deep_value_assignment_result",
     ] {
         let machine = typed
             .machines()
@@ -7539,7 +7561,6 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
 
     for name in [
         "Main::deep_target_assignment_result",
-        "Main::deep_value_assignment_result",
         "Main::reborrow_target_assignment_result",
         "Main::reborrow_value_assignment_result",
         "Main::deep_slice_view_target_assignment_result",
