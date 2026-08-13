@@ -8,13 +8,18 @@
 //! one iterating test that checks every sample `main.omg` under `samples/` for
 //! the default target and reports *all* broken samples at once, so a language
 //! change that breaks a demo fails the suite the same day. This broad source-
-//! compatibility sweep is entry-agnostic; native execution remains a separate
-//! oracle with an exact host-owned entry root staged around each sample.
+//! compatibility sweep is entry-agnostic. Authored entry migration is checked
+//! separately, while the broad native oracle keeps staging an exact host-owned
+//! adapter around samples that have not yet reached a directly lowerable entry.
 //!
-//! Two guards:
+//! Three guards:
 //!  * `all_samples_reach_checked_trees` — every sample `main.omg` under
 //!    `samples/` must reach checked semantics (catches staleness like the
 //!    decision-17 break without inventing deployment entry policy).
+//!  * `basics_samples_compile_from_authored_program_entry_bindings` — the
+//!    migrated basics cohort selects `Main::main` for every hosted target and
+//!    directly lowers every entry shape the production backend currently
+//!    supports.
 //!  * `samples_with_documented_exit_run_correctly` — every sample whose comment
 //!    states `Expected exit: N` is compiled, RUN, and its exit asserted. This
 //!    catches runtime miscompiles that compile cleanly: stack_vm exited 71 vs 70
@@ -32,6 +37,32 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 const SAMPLE_ENTRY: &str = "omega_sample_entry";
+const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
+const EXPLICIT_ENTRY_BASIC_SAMPLES: &[&str] = &[
+    "brightness_control",
+    "cli_mvp",
+    "generic_counters",
+    "multiplication_table",
+    "nested_diagnostics",
+    "number_guess",
+    "print_number",
+    "print_squares",
+    "temperature_convert",
+    "text_greeting",
+    "unit_converter",
+];
+const DIRECT_ENTRY_NATIVE_BASIC_SAMPLES: &[&str] = &[
+    "brightness_control",
+    "cli_mvp",
+    "generic_counters",
+    "multiplication_table",
+    "nested_diagnostics",
+    "number_guess",
+    "print_number",
+    "print_squares",
+    "text_greeting",
+    "unit_converter",
+];
 
 #[cfg(windows)]
 fn executable_name() -> &'static str {
@@ -327,6 +358,69 @@ fn host_root_owner() -> &'static str {
         "linux_x64" => "linux_x86_64",
         "windows_x64" => "windows_x86_64",
         _ => unreachable!("host_target_name returns one hosted target"),
+    }
+}
+
+#[test]
+fn basics_samples_compile_from_authored_program_entry_bindings() {
+    for sample in EXPLICIT_ENTRY_BASIC_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/basics")
+            .join(sample)
+            .join("main.omg");
+        for target in HOSTED_SAMPLE_TARGETS {
+            let checked =
+                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
+                    panic!(
+                        "basic sample {sample} should select its authored {target} entry: \
+                     {diagnostics:#?}"
+                    )
+                });
+            assert_eq!(
+                checked.selected_program_entry_machine(),
+                Some("Main::main"),
+                "basic sample {sample} must select its authored Main::main binding for {target}"
+            );
+        }
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "basic sample {sample} should remain entry-agnostic when checked: {diagnostics:#?}"
+            )
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            None,
+            "checked-only basic sample {sample} must not select a storage root"
+        );
+    }
+
+    // `temperature_convert` also selects its authored entry above, but direct
+    // native lowering of its float assignment remains a separate backend gap.
+    // Its existing staged native rail stays in place until that lowering is
+    // implemented; entry migration must neither mask nor absorb that work.
+    for sample in DIRECT_ENTRY_NATIVE_BASIC_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/basics")
+            .join(sample)
+            .join("main.omg");
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-authored-basic-entry-{sample}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile_program(CompileOptions {
+            root_path: main_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(host_target_name().to_owned()),
+            write_output: false,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "basic sample {sample} should compile directly without a staged entry: \
+                 {diagnostics:#?}"
+            )
+        });
+        let _ = fs::remove_dir_all(build_dir);
     }
 }
 
