@@ -133,11 +133,13 @@ Owners:
   Linux AArch64 paths. The normalized layout foundation now atomically
   materializes compiler-sized aggregate fields through whole `At` extents, and
   the typed source-owned bridge derives complete fixed record/array bytes from
-  exact typed schemas while Omega supplies target byte order. Both zero padding
-  and reject incomplete, mismatched, overlapping, fragmented, unsupported, or
-  out-of-bounds values before mutation. Continue source-visible establishment
-  and mutable views beyond this fixed aggregate subset; continue with sums only
-  after their placement vocabulary is settled.
+  exact typed schemas while Omega supplies target byte order. An admitted
+  zero-argument source machine may supply the value through Psi's checked
+  interpreter. Both paths zero padding and reject incomplete, mismatched,
+  overlapping, fragmented, unsupported, or out-of-bounds values before
+  mutation. Continue runtime source-visible establishment and mutable views
+  beyond this fixed aggregate subset; continue with sums only after their
+  placement vocabulary is settled.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 

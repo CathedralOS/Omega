@@ -12,8 +12,9 @@ use omega_compiler::{
     EntryStubId, IntegerInterpretation, LayoutPlacementReport, MaterializationAction,
     MaterializationContext, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
     SymbolicFieldValue, compile_to_checked, compute_layout_plan, decode_scalar_layout,
-    derive_symbolic_materialization, materialize_aggregate_layout_into,
-    materialize_scalar_layout_into, materialize_typed_owned_layout_into,
+    derive_symbolic_materialization, evaluate_and_materialize_typed_owned_layout_into,
+    materialize_aggregate_layout_into, materialize_scalar_layout_into,
+    materialize_typed_owned_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -453,6 +454,47 @@ machine Main::main(&mut self) { }
         .is_err()
     );
     assert_eq!(unchanged, [0x5a; 24]);
+}
+
+#[test]
+fn source_machine_owned_record_materializes_through_the_typed_bridge() {
+    let main_path = write_program(
+        "source-owned-fixed-record",
+        r#"
+use omega::language::core::layout;
+
+data RecordLayout { entries: [FieldEntry; 64]; }
+machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 24, size_is_dynamic: false, align: 4 }
+}
+data Pair { low: u8; high: u32; }
+data Samples { pair: Pair; }
+machine make_samples() -> Samples {
+    Samples { pair: Pair { low: 1, high: 33752069 } }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("owned record producer should check");
+    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+        .expect("owned record should have one whole-field placement");
+    let mut bytes = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("source-owned record should evaluate and materialize atomically");
+    assert_eq!(&bytes[8..16], &[1, 0, 0, 0, 5, 4, 3, 2]);
 }
 
 #[test]
