@@ -19929,22 +19929,14 @@ fn runtime_multi_room_reentry_exit_canary_runs() {
 #[test]
 fn runtime_mutable_slice_element_write_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_mutable_slice_element_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-slice-write-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime mutable slice write canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable slice write canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime mutable slice write canary should run");
 
@@ -19956,7 +19948,7 @@ fn runtime_mutable_slice_element_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The promoted straight-line sibling: same mutable-slice-view write, but the
@@ -19999,22 +19991,14 @@ fn runtime_mutable_slice_element_write_straight_line_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_dispatch_mutable_slice_element_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-mutable-slice-write-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime dispatch mutable slice write canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime dispatch mutable slice write canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime dispatch mutable slice write canary should run");
 
@@ -20026,28 +20010,20 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_array_indexed_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-array-indexed-read-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime array indexed read canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime array indexed read canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime array indexed read canary should run");
 
@@ -20059,7 +20035,7 @@ fn runtime_array_indexed_read_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20069,21 +20045,14 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
     // `arr[2].field` sees live storage. Regression for the stale-fold that the
     // earlier `arr[i] = v` fix missed (the `Member(Indexed(..))` target shape).
     let canary = pass_canary("slices/runtime_indexed_struct_field_write_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-indexed-struct-field-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime indexed struct-field write canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime indexed struct-field write canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime indexed struct-field write canary should run");
 
@@ -20095,7 +20064,7 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
