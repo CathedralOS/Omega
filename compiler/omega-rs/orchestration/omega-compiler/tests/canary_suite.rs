@@ -13250,17 +13250,12 @@ fn runtime_unsigned_high_comparison_exit_canary_runs() {
     // Unsigned comparison above i32::MAX (a = u32::MAX, b = 1): a signed setcc would invert every
     // ordered result. All six operators chained give the unsigned answer -> exit 70.
     let canary = pass_canary("arithmetic/runtime_unsigned_high_comparison_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-high-cmp-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned high comparison canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("unsigned high comparison canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("unsigned high comparison canary should run");
     assert_eq!(
@@ -13270,7 +13265,7 @@ fn runtime_unsigned_high_comparison_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13279,17 +13274,12 @@ fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
     // arithmetic vs logical right shift (-16>>2==-4 SAR, 16u32>>2==4 SHR), and a runtime shift
     // amount (1<<5==32). Exits 70.
     let canary = pass_canary("arithmetic/runtime_signed_modulo_shift_edges_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-signed-mod-shift-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("signed modulo/shift edges canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("signed modulo/shift edges canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("signed modulo/shift edges canary should run");
     assert_eq!(
@@ -13299,7 +13289,7 @@ fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
