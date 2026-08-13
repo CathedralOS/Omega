@@ -17317,19 +17317,12 @@ fn mutual_cycle_tail_admitted_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-mutual-tail-admitted-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("admitted mutual tail cycle should compile natively");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("admitted mutual tail cycle should compile natively");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("admitted mutual tail cycle should run");
 
@@ -17341,7 +17334,7 @@ fn mutual_cycle_tail_admitted_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -17365,19 +17358,12 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-landed-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("landed-ops const-fold canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("landed-ops const-fold canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("landed-ops const-fold canary should run");
 
@@ -17390,7 +17376,7 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -17412,19 +17398,12 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-shr-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("shift-right arg-delivery canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shift-right arg-delivery canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("shift-right arg-delivery canary should run");
 
@@ -17437,7 +17416,7 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -17458,19 +17437,12 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-div-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("divide/mod arg-delivery canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("divide/mod arg-delivery canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("divide/mod arg-delivery canary should run");
 
@@ -17483,7 +17455,7 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -17505,18 +17477,11 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("unsigned min/max local canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned min/max local canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("unsigned min/max local canary should run");
 
@@ -17529,7 +17494,7 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
