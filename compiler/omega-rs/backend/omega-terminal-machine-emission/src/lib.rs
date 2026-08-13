@@ -815,8 +815,20 @@ fn emit_unit_body(
                             .collect::<std::collections::BTreeSet<_>>()
                             .len()
                             == residuals.len()
-                        && matches!(moved_paths.as_slice(), [moved]
-                            if residuals.iter().all(|residual| residual.path.as_slice() != *moved))
+                        && !moved_paths.is_empty()
+                        && moved_paths.iter().all(|moved| {
+                            matches!(moved, [psi_terminal::StructuralPathSegment::Field(identity)]
+                                if !identity.is_empty())
+                                && residuals
+                                    .iter()
+                                    .all(|residual| residual.path.as_slice() != *moved)
+                        })
+                        && moved_paths
+                            .iter()
+                            .copied()
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len()
+                            == moved_paths.len()
                 } || (expected_local_prefix.is_empty()
                     && !nominal_cleanups.is_empty()
                     && nominal_cleanups.len() == cleanup_actions.len()

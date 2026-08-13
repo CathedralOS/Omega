@@ -1414,6 +1414,17 @@ fn validate_record_shape(
                             .iter()
                             .find(|parameter| parameter.place == residual_root)
                             .map(|parameter| parameter.structural_type);
+                        let moved_paths = record
+                            .internal_unit_calls
+                            .iter()
+                            .filter(|call| call.machine == function.machine)
+                            .flat_map(|call| &call.custody.arguments)
+                            .filter(|argument| {
+                                argument.place == residual_root
+                                    && Some(argument.root_structural_type) == parameter_type
+                            })
+                            .map(|argument| argument.path.as_slice())
+                            .collect::<Vec<_>>();
                         cleanup.actions.get(..discards.len()).is_none_or(|prefix| {
                             !prefix.iter().zip(&discards).all(|(action, place)| {
                                 matches!(action,
@@ -1444,17 +1455,20 @@ fn validate_record_shape(
                                 .len()
                                 != residuals.len()
                             || parameter_type.is_none()
-                            || !record.internal_unit_calls.iter().any(|call| {
-                                call.machine == function.machine
-                                    && call.custody.arguments.iter().any(|argument| {
-                                        argument.place == residual_root
-                                            && Some(argument.root_structural_type) == parameter_type
-                                            && argument.path.len() == 1
-                                            && residuals.iter().all(|residual| {
-                                                argument.path != residual.path
-                                            })
-                                    })
+                            || moved_paths.is_empty()
+                            || moved_paths.iter().any(|path| {
+                                !matches!(path, [StructuralPathSegment::Field(identity)]
+                                    if !identity.is_empty())
+                                    || residuals
+                                        .iter()
+                                        .any(|residual| residual.path.as_slice() == *path)
                             })
+                            || moved_paths
+                                .iter()
+                                .copied()
+                                .collect::<std::collections::BTreeSet<_>>()
+                                .len()
+                                != moved_paths.len()
                     }
                     (nominal @ [_, _, ..], []) => {
                         let bodies = nominal

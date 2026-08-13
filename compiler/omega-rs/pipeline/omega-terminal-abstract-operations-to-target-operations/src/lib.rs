@@ -2019,28 +2019,50 @@ fn lower_unit_function(
                             function.machine,
                         ));
                     };
-                    let moved_fields = operations
+                    let moved_arguments = operations
                         .iter()
                         .filter_map(|operation| match operation {
                             TerminalTargetUnitOperation::Call { arguments, .. } => Some(arguments),
                             _ => None,
                         })
                         .flatten()
-                        .filter_map(|argument| {
-                            (argument.place == residual_root).then_some(argument.path.as_slice())
-                        })
+                        .filter(|argument| argument.place == residual_root)
                         .collect::<Vec<_>>();
-                    let [[StructuralPathSegment::Field(moved_field)]] = moved_fields.as_slice()
-                    else {
+                    let mut moved_fields = std::collections::BTreeMap::new();
+                    if moved_arguments.is_empty()
+                        || moved_arguments.iter().any(|argument| {
+                            let [StructuralPathSegment::Field(identity)] = argument.path.as_slice()
+                            else {
+                                return true;
+                            };
+                            argument.root_structural_type != parameter.structural_type
+                                || moved_fields
+                                    .insert(identity.as_str(), argument.structural_type)
+                                    .is_some()
+                        })
+                    {
                         return Err(LoweringError::UnsupportedOperationInUnitFunction(
                             function.machine,
                         ));
-                    };
+                    }
+                    let moved_fields_are_exact =
+                        moved_fields.iter().all(|(identity, structural_type)| {
+                            fields.iter().any(|field| {
+                                !field.relevance.is_erased()
+                                    && field.identity == *identity
+                                    && matches!(
+                                        field.field_type,
+                                        StructuralFieldType::Structural(field_type)
+                                            if field_type == *structural_type
+                                    )
+                            })
+                        });
                     let expected_residuals = fields
                         .iter()
                         .rev()
                         .filter(|field| {
-                            !field.relevance.is_erased() && field.identity != *moved_field
+                            !field.relevance.is_erased()
+                                && !moved_fields.contains_key(field.identity.as_str())
                         })
                         .filter_map(|field| match field.field_type {
                             StructuralFieldType::Structural(structural_type) => {
@@ -2052,6 +2074,12 @@ fn lower_unit_function(
                         })
                         .collect::<Vec<_>>();
                     if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                        || !moved_fields_are_exact
+                        || fields.iter().any(|field| {
+                            field.relevance.is_erased()
+                                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+                        })
+                        || moved_fields.len() + expected_residuals.len() != fields.len()
                         || root_discards != local_places.iter().rev().copied().collect::<Vec<_>>()
                         || expected_roots.get(local_places.len()..) != Some(&[residual_root][..])
                         || expected_residuals.len() != residual_discards.len()
