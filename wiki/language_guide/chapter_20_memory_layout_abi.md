@@ -702,8 +702,12 @@ fields only through one whole-field `At` placement. It stages zeroed output,
 checks the exact supplied extent and every destination interval, and rejects
 missing, extra, incomplete, overlapping, fragmented, stored-integer, or
 out-of-bounds fields before changing the destination. This is the normalized
-writer primitive; deriving its field bytes from a typed source-owned value is
-the remaining source-materialization bridge.
+writer primitive. The current typed source-owned bridge derives complete bytes
+for recursively fixed records and arrays in the supported checked-shape subset,
+including erased fields that remain semantically required but contribute no
+storage. It rejects malformed nested values atomically. Runtime establishment
+beyond that fixed subset remains source-materialization work; sum placement
+waits for its settled vocabulary.
 
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
