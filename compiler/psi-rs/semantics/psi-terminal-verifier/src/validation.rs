@@ -2146,7 +2146,6 @@ fn validate_nominal_affine_cleanup_shape(
         .collect::<Vec<_>>();
     let mut target_ids = BTreeSet::new();
     let mut helper_ids = BTreeSet::new();
-    let mut executable_cleanup_count = 0_usize;
     for (cleanup, parameter) in cleanups.iter().zip(expected_parameters) {
         if parameter.place != cleanup.place
             || parameter.structural_type != cleanup.structural_type
@@ -2173,9 +2172,6 @@ fn validate_nominal_affine_cleanup_shape(
         let [target_block] = target.blocks.as_slice() else {
             return Err(invalid(block.id));
         };
-        if !target_block.operations.is_empty() {
-            executable_cleanup_count += 1;
-        }
         if target.id == machine.id
             || target.attachment != Some(cleanup.structural_type)
             || target.result != TerminalMachineResult::Unit
@@ -2194,10 +2190,10 @@ fn validate_nominal_affine_cleanup_shape(
             || !target.contract.requires.is_empty()
             || !target.contract.ensures.is_empty()
             || target_block.operations.len() > 2
-            || executable_cleanup_count > 1
         {
             return Err(invalid(block.id));
         }
+        let mut target_helper_ids = BTreeSet::new();
         for operation in &target_block.operations {
             let OperationKind::CallUnit {
                 callee,
@@ -2212,7 +2208,10 @@ fn validate_nominal_affine_cleanup_shape(
             if operation.result != OperationResult::Unit
                 || *callee == machine.id
                 || *callee == target.id
-                || !helper_ids.insert(*callee)
+                || cleanups
+                    .iter()
+                    .any(|candidate| candidate.cleanup_machine == *callee)
+                || !target_helper_ids.insert(*callee)
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
                 || !requirement_obligations.is_empty()
@@ -2220,6 +2219,7 @@ fn validate_nominal_affine_cleanup_shape(
             {
                 return Err(invalid(block.id));
             }
+            helper_ids.insert(*callee);
             let Some(helper) = machines.get(callee).copied() else {
                 return Err(invalid(block.id));
             };

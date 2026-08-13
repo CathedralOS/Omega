@@ -219,6 +219,40 @@ fn ordered_nominal_affine_cleanups_include_one_executable_body_in_the_exact_boun
 }
 
 #[test]
+fn ordered_nominal_affine_cleanups_include_two_distinct_executable_bodies() {
+    let module = ordered_two_distinct_executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("two distinct executable cleanup bodies verify");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("two executable cleanup bodies have an exact fixed bound");
+    assert_eq!(certificate.ceiling_units(), 7);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
+fn ordered_nominal_affine_cleanups_count_shared_executable_target_and_helper_twice() {
+    let module = ordered_shared_executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("shared executable cleanup target verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("shared executable cleanup has an exact repeated bound");
+    assert_eq!(
+        certificate.ceiling_units(),
+        7,
+        "root plus the shared call/helper/drop path invoked twice"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
     let module = executable_nominal_affine_fixture();
     let verified = verify_module(
@@ -1158,6 +1192,72 @@ fn ordered_one_executable_nominal_affine_fixture() -> TerminalModule {
     helper.contract.id = contract_id(903);
     module.machines[2].blocks[0].operations.push(Operation {
         id: operation_id(903),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(helper);
+    module
+}
+
+fn ordered_two_distinct_executable_nominal_affine_fixture() -> TerminalModule {
+    let mut module = ordered_one_executable_nominal_affine_fixture();
+    let helper_type = structural_type_id(903);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: helper_type,
+        identity: "test::SecondHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut helper = module.machines[3].clone();
+    helper.id = machine_id(904);
+    helper.attachment = Some(helper_type);
+    helper.entry = block_id(904);
+    helper.blocks[0].id = block_id(904);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(904),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(904);
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(904),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(helper);
+    module
+}
+
+fn ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
+    let mut module = ordered_empty_nominal_affine_fixture(true);
+    let helper_type = structural_type_id(901);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: helper_type,
+        identity: "test::SharedHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut helper = module.machines[1].clone();
+    helper.id = machine_id(902);
+    helper.attachment = Some(helper_type);
+    helper.entry = block_id(902);
+    helper.blocks[0].id = block_id(902);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(902),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(902);
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             callee: helper.id,

@@ -371,7 +371,7 @@ fn retains_exactly_one_executable_drop_in_a_two_root_nominal_cleanup_list() {
 }
 
 #[test]
-fn fences_two_executable_drop_bodies_in_one_nominal_cleanup_list() {
+fn retains_two_executable_drop_bodies_with_distinct_helpers() {
     let checked = checked(
         r#"
         data FirstHelper {}
@@ -388,15 +388,45 @@ fn fences_two_executable_drop_bodies_in_one_nominal_cleanup_list() {
         machine Root::enter(first: First, second: Second) {}
         "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
-            .for_machine(machine_named(&checked, "enter"))
-            .is_none(),
-        "two executable cleanup actions remain outside the bounded list slice"
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("both bounded executable cleanup actions are retained");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0]
     );
+    let cleanup_targets = plan
+        .cleanups
+        .iter()
+        .map(|cleanup| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(cleanup.cleanup_machine)
+                .expect("cleanup target")
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(cleanup_targets[0].machine, cleanup_targets[1].machine);
+    assert!(
+        cleanup_targets
+            .iter()
+            .all(|target| target.operations.len() == 2)
+    );
+    let helper_targets = cleanup_targets
+        .iter()
+        .map(|target| match &target.operations[0] {
+            CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => *target_machine,
+            _ => panic!("executable cleanup starts with its helper call"),
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(helper_targets[0], helper_targets[1]);
 }
 
 #[test]

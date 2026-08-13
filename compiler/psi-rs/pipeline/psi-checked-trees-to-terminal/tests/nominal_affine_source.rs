@@ -53,6 +53,32 @@ const TWO_ROOT_ONE_EXECUTABLE_SOURCE: &str = r#"
     machine Root::enter(first: First, second: Second) {}
 "#;
 
+const TWO_ROOT_TWO_EXECUTABLE_SOURCE: &str = r#"
+    data FirstHelper {}
+    machine FirstHelper::touch() {}
+    data SecondHelper {}
+    machine SecondHelper::touch() {}
+
+    data First {}
+    machine First::drop(&mut self) { FirstHelper::touch(); }
+    data Second {}
+    machine Second::drop(&mut self) { SecondHelper::touch(); }
+
+    data Root {}
+    machine Root::enter(first: First, second: Second) {}
+"#;
+
+const TWO_ROOT_SHARED_EXECUTABLE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+
+    data Root {}
+    machine Root::enter(first: Token, second: Token) {}
+"#;
+
 const EXECUTABLE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -354,6 +380,100 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
         decode_module(&bytes).expect("semantic module decodes"),
         lowered.semantic_module
     );
+}
+
+#[test]
+fn two_nominal_roots_run_distinct_executable_cleanups_in_reverse_order() {
+    let tokens = Lexer::new(TWO_ROOT_TWO_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("two distinct executable cleanup actions lower");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 5);
+    let entry = &lowered.semantic_module.machines[0];
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("two source roots remain structural parameters")
+    };
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("ordered nominal cleanup return")
+    };
+    assert_eq!(
+        [cleanups[0].place, cleanups[1].place],
+        [second.place, first.place]
+    );
+    let helper_ids = cleanups
+        .iter()
+        .map(|cleanup| {
+            let target = lowered
+                .semantic_module
+                .machines
+                .iter()
+                .find(|machine| machine.id == cleanup.cleanup_machine)
+                .expect("cleanup target");
+            let [operation] = target.blocks[0].operations.as_slice() else {
+                panic!("each cleanup body has one helper call")
+            };
+            let OperationKind::CallUnit { callee, .. } = operation.kind else {
+                panic!("cleanup helper call")
+            };
+            callee
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(helper_ids[0], helper_ids[1]);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("two executable cleanup actions verify");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn two_nominal_roots_may_repeat_one_executable_cleanup_target_and_helper() {
+    let tokens = Lexer::new(TWO_ROOT_SHARED_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("shared executable cleanup target lowers");
+
+    assert_eq!(
+        lowered.semantic_module.machines.len(),
+        3,
+        "caller, shared cleanup target, and shared helper form the exact closure"
+    );
+    let entry = &lowered.semantic_module.machines[0];
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("ordered nominal cleanup return")
+    };
+    assert_eq!(cleanups[0].cleanup_machine, cleanups[1].cleanup_machine);
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanups[0].cleanup_machine)
+        .expect("shared cleanup target");
+    assert_eq!(target.blocks[0].operations.len(), 1);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("shared executable cleanup target verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
 }
 
 #[test]
