@@ -11,7 +11,7 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
     MachineContract, Operation, OperationKind, OperationResult, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
@@ -2348,6 +2348,7 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
 fn structural_return_requires_exact_trivial_affine_local_establishment_and_cleanup() {
     let (mut module, _, _) = identity_reshuffle_module();
     let machine = &mut module.machines[0];
+    let second_affine_parameter_place = PlaceId::new(775).unwrap();
     let affine_parameter_place = PlaceId::new(776).unwrap();
     let local_place = PlaceId::new(777).unwrap();
     let second_local_place = PlaceId::new(778).unwrap();
@@ -2381,10 +2382,27 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
         });
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: second_affine_parameter_place,
+            position: 2,
+            is_self: false,
+            structural_type: local_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: affine_parameter_place,
         kind: StructuralPlaceKind::Parameter {
             position: 1,
+            is_self: false,
+        },
+    });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: second_affine_parameter_place,
+        kind: StructuralPlaceKind::Parameter {
+            position: 2,
             is_self: false,
         },
     });
@@ -2409,8 +2427,23 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     else {
         unreachable!()
     };
-    *trivial_affine_discards = vec![second_local_place, local_place, affine_parameter_place];
+    *trivial_affine_discards = vec![
+        second_local_place,
+        local_place,
+        second_affine_parameter_place,
+        affine_parameter_place,
+    ];
     validate_module(&module).expect("exact local establishment and cleanup validate");
+
+    let mut claim_bearing_tail = module.clone();
+    claim_bearing_tail.machines[0]
+        .entry_claims
+        .push(EntryClaim {
+            claim: ClaimId::new(775).unwrap(),
+            input: second_affine_parameter_place,
+            path: Vec::new(),
+        });
+    assert!(validate_module(&claim_bearing_tail).is_err());
 
     let mut ordinal_gap = module.clone();
     let StructuralPlaceKind::TrivialAffineLocal {

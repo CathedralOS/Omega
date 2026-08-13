@@ -188,10 +188,11 @@ Remaining:
   later work.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
-  native realization and installation, including one additional claim-free
-  affine parameter and any finite consecutive prefix of established
-  empty-record affine locals discarded in canonical reverse order with no
-  emitted cleanup code. Next add nominal/partial-value cleanup,
+  native realization and installation, including a finite claim-free affine
+  parameter tail and a finite consecutive prefix of established empty-record
+  affine locals. Both clean up in canonical reverse order with no emitted
+  cleanup code; register and stack ABI homes survive installation. Next add
+  nominal/partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,

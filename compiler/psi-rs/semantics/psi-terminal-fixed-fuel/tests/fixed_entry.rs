@@ -70,6 +70,8 @@ fn structural_return_is_one_normal_edge_unit() {
     let structural_type = structural_type_id(900);
     let source = place_id(900);
     let result_place = place_id(901);
+    let first_affine = place_id(902);
+    let second_affine = place_id(903);
     let claim = claim_id(1);
     let mut module = unit_fixture();
     module.structural_types = vec![StructuralTypeDeclaration {
@@ -78,14 +80,32 @@ fn structural_return_is_one_normal_edge_unit() {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     }];
     let machine = &mut module.machines[0];
-    machine.structural_parameters = vec![StructuralParameterDeclaration {
-        place: source,
-        position: 0,
-        is_self: false,
-        structural_type,
-        multiplicity: StructuralMultiplicity::Linear,
-        qualifications: Vec::new(),
-    }];
+    machine.structural_parameters = vec![
+        StructuralParameterDeclaration {
+            place: source,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: Vec::new(),
+        },
+        StructuralParameterDeclaration {
+            place: first_affine,
+            position: 1,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+        StructuralParameterDeclaration {
+            place: second_affine,
+            position: 2,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+    ];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
         place: result_place,
         structural_type,
@@ -104,6 +124,20 @@ fn structural_return_is_one_normal_edge_unit() {
             id: result_place,
             kind: psi_core::StructuralPlaceKind::Result,
         },
+        StructuralPlaceDeclaration {
+            id: first_affine,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: second_affine,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 2,
+                is_self: false,
+            },
+        },
     ];
     machine.entry_claims = vec![EntryClaim {
         claim,
@@ -114,7 +148,7 @@ fn structural_return_is_one_normal_edge_unit() {
         edge: edge_id(900),
         source,
         returned_claims: vec![claim],
-        trivial_affine_discards: Vec::new(),
+        trivial_affine_discards: vec![second_affine, first_affine],
     };
     let verified = verify_module(
         &module,

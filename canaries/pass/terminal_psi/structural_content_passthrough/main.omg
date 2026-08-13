@@ -36,6 +36,20 @@ machine Main::forward_and_drop(region: Region in Owned, scratch: Scratch) -> Reg
     region
 }
 
+machine Main::forward_and_drop_eight(
+    region: Region in Owned,
+    scratch_1: Scratch,
+    scratch_2: Scratch,
+    scratch_3: Scratch,
+    scratch_4: Scratch,
+    scratch_5: Scratch,
+    scratch_6: Scratch,
+    scratch_7: Scratch,
+    scratch_8: Scratch
+) -> Region in Owned {
+    region
+}
+
 machine Main::forward_with_local(region: Region in Owned) -> Region in Owned {
     let scratch: EmptyScratch = EmptyScratch {};
     region

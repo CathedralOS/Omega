@@ -154,14 +154,26 @@ fn assign_function(
                 || call_plan.parameters.get(source_index) != Some(source_placement)
                 || call_plan.result.as_ref() != Some(result_placement)
                 || source.place == result.place
+                || source.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                || result.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                || source.structural_type != result.structural_type
+                || source.qualifications != result.qualifications
                 || trivial_affine_discards.len() + 1
                     != parameters.len() + trivial_affine_locals.len()
                 || parameters.iter().enumerate().any(|(index, parameter)| {
                     usize::try_from(parameter.position) != Ok(index) || parameter.is_self
                 })
                 || parameters.iter().skip(1).any(|parameter| {
-                    parameter.place == source.place || parameter.place == result.place
+                    parameter.place == source.place
+                        || parameter.place == result.place
+                        || !parameter.qualifications.is_empty()
                 })
+                || parameters
+                    .iter()
+                    .map(|parameter| parameter.place)
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    != parameters.len()
                 || trivial_affine_locals
                     .iter()
                     .enumerate()
@@ -401,8 +413,23 @@ fn validate_structural_placement(
     placement: &omega_calling_conventions::ValuePlacement,
     architecture: Architecture,
 ) -> Result<(), AssignmentError> {
-    let [ValueLocation::Register { register, .. }] = placement.locations.as_slice() else {
+    let [location] = placement.locations.as_slice() else {
         return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+    };
+    let ValueLocation::Register { register, .. } = location else {
+        return match location {
+            ValueLocation::Stack {
+                value_byte_offset: 0,
+                byte_size,
+                alignment,
+                ..
+            } if u16::try_from(placement.shape.byte_size) == Ok(*byte_size)
+                && u16::try_from(placement.shape.alignment) == Ok(*alignment) =>
+            {
+                Ok(())
+            }
+            _ => Err(AssignmentError::UnsupportedStructuralPlacement(place)),
+        };
     };
     let matches_architecture = match (architecture, register) {
         (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rax)

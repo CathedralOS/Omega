@@ -1348,7 +1348,7 @@ fn lower_structural_return_function(
     target: NativeTarget,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
-    if !(1..=2).contains(&function.structural_parameters.len()) {
+    if function.structural_parameters.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }
     let [entry_claim] = function.entry_claims.as_slice() else {
@@ -1381,6 +1381,13 @@ fn lower_structural_return_function(
             .any(|(index, parameter)| {
                 parameter.is_self || usize::try_from(parameter.position) != Ok(index)
             })
+        || function
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != function.structural_parameters.len()
         || !entry_claim.path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
     {
@@ -1450,7 +1457,11 @@ fn lower_structural_return_function(
             .structural_parameters
             .iter()
             .skip(1)
-            .any(|cleanup| cleanup.multiplicity != psi_terminal::StructuralMultiplicity::Affine)
+            .any(|cleanup| {
+                cleanup.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                    || !cleanup.qualifications.is_empty()
+                    || cleanup.place == result.place
+            })
     {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }

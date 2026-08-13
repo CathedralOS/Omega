@@ -98,18 +98,38 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
     let source = place_id(1);
     let local = place_id(50);
     let result = place_id(51);
+    let first_affine = place_id(52);
+    let second_affine = place_id(53);
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
-        structural_parameters: vec![StructuralParameterDeclaration {
-            place: source,
-            position: 0,
-            is_self: false,
-            structural_type: source_type,
-            multiplicity: StructuralMultiplicity::Linear,
-            qualifications: Vec::new(),
-        }],
+        structural_parameters: vec![
+            StructuralParameterDeclaration {
+                place: source,
+                position: 0,
+                is_self: false,
+                structural_type: source_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                qualifications: Vec::new(),
+            },
+            StructuralParameterDeclaration {
+                place: first_affine,
+                position: 1,
+                is_self: false,
+                structural_type: local_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            },
+            StructuralParameterDeclaration {
+                place: second_affine,
+                position: 2,
+                is_self: false,
+                structural_type: local_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            },
+        ],
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: result,
             structural_type: source_type,
@@ -135,6 +155,20 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 id: result,
                 kind: StructuralPlaceKind::Result,
             },
+            StructuralPlaceDeclaration {
+                id: first_affine,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: second_affine,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 2,
+                    is_self: false,
+                },
+            },
         ],
         entry_claims: vec![EntryClaim {
             claim: claim_id(1),
@@ -158,7 +192,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 edge: edge_id(1),
                 source,
                 returned_claims: vec![claim_id(1)],
-                trivial_affine_discards: vec![local],
+                trivial_affine_discards: vec![local, second_affine, first_affine],
             },
         }],
         contract: MachineContract {

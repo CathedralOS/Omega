@@ -283,12 +283,12 @@ fn build_structural_return_machine(
         })
         .collect::<Option<Vec<_>>>()?;
     let input = structural_parameters.first()?;
-    if !matches!(structural_parameters.len(), 1 | 2)
-        || input.multiplicity != Multiplicity::Linear
+    if input.multiplicity != Multiplicity::Linear
         || input.is_self
-        || structural_parameters.get(1).is_some_and(|discarded| {
-            discarded.multiplicity != Multiplicity::Affine || discarded.is_self
-        })
+        || structural_parameters
+            .iter()
+            .skip(1)
+            .any(|discarded| discarded.multiplicity != Multiplicity::Affine || discarded.is_self)
     {
         return None;
     }
@@ -357,12 +357,11 @@ fn build_structural_return_machine(
             })
             .collect::<Vec<_>>(),
     );
-    let expected_discards: &[u32] = if structural_parameters.len() == 2 {
-        &[1]
-    } else {
-        &[]
-    };
-    if trivial_affine_discards.as_deref() != Some(expected_discards) {
+    let expected_discards = (1..structural_parameters.len())
+        .rev()
+        .map(|position| u32::try_from(position).ok())
+        .collect::<Option<Vec<_>>>()?;
+    if trivial_affine_discards.as_deref() != Some(expected_discards.as_slice()) {
         return None;
     }
     let outcome_maps = facts
@@ -452,7 +451,7 @@ fn build_structural_return_machine(
             .collect(),
         trivial_affine_locals,
         entry_claim: entry_claim.clone(),
-        trivial_affine_discards: expected_discards.to_vec(),
+        trivial_affine_discards: expected_discards,
         transferred_claim: entry_claim.claim_identity,
     })
 }
