@@ -63,23 +63,18 @@ Remaining:
   samples now author all four hosted roots; the two proof-only samples remain
   targetless. Sample refresh names the exact host and never invents an entry;
   the native sample oracle selects authored roots directly and stages only
-  unrooted legacy sources plus the documented temperature lowering gap. The
+  unrooted legacy sources. The complete basics cohort, including
+  `temperature_convert`, now lowers directly from its authored host entry. The
   active pass-canary umbrella uses its explicit legacy fixture entry and asserts
   that state-graph lowering occurred, so it cannot silently collapse into
   checked-only coverage. Production and development interpreter execution
   likewise requires an exact choice, while checked-only compilation selects no
-  storage root. Fix unrelated lowering/runtime defects separately. In
-  particular,
-  `samples/cli/basics/temperature_convert` now selects its exact authored
-  `Main::main` entry, but direct production lowering still rejects
-  `self.fahrenheit = self.celsius * 1.8 + 32.0` because that entry-shaped float
-  assignment lacks runtime value/write lowering. Restored explicit legacy-entry
-  coverage exposed and fixed lost checked float-operator identity across inlined
-  calls. The arithmetic sqrt, min/max, running-fold, and literal-cast runtime
-  canaries still need checked operator/provider evidence propagated into their
-  direct and desugared expressions before Omega can lower their writes; keep
-  these engineering defects separate from entry selection. Final firmware
-  composition of
+  storage root. Restored explicit legacy-entry coverage exposed and fixed lost
+  checked float-operator identity across inlined calls, generic float builtins,
+  desugared `abs`, nested field/literal arithmetic, and anonymous literal casts.
+  The sqrt, min/max/abs/clamp, running-fold, literal-cast, classification, and
+  named-provider runtime cohorts now lower and execute with exact retained
+  provider evidence. Final firmware composition of
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real

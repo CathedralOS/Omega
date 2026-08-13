@@ -114,7 +114,7 @@ fn operator_origin_key(origin: psi_checked_trees::CheckedValueOrigin) -> Option<
 fn canonical_checked_operator_expression(
     program: &psi_checked_trees::CheckedTrees,
     source_key: StateKey,
-    _statement_index: usize,
+    statement_index: usize,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> CanonicalOperatorExpression {
@@ -126,19 +126,33 @@ fn canonical_checked_operator_expression(
     let table_is_canonical = std::ptr::eq(expressions, canonical_table);
     let mut resolved = None;
 
-    for (candidate_expression, origin) in program
+    for (candidate_expression, origin, identity, policy_adapter) in program
         .facts
         .operators
         .uses
         .iter()
-        .map(|(_, operator_use)| (operator_use.expression, operator_use.origin))
+        .map(|(_, operator_use)| {
+            (
+                operator_use.expression,
+                operator_use.origin,
+                operator_use.provider_plan_identity,
+                operator_use.policy_adapter,
+            )
+        })
         .chain(
             program
                 .facts
                 .operators
                 .named_uses
                 .iter()
-                .map(|(_, operator_use)| (operator_use.expression, operator_use.origin)),
+                .map(|(_, operator_use)| {
+                    (
+                        operator_use.expression,
+                        operator_use.origin,
+                        operator_use.provider_plan_identity,
+                        operator_use.policy_adapter,
+                    )
+                }),
         )
     {
         let psi_checked_trees::CheckedValueOrigin::StateStatement {
@@ -159,25 +173,47 @@ fn canonical_checked_operator_expression(
         if !same_expression {
             continue;
         }
+        // One authored token can own multiple normalized nodes (`abs` owns
+        // both its generated `max` and subtraction). Span identity narrows the
+        // occurrence; the normalized node shape narrows the operation within
+        // that occurrence. This is deliberately not a shape-only search.
+        if !same_normalized_operator_shape(
+            expressions,
+            expression,
+            canonical_table,
+            candidate_expression,
+        ) {
+            continue;
+        }
+        if identity == 0 {
+            return CanonicalOperatorExpression::Invalid;
+        }
         match resolved {
-            Some((existing, _)) if existing != candidate_expression => {
+            Some((_, existing_origin, existing_identity, existing_policy))
+                if existing_origin != origin
+                    || existing_identity != identity
+                    || existing_policy != policy_adapter =>
+            {
                 return CanonicalOperatorExpression::Invalid;
             }
-            None => resolved = Some((candidate_expression, origin)),
+            None => {
+                resolved = Some((candidate_expression, origin, identity, policy_adapter));
+            }
             _ => {}
         }
     }
 
-    if let Some((expression, origin)) = resolved {
+    if let Some((expression, origin, _, _)) = resolved {
         return CanonicalOperatorExpression::Resolved { expression, origin };
     }
 
     // Float realization and local substitution can rebuild one already-checked
     // operator into a private expression table without carrying its authored
-    // span. Bridge that synthetic node only when every same-machine/state fact
-    // with the same normalized operation shape agrees on one exact identity,
-    // policy, and source occurrence. Repeated uses at different statements are
-    // intentionally ambiguous and fail closed.
+    // span. Bridge that synthetic node only when every fact in the exact
+    // runtime statement with the same normalized operation shape agrees on
+    // one identity, policy, and source occurrence. The statement identity is
+    // already part of every carried value lookup and separates zero-span
+    // compiler-normalized float builtins in one state.
     let mut shape_match = None;
     let mut shape_origin = None;
     let mut shape_identity = None;
@@ -214,13 +250,16 @@ fn canonical_checked_operator_expression(
         let psi_checked_trees::CheckedValueOrigin::StateStatement {
             machine_symbol,
             state_symbol,
-            statement_index: _,
+            statement_index: candidate_statement,
             ..
         } = origin
         else {
             continue;
         };
-        if machine_symbol != source_key.machine || state_symbol != source_key.state {
+        if machine_symbol != source_key.machine
+            || state_symbol != source_key.state
+            || candidate_statement != statement_index
+        {
             continue;
         }
         if !same_normalized_operator_shape(
@@ -559,6 +598,185 @@ mod float_provider_plan_tests {
                 realized_expression,
             ),
             CanonicalOperatorExpression::Resolved { expression, origin }
+        );
+    }
+
+    fn checked_binary_with_span(
+        program: &mut psi_checked_trees::CheckedTrees,
+        operator: psi_checked_trees::expression::BinaryOperator,
+        span: SourceSpan,
+    ) -> ExpressionHandle {
+        let left = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let right = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let expression = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Binary(
+                psi_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator,
+                    right,
+                },
+            ));
+        program
+            .typed
+            .expression_table
+            .set_source_span(expression, span);
+        expression
+    }
+
+    #[test]
+    fn exact_operator_span_accepts_equivalent_duplicates_and_ignores_other_shapes() {
+        let source_key = StateKey {
+            machine: SymbolHandle::from_arena_index(51),
+            state: SymbolHandle::from_arena_index(52),
+            segment_index: 0,
+        };
+        let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol: source_key.machine,
+            state_symbol: source_key.state,
+            statement_index: 6,
+            role: CheckedValueStatementRole::AssignmentValue,
+        };
+        let span = SourceSpan::new(SourceId(8), Span::new(200, 203));
+        let mut program = psi_checked_trees::CheckedTrees::default();
+        let first = checked_binary_with_span(
+            &mut program,
+            psi_checked_trees::expression::BinaryOperator::Add,
+            span,
+        );
+        let duplicate = checked_binary_with_span(
+            &mut program,
+            psi_checked_trees::expression::BinaryOperator::Add,
+            span,
+        );
+        let other_shape = checked_binary_with_span(
+            &mut program,
+            psi_checked_trees::expression::BinaryOperator::Subtract,
+            span,
+        );
+        for expression in [other_shape, first, duplicate] {
+            program.facts.operators.uses.insert(CheckedOperatorUseFact {
+                expression,
+                origin,
+                provider_plan_identity: 23,
+                ..CheckedOperatorUseFact::default()
+            });
+        }
+
+        let mut realized = ExpressionTable::new();
+        let realized_expression = realized.copy_from(&program.expression_table, first);
+        assert_eq!(
+            canonical_checked_operator_expression(
+                &program,
+                source_key,
+                6,
+                &realized,
+                realized_expression,
+            ),
+            CanonicalOperatorExpression::Resolved {
+                expression: first,
+                origin,
+            }
+        );
+    }
+
+    #[test]
+    fn exact_operator_span_rejects_duplicate_identity_policy_or_origin_contradictions() {
+        fn resolve_duplicates(
+            second_identity: u64,
+            second_policy: psi_checked_trees::CheckedArithmeticPolicyAdapter,
+            second_origin: psi_checked_trees::CheckedValueOrigin,
+        ) -> CanonicalOperatorExpression {
+            let source_key = StateKey {
+                machine: SymbolHandle::from_arena_index(61),
+                state: SymbolHandle::from_arena_index(62),
+                segment_index: 0,
+            };
+            let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol: source_key.machine,
+                state_symbol: source_key.state,
+                statement_index: 7,
+                role: CheckedValueStatementRole::AssignmentValue,
+            };
+            let span = SourceSpan::new(SourceId(9), Span::new(300, 303));
+            let mut program = psi_checked_trees::CheckedTrees::default();
+            let first = checked_binary_with_span(
+                &mut program,
+                psi_checked_trees::expression::BinaryOperator::Subtract,
+                span,
+            );
+            let duplicate = checked_binary_with_span(
+                &mut program,
+                psi_checked_trees::expression::BinaryOperator::Subtract,
+                span,
+            );
+            program.facts.operators.uses.insert(CheckedOperatorUseFact {
+                expression: first,
+                origin,
+                provider_plan_identity: 29,
+                ..CheckedOperatorUseFact::default()
+            });
+            program.facts.operators.uses.insert(CheckedOperatorUseFact {
+                expression: duplicate,
+                origin: second_origin,
+                provider_plan_identity: second_identity,
+                policy_adapter: second_policy,
+                ..CheckedOperatorUseFact::default()
+            });
+            let mut realized = ExpressionTable::new();
+            let realized_expression = realized.copy_from(&program.expression_table, first);
+            canonical_checked_operator_expression(
+                &program,
+                source_key,
+                7,
+                &realized,
+                realized_expression,
+            )
+        }
+
+        let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol: SymbolHandle::from_arena_index(61),
+            state_symbol: SymbolHandle::from_arena_index(62),
+            statement_index: 7,
+            role: CheckedValueStatementRole::AssignmentValue,
+        };
+        assert_eq!(
+            resolve_duplicates(
+                30,
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::None,
+                origin,
+            ),
+            CanonicalOperatorExpression::Invalid,
+        );
+        assert_eq!(
+            resolve_duplicates(
+                29,
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                    format: psi_numerics::float_semantics::FloatFormat::BINARY64,
+                },
+                origin,
+            ),
+            CanonicalOperatorExpression::Invalid,
+        );
+        assert_eq!(
+            resolve_duplicates(
+                29,
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::None,
+                psi_checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: SymbolHandle::from_arena_index(61),
+                    state_symbol: SymbolHandle::from_arena_index(62),
+                    statement_index: 8,
+                    role: CheckedValueStatementRole::AssignmentValue,
+                },
+            ),
+            CanonicalOperatorExpression::Invalid,
         );
     }
 }

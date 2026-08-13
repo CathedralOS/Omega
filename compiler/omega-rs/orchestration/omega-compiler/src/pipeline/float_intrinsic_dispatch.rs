@@ -83,12 +83,19 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             )));
             continue;
         };
-        if psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
-            .map(|operator| operator.symbol)
-            != Some(operator_use.selected_operator_symbol)
-        {
+        let source_names_selected_operator =
+            psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
+                .map(|operator| operator.symbol)
+                == Some(operator_use.selected_operator_symbol);
+        let source_is_matching_builtin = match realization {
+            NamedFloatRealization::Builtin { function, .. } => {
+                checked.typed.symbols.builtin_function_symbol(function) == Some(call.target_symbol)
+            }
+            _ => false,
+        };
+        if !source_names_selected_operator && !source_is_matching_builtin {
             diagnostics.push(Diagnostic::error(format!(
-                "selected named float intrinsic at expression {:?} no longer names its checked operator symbol",
+                "selected named float intrinsic at expression {:?} no longer names its checked operator symbol or normalized builtin",
                 operator_use.expression
             )));
             continue;
