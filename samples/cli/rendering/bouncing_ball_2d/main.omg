@@ -9,6 +9,7 @@
 // guards, runtime-indexed carrier writes, and nested state-machine loops.
 // Expected exit: 0.
 // Expected output contains: O
+use omega::language::core::float_operations;
 use omega::language::std::console;
 
 domain [u8]::Utf8
