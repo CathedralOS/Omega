@@ -330,6 +330,27 @@ const MIXED_CONTEXTUAL_SCALAR_INPUTS_SOURCE: &str = r#"
     }
 "#;
 
+const MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(
+        token: Token,
+        left: bool,
+        plain: Plain,
+        right: bool
+    ) -> bool
+    {
+        let inverted: bool = !right;
+        left && inverted
+    }
+"#;
+
 const CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE: &str = r#"
     data Token { ready: bool; armed: bool; }
     machine Token::drop(&mut self)
@@ -1101,6 +1122,176 @@ fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
     );
     assert_eq!(measured.usage().total_units(), 6);
     assert!(measured.effects().is_empty());
+}
+
+#[test]
+fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
+    let tokens = Lexer::new(MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed nominal short-circuit scalar return");
+    let syntax =
+        parse_syntax_trees(&tokens).expect("parse mixed nominal short-circuit scalar return");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve mixed nominal short-circuit scalar return");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type mixed nominal short-circuit scalar return");
+    let checked =
+        lower_typed_trees(typed).expect("check mixed nominal short-circuit scalar return");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed nominal short-circuit scalar return lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("mixed nominal short-circuit entry");
+    let [left, right] = entry.parameters.as_slice() else {
+        panic!("interleaved primitive inputs become one dense scalar namespace")
+    };
+    assert_eq!([left.id.get(), right.id.get()], [1, 2]);
+    assert_eq!(left.scalar_type, ScalarType::Boolean);
+    assert_eq!(right.scalar_type, ScalarType::Boolean);
+    let [token, plain] = entry.structural_parameters.as_slice() else {
+        panic!("mixed nominal short-circuit entry retains both structural roots")
+    };
+    assert_eq!([token.position, plain.position], [0, 1]);
+    assert_eq!(entry.blocks.len(), 5);
+    assert!(matches!(
+        entry.blocks[0].operations.first(),
+        Some(psi_terminal::Operation {
+            kind: OperationKind::BooleanNot { operand },
+            ..
+        }) if *operand == right.id
+    ));
+
+    let mut return_edges = Vec::new();
+    let mut return_count = 0;
+    let mut conditional_count = 0;
+    let mut expected_cleanup = None;
+    for block in &entry.blocks {
+        match &block.terminator {
+            Terminator::Return {
+                edge,
+                cleanup_actions,
+                ..
+            } => {
+                return_count += 1;
+                return_edges.push(*edge);
+                assert!(matches!(
+                    cleanup_actions.as_slice(),
+                    [
+                        TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+                        TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
+                    ] if *plain_cleanup == plain.place
+                        && token_cleanup.place == token.place
+                ));
+                match &expected_cleanup {
+                    Some(expected) => assert_eq!(cleanup_actions, expected),
+                    None => expected_cleanup = Some(cleanup_actions.clone()),
+                }
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                conditional_count += 1;
+                assert!(when_true.trivial_affine_discards.is_empty());
+                assert!(when_false.trivial_affine_discards.is_empty());
+            }
+            _ => panic!("one final short-circuit return emits only decisions and value leaves"),
+        }
+    }
+    assert_eq!(conditional_count, 2);
+    assert_eq!(return_count, 3);
+    return_edges.sort_unstable();
+    return_edges.dedup();
+    assert_eq!(
+        return_edges.len(),
+        3,
+        "each value leaf owns its return edge"
+    );
+    let [
+        TerminalAffineCleanupAction::DiscardRoot(_),
+        TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
+    ] = expected_cleanup
+        .as_deref()
+        .expect("every return leaf retains cleanup")
+    else {
+        panic!("mixed cleanup has one no-code action and one nominal action")
+    };
+    assert!(token_cleanup.cleanup_receiver.is_none());
+    assert!(token_cleanup.requirement_obligations.is_empty());
+    let cleanup_target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == token_cleanup.cleanup_machine)
+        .expect("nominal cleanup target remains in the terminal closure");
+    assert!(matches!(
+        cleanup_target.blocks[0].operations.as_slice(),
+        [psi_terminal::Operation {
+            kind: OperationKind::CallUnit { .. },
+            ..
+        }]
+    ));
+    assert!(lowered.proof_bundle.evidence.is_empty());
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed nominal short-circuit cleanup verifies on every leaf");
+    let semantics = encode_module(&lowered.semantic_module)
+        .expect("mixed nominal short-circuit module encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("mixed nominal short-circuit proof encodes");
+    assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+
+    let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    for (scalar_arguments, expected, expected_fuel) in [
+        (
+            [
+                TerminalScalarValue::Boolean(false),
+                TerminalScalarValue::Boolean(false),
+            ],
+            false,
+            7,
+        ),
+        (
+            [
+                TerminalScalarValue::Boolean(true),
+                TerminalScalarValue::Boolean(false),
+            ],
+            true,
+            8,
+        ),
+    ] {
+        let mut handler = AcceptTerminalEffects;
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &scalar_arguments,
+            &structural_arguments,
+            &mut handler,
+        )
+        .expect("mixed nominal short-circuit path interprets from canonical artifacts");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
+        assert_eq!(measured.usage().total_units(), expected_fuel);
+        assert!(measured.effects().is_empty());
+    }
 }
 
 #[test]

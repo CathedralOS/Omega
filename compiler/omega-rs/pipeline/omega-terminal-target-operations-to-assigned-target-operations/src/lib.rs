@@ -23,7 +23,7 @@ use omega_terminal_target_operations::{
     TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
     TerminalTargetOperationPlan, TerminalTargetScalarExpression, TerminalTargetUnitOperation,
 };
-use psi_core::{MachineId, OperationId, ValueId};
+use psi_core::{EdgeId, MachineId, OperationId, ValueId};
 
 pub fn assign_registers(
     plan: &TerminalTargetOperationPlan,
@@ -64,34 +64,17 @@ fn assign_function(
             if matches!(
                 scalar.as_ref(),
                 TerminalTargetOperation::ScalarReturnWithCleanup { .. }
+                    | TerminalTargetOperation::BooleanControlWithCleanup { .. }
             ) {
                 return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
             }
-            let expected_call_plan = evaluate_call_plan(
-                CallingPolicy::native_for_target(target),
-                &CallSignature {
-                    parameters: call_plan
-                        .parameters
-                        .iter()
-                        .map(|placement| placement.shape)
-                        .collect(),
-                    result: call_plan.result.as_ref().map(|placement| placement.shape),
-                },
-            )
-            .map_err(|_| AssignmentError::UnsupportedScalarCleanup(function.machine))?;
-            if expected_call_plan != *call_plan
-                || call_plan.result.is_none()
-                || call_plan.parameters.len() < structural_parameters.len()
-                || call_plan.parameters[call_plan.parameters.len() - structural_parameters.len()..]
-                    .iter()
-                    .zip(structural_parameters)
-                    .any(|(placement, parameter)| placement != &parameter.placement)
-            {
-                return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
-            }
-            for parameter in structural_parameters {
-                validate_structural_placement(parameter.place, &parameter.placement, architecture)?;
-            }
+            validate_scalar_cleanup_signature(
+                function.machine,
+                target,
+                call_plan,
+                structural_parameters,
+                cleanup_actions,
+            )?;
             let assigned_scalar = assign_function(
                 &TerminalTargetFunction {
                     machine: function.machine,
@@ -109,6 +92,33 @@ fn assign_function(
                 structural_parameters: structural_parameters.clone(),
                 cleanup_actions: cleanup_actions.clone(),
                 psi_edge: *psi_edge,
+            }
+        }
+        TerminalTargetOperation::BooleanControlWithCleanup {
+            control,
+            structural_types,
+            call_plan,
+            structural_parameters,
+            cleanup_actions,
+        } => {
+            validate_scalar_cleanup_signature(
+                function.machine,
+                target,
+                call_plan,
+                structural_parameters,
+                cleanup_actions,
+            )?;
+            let edges = bounded_boolean_cleanup_edges(control)
+                .ok_or(AssignmentError::UnsupportedScalarCleanup(function.machine))?;
+            if edges[0] == edges[1] || edges[0] == edges[2] || edges[1] == edges[2] {
+                return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
+            }
+            TerminalAssignedOperation::BooleanControlWithCleanup {
+                control: assign_boolean_control(control, architecture)?,
+                structural_types: structural_types.clone(),
+                call_plan: call_plan.clone(),
+                structural_parameters: structural_parameters.clone(),
+                cleanup_actions: cleanup_actions.clone(),
             }
         }
         TerminalTargetOperation::UnitBody(body) => {
@@ -481,6 +491,130 @@ fn assign_function(
         provenance: function.provenance.clone(),
         operation,
     })
+}
+
+fn validate_scalar_cleanup_signature(
+    machine: MachineId,
+    target: NativeTarget,
+    call_plan: &omega_calling_conventions::CallPlan,
+    structural_parameters: &[omega_terminal_target_operations::TerminalTargetStructuralParameter],
+    cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
+) -> Result<(), AssignmentError> {
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: call_plan
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect(),
+            result: call_plan.result.as_ref().map(|placement| placement.shape),
+        },
+    )
+    .map_err(|_| AssignmentError::UnsupportedScalarCleanup(machine))?;
+    if cleanup_actions.is_empty()
+        || expected_call_plan != *call_plan
+        || call_plan.result.is_none()
+        || call_plan.parameters.len() < structural_parameters.len()
+        || call_plan.parameters[call_plan.parameters.len() - structural_parameters.len()..]
+            .iter()
+            .zip(structural_parameters)
+            .any(|(placement, parameter)| placement != &parameter.placement)
+        || cleanup_actions.len() != structural_parameters.len()
+        || structural_parameters
+            .iter()
+            .rev()
+            .zip(cleanup_actions)
+            .any(|(parameter, action)| match action {
+                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    *place != parameter.place
+                }
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    cleanup.place != parameter.place
+                        || cleanup.structural_type != parameter.structural_type
+                }
+                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => true,
+            })
+    {
+        return Err(AssignmentError::UnsupportedScalarCleanup(machine));
+    }
+    for parameter in structural_parameters {
+        validate_structural_placement(parameter.place, &parameter.placement, target.architecture)?;
+    }
+    Ok(())
+}
+
+/// Return the three terminal value edges in canonical true-before-false DFS
+/// order for the exact bounded short-circuit shape: a root decision, exactly
+/// one nested decision, and three direct value-return leaves.
+fn bounded_boolean_cleanup_edges(control: &TerminalTargetBooleanControl) -> Option<[EdgeId; 3]> {
+    let (when_true, when_false) = match control {
+        TerminalTargetBooleanControl::Conditional {
+            when_true,
+            when_false,
+            ..
+        }
+        | TerminalTargetBooleanControl::ConditionalExpression {
+            when_true,
+            when_false,
+            ..
+        } => (when_true, when_false),
+        _ => return None,
+    };
+    match (
+        direct_boolean_return_edge(&when_true.control),
+        direct_boolean_return_edge(&when_false.control),
+    ) {
+        (Some(true_edge), None) => {
+            let [nested_true, nested_false] = direct_boolean_decision_edges(&when_false.control)?;
+            Some([true_edge, nested_true, nested_false])
+        }
+        (None, Some(false_edge)) => {
+            let [nested_true, nested_false] = direct_boolean_decision_edges(&when_true.control)?;
+            Some([nested_true, nested_false, false_edge])
+        }
+        (Some(_), Some(_)) | (None, None) => None,
+    }
+}
+
+fn direct_boolean_decision_edges(control: &TerminalTargetBooleanControl) -> Option<[EdgeId; 2]> {
+    let (when_true, when_false) = match control {
+        TerminalTargetBooleanControl::Conditional {
+            when_true,
+            when_false,
+            ..
+        }
+        | TerminalTargetBooleanControl::ConditionalExpression {
+            when_true,
+            when_false,
+            ..
+        } => (when_true, when_false),
+        _ => return None,
+    };
+    Some([
+        direct_boolean_return_edge(&when_true.control)?,
+        direct_boolean_return_edge(&when_false.control)?,
+    ])
+}
+
+fn direct_boolean_return_edge(control: &TerminalTargetBooleanControl) -> Option<EdgeId> {
+    match control {
+        TerminalTargetBooleanControl::ReturnImmediate {
+            psi_return_edge, ..
+        }
+        | TerminalTargetBooleanControl::ReturnParameter {
+            psi_return_edge, ..
+        }
+        | TerminalTargetBooleanControl::ReturnNotParameter {
+            psi_return_edge, ..
+        }
+        | TerminalTargetBooleanControl::ReturnExpression {
+            psi_return_edge, ..
+        } => Some(*psi_return_edge),
+        TerminalTargetBooleanControl::Crash { .. }
+        | TerminalTargetBooleanControl::Conditional { .. }
+        | TerminalTargetBooleanControl::ConditionalExpression { .. } => None,
+    }
 }
 
 fn validate_structural_placement(
@@ -2006,19 +2140,165 @@ mod tests {
     use super::*;
     use omega_target::NativeTarget;
     use omega_terminal_assigned_target_operations::{
-        TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-        TerminalAssignedScalarExpression, TerminalAssignedScalarLocation,
+        TerminalAssignedBooleanControl, TerminalAssignedIntegerExpression,
+        TerminalAssignedOperation, TerminalAssignedScalarExpression,
+        TerminalAssignedScalarLocation,
     };
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalTargetCallArgument, TerminalTargetFunction,
+        TerminalPsiProvenance, TerminalTargetBooleanControl, TerminalTargetCallArgument,
+        TerminalTargetConditionalBooleanArm, TerminalTargetFunction,
         TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetScalarExpression,
+        TerminalTargetStructuralParameter,
     };
     use psi_core::{
         EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
     };
     use psi_terminal::{
-        SemanticFingerprint, StructuralPathSegment, TerminalPsiIdentity, VocabularyMarker,
+        SemanticFingerprint, StructuralMultiplicity, StructuralPathSegment,
+        TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
     };
+
+    #[test]
+    fn bounded_boolean_cleanup_assignment_retains_three_leaf_edges() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let plan = boolean_cleanup_plan(target);
+            let assigned = assign_registers(&plan).expect("assign bounded Boolean cleanup");
+            let TerminalAssignedOperation::BooleanControlWithCleanup {
+                control,
+                structural_parameters,
+                cleanup_actions,
+                ..
+            } = &assigned.functions[0].operation
+            else {
+                panic!("fixture must retain its Boolean cleanup carrier")
+            };
+            assert_eq!(structural_parameters.len(), 1);
+            assert_eq!(cleanup_actions.len(), 1);
+            let TerminalAssignedBooleanControl::Conditional {
+                when_true,
+                when_false,
+                ..
+            } = control
+            else {
+                panic!("root decision must survive assignment")
+            };
+            let TerminalAssignedBooleanControl::Conditional {
+                when_true: nested_true,
+                when_false: nested_false,
+                ..
+            } = when_true.control.as_ref()
+            else {
+                panic!("true arm must retain the nested decision")
+            };
+            assert!(matches!(
+                nested_true.control.as_ref(),
+                TerminalAssignedBooleanControl::ReturnImmediate {
+                    psi_return_edge,
+                    ..
+                } if *psi_return_edge == EdgeId::new(10).unwrap()
+            ));
+            assert!(matches!(
+                nested_false.control.as_ref(),
+                TerminalAssignedBooleanControl::ReturnParameter {
+                    psi_return_edge,
+                    ..
+                } if *psi_return_edge == EdgeId::new(11).unwrap()
+            ));
+            assert!(matches!(
+                when_false.control.as_ref(),
+                TerminalAssignedBooleanControl::ReturnNotParameter {
+                    psi_return_edge,
+                    ..
+                } if *psi_return_edge == EdgeId::new(12).unwrap()
+            ));
+        }
+    }
+
+    #[test]
+    fn bounded_boolean_cleanup_rejects_two_leaf_and_wider_trees() {
+        let mut two_leaf = boolean_cleanup_plan(NativeTarget::linux_x64());
+        let TerminalTargetOperation::BooleanControlWithCleanup { control, .. } =
+            &mut two_leaf.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetBooleanControl::Conditional { when_true, .. } = control else {
+            unreachable!()
+        };
+        when_true.control = Box::new(boolean_immediate_return(13));
+        assert!(matches!(
+            assign_registers(&two_leaf),
+            Err(AssignmentError::UnsupportedScalarCleanup(_))
+        ));
+
+        let mut wider = boolean_cleanup_plan(NativeTarget::linux_x64());
+        let location = boolean_cleanup_condition_location(&wider);
+        let TerminalTargetOperation::BooleanControlWithCleanup { control, .. } =
+            &mut wider.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetBooleanControl::Conditional { when_true, .. } = control else {
+            unreachable!()
+        };
+        let TerminalTargetBooleanControl::Conditional {
+            when_true: nested_true,
+            ..
+        } = when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        nested_true.control = Box::new(TerminalTargetBooleanControl::Conditional {
+            condition_source: ValueId::new(1).unwrap(),
+            condition_parameter_index: 0,
+            condition_location: location,
+            when_true: boolean_arm(20, boolean_immediate_return(20)),
+            when_false: boolean_arm(21, boolean_immediate_return(21)),
+        });
+        assert!(matches!(
+            assign_registers(&wider),
+            Err(AssignmentError::UnsupportedScalarCleanup(_))
+        ));
+    }
+
+    #[test]
+    fn bounded_boolean_cleanup_requires_three_distinct_return_edges() {
+        let mut plan = boolean_cleanup_plan(NativeTarget::linux_x64());
+        let TerminalTargetOperation::BooleanControlWithCleanup { control, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetBooleanControl::Conditional { when_true, .. } = control else {
+            unreachable!()
+        };
+        let TerminalTargetBooleanControl::Conditional { when_false, .. } =
+            when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        when_false.control = Box::new(boolean_immediate_return(10));
+        assert!(matches!(
+            assign_registers(&plan),
+            Err(AssignmentError::UnsupportedScalarCleanup(_))
+        ));
+    }
+
+    #[test]
+    fn bounded_boolean_cleanup_rejects_misaligned_cleanup_signature() {
+        let mut plan = boolean_cleanup_plan(NativeTarget::linux_x64());
+        let TerminalTargetOperation::BooleanControlWithCleanup {
+            cleanup_actions, ..
+        } = &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        cleanup_actions.clear();
+        assert!(matches!(
+            assign_registers(&plan),
+            Err(AssignmentError::UnsupportedScalarCleanup(_))
+        ));
+    }
 
     #[test]
     fn aarch64_expression_registers_receive_stable_frame_spills() {
@@ -2408,5 +2688,121 @@ mod tests {
                 },
             }],
         }
+    }
+
+    fn boolean_cleanup_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
+        let scalar_shape = omega_calling_conventions::ValueShape::integer(1, 1);
+        let structural_shape = omega_calling_conventions::ValueShape::integer(8, 8);
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![scalar_shape, structural_shape],
+                result: Some(scalar_shape),
+            },
+        )
+        .expect("bounded Boolean cleanup ABI");
+        let [ValueLocation::Register { register, .. }] =
+            call_plan.parameters[0].locations.as_slice()
+        else {
+            panic!("first Boolean input must have one direct register home")
+        };
+        let condition_location = TerminalScalarParameterLocation::Register(*register);
+        let nested = TerminalTargetBooleanControl::Conditional {
+            condition_source: ValueId::new(1).unwrap(),
+            condition_parameter_index: 0,
+            condition_location,
+            when_true: boolean_arm(4, boolean_immediate_return(10)),
+            when_false: boolean_arm(
+                5,
+                TerminalTargetBooleanControl::ReturnParameter {
+                    psi_return_edge: EdgeId::new(11).unwrap(),
+                    source_value: ValueId::new(1).unwrap(),
+                    parameter_index: 0,
+                    location: condition_location,
+                },
+            ),
+        };
+        let place = PlaceId::new(1).unwrap();
+        TerminalTargetOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
+            },
+            target,
+            entry: MachineId::new(1).unwrap(),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).unwrap(),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: (1..=5)
+                        .chain(10..=12)
+                        .map(|edge| EdgeId::new(edge).unwrap())
+                        .collect(),
+                },
+                operation: TerminalTargetOperation::BooleanControlWithCleanup {
+                    control: TerminalTargetBooleanControl::Conditional {
+                        condition_source: ValueId::new(1).unwrap(),
+                        condition_parameter_index: 0,
+                        condition_location,
+                        when_true: boolean_arm(2, nested),
+                        when_false: boolean_arm(
+                            3,
+                            TerminalTargetBooleanControl::ReturnNotParameter {
+                                psi_return_edge: EdgeId::new(12).unwrap(),
+                                source_value: ValueId::new(1).unwrap(),
+                                parameter_index: 0,
+                                location: condition_location,
+                            },
+                        ),
+                    },
+                    structural_types: Vec::new(),
+                    call_plan: call_plan.clone(),
+                    structural_parameters: vec![TerminalTargetStructuralParameter {
+                        place,
+                        structural_type: StructuralTypeId::new(1).unwrap(),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        shape: structural_shape,
+                        placement: call_plan.parameters[1].clone(),
+                    }],
+                    cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+                },
+            }],
+        }
+    }
+
+    fn boolean_arm(
+        edge: u64,
+        control: TerminalTargetBooleanControl,
+    ) -> TerminalTargetConditionalBooleanArm {
+        TerminalTargetConditionalBooleanArm {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            control: Box::new(control),
+        }
+    }
+
+    fn boolean_immediate_return(edge: u64) -> TerminalTargetBooleanControl {
+        TerminalTargetBooleanControl::ReturnImmediate {
+            psi_return_edge: EdgeId::new(edge).unwrap(),
+            source_value: ValueId::new(edge).unwrap(),
+            value: edge % 2 == 0,
+        }
+    }
+
+    fn boolean_cleanup_condition_location(
+        plan: &TerminalTargetOperationPlan,
+    ) -> TerminalScalarParameterLocation {
+        let TerminalTargetOperation::BooleanControlWithCleanup { control, .. } =
+            &plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetBooleanControl::Conditional {
+            condition_location, ..
+        } = control
+        else {
+            unreachable!()
+        };
+        *condition_location
     }
 }

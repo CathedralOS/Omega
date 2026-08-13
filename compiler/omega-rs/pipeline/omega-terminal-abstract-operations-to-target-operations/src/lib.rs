@@ -278,17 +278,63 @@ fn lower_function(
         .iter()
         .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
     {
-        if !function.structural_parameters.is_empty() {
+        if function.structural_parameters.is_empty() {
+            if function.operations.iter().any(|operation| {
+                matches!(operation,
+                    TerminalAbstractOperation::Return { cleanup_actions, .. }
+                        if !cleanup_actions.is_empty())
+            }) {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
+            return match function_result.scalar_type {
+                ScalarType::Integer(_) => {
+                    lower_integer_conditional(function, &values, target, functions)
+                }
+                ScalarType::Boolean => {
+                    lower_boolean_conditional(function, &values, target, functions)
+                }
+            };
+        }
+        if function_result.scalar_type != ScalarType::Boolean {
             return Err(LoweringError::UnsupportedOperationInScalarFunction(
                 function.machine,
             ));
         }
-        return match function_result.scalar_type {
-            ScalarType::Integer(_) => {
-                lower_integer_conditional(function, &values, target, functions)
-            }
-            ScalarType::Boolean => lower_boolean_conditional(function, &values, target, functions),
-        };
+        let lowered = lower_boolean_block(
+            function,
+            values,
+            function.entry,
+            BTreeSet::new(),
+            target,
+            functions,
+        )?;
+        let return_edges = bounded_boolean_cleanup_return_edges(&lowered.control).ok_or(
+            LoweringError::UnsupportedOperationInScalarFunction(function.machine),
+        )?;
+        let cleanup_actions = uniform_conditional_cleanup(
+            function,
+            &return_edges,
+            &target_structural_parameters,
+            functions,
+            structural_types,
+        )?;
+        return Ok(TerminalTargetFunction {
+            machine: function.machine,
+            attachment: function.attachment,
+            provenance: conditional_provenance(function, lowered.operations, lowered.edges),
+            operation: TerminalTargetOperation::BooleanControlWithCleanup {
+                control: lowered.control,
+                structural_types: structural_types
+                    .values()
+                    .map(|declaration| (*declaration).clone())
+                    .collect(),
+                call_plan,
+                structural_parameters: target_structural_parameters,
+                cleanup_actions,
+            },
+        });
     }
 
     for operation in &function.operations {
@@ -1385,50 +1431,13 @@ fn lower_function(
                 if cleanup_actions.is_empty() {
                     returned = Some(scalar);
                 } else {
-                    if cleanup_actions.len() != target_structural_parameters.len()
-                        || target_structural_parameters
-                            .iter()
-                            .rev()
-                            .zip(cleanup_actions)
-                            .any(|(parameter, action)| match action {
-                                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                                    *place != parameter.place
-                                }
-                                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
-                                    cleanup,
-                                ) => {
-                                    cleanup.place != parameter.place
-                                        || cleanup.structural_type != parameter.structural_type
-                                }
-                                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => {
-                                    true
-                                }
-                            })
-                    {
-                        return Err(LoweringError::UnsupportedOperationInScalarFunction(
-                            function.machine,
-                        ));
-                    }
-                    for action in cleanup_actions {
-                        if let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
-                            action
-                        {
-                            let Some(cleanup_function) =
-                                functions.get(&cleanup.cleanup_machine).copied()
-                            else {
-                                return Err(LoweringError::UnsupportedOperationInScalarFunction(
-                                    function.machine,
-                                ));
-                            };
-                            validate_bounded_nominal_cleanup_body(
-                                function.machine,
-                                cleanup,
-                                cleanup_function,
-                                functions,
-                                structural_types,
-                            )?;
-                        }
-                    }
+                    validate_scalar_cleanup_frontier(
+                        function.machine,
+                        cleanup_actions,
+                        &target_structural_parameters,
+                        functions,
+                        structural_types,
+                    )?;
                     returned = Some(TerminalTargetOperation::ScalarReturnWithCleanup {
                         scalar: Box::new(scalar),
                         structural_types: structural_types
@@ -2251,6 +2260,148 @@ fn lower_unit_function(
             operations,
         }),
     })
+}
+
+fn validate_scalar_cleanup_frontier(
+    caller: MachineId,
+    cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
+    structural_parameters: &[TerminalTargetStructuralParameter],
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(caller);
+    if cleanup_actions.is_empty()
+        || cleanup_actions.len() != structural_parameters.len()
+        || structural_parameters
+            .iter()
+            .rev()
+            .zip(cleanup_actions)
+            .any(|(parameter, action)| match action {
+                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    *place != parameter.place
+                }
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    cleanup.place != parameter.place
+                        || cleanup.structural_type != parameter.structural_type
+                }
+                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => true,
+            })
+    {
+        return Err(invalid());
+    }
+    for action in cleanup_actions {
+        let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
+            continue;
+        };
+        let cleanup_function = functions
+            .get(&cleanup.cleanup_machine)
+            .copied()
+            .ok_or_else(invalid)?;
+        validate_bounded_nominal_cleanup_body(
+            caller,
+            cleanup,
+            cleanup_function,
+            functions,
+            structural_types,
+        )?;
+    }
+    Ok(())
+}
+
+fn bounded_boolean_cleanup_return_edges(
+    control: &TerminalTargetBooleanControl,
+) -> Option<Vec<EdgeId>> {
+    fn collect(
+        control: &TerminalTargetBooleanControl,
+        decision_count: &mut usize,
+        return_edges: &mut Vec<EdgeId>,
+    ) -> Option<()> {
+        match control {
+            TerminalTargetBooleanControl::ReturnImmediate {
+                psi_return_edge, ..
+            }
+            | TerminalTargetBooleanControl::ReturnParameter {
+                psi_return_edge, ..
+            }
+            | TerminalTargetBooleanControl::ReturnNotParameter {
+                psi_return_edge, ..
+            }
+            | TerminalTargetBooleanControl::ReturnExpression {
+                psi_return_edge, ..
+            } => return_edges.push(*psi_return_edge),
+            TerminalTargetBooleanControl::Conditional {
+                when_true,
+                when_false,
+                ..
+            }
+            | TerminalTargetBooleanControl::ConditionalExpression {
+                when_true,
+                when_false,
+                ..
+            } => {
+                *decision_count = decision_count.checked_add(1)?;
+                collect(&when_true.control, decision_count, return_edges)?;
+                collect(&when_false.control, decision_count, return_edges)?;
+            }
+            TerminalTargetBooleanControl::Crash { .. } => return None,
+        }
+        Some(())
+    }
+
+    let mut decision_count = 0;
+    let mut return_edges = Vec::new();
+    collect(control, &mut decision_count, &mut return_edges)?;
+    if decision_count != 2
+        || return_edges.len() != 3
+        || return_edges.iter().copied().collect::<BTreeSet<_>>().len() != return_edges.len()
+    {
+        return None;
+    }
+    Some(return_edges)
+}
+
+fn uniform_conditional_cleanup(
+    function: &TerminalAbstractFunction,
+    return_edges: &[EdgeId],
+    structural_parameters: &[TerminalTargetStructuralParameter],
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<Vec<psi_terminal::TerminalAffineCleanupAction>, LoweringError> {
+    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let mut returns = BTreeMap::new();
+    for operation in &function.operations {
+        let TerminalAbstractOperation::Return {
+            psi_edge,
+            cleanup_actions,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        if returns.insert(*psi_edge, cleanup_actions).is_some() {
+            return Err(invalid());
+        }
+    }
+    let first = return_edges
+        .first()
+        .and_then(|edge| returns.get(edge))
+        .copied()
+        .ok_or_else(invalid)?;
+    if first.is_empty()
+        || return_edges
+            .iter()
+            .any(|edge| returns.get(edge).copied() != Some(first))
+    {
+        return Err(invalid());
+    }
+    validate_scalar_cleanup_frontier(
+        function.machine,
+        first,
+        structural_parameters,
+        functions,
+        structural_types,
+    )?;
+    Ok(first.to_vec())
 }
 
 fn validate_bounded_nominal_cleanup_body(
@@ -4950,6 +5101,292 @@ mod tests {
         StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
         TerminalPsiIdentity, VocabularyMarker,
     };
+
+    fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
+        let caller = MachineId::new(40).unwrap();
+        let cleanup = MachineId::new(41).unwrap();
+        let helper = MachineId::new(42).unwrap();
+        let token_type = StructuralTypeId::new(40).unwrap();
+        let plain_type = StructuralTypeId::new(41).unwrap();
+        let helper_type = StructuralTypeId::new(42).unwrap();
+        let token = PlaceId::new(40).unwrap();
+        let plain = PlaceId::new(41).unwrap();
+        let left = ValueId::new(40).unwrap();
+        let right = ValueId::new(41).unwrap();
+        let false_value = ValueId::new(42).unwrap();
+        let true_value = ValueId::new(43).unwrap();
+        let second_false_value = ValueId::new(44).unwrap();
+        let result = ValueId::new(45).unwrap();
+        let cleanup_actions = vec![
+            TerminalAffineCleanupAction::DiscardRoot(plain),
+            TerminalAffineCleanupAction::InvokeNominal(psi_terminal::NominalAffineCleanup {
+                place: token,
+                structural_type: token_type,
+                cleanup_machine: cleanup,
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
+            }),
+        ];
+        let leaf_return = |edge, value| TerminalAbstractOperation::Return {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            result,
+            value,
+            scalar_type: ScalarType::Boolean,
+            cleanup_actions: cleanup_actions.clone(),
+        };
+        let block_entry = |block, operation_offset| {
+            omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                block: BlockId::new(block).unwrap(),
+                operation_offset,
+            }
+        };
+        let return_unit = |edge| TerminalAbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            cleanup_actions: Vec::new(),
+        };
+        let unit_function = |machine, attachment, operations| TerminalAbstractFunction {
+            machine,
+            attachment,
+            entry: BlockId::new(machine.get()).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalAbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![block_entry(machine.get(), 0)],
+            operations,
+        };
+        TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: caller,
+            structural_types: vec![
+                StructuralTypeDeclaration {
+                    id: token_type,
+                    identity: "Token".into(),
+                    shape: StructuralTypeShape::Record { fields: Vec::new() },
+                },
+                StructuralTypeDeclaration {
+                    id: plain_type,
+                    identity: "Plain".into(),
+                    shape: StructuralTypeShape::Record { fields: Vec::new() },
+                },
+                StructuralTypeDeclaration {
+                    id: helper_type,
+                    identity: "Helper".into(),
+                    shape: StructuralTypeShape::Record { fields: Vec::new() },
+                },
+            ],
+            boundary_machines: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry: BlockId::new(1).unwrap(),
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: left,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        TerminalAbstractParameter {
+                            value: right,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                    ],
+                    structural_parameters: vec![
+                        StructuralParameterDeclaration {
+                            place: token,
+                            position: 0,
+                            is_self: false,
+                            structural_type: token_type,
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                        },
+                        StructuralParameterDeclaration {
+                            place: plain,
+                            position: 1,
+                            is_self: false,
+                            structural_type: plain_type,
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                        },
+                    ],
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        block_entry(1, 0),
+                        block_entry(2, 1),
+                        block_entry(3, 2),
+                        block_entry(4, 4),
+                        block_entry(5, 6),
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::Conditional {
+                            condition: left,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: EdgeId::new(1).unwrap(),
+                                target: BlockId::new(2).unwrap(),
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: EdgeId::new(2).unwrap(),
+                                target: BlockId::new(3).unwrap(),
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::Conditional {
+                            condition: right,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: EdgeId::new(3).unwrap(),
+                                target: BlockId::new(4).unwrap(),
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: EdgeId::new(4).unwrap(),
+                                target: BlockId::new(5).unwrap(),
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: OperationId::new(40).unwrap(),
+                            result: false_value,
+                            value: false,
+                        },
+                        leaf_return(5, false_value),
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: OperationId::new(41).unwrap(),
+                            result: true_value,
+                            value: true,
+                        },
+                        leaf_return(6, true_value),
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: OperationId::new(42).unwrap(),
+                            result: second_false_value,
+                            value: false,
+                        },
+                        leaf_return(7, second_false_value),
+                    ],
+                },
+                unit_function(
+                    cleanup,
+                    Some(token_type),
+                    vec![
+                        TerminalAbstractOperation::CallUnit {
+                            psi_operation: OperationId::new(43).unwrap(),
+                            callee: helper,
+                            structural_arguments: Vec::new(),
+                            claim_transfers: Vec::new(),
+                        },
+                        return_unit(8),
+                    ],
+                ),
+                unit_function(helper, Some(helper_type), vec![return_unit(9)]),
+            ],
+        }
+    }
+
+    #[test]
+    fn bounded_boolean_control_retains_one_uniform_mixed_cleanup_frontier() {
+        let plan = bounded_boolean_cleanup_plan();
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let lowered = lower_to_target_operations(&plan, target)
+                .expect("bounded Boolean control and mixed cleanup lower");
+            let TerminalTargetOperation::BooleanControlWithCleanup {
+                control,
+                structural_parameters,
+                cleanup_actions,
+                ..
+            } = &lowered.functions[0].operation
+            else {
+                panic!("bounded Boolean cleanup retains its target carrier")
+            };
+            assert_eq!(structural_parameters.len(), 2);
+            assert!(matches!(
+                cleanup_actions.as_slice(),
+                [
+                    TerminalAffineCleanupAction::DiscardRoot(discarded),
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup),
+                ] if *discarded == PlaceId::new(41).unwrap()
+                    && cleanup.place == PlaceId::new(40).unwrap()
+                    && cleanup.cleanup_machine == MachineId::new(41).unwrap()
+                    && cleanup.cleanup_receiver.is_none()
+                    && cleanup.requirement_obligations.is_empty()
+            ));
+            let TerminalTargetBooleanControl::Conditional {
+                when_true,
+                when_false,
+                ..
+            } = control
+            else {
+                panic!("outer runtime input remains the root decision")
+            };
+            let TerminalTargetBooleanControl::Conditional {
+                when_true: nested_true,
+                when_false: nested_false,
+                ..
+            } = when_true.control.as_ref()
+            else {
+                panic!("true arm retains the second decision")
+            };
+            let leaf_edge = |control: &TerminalTargetBooleanControl| match control {
+                TerminalTargetBooleanControl::ReturnImmediate {
+                    psi_return_edge, ..
+                } => *psi_return_edge,
+                _ => panic!("bounded decision leaf returns one immediate Boolean"),
+            };
+            assert_eq!(
+                [
+                    leaf_edge(&nested_true.control),
+                    leaf_edge(&nested_false.control),
+                    leaf_edge(&when_false.control),
+                ],
+                [
+                    EdgeId::new(6).unwrap(),
+                    EdgeId::new(7).unwrap(),
+                    EdgeId::new(5).unwrap(),
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn bounded_boolean_cleanup_rejects_nonuniform_or_hidden_frontiers() {
+        let mut plan = bounded_boolean_cleanup_plan();
+        let TerminalAbstractOperation::Return {
+            cleanup_actions, ..
+        } = &mut plan.functions[0].operations[3]
+        else {
+            unreachable!("first leaf returns")
+        };
+        cleanup_actions.clear();
+        assert!(matches!(
+            lower_to_target_operations(&plan, NativeTarget::linux_x64()),
+            Err(LoweringError::UnsupportedOperationInScalarFunction(_))
+        ));
+
+        let mut ordinary = constant_conditional_plan(false);
+        let place = PlaceId::new(90).unwrap();
+        let TerminalAbstractOperation::Return {
+            cleanup_actions, ..
+        } = &mut ordinary.functions[0].operations[3]
+        else {
+            unreachable!("constant fixture true arm returns")
+        };
+        cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+        assert!(matches!(
+            lower_to_target_operations(&ordinary, NativeTarget::linux_x64()),
+            Err(LoweringError::UnsupportedOperationInScalarFunction(_))
+        ));
+    }
 
     #[test]
     fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bodies() {

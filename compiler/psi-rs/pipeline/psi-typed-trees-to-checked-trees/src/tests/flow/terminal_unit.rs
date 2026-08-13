@@ -1,5 +1,7 @@
 use super::*;
-use psi_checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
+use psi_checked_trees::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+};
 
 #[test]
 fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_cleanup() {
@@ -865,7 +867,94 @@ fn nominal_scalar_cleanup_retains_interleaved_scalar_inputs_before_locals() {
 }
 
 #[test]
-fn nominal_scalar_cleanup_fences_branching_mutable_call_and_effect_bodies() {
+fn nominal_scalar_cleanup_accepts_one_final_short_circuit_boolean_decision() {
+    let checked = checked(
+        r#"
+        data Token {}
+        machine Token::drop(&mut self) {}
+        data Root {}
+
+        machine Root::and_return(token: Token, left: bool, right: bool) -> bool {
+            let inverted: bool = !right;
+            left && inverted
+        }
+        machine Root::or_return(token: Token, left: bool, right: bool) -> bool {
+            let inverted: bool = !right;
+            left || inverted
+        }
+        "#,
+    );
+
+    for (machine, expected_or) in [("and_return", false), ("or_return", true)] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| panic!("`{machine}` should retain one final Boolean decision"));
+        assert_eq!(plan.bindings.len(), 1);
+        assert_eq!(plan.return_statement_ordinal, 1);
+        assert_eq!(
+            plan.scalar_parameters
+                .iter()
+                .map(|parameter| parameter.source_position)
+                .collect::<Vec<_>>(),
+            vec![1, 2],
+        );
+        assert!(matches!(
+            plan.cleanup_actions.as_slice(),
+            [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                cleanup
+            )] if cleanup.source_parameter_index == 0
+        ));
+        let returned = checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(plan.state, 1, CheckedScalarExpressionRole::Return)
+            .expect("checked short-circuit return expression");
+        assert!(match returned {
+            CheckedScalarExpression::Boolean(expression) if expected_or => {
+                matches!(expression.as_ref(), CheckedBooleanExpression::Or { .. })
+            }
+            CheckedScalarExpression::Boolean(expression) => {
+                matches!(expression.as_ref(), CheckedBooleanExpression::And { .. })
+            }
+            _ => false,
+        });
+    }
+}
+
+#[test]
+fn nominal_scalar_cleanup_fences_contextual_short_circuit_return() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+        data Root {}
+
+        machine Root::measure(token: Token, left: bool, right: bool) -> bool
+        requires token.ready
+        {
+            left && right
+        }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, "measure"))
+            .is_none(),
+        "branched nominal cleanup stays proof-free until each leaf owns distinct obligations",
+    );
+}
+
+#[test]
+fn nominal_scalar_cleanup_fences_nested_short_circuit_mutable_call_and_effect_bodies() {
     let checked = checked(
         r#"
         data Token {}
@@ -879,8 +968,11 @@ fn nominal_scalar_cleanup_fences_branching_mutable_call_and_effect_bodies() {
             let staged: bool = true && false;
             staged
         }
-        machine Root::direct_short_circuit(token: Token) -> bool {
-            true && false
+        machine Root::nested_short_circuit(token: Token) -> bool {
+            true && (false || true)
+        }
+        machine Root::repeated_short_circuit(token: Token) -> bool {
+            (true && false) || true
         }
         machine Root::mutable_local(token: Token) -> u64 {
             let mut staged: u64 = 1u64;
@@ -898,7 +990,8 @@ fn nominal_scalar_cleanup_fences_branching_mutable_call_and_effect_bodies() {
     );
     for machine in [
         "short_circuit",
-        "direct_short_circuit",
+        "nested_short_circuit",
+        "repeated_short_circuit",
         "mutable_local",
         "call_local",
         "effect_before_return",
