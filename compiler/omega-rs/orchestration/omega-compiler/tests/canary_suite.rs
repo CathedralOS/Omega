@@ -12627,19 +12627,12 @@ fn runtime_wire_encode_string_exit_canary_runs() {
     // { count: 7, label: "hi" } (hand-computed in its header comment) and the
     // written count in-language; exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_string_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire encode string canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire encode string canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire encode string canary should run");
 
@@ -12651,7 +12644,7 @@ fn runtime_wire_encode_string_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12663,20 +12656,13 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
     // String uses. The canary checks the five expected bytes + the written count
     // in-language; exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_byte_slice_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-wire-byte-slice-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire encode byte-slice canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire encode byte-slice canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire encode byte-slice canary should run");
 
@@ -12688,28 +12674,21 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_encode_borrowed_scalar_slice_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-wire-borrowed-scalar-slice-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire encode borrowed scalar-slice canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire encode borrowed scalar-slice canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire encode borrowed scalar-slice canary should run");
 
@@ -12721,7 +12700,7 @@ fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
+    let report = fs::read_to_string(scratch.join("out").join("04_wire_protocols.txt"))
         .expect("wire protocol report should retain encode obligations");
     for expected in [
         "encode requirement: Encode<compact_binary, Telemetry>",
@@ -12735,7 +12714,7 @@ fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
         );
     }
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
