@@ -60,9 +60,12 @@ Remaining:
   deployable/provider/artifact/ABI/layout/native tests select an exact
   target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
   entry explicitly. The CLI basics cohort and the five deployable proof
-  samples, the eight CLI algorithm samples, and the six CLI interpreter samples
-  now author all four hosted roots; the two proof-only samples remain targetless.
-  Sample refresh names the exact host and never invents an entry;
+  samples, the eight CLI algorithm samples, the six CLI interpreter samples,
+  and seven deployable CLI game samples now author all four hosted roots; the
+  two proof-only samples remain targetless. `dungeon_crawler_cli` still has a
+  non-Unit `main` plus an existing Linux host-call argument lowering gap and
+  remains in the legacy staging set. Sample refresh names the exact host and
+  never invents an entry;
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
   `temperature_convert`, now lowers directly from its authored host entry. The

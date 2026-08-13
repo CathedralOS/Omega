@@ -1,4 +1,4 @@
-// turn_combat is deployable on every hosted target.
+// dice_histogram is deployable on every hosted target.
 
 target windows_x64 {
 }
