@@ -124,9 +124,10 @@ Owners:
   for that aggregate. Mutable byte-region views now write and reread individual
   fixed-array elements through the same validated aggregate offset and stride
   in interpreter, native x64, Windows x64, and Linux AArch64 paths. Recursively
-  nested fixed arrays composed of supported primitives now retain the same one
-  `Repeated` field, while stacked constant indexing accumulates every nested
-  stride on those execution paths. Fixed records composed from supported
+  nested fixed arrays composed of supported primitives or fixed checked-shape
+  records now retain the same one `Repeated` field, while stacked constant
+  indexing accumulates every nested stride and record offset on those execution
+  paths. Fixed records composed from supported
   primitive/array/record shapes now likewise reflect as one `Nested` field with
   one whole `At` extent; mutable fact-free byte views preserve compiler-derived
   offsets inside that extent across interpreter, native x64, Windows x64, and

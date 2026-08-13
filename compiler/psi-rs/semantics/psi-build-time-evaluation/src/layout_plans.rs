@@ -455,7 +455,7 @@ fn reflected_field_layout(
             length: psi_typed_trees::types::FixedArrayLength::Literal(length),
         } => {
             let (element_size, element_align) =
-                reflected_repeated_element_layout(typed, *element_type)?;
+                reflected_nested_member_layout(typed, *element_type, &mut Vec::new())?;
             let length = u64::try_from(*length).ok()?;
             let size = element_size.checked_mul(length)?;
             Some((
@@ -559,26 +559,6 @@ fn checked_align_up(value: u64, align: u64) -> Option<u64> {
     value
         .checked_add(align - 1)
         .map(|value| value / align * align)
-}
-
-fn reflected_repeated_element_layout(
-    typed: &TypedTrees,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
-) -> Option<(u64, u64)> {
-    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
-        let size = primitive_byte_size(primitive)?;
-        return Some((size, size));
-    }
-    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
-        element_type,
-        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
-    } = typed.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    let (element_size, element_align) = reflected_repeated_element_layout(typed, *element_type)?;
-    let length = u64::try_from(*length).ok()?;
-    Some((element_size.checked_mul(length)?, element_align))
 }
 
 fn exact_struct_fields<'a>(
