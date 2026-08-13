@@ -1527,6 +1527,9 @@ fn build_call_operation(
     }
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let boundary = target_machine.supply_mode.is_boundary_declaration();
+    if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
+        return None;
+    }
     let structural_arguments = structural_call_arguments(
         program,
         machine,
@@ -1537,9 +1540,20 @@ fn build_call_operation(
         &call_site,
         call.receiver_symbol,
         call.statement_index,
-        boundary,
+        true,
     )?;
-    if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
+    if !boundary
+        && !ordinary_projected_call_is_supported(
+            program,
+            facts,
+            machine,
+            state,
+            caller_parameters,
+            target_machine,
+            target_state,
+            &structural_arguments,
+        )
+    {
         return None;
     }
     let transfers = call_claim_transfers(
@@ -1577,6 +1591,216 @@ fn build_call_operation(
             structural_arguments,
             claim_transfers: transfers,
         })
+    }
+}
+
+fn ordinary_projected_call_is_supported(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_machine: &psi_typed_trees::machine::Machine,
+    caller_state: &psi_typed_trees::state::State,
+    caller_parameters: &[CheckedUnitStructuralParameterPlan],
+    target_machine: &psi_typed_trees::machine::Machine,
+    target_state: &psi_typed_trees::state::State,
+    arguments: &[CheckedUnitStructuralArgumentPlan],
+) -> bool {
+    if arguments.iter().all(|argument| argument.path.is_empty()) {
+        return true;
+    }
+
+    let caller_source_parameters = program.state_parameters(caller_state);
+    let target_source_parameters = program.state_parameters(target_state);
+    if caller_source_parameters.len() != 1
+        || caller_parameters.len() != 1
+        || target_source_parameters.len() != 1
+        || arguments.len() != 1
+        || arguments[0].source_parameter_index != 0
+        || !matches!(
+            arguments[0].path.as_slice(),
+            [CheckedUnitStructuralPathSegment::FixedIndex(_)]
+        )
+    {
+        return false;
+    }
+
+    let has_content_evidence = |machine, state| {
+        facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .iter()
+            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+            || facts
+                .qualifications
+                .content
+                .partition_compositions
+                .iter()
+                .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+    };
+    if has_content_evidence(caller_machine.symbol, caller_state.symbol)
+        || has_content_evidence(target_machine.symbol, target_state.symbol)
+    {
+        return false;
+    }
+
+    let target_parameters = target_source_parameters
+        .iter()
+        .filter(|parameter| !(parameter.is_self && is_reference(program, parameter.type_reference)))
+        .collect::<Vec<_>>();
+    if target_parameters.len() != arguments.len() {
+        return false;
+    }
+
+    if target_contract_mentions_projected_parameter(
+        program,
+        facts,
+        target_machine,
+        target_state,
+        &target_source_parameters[0],
+    ) {
+        return false;
+    }
+
+    arguments
+        .iter()
+        .zip(target_parameters)
+        .filter(|(argument, _)| !argument.path.is_empty())
+        .all(|(_, parameter)| {
+            let mut type_reference = parameter.type_reference;
+            loop {
+                match program.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Constrained {
+                        base_type,
+                        constraints,
+                    } => {
+                        if !program
+                            .type_reference_table
+                            .constraints(*constraints)
+                            .is_empty()
+                        {
+                            return false;
+                        }
+                        type_reference = *base_type;
+                    }
+                    TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+                    _ => break,
+                }
+            }
+
+            let expected_root = psi_facts::PlaceRoot::Symbol(parameter_root_symbol(
+                target_machine.symbol,
+                parameter,
+            ));
+            let matching = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.machine_symbol == target_machine.symbol
+                        && event.state_symbol == target_state.symbol
+                        && event.source == PermissionEventSource::StateEntry
+                        && event.kind == PermissionEventKind::Establish
+                        && event.access == PermissionAccess::Owned
+                        && event.multiplicity == Multiplicity::Linear
+                        && event.obligation_live
+                        && event.root == expected_root
+                })
+                .map(|(_, event)| event)
+                .collect::<Vec<_>>();
+            let [claim] = matching.as_slice() else {
+                return false;
+            };
+            claim.claim_identity != PermissionClaimIdentity::Unknown
+                && facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(claim.segments)
+                    .is_empty()
+        })
+}
+
+fn target_contract_mentions_projected_parameter(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    target_machine: &psi_typed_trees::machine::Machine,
+    target_state: &psi_typed_trees::state::State,
+    parameter: &StateParameter,
+) -> bool {
+    let expected_root = parameter_root_symbol(target_machine.symbol, parameter);
+    let authored_contract_mentions_parameter = program
+        .state_contracts(target_state)
+        .iter()
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| {
+            let ProofFact::Membership(membership) = fact else {
+                return false;
+            };
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                target_state.symbol,
+                0,
+                membership.value,
+            )
+            .is_some_and(|place| {
+                place.root == psi_facts::PlaceRoot::Symbol(expected_root)
+                    || place.root == psi_facts::PlaceRoot::Symbol(parameter.symbol)
+            })
+        });
+    if authored_contract_mentions_parameter {
+        return true;
+    }
+
+    facts
+        .contract_plans
+        .for_machine(target_machine.symbol)
+        .is_some_and(|contract| {
+            contract.crash.published().iter().any(|bucket| {
+                bucket.alternative_guards().iter().any(|guard| match guard {
+                    psi_checked_trees::CrashRouteGuard::Truth => false,
+                    psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                        predicate.expression().is_none_or(|expression| {
+                            crash_expression_mentions_parameter(expression, 0)
+                        })
+                    }
+                })
+            })
+        })
+}
+
+fn crash_expression_mentions_parameter(
+    expression: &psi_checked_trees::CrashPredicateExpression,
+    parameter: u32,
+) -> bool {
+    use psi_checked_trees::CrashPredicateExpression;
+
+    match expression {
+        CrashPredicateExpression::Parameter(index) => *index == parameter,
+        CrashPredicateExpression::Binary { left, right, .. } => {
+            crash_expression_mentions_parameter(left, parameter)
+                || crash_expression_mentions_parameter(right, parameter)
+        }
+        CrashPredicateExpression::Unary { operand, .. }
+        | CrashPredicateExpression::Member {
+            receiver: operand, ..
+        } => crash_expression_mentions_parameter(operand, parameter),
+        CrashPredicateExpression::Call {
+            receiver,
+            arguments,
+            ..
+        } => {
+            crash_expression_mentions_parameter(receiver, parameter)
+                || arguments
+                    .iter()
+                    .any(|argument| crash_expression_mentions_parameter(argument, parameter))
+        }
+        CrashPredicateExpression::Invalid
+        | CrashPredicateExpression::Opaque(_)
+        | CrashPredicateExpression::ContentConservation(_) => true,
+        CrashPredicateExpression::Integer(_)
+        | CrashPredicateExpression::Boolean(_)
+        | CrashPredicateExpression::Name(_) => false,
     }
 }
 

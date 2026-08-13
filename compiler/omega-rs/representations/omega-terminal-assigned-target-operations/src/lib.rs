@@ -146,8 +146,12 @@ pub struct TerminalAssignedUnitBody {
 pub struct TerminalAssignedAggregateCopy {
     pub place: PlaceId,
     pub path: Vec<StructuralPathSegment>,
+    pub root_structural_type: StructuralTypeId,
     pub structural_type: StructuralTypeId,
     pub shape: ValueShape,
+    pub source_byte_offset: u32,
+    pub fixed_array_length: Option<u64>,
+    pub element_stride: Option<u32>,
     pub source: ValuePlacement,
     pub destination: ValuePlacement,
 }

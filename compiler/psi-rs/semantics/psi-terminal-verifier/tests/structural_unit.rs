@@ -366,6 +366,264 @@ fn unit_calls_preserve_exact_content_claim_shape() {
 }
 
 #[test]
+fn projected_unit_calls_accept_only_the_exact_unqualified_whole_claim_slice() {
+    let module = projected_unit_call_module();
+    validate_module(&module).expect("one literal fixed index may transfer one whole callee claim");
+
+    let mut nested = module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut nested.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0]
+        .path
+        .push(psi_terminal::StructuralPathSegment::FixedIndex(0));
+    assert_eq!(
+        validate_module(&nested).unwrap_err(),
+        ModuleError::InvalidStructuralArgumentPath {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut out_of_bounds = module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut out_of_bounds.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![psi_terminal::StructuralPathSegment::FixedIndex(1)];
+    assert_eq!(
+        validate_module(&out_of_bounds).unwrap_err(),
+        ModuleError::InvalidStructuralArgumentPath {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut qualified_caller = module.clone();
+    qualified_caller
+        .structural_domains
+        .push(StructuralDomainDeclaration {
+            id: domain_id(2),
+            identity: "ArrayPending".into(),
+            carrier: structural_type_id(3),
+        });
+    qualified_caller.machines[0].structural_parameters[0]
+        .qualifications
+        .push(domain_id(2));
+    assert_eq!(
+        validate_module(&qualified_caller).unwrap_err(),
+        ModuleError::InvalidStructuralArgumentPath {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut qualified_callee = module.clone();
+    qualified_callee.machines[1].structural_parameters[0]
+        .qualifications
+        .push(domain_id(1));
+    assert_eq!(
+        validate_module(&qualified_callee).unwrap_err(),
+        ModuleError::StructuralArgumentMissingQualification {
+            operation: operation_id(1),
+            argument_index: 0,
+            domain: domain_id(1),
+        }
+    );
+
+    let mut nested_callee_claim = module.clone();
+    let StructuralTypeShape::Record { fields } = &mut nested_callee_claim.structural_types[0].shape
+    else {
+        unreachable!()
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+        identity: "payload".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(2)),
+    });
+    nested_callee_claim.machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    nested_callee_claim.machines[0].entry_claims[0]
+        .path
+        .push(psi_terminal::StructuralPathSegment::Field("payload".into()));
+    nested_callee_claim.machines[1].entry_claims[0].path =
+        vec![psi_terminal::StructuralPathSegment::Field("payload".into())];
+    assert_eq!(
+        validate_module(&nested_callee_claim).unwrap_err(),
+        ModuleError::UnitCallClaimPresenceMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut content_bearing = module.clone();
+    content_bearing.machines[0].content_entry_claims = vec![content_entry_claim(place_id(1))];
+    content_bearing.machines[1].content_entry_claims = vec![content_entry_claim(place_id(2))];
+    assert!(validate_module(&content_bearing).is_err());
+
+    let mut missing_transfer = module.clone();
+    unit_call_mut(&mut missing_transfer).clear();
+    assert!(validate_module(&missing_transfer).is_err());
+
+    let mut duplicate_transfer = module.clone();
+    unit_call_mut(&mut duplicate_transfer).push(ClaimTransfer {
+        claim: claim_id(1),
+        argument_index: 0,
+    });
+    assert!(validate_module(&duplicate_transfer).is_err());
+
+    let mut wrong_transfer = module;
+    unit_call_mut(&mut wrong_transfer)[0].claim = claim_id(2);
+    assert!(validate_module(&wrong_transfer).is_err());
+}
+
+#[test]
+fn projected_unit_calls_reject_signatures_outside_the_bounded_slice() {
+    let mut scalar_caller = projected_unit_call_module();
+    scalar_caller.machines[0].parameters.push(ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    });
+    assert_eq!(
+        validate_module(&scalar_caller).unwrap_err(),
+        ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+            operation: operation_id(1),
+        }
+    );
+
+    let mut extra_caller_parameter = projected_unit_call_module();
+    let mut parameter = structural_parameter(place_id(10));
+    parameter.position = 1;
+    parameter.structural_type = structural_type_id(2);
+    parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+    parameter.qualifications.clear();
+    extra_caller_parameter.machines[0]
+        .structural_parameters
+        .push(parameter);
+    extra_caller_parameter.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place_id(10),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+    assert_eq!(
+        validate_module(&extra_caller_parameter).unwrap_err(),
+        ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+            operation: operation_id(1),
+        }
+    );
+
+    let mut extra_callee_parameter = projected_unit_call_module();
+    let mut parameter = structural_parameter(place_id(10));
+    parameter.position = 1;
+    parameter.structural_type = structural_type_id(2);
+    parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+    parameter.qualifications.clear();
+    extra_callee_parameter.machines[1]
+        .structural_parameters
+        .push(parameter);
+    extra_callee_parameter.machines[1]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place_id(10),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+    assert_eq!(
+        validate_module(&extra_callee_parameter).unwrap_err(),
+        ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+            operation: operation_id(1),
+        }
+    );
+
+    let mut extra_argument = projected_unit_call_module();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut extra_argument.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(structural_arguments[0].clone());
+    assert_eq!(
+        validate_module(&extra_argument).unwrap_err(),
+        ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+            operation: operation_id(1),
+        }
+    );
+}
+
+#[test]
+fn projected_unit_calls_reject_contracts_over_the_projected_parameter() {
+    let callee_predicate = content_predicate(place_id(2));
+    let expected = ModuleError::ProjectedUnitCallContractUsesStructuralParameter {
+        operation: operation_id(1),
+        callee: machine_id(2),
+        place: place_id(2),
+    };
+
+    let mut required = projected_unit_call_module();
+    required.machines[1]
+        .contract
+        .requires
+        .push(callee_predicate.clone());
+    let OperationKind::CallUnit {
+        requirement_obligations,
+        ..
+    } = &mut required.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    requirement_obligations.push(obligation_id(1));
+    assert_eq!(validate_module(&required).unwrap_err(), expected);
+
+    let mut ensured = projected_unit_call_module();
+    ensured.machines[1].contract.ensures.push(ContractClause {
+        obligation: obligation_id(1),
+        proposition: callee_predicate.clone(),
+    });
+    assert_eq!(validate_module(&ensured).unwrap_err(), expected);
+
+    let mut crashing = projected_unit_call_module();
+    let callee_route = CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            callee_predicate,
+        ))],
+    };
+    let caller_route = CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            content_predicate(place_id(1)),
+        ))],
+    };
+    crashing.machines[0].contract.crash_routes = vec![caller_route.clone()];
+    crashing.machines[1].contract.crash_routes = vec![callee_route];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut crashing.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![caller_route];
+    assert_eq!(validate_module(&crashing).unwrap_err(), expected);
+}
+
+#[test]
 fn content_only_affine_claims_require_explicit_transfer_and_settlement() {
     let mut module = hard_root_module();
     for machine in &mut module.machines {
@@ -1398,6 +1656,37 @@ fn hard_root_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         machines: vec![caller, callee],
     }
+}
+
+fn projected_unit_call_module() -> TerminalModule {
+    let mut module = hard_root_module();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(3),
+        identity: "[PortResource;1]".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: structural_type_id(1),
+            length: 1,
+        },
+    });
+    module.boundary_machines[0].requires.clear();
+    module.machines[0].structural_parameters[0].structural_type = structural_type_id(3);
+    module.machines[0].structural_parameters[0]
+        .qualifications
+        .clear();
+    module.machines[0].entry_claims[0].path =
+        vec![psi_terminal::StructuralPathSegment::FixedIndex(0)];
+    module.machines[1].structural_parameters[0]
+        .qualifications
+        .clear();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![psi_terminal::StructuralPathSegment::FixedIndex(0)];
+    module
 }
 
 fn structural_parameter(place: PlaceId) -> StructuralParameterDeclaration {

@@ -470,10 +470,24 @@ impl TerminalExecution {
                         )?;
                         self.next_operation += 1;
                         self.live_claims = remaining_claims;
+                        let mut caller_structural_values =
+                            std::mem::take(&mut self.structural_values);
+                        for argument in structural_arguments
+                            .iter()
+                            .filter(|argument| !argument.path.is_empty())
+                        {
+                            if !self
+                                .live_claims
+                                .values()
+                                .any(|claim| claim.place == Some(argument.place))
+                            {
+                                caller_structural_values.remove(&argument.place);
+                            }
+                        }
                         self.call_stack.push(SuspendedCall {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
-                            structural_values: std::mem::take(&mut self.structural_values),
+                            structural_values: caller_structural_values,
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
                             current: self.current,
@@ -1595,6 +1609,21 @@ fn transfer_claims(
     if transfers.len() != callee_entry_claims.len() {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
+    if caller_arguments
+        .iter()
+        .zip(callee_parameters)
+        .any(|(argument, parameter)| {
+            !argument.path.is_empty()
+                && (callee_entry_claims
+                    .iter()
+                    .any(|claim| claim.input == parameter.place && !claim.path.is_empty())
+                    || callee_content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == parameter.place))
+        })
+    {
+        return Err(TerminalInterpretError::ClaimTransferMismatch);
+    }
     let mut expected_by_argument = BTreeMap::<u32, Vec<&EntryClaim>>::new();
     for entry_claim in callee_entry_claims {
         let (index, parameter) = callee_parameters
@@ -1636,11 +1665,18 @@ fn transfer_claims(
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         let caller_place = caller_arguments[argument_index as usize].place;
+        let argument_path = &caller_arguments[argument_index as usize].path;
         for (transfer, entry_claim) in actual.iter().zip(expected) {
             let caller_claim = remaining
                 .remove(&transfer.claim)
                 .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
-            if caller_claim.place != Some(caller_place) {
+            let expected_caller_path = argument_path
+                .iter()
+                .cloned()
+                .chain(entry_claim.path.iter().cloned())
+                .collect::<Vec<_>>();
+            if caller_claim.place != Some(caller_place) || caller_claim.path != expected_caller_path
+            {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
             let parameter = callee_parameters

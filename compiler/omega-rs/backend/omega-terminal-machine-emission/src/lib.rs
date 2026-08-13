@@ -19,7 +19,8 @@ use omega_terminal_assigned_target_operations::{
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
-    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+    TerminalInternalCallRelocation, TerminalInternalUnitCallArgumentRecord,
+    TerminalInternalUnitCallRecord, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
     TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
@@ -57,21 +58,25 @@ fn emit_function(
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
+    let mut internal_unit_calls = Vec::new();
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut structural_return = None;
     let mut unit_stack = None;
+    let mut unit_parameter_homes = Vec::new();
     let mut scalar_stack_eligible = false;
     let mut scalar_control_flow = TerminalScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target)?;
             internal_calls = emitted.internal_calls;
+            internal_unit_calls = emitted.internal_unit_calls;
             fuel_attribution = emitted.fuel_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
             unit_stack = Some(emitted.stack);
+            unit_parameter_homes = emitted.parameter_homes;
             emitted.bytes
         }
         TerminalAssignedOperation::ReturnStructuralParameter {
@@ -390,8 +395,10 @@ fn emit_function(
         provenance: function.provenance.clone(),
         bytes,
         unit_stack,
+        unit_parameter_homes,
         scalar_stack,
         internal_calls,
+        internal_unit_calls,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -465,10 +472,12 @@ fn emit_structural_parameter_return(
 struct UnitEmission {
     bytes: Vec<u8>,
     internal_calls: Vec<TerminalInternalCallRelocation>,
+    internal_unit_calls: Vec<TerminalInternalUnitCallRecord>,
     fuel_attribution: Vec<TerminalNativeFuelAttribution>,
     port_effects: Vec<TerminalPortEffectRecord>,
     boundary_settlements: Vec<TerminalBoundarySettlementRecord>,
     stack: TerminalUnitStackEvidence,
+    parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -495,6 +504,7 @@ fn emit_unit_body(
 ) -> Result<UnitEmission, EmissionError> {
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
+    let mut internal_unit_calls = Vec::new();
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
@@ -507,9 +517,25 @@ fn emit_unit_body(
     let mut frame_release = None;
     let mut aarch64_link_store = None;
     let mut aarch64_link_load = None;
+    let parameter_homes;
     match target.architecture {
         Architecture::X86_64 => {
             (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body)?;
+            parameter_homes = body
+                .parameters
+                .iter()
+                .zip(&x86_homes)
+                .map(|(parameter, home)| {
+                    omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
+                        place: parameter.place,
+                        structural_type: parameter.structural_type,
+                        shape: parameter.shape,
+                        source: parameter.placement.clone(),
+                        byte_offset: home.byte_offset,
+                        indirect: home.indirect,
+                    }
+                })
+                .collect();
             if x86_frame_bytes != 0 {
                 let offset = bytes.len();
                 emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, false);
@@ -522,6 +548,21 @@ fn emit_unit_body(
             aarch64_homes = homes;
             aarch64_frame_bytes = frame_bytes;
             aarch64_lr_offset = lr_offset;
+            parameter_homes = body
+                .parameters
+                .iter()
+                .zip(&aarch64_homes)
+                .map(|(parameter, home)| {
+                    omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
+                        place: parameter.place,
+                        structural_type: parameter.structural_type,
+                        shape: parameter.shape,
+                        source: parameter.placement.clone(),
+                        byte_offset: home.byte_offset,
+                        indirect: home.indirect,
+                    }
+                })
+                .collect();
             let mut instructions = Vec::new();
             emit_aarch64_adjust_sp(&mut instructions, frame_bytes, false)?;
             frame_allocation = Some((0, 4));
@@ -544,10 +585,10 @@ fn emit_unit_body(
                 psi_operation,
                 callee,
                 copies,
-                ..
+                claim_transfers,
             } => {
                 operation_site = Some(*psi_operation);
-                match target.architecture {
+                let argument_intervals = match target.architecture {
                     Architecture::X86_64 => emit_x86_64_unit_call(
                         &mut bytes,
                         *psi_operation,
@@ -565,7 +606,48 @@ fn emit_unit_body(
                         &aarch64_homes,
                         &mut internal_calls,
                     )?,
-                }
+                };
+                internal_unit_calls.push(TerminalInternalUnitCallRecord {
+                    psi_operation: *psi_operation,
+                    target: *callee,
+                    arguments: copies
+                        .iter()
+                        .zip(argument_intervals)
+                        .map(
+                            |(
+                                copy,
+                                (
+                                    code_offset,
+                                    byte_count,
+                                    source_home_byte_offset,
+                                    call_stack_bytes,
+                                ),
+                            )| {
+                                TerminalInternalUnitCallArgumentRecord {
+                                    place: copy.place,
+                                    path: copy.path.clone(),
+                                    root_structural_type: copy.root_structural_type,
+                                    structural_type: copy.structural_type,
+                                    shape: copy.shape,
+                                    source_byte_offset: copy.source_byte_offset,
+                                    source_home_byte_offset,
+                                    call_stack_bytes,
+                                    fixed_array_length: copy.fixed_array_length,
+                                    element_stride: copy.element_stride,
+                                    source: copy.source.clone(),
+                                    destination: copy.destination.clone(),
+                                    code_offset,
+                                    byte_count,
+                                    bytes: bytes[code_offset..code_offset + byte_count].to_vec(),
+                                }
+                            },
+                        )
+                        .collect(),
+                    claim_transfers: claim_transfers.clone(),
+                    operation_ordinal,
+                    code_offset,
+                    byte_count: bytes.len() - code_offset,
+                });
             }
             TerminalAssignedUnitOperation::PortWrite {
                 psi_operation,
@@ -663,6 +745,7 @@ fn emit_unit_body(
     Ok(UnitEmission {
         bytes,
         internal_calls,
+        internal_unit_calls,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -697,6 +780,7 @@ fn emit_unit_body(
             },
             stack_alignment: 16,
         },
+        parameter_homes,
     })
 }
 
@@ -708,7 +792,7 @@ fn emit_x86_64_unit_call(
     target: NativeTarget,
     homes: &[X86UnitParameterHome],
     internal_calls: &mut Vec<TerminalInternalCallRelocation>,
-) -> Result<(), EmissionError> {
+) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
         .iter()
         .map(|copy| outgoing_placement_extent(&copy.destination))
@@ -731,15 +815,28 @@ fn emit_x86_64_unit_call(
         emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
         allocation = Some((allocation_offset, bytes.len() - allocation_offset));
     }
+    let mut argument_intervals = Vec::with_capacity(copies.len());
     for copy in copies {
+        let copy_offset = bytes.len();
         let home = homes
             .iter()
             .find(|home| home.place == copy.place)
             .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
-        if home.shape != copy.shape || home.source != copy.source {
+        if home.source != copy.source
+            || copy
+                .source_byte_offset
+                .checked_add(u32::from(copy.shape.byte_size))
+                .is_none_or(|end| end > u32::from(home.shape.byte_size))
+        {
             return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
         }
         emit_x86_64_aggregate_copy_from_home(bytes, copy, home, call_stack_bytes)?;
+        argument_intervals.push((
+            copy_offset,
+            bytes.len() - copy_offset,
+            home.byte_offset,
+            call_stack_bytes,
+        ));
     }
     bytes.push(0xe8);
     let offset = bytes.len();
@@ -759,7 +856,7 @@ fn emit_x86_64_unit_call(
         scalar_stack: None,
         offset,
     });
-    Ok(())
+    Ok(argument_intervals)
 }
 
 fn emit_aarch64_unit_call(
@@ -769,7 +866,7 @@ fn emit_aarch64_unit_call(
     copies: &[TerminalAssignedAggregateCopy],
     homes: &[Aarch64UnitParameterHome],
     internal_calls: &mut Vec<TerminalInternalCallRelocation>,
-) -> Result<(), EmissionError> {
+) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
         .iter()
         .map(|copy| aarch64_outgoing_placement_extent(&copy.destination))
@@ -783,15 +880,28 @@ fn emit_aarch64_unit_call(
         allocation = Some((bytes.len(), 4));
         emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, false)?;
     }
+    let mut argument_intervals = Vec::with_capacity(copies.len());
     for copy in copies {
+        let instruction_offset = instructions.len();
         let home = homes
             .iter()
             .find(|home| home.place == copy.place)
             .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
-        if home.shape != copy.shape || home.source != copy.source {
+        if home.source != copy.source
+            || copy
+                .source_byte_offset
+                .checked_add(u32::from(copy.shape.byte_size))
+                .is_none_or(|end| end > u32::from(home.shape.byte_size))
+        {
             return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
         }
         emit_aarch64_aggregate_copy_from_home(&mut instructions, copy, home, call_stack_bytes)?;
+        argument_intervals.push((
+            bytes.len() + instruction_offset * 4,
+            (instructions.len() - instruction_offset) * 4,
+            home.byte_offset,
+            call_stack_bytes,
+        ));
     }
     append_aarch64_instructions(bytes, instructions);
     let offset = bytes.len();
@@ -812,7 +922,7 @@ fn emit_aarch64_unit_call(
         scalar_stack: None,
         offset,
     });
-    Ok(())
+    Ok(argument_intervals)
 }
 
 fn stack_adjustment_pair(
@@ -1143,6 +1253,49 @@ fn emit_x86_64_aggregate_copy_from_home(
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     if home.indirect {
+        if !copy.path.is_empty() {
+            if copy
+                .destination
+                .locations
+                .iter()
+                .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+            {
+                return Err(EmissionError::UnsupportedAggregatePlacement);
+            }
+            let pointer_home = call_stack_bytes
+                .checked_add(home.byte_offset)
+                .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+            emit_x86_64_stack_load_width(bytes, 11, pointer_home, 8)?;
+            for destination in &copy.destination.locations {
+                let (value_offset, width) = placement_fragment(destination)?;
+                let source_offset = copy
+                    .source_byte_offset
+                    .checked_add(u32::from(value_offset))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                match *destination {
+                    ValueLocation::Register { register, .. } => {
+                        emit_x86_64_memory_load_width(
+                            bytes,
+                            x86_unit_register(register)?,
+                            11,
+                            source_offset,
+                            width,
+                        )?;
+                    }
+                    ValueLocation::Stack {
+                        stack_byte_offset, ..
+                    } => {
+                        emit_x86_64_memory_load_width(bytes, 0, 11, source_offset, width)?;
+                        emit_x86_64_stack_store_width(bytes, 0, stack_byte_offset, width)?;
+                    }
+                    ValueLocation::Indirect { .. } => unreachable!(),
+                }
+            }
+            return Ok(());
+        }
+        if copy.shape != home.shape {
+            return Err(EmissionError::UnsupportedAggregatePlacement);
+        }
         let [ValueLocation::Indirect { pointer, .. }] = copy.destination.locations.as_slice()
         else {
             return Err(EmissionError::UnsupportedAggregatePlacement);
@@ -1174,6 +1327,7 @@ fn emit_x86_64_aggregate_copy_from_home(
         let (destination_offset, destination_size) = placement_fragment(destination)?;
         let source_offset = call_stack_bytes
             .checked_add(home.byte_offset)
+            .and_then(|offset| offset.checked_add(copy.source_byte_offset))
             .and_then(|offset| offset.checked_add(u32::from(destination_offset)))
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
         match *destination {
@@ -1205,6 +1359,60 @@ fn emit_aarch64_aggregate_copy_from_home(
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     if home.indirect {
+        if !copy.path.is_empty() {
+            if copy
+                .destination
+                .locations
+                .iter()
+                .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+            {
+                return Err(EmissionError::UnsupportedAggregatePlacement);
+            }
+            let pointer_home = call_stack_bytes
+                .checked_add(home.byte_offset)
+                .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+            instructions.push(aarch64_unit_stack_access(0xf940_0000, 9, pointer_home, 8)?);
+            for destination in &copy.destination.locations {
+                let (value_offset, width) = placement_fragment(destination)?;
+                let source_offset = copy
+                    .source_byte_offset
+                    .checked_add(u32::from(value_offset))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                match *destination {
+                    ValueLocation::Register { register, .. } => {
+                        instructions.push(aarch64_unit_memory_access(
+                            aarch64_load_base(width)?,
+                            aarch64_unit_register(register)?,
+                            9,
+                            source_offset,
+                            width,
+                        )?)
+                    }
+                    ValueLocation::Stack {
+                        stack_byte_offset, ..
+                    } => {
+                        instructions.push(aarch64_unit_memory_access(
+                            aarch64_load_base(width)?,
+                            10,
+                            9,
+                            source_offset,
+                            width,
+                        )?);
+                        instructions.push(aarch64_unit_stack_access(
+                            aarch64_store_base(width)?,
+                            10,
+                            stack_byte_offset,
+                            width,
+                        )?);
+                    }
+                    ValueLocation::Indirect { .. } => unreachable!(),
+                }
+            }
+            return Ok(());
+        }
+        if copy.shape != home.shape {
+            return Err(EmissionError::UnsupportedAggregatePlacement);
+        }
         let [
             ValueLocation::Indirect {
                 pointer,
@@ -1283,6 +1491,7 @@ fn emit_aarch64_aggregate_copy_from_home(
         let (destination_offset, destination_size) = placement_fragment(destination)?;
         let source_offset = call_stack_bytes
             .checked_add(home.byte_offset)
+            .and_then(|offset| offset.checked_add(copy.source_byte_offset))
             .and_then(|offset| offset.checked_add(u32::from(destination_offset)))
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
         match *destination {
@@ -2697,6 +2906,45 @@ fn emit_x86_64_stack_load_width(
         width => return Err(EmissionError::UnsupportedAggregateFragmentWidth(width)),
     }
     emit_x86_64_rsp_modrm(bytes, register, byte_offset);
+    Ok(())
+}
+
+fn emit_x86_64_memory_load_width(
+    bytes: &mut Vec<u8>,
+    destination: u8,
+    base: u8,
+    byte_offset: u32,
+    byte_size: u16,
+) -> Result<(), EmissionError> {
+    match byte_size {
+        1 => {
+            bytes.push(0x40 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
+            bytes.extend_from_slice(&[0x0f, 0xb6]);
+        }
+        2 => {
+            bytes.push(0x66);
+            bytes.push(0x40 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
+            bytes.extend_from_slice(&[0x0f, 0xb7]);
+        }
+        4 => {
+            bytes.push(0x40 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
+            bytes.push(0x8b);
+        }
+        8 => {
+            bytes.push(0x48 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
+            bytes.push(0x8b);
+        }
+        width => return Err(EmissionError::UnsupportedAggregateFragmentWidth(width)),
+    }
+    if byte_offset == 0 && (base & 7) != 5 {
+        bytes.push(((destination & 7) << 3) | (base & 7));
+    } else if byte_offset <= i8::MAX as u32 {
+        bytes.push(0x40 | ((destination & 7) << 3) | (base & 7));
+        bytes.push(byte_offset as u8);
+    } else {
+        bytes.push(0x80 | ((destination & 7) << 3) | (base & 7));
+        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+    }
     Ok(())
 }
 
@@ -5330,8 +5578,12 @@ mod tests {
             let argument = TerminalTargetStructuralArgument {
                 place,
                 path: Vec::new(),
+                root_structural_type: structural_type,
                 structural_type,
                 shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
                 source: call_plan.parameters[0].clone(),
                 destination: call_plan.parameters[0].clone(),
             };
@@ -5412,8 +5664,12 @@ mod tests {
             |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
                 place,
                 path: Vec::new(),
+                root_structural_type: ty,
                 structural_type: ty,
                 shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
                 source: call_plan.parameters[source].clone(),
                 destination: call_plan.parameters[destination].clone(),
             };
@@ -5500,8 +5756,12 @@ mod tests {
             |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
                 place,
                 path: Vec::new(),
+                root_structural_type: ty,
                 structural_type: ty,
                 shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
                 source: call_plan.parameters[source].clone(),
                 destination: call_plan.parameters[destination].clone(),
             };
@@ -5619,8 +5879,12 @@ mod tests {
                 .map(|parameter| TerminalTargetStructuralArgument {
                     place: parameter.place,
                     path: Vec::new(),
+                    root_structural_type: ty,
                     structural_type: ty,
                     shape: parameter.shape,
+                    source_byte_offset: 0,
+                    fixed_array_length: None,
+                    element_stride: None,
                     source: parameter.placement.clone(),
                     destination: parameter.placement.clone(),
                 })
@@ -5708,8 +5972,12 @@ mod tests {
                 let argument = TerminalTargetStructuralArgument {
                     place,
                     path: Vec::new(),
+                    root_structural_type: ty,
                     structural_type: ty,
                     shape,
+                    source_byte_offset: 0,
+                    fixed_array_length: None,
+                    element_stride: None,
                     source: call_plan.parameters[0].clone(),
                     destination: call_plan.parameters[0].clone(),
                 };

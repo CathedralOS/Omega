@@ -1709,15 +1709,83 @@ fn validate_unit_operation_static(
                     callee: callee.id,
                 });
             }
+            if structural_arguments.iter().any(|argument| {
+                !argument.path.is_empty()
+                    && !matches!(
+                        argument.path.as_slice(),
+                        [StructuralPathSegment::FixedIndex(_)]
+                    )
+            }) {
+                return Err(ModuleError::InvalidStructuralArgumentPath {
+                    operation: operation.id,
+                    argument_index: structural_arguments
+                        .iter()
+                        .position(|argument| {
+                            !argument.path.is_empty()
+                                && !matches!(
+                                    argument.path.as_slice(),
+                                    [StructuralPathSegment::FixedIndex(_)]
+                                )
+                        })
+                        .unwrap_or_default() as u32,
+                });
+            }
+            let projected = structural_arguments
+                .iter()
+                .any(|argument| !argument.path.is_empty());
+            if projected
+                && (machine.result != TerminalMachineResult::Unit
+                    || !machine.parameters.is_empty()
+                    || machine.structural_parameters.len() != 1
+                    || structural_arguments.len() != 1
+                    || callee.structural_parameters.len() != 1)
+            {
+                return Err(ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+                    operation: operation.id,
+                });
+            }
             validate_structural_arguments(
                 module,
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
                 operation.id,
-                false,
+                true,
             )?;
+            if let Some((argument_index, _)) = structural_arguments
+                .iter()
+                .zip(&callee.structural_parameters)
+                .enumerate()
+                .find(|(_, (argument, expected))| {
+                    !argument.path.is_empty()
+                        && (!expected.qualifications.is_empty()
+                            || machine
+                                .structural_parameters
+                                .iter()
+                                .find(|actual| actual.place == argument.place)
+                                .is_some_and(|actual| !actual.qualifications.is_empty()))
+                })
+            {
+                return Err(ModuleError::InvalidStructuralArgumentPath {
+                    operation: operation.id,
+                    argument_index: argument_index as u32,
+                });
+            }
             validate_unit_call_contract_places(callee, operation.id)?;
+            if projected {
+                let projected_parameter = callee.structural_parameters[0].place;
+                if unit_call_contract_propositions(callee).any(|proposition| {
+                    proposition_content_roots(proposition).contains(&projected_parameter)
+                }) {
+                    return Err(
+                        ModuleError::ProjectedUnitCallContractUsesStructuralParameter {
+                            operation: operation.id,
+                            callee: callee.id,
+                            place: projected_parameter,
+                        },
+                    );
+                }
+            }
             validate_service_reach(
                 operation.id,
                 &machine.published_service_ceiling,
@@ -1852,7 +1920,23 @@ fn validate_unit_call_contract_places(
         .iter()
         .map(|parameter| parameter.place)
         .collect::<BTreeSet<_>>();
-    let propositions = callee
+    for proposition in unit_call_contract_propositions(callee) {
+        if let Some(place) = proposition_content_roots(proposition)
+            .into_iter()
+            .find(|place| !parameters.contains(place))
+        {
+            return Err(ModuleError::UnitCallContractPlaceHasNoArgument {
+                operation,
+                callee: callee.id,
+                place,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<Item = &Proposition> {
+    callee
         .contract
         .requires
         .iter()
@@ -1873,20 +1957,7 @@ fn validate_unit_call_contract_places(
                     CrashRouteGuard::Truth => None,
                     CrashRouteGuard::Predicate(predicate) => Some(predicate.proposition()),
                 }),
-        );
-    for proposition in propositions {
-        if let Some(place) = proposition_content_roots(proposition)
-            .into_iter()
-            .find(|place| !parameters.contains(place))
-        {
-            return Err(ModuleError::UnitCallContractPlaceHasNoArgument {
-                operation,
-                callee: callee.id,
-                place,
-            });
-        }
-    }
-    Ok(())
+        )
 }
 
 fn validate_structural_arguments(
@@ -1990,11 +2061,38 @@ fn validate_unit_call_claim_transfers(
         .zip(&callee.structural_parameters)
         .enumerate()
     {
+        if !argument.path.is_empty() {
+            let callee_claims = callee
+                .entry_claims
+                .iter()
+                .filter(|claim| claim.input == parameter.place)
+                .collect::<Vec<_>>();
+            if !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty()) {
+                return Err(ModuleError::UnitCallClaimPresenceMismatch {
+                    operation,
+                    argument_index: argument_index as u32,
+                });
+            }
+            if caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place)
+                || callee
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == parameter.place)
+            {
+                return Err(ModuleError::UnitCallContentClaimMismatch {
+                    operation,
+                    argument_index: argument_index as u32,
+                });
+            }
+        }
         let mut caller_claim_paths = caller
             .entry_claims
             .iter()
-            .filter(|claim| claim.input == argument.place)
-            .map(|claim| claim.path.as_slice())
+            .filter(|claim| claim.input == argument.place && claim.path.starts_with(&argument.path))
+            .map(|claim| &claim.path[argument.path.len()..])
             .collect::<Vec<_>>();
         let mut callee_claim_paths = callee
             .entry_claims
@@ -2072,13 +2170,30 @@ fn validate_unit_call_claim_transfers(
                 argument_index: transfer.argument_index,
             });
         };
-        let Some((claim_input, _claim_path)) = claim_input(caller, transfer.claim) else {
+        let Some((claim_input, claim_path)) = claim_input(caller, transfer.claim) else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: transfer.claim,
             });
         };
-        if claim_input != argument.place {
+        let target_place = callee
+            .structural_parameters
+            .get(transfer.argument_index as usize)
+            .map(|parameter| parameter.place);
+        let structural_path_matches = claim_path.starts_with(&argument.path)
+            && callee.entry_claims.iter().any(|claim| {
+                Some(claim.input) == target_place && claim.path == claim_path[argument.path.len()..]
+            });
+        let content_matches = argument.path.is_empty()
+            && caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.claim == transfer.claim && claim.input.root == argument.place)
+            && callee
+                .content_entry_claims
+                .iter()
+                .any(|claim| Some(claim.input.root) == target_place);
+        if claim_input != argument.place || (!structural_path_matches && !content_matches) {
             return Err(ModuleError::ClaimActionPlaceMismatch {
                 operation,
                 claim: transfer.claim,
@@ -3292,26 +3407,31 @@ fn validate_structural_frontier(
                     });
                 }
             }
-            if let OperationKind::BoundaryCallUnit {
-                structural_arguments,
-                ..
-            } = &operation.kind
+            let projected_arguments = match &operation.kind {
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::BoundaryCallUnit {
+                    structural_arguments,
+                    ..
+                } => structural_arguments.as_slice(),
+                _ => &[],
+            };
+            for argument in projected_arguments
+                .iter()
+                .filter(|argument| !argument.path.is_empty())
             {
-                for argument in structural_arguments
-                    .iter()
-                    .filter(|argument| !argument.path.is_empty())
+                if !frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(argument.place))
+                    && frontier.owned_places.remove(&argument.place).is_none()
                 {
-                    if !frontier
-                        .claims
-                        .values()
-                        .any(|claim| claim.input == Some(argument.place))
-                        && frontier.owned_places.remove(&argument.place).is_none()
-                    {
-                        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
-                            operation: operation.id,
-                            place: argument.place,
-                        });
-                    }
+                    return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                        operation: operation.id,
+                        place: argument.place,
+                    });
                 }
             }
         }
@@ -4627,6 +4747,14 @@ pub enum ModuleError {
     UnitCallTargetHasScalarSignature {
         operation: OperationId,
         callee: MachineId,
+    },
+    ProjectedUnitCallOutsideBoundedSlice {
+        operation: OperationId,
+    },
+    ProjectedUnitCallContractUsesStructuralParameter {
+        operation: OperationId,
+        callee: MachineId,
+        place: PlaceId,
     },
     UnitCallContractPlaceHasNoArgument {
         operation: OperationId,

@@ -10,12 +10,12 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ServiceId,
+    ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +35,10 @@ pub struct TerminalMachineCodeFunction {
     /// closure. Other terminal function forms remain deliberately unreported
     /// until their complete temporary-stack accounting is retained.
     pub unit_stack: Option<TerminalUnitStackEvidence>,
+    /// Complete ordered incoming structural-parameter homes for a Unit body.
+    /// Object validation binds projected-call custody to this independently
+    /// retained caller frame plan instead of trusting per-call offsets.
+    pub unit_parameter_homes: Vec<TerminalUnitParameterHomeRecord>,
     /// Exact ordered stack mutations and admitted control-flow shape for a
     /// scalar function. Object construction replays the target instructions
     /// and derives the numeric peak; unsupported scalar forms remain `None`.
@@ -44,6 +48,8 @@ pub struct TerminalMachineCodeFunction {
     /// object construction validates the surrounding opcode before accepting
     /// the relocation.
     pub internal_calls: Vec<TerminalInternalCallRelocation>,
+    /// Complete ordered semantic and ABI custody for in-module Unit calls.
+    pub internal_unit_calls: Vec<TerminalInternalUnitCallRecord>,
     /// Exact native byte intervals attributed to the current Psi logical-fuel
     /// schedule. These records are accounting provenance, not runtime charges.
     pub fuel_attribution: Vec<TerminalNativeFuelAttribution>,
@@ -58,6 +64,16 @@ pub struct TerminalMachineCodeFunction {
     /// interval. Claim identities are semantic metadata, never hidden ABI
     /// words.
     pub structural_return: Option<TerminalStructuralReturnRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalUnitParameterHomeRecord {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub source: ValuePlacement,
+    pub byte_offset: u32,
+    pub indirect: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,6 +217,37 @@ pub struct TerminalInternalCallRelocation {
     /// On x86-64 this points at the four-byte displacement following `CALL`;
     /// on AArch64 it points at the `BL` instruction word.
     pub offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInternalUnitCallRecord {
+    pub psi_operation: OperationId,
+    pub target: MachineId,
+    pub arguments: Vec<TerminalInternalUnitCallArgumentRecord>,
+    pub claim_transfers: Vec<ClaimTransfer>,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInternalUnitCallArgumentRecord {
+    pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub root_structural_type: StructuralTypeId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub source_byte_offset: u32,
+    pub source_home_byte_offset: u32,
+    pub call_stack_bytes: u32,
+    pub fixed_array_length: Option<u64>,
+    pub element_stride: Option<u32>,
+    pub source: ValuePlacement,
+    pub destination: ValuePlacement,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    /// Immutable target bytes that realize this exact source-to-destination copy.
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

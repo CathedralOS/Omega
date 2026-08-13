@@ -179,13 +179,15 @@ Remaining:
   on each accepted carrier. Unsupported claims, cleanup, calls, topology, or
   computation fail closed rather than falling back to source trees.
 
-  Literal fixed-array custody now retains complete dense sibling claims, typed
-  index paths, boundary-only projected arguments, exact receipts, interpreter
-  effects, and recursive Omega layout/ABI placement through all five target
-  plans. Boundary provider-settlement paths survive emitted machine records and
-  canonical installation. Dynamic/nested indexing, projected ordinary calls,
-  content-bearing splits, and durable internal-Unit-call custody rows remain
-  later work.
+  Literal fixed-array custody retains complete dense sibling claims and one
+  typed literal-index projection through either boundary settlement or an exact
+  one-parameter ordinary Unit call. Verification rebases the selected claim,
+  interpretation keeps unselected siblings live, and Omega realizes the
+  internal call on all five targets, including indirect Windows homes. Exact
+  path/type/layout/copy/claim custody survives object, image, and canonical
+  installation validation. Dynamic or nested indexing, wider call signatures,
+  projected contracts, content-bearing splits, and partial returns remain
+  fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine

@@ -5,12 +5,13 @@ use psi_core::{
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ContractClause, CrashCause, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
-    ServiceDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContractClause,
+    CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract, Operation,
+    OperationKind, OperationResult, ServiceDeclaration, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -404,6 +405,129 @@ fn unit_calls_and_effect_operations_use_the_same_transitive_schedule() {
     let segments = derive_fixed_safe_point_segments(&verified, machine_id(700)).unwrap();
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].ceiling_units(), 5);
+}
+
+#[test]
+fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
+    let mut module = unit_effect_fixture();
+    let element = structural_type_id(950);
+    let array = structural_type_id(951);
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "test::Receipt".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "[test::Receipt;2]".into(),
+            shape: StructuralTypeShape::FixedArray { element, length: 2 },
+        },
+    ];
+    module.boundary_machines[0].structural_parameters = vec![StructuralParameterDeclaration {
+        place: place_id(952),
+        position: 0,
+        is_self: false,
+        structural_type: element,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    }];
+
+    let caller = &mut module.machines[0];
+    caller.structural_parameters = vec![StructuralParameterDeclaration {
+        place: place_id(950),
+        position: 0,
+        is_self: false,
+        structural_type: array,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+    }];
+    caller.structural_places = vec![StructuralPlaceDeclaration {
+        id: place_id(950),
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    caller.entry_claims = vec![
+        EntryClaim {
+            claim: claim_id(1),
+            input: place_id(950),
+            path: vec![StructuralPathSegment::FixedIndex(0)],
+        },
+        EntryClaim {
+            claim: claim_id(2),
+            input: place_id(950),
+            path: vec![StructuralPathSegment::FixedIndex(1)],
+        },
+    ];
+    caller.blocks[0].operations = (0..2)
+        .map(|index| Operation {
+            id: operation_id(950 + index),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: machine_id(701),
+                structural_arguments: vec![StructuralArgument {
+                    place: place_id(950),
+                    path: vec![StructuralPathSegment::FixedIndex(index)],
+                }],
+                claim_transfers: vec![ClaimTransfer {
+                    claim: claim_id(1 + index),
+                    argument_index: 0,
+                }],
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        })
+        .collect();
+
+    let callee = &mut module.machines[1];
+    callee.structural_parameters = vec![StructuralParameterDeclaration {
+        place: place_id(951),
+        position: 0,
+        is_self: false,
+        structural_type: element,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    }];
+    callee.structural_places = vec![StructuralPlaceDeclaration {
+        id: place_id(951),
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    callee.entry_claims = vec![EntryClaim {
+        claim: claim_id(1),
+        input: place_id(951),
+        path: Vec::new(),
+    }];
+    let OperationKind::BoundaryCallUnit {
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &mut callee.blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *structural_arguments = vec![StructuralArgument {
+        place: place_id(951),
+        path: Vec::new(),
+    }];
+    *completion_receipts = vec![CompletionReceipt {
+        claim: claim_id(1),
+        argument_index: 0,
+    }];
+
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("projected sibling calls verify");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(700)).unwrap();
+    assert_eq!(certificate.ceiling_units(), 7);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }
 
 #[test]

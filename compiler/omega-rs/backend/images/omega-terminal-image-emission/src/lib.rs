@@ -139,6 +139,7 @@ pub struct TerminalObjectFunction {
     pub scalar_stack: Option<TerminalObjectScalarStack>,
     pub unit_call_stacks: Vec<TerminalObjectUnitCallStack>,
     pub scalar_call_stacks: Vec<TerminalObjectScalarCallStack>,
+    pub internal_unit_calls: Vec<omega_terminal_machine_code::TerminalInternalUnitCallRecord>,
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<TerminalStructuralReturnRecord>,
@@ -400,6 +401,58 @@ pub fn build_terminal_object_artifact(
                 }
                 (None, None) => {}
             }
+        }
+        if function.internal_unit_calls.len()
+            != function
+                .internal_calls
+                .iter()
+                .filter(|call| call.unit_stack.is_some())
+                .count()
+        {
+            return Err(TerminalObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
+        let relocation_identities = function
+            .internal_calls
+            .iter()
+            .filter(|call| call.unit_stack.is_some())
+            .map(|call| (call.psi_operation, call.target))
+            .collect::<std::collections::BTreeSet<_>>();
+        let custody_identities = function
+            .internal_unit_calls
+            .iter()
+            .map(|call| (call.psi_operation, call.target))
+            .collect::<std::collections::BTreeSet<_>>();
+        if custody_identities.len() != function.internal_unit_calls.len()
+            || custody_identities != relocation_identities
+        {
+            return Err(TerminalObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
+        for custody in &function.internal_unit_calls {
+            let Some(call_stack) = validated_call_stacks.iter().find(|call| {
+                call.psi_operation == custody.psi_operation && call.target == custody.target
+            }) else {
+                return Err(TerminalObjectError::InvalidInternalUnitCallEvidence(
+                    function.machine,
+                ));
+            };
+            validate_internal_unit_call_custody(
+                plan.target,
+                function.machine,
+                &function.provenance,
+                &function.bytes,
+                &function.fuel_attribution,
+                &function.internal_calls,
+                &function.unit_parameter_homes,
+                validated_function_stack.as_ref().ok_or(
+                    TerminalObjectError::InvalidInternalUnitCallEvidence(function.machine),
+                )?,
+                call_stack,
+                custody,
+            )?;
         }
         if let Some(stack) = function.unit_stack {
             validate_complete_unit_stack_evidence(
@@ -666,6 +719,7 @@ pub fn build_terminal_object_artifact(
             scalar_stack,
             unit_call_stacks,
             scalar_call_stacks,
+            internal_unit_calls: function.internal_unit_calls.clone(),
             structural_return: function.structural_return.clone(),
         });
     }
@@ -934,6 +988,390 @@ fn validate_structural_return_record(
         return Err(TerminalObjectError::StructuralReturnBytesMismatch(machine));
     }
     Ok(())
+}
+
+fn validate_internal_unit_call_custody(
+    target: NativeTarget,
+    machine: MachineId,
+    provenance: &TerminalPsiProvenance,
+    function_bytes: &[u8],
+    fuel: &[TerminalNativeFuelAttribution],
+    relocations: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
+    parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
+    validated_function_stack: &TerminalObjectUnitStack,
+    validated_call_stack: &TerminalObjectUnitCallStack,
+    custody: &omega_terminal_machine_code::TerminalInternalUnitCallRecord,
+) -> Result<(), TerminalObjectError> {
+    let invalid = || TerminalObjectError::InvalidInternalUnitCallEvidence(machine);
+    let Some(relocation) = relocations.iter().find(|relocation| {
+        relocation.psi_operation == custody.psi_operation
+            && relocation.target == custody.target
+            && relocation.unit_stack.is_some()
+    }) else {
+        return Err(invalid());
+    };
+    let end = custody
+        .code_offset
+        .checked_add(custody.byte_count)
+        .ok_or_else(invalid)?;
+    let relocation_end = relocation.offset.checked_add(4).ok_or_else(invalid)?;
+    let linkage_bytes = match target.architecture {
+        Architecture::X86_64 => 8,
+        Architecture::Aarch64 => 0,
+    };
+    let expected_call_stack_bytes = validated_call_stack
+        .transient_bytes
+        .checked_sub(linkage_bytes)
+        .ok_or_else(invalid)?;
+    if custody.arguments.is_empty() && custody.claim_transfers.is_empty() {
+        if custody.byte_count == 0
+            || custody.code_offset > relocation.offset
+            || relocation_end > end
+            || !provenance.operations.contains(&custody.psi_operation)
+            || fuel
+                .iter()
+                .filter(|attribution| {
+                    attribution.site == TerminalNativeFuelSite::Operation(custody.psi_operation)
+                        && attribution.operation_ordinal == custody.operation_ordinal
+                        && attribution.code_offset == custody.code_offset
+                        && attribution.byte_count == custody.byte_count
+                })
+                .count()
+                != 1
+        {
+            return Err(invalid());
+        }
+        return Ok(());
+    }
+    let expected_plan = omega_calling_conventions::evaluate_call_plan(
+        omega_calling_conventions::CallingPolicy::native_for_target(target),
+        &omega_calling_conventions::CallSignature {
+            parameters: custody
+                .arguments
+                .iter()
+                .map(|argument| argument.shape)
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| invalid())?;
+    let projected_argument_indexes = custody
+        .arguments
+        .iter()
+        .enumerate()
+        .filter_map(|(index, argument)| (!argument.path.is_empty()).then_some(index))
+        .collect::<std::collections::BTreeSet<_>>();
+    let transferred_argument_indexes = custody
+        .claim_transfers
+        .iter()
+        .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
+        .collect::<std::collections::BTreeSet<_>>();
+    let projected_home = if projected_argument_indexes.is_empty() {
+        None
+    } else {
+        let [home] = parameter_homes else {
+            return Err(invalid());
+        };
+        if home.byte_offset != 0
+            || home.indirect
+                != matches!(
+                    home.source.locations.as_slice(),
+                    [omega_calling_conventions::ValueLocation::Indirect { .. }]
+                )
+        {
+            return Err(invalid());
+        }
+        let expected_caller_plan = omega_calling_conventions::evaluate_call_plan(
+            omega_calling_conventions::CallingPolicy::native_for_target(target),
+            &omega_calling_conventions::CallSignature {
+                parameters: vec![home.shape],
+                result: None,
+            },
+        )
+        .map_err(|_| invalid())?;
+        if expected_caller_plan.parameters.as_slice() != [home.source.clone()] {
+            return Err(invalid());
+        }
+        let stored_bytes = if home.indirect {
+            8
+        } else {
+            u32::from(home.shape.byte_size)
+        };
+        let expected_frame_bytes = match target.architecture {
+            Architecture::X86_64 => stored_bytes.next_multiple_of(16),
+            Architecture::Aarch64 => stored_bytes
+                .next_multiple_of(8)
+                .checked_add(8)
+                .map(|bytes| bytes.next_multiple_of(16))
+                .ok_or_else(invalid)?,
+        };
+        if validated_function_stack.frame_bytes != expected_frame_bytes {
+            return Err(invalid());
+        }
+        Some(home)
+    };
+    if custody.byte_count == 0
+        || custody.code_offset > relocation.offset
+        || relocation_end > end
+        || !provenance.operations.contains(&custody.psi_operation)
+        || fuel
+            .iter()
+            .filter(|attribution| {
+                attribution.site == TerminalNativeFuelSite::Operation(custody.psi_operation)
+                    && attribution.operation_ordinal == custody.operation_ordinal
+                    && attribution.code_offset == custody.code_offset
+                    && attribution.byte_count == custody.byte_count
+            })
+            .count()
+            != 1
+        || expected_plan.parameters.len() != custody.arguments.len()
+        || custody.arguments.windows(2).any(|pair| {
+            pair[0]
+                .code_offset
+                .checked_add(pair[0].byte_count)
+                .is_none_or(|end| end > pair[1].code_offset)
+        })
+        || custody
+            .arguments
+            .iter()
+            .zip(&expected_plan.parameters)
+            .any(|(argument, destination)| {
+                let home_mismatch = !argument.path.is_empty()
+                    && projected_home.is_none_or(|home| {
+                        argument.place != home.place
+                            || argument.root_structural_type != home.structural_type
+                            || argument.source != home.source
+                            || argument.source.shape != home.shape
+                            || argument.source_home_byte_offset != home.byte_offset
+                    });
+                argument.destination != *destination
+                    || argument.call_stack_bytes != expected_call_stack_bytes
+                    || home_mismatch
+                    || argument.byte_count == 0
+                    || argument.bytes.len() != argument.byte_count
+                    || argument
+                        .code_offset
+                        .checked_add(argument.byte_count)
+                        .and_then(|end| function_bytes.get(argument.code_offset..end))
+                        != Some(argument.bytes.as_slice())
+                    || (!argument.path.is_empty()
+                        && expected_projected_copy_bytes(target, argument).as_deref()
+                            != Some(argument.bytes.as_slice()))
+                    || argument.code_offset < custody.code_offset
+                    || argument
+                        .code_offset
+                        .checked_add(argument.byte_count)
+                        .is_none_or(|argument_end| argument_end > end)
+                    || argument
+                        .source_byte_offset
+                        .checked_add(u32::from(argument.shape.byte_size))
+                        .is_none_or(|end| end > u32::from(argument.source.shape.byte_size))
+                    || match argument.path.as_slice() {
+                        [] => {
+                            argument.source_byte_offset != 0
+                                || argument.source.shape != argument.shape
+                                || argument.root_structural_type != argument.structural_type
+                                || argument.fixed_array_length.is_some()
+                                || argument.element_stride.is_some()
+                        }
+                        [psi_terminal::StructuralPathSegment::FixedIndex(index)] => {
+                            let expected_stride = u32::from(argument.shape.byte_size)
+                                .next_multiple_of(u32::from(argument.shape.alignment));
+                            let Some(length) = argument.fixed_array_length else {
+                                return true;
+                            };
+                            let Some(stride) = argument.element_stride else {
+                                return true;
+                            };
+                            argument.root_structural_type == argument.structural_type
+                                || *index >= length
+                                || stride != expected_stride
+                                || u64::from(stride).checked_mul(*index)
+                                    != Some(u64::from(argument.source_byte_offset))
+                                || u64::from(stride).checked_mul(length)
+                                    != Some(u64::from(argument.source.shape.byte_size))
+                                || argument.source.shape.alignment != argument.shape.alignment
+                        }
+                        _ => true,
+                    }
+            })
+        || !projected_argument_indexes.is_subset(&transferred_argument_indexes)
+        || custody.claim_transfers.iter().any(|transfer| {
+            usize::try_from(transfer.argument_index)
+                .map_or(true, |index| index >= custody.arguments.len())
+        })
+        || custody
+            .claim_transfers
+            .iter()
+            .map(|transfer| transfer.claim)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != custody.claim_transfers.len()
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn expected_projected_copy_bytes(
+    target: NativeTarget,
+    argument: &omega_terminal_machine_code::TerminalInternalUnitCallArgumentRecord,
+) -> Option<Vec<u8>> {
+    let [
+        omega_calling_conventions::ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = argument.destination.locations.as_slice()
+    else {
+        return None;
+    };
+    if argument.shape != omega_calling_conventions::ValueShape::integer(8, 8) {
+        return None;
+    }
+    let home = argument
+        .call_stack_bytes
+        .checked_add(argument.source_home_byte_offset)?;
+    match target.architecture {
+        Architecture::X86_64 => {
+            let destination = x86_terminal_register(*register)?;
+            let mut bytes = Vec::new();
+            if matches!(
+                argument.source.locations.as_slice(),
+                [omega_calling_conventions::ValueLocation::Indirect { .. }]
+            ) {
+                expected_x86_stack_load(&mut bytes, 11, home, 8)?;
+                expected_x86_memory_load(
+                    &mut bytes,
+                    destination,
+                    11,
+                    argument.source_byte_offset,
+                    8,
+                )?;
+            } else {
+                let offset = home.checked_add(argument.source_byte_offset)?;
+                expected_x86_stack_load(&mut bytes, destination, offset, 8)?;
+            }
+            Some(bytes)
+        }
+        Architecture::Aarch64 => {
+            let destination = aarch64_terminal_register(*register)?;
+            let mut instructions = Vec::new();
+            if matches!(
+                argument.source.locations.as_slice(),
+                [omega_calling_conventions::ValueLocation::Indirect { .. }]
+            ) {
+                instructions.push(expected_aarch64_stack_load(9, home, 8)?);
+                instructions.push(expected_aarch64_memory_load(
+                    destination,
+                    9,
+                    argument.source_byte_offset,
+                    8,
+                )?);
+            } else {
+                instructions.push(expected_aarch64_stack_load(
+                    destination,
+                    home.checked_add(argument.source_byte_offset)?,
+                    8,
+                )?);
+            }
+            Some(
+                instructions
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect(),
+            )
+        }
+    }
+}
+
+fn x86_terminal_register(register: omega_calling_conventions::MachineRegister) -> Option<u8> {
+    use omega_calling_conventions::MachineRegister::*;
+    Some(match register {
+        X86Rax => 0,
+        X86Rcx => 1,
+        X86Rdx => 2,
+        X86Rbx => 3,
+        X86Rsp => 4,
+        X86Rbp => 5,
+        X86Rsi => 6,
+        X86Rdi => 7,
+        X86R8 => 8,
+        X86R9 => 9,
+        X86R10 => 10,
+        X86R11 => 11,
+        X86R12 => 12,
+        X86R13 => 13,
+        X86R14 => 14,
+        X86R15 => 15,
+        _ => return None,
+    })
+}
+
+fn aarch64_terminal_register(register: omega_calling_conventions::MachineRegister) -> Option<u8> {
+    match register {
+        omega_calling_conventions::MachineRegister::Aarch64X(value @ 0..=30) => Some(value),
+        _ => None,
+    }
+}
+
+fn expected_x86_stack_load(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    offset: u32,
+    width: u16,
+) -> Option<()> {
+    if width != 8 {
+        return None;
+    }
+    bytes.push(0x48 | (((register >> 3) & 1) << 2));
+    bytes.push(0x8b);
+    if offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, offset as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+        bytes.extend_from_slice(&offset.to_le_bytes());
+    }
+    Some(())
+}
+
+fn expected_x86_memory_load(
+    bytes: &mut Vec<u8>,
+    destination: u8,
+    base: u8,
+    offset: u32,
+    width: u16,
+) -> Option<()> {
+    if width != 8 {
+        return None;
+    }
+    bytes.push(0x48 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
+    bytes.push(0x8b);
+    if offset == 0 && (base & 7) != 5 {
+        bytes.push(((destination & 7) << 3) | (base & 7));
+    } else if offset <= i8::MAX as u32 {
+        bytes.push(0x40 | ((destination & 7) << 3) | (base & 7));
+        bytes.push(offset as u8);
+    } else {
+        bytes.push(0x80 | ((destination & 7) << 3) | (base & 7));
+        bytes.extend_from_slice(&offset.to_le_bytes());
+    }
+    Some(())
+}
+
+fn expected_aarch64_stack_load(register: u8, offset: u32, width: u16) -> Option<u32> {
+    if width != 8 || !offset.is_multiple_of(8) || offset / 8 > 0xfff {
+        return None;
+    }
+    Some(0xf940_0000 | ((offset / 8) << 10) | (31 << 5) | u32::from(register))
+}
+
+fn expected_aarch64_memory_load(register: u8, base: u8, offset: u32, width: u16) -> Option<u32> {
+    if width != 8 || !offset.is_multiple_of(8) || offset / 8 > 0xfff {
+        return None;
+    }
+    Some(0xf940_0000 | ((offset / 8) << 10) | (u32::from(base) << 5) | u32::from(register))
 }
 
 fn validate_unit_function_stack(
@@ -2638,6 +3076,7 @@ pub enum TerminalObjectError {
         operation: psi_core::OperationId,
         offset: usize,
     },
+    InvalidInternalUnitCallEvidence(MachineId),
     InternalCallOperationNotInProvenance {
         caller: MachineId,
         operation: psi_core::OperationId,
