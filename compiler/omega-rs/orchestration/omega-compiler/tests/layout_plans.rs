@@ -806,6 +806,27 @@ machine Main::main(&mut self) { }
         &[2, 1, 0, 0, 3, 4, 5, 6, 7, 8, 0, 0, 9, 10, 11, 12]
     );
     assert!(bytes[..4].iter().chain(&bytes[20..]).all(|byte| *byte == 0));
+
+    let mut big_endian = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_batch",
+        "Batch",
+        &report,
+        ByteOrder::BigEndian,
+        &mut big_endian,
+    )
+    .expect("byte order should compose independently of erased element fields");
+    assert_eq!(
+        &big_endian[4..20],
+        &[1, 2, 0, 0, 6, 5, 4, 3, 8, 7, 0, 0, 12, 11, 10, 9]
+    );
+    assert!(
+        big_endian[..4]
+            .iter()
+            .chain(&big_endian[20..])
+            .all(|byte| *byte == 0)
+    );
 }
 
 #[test]
