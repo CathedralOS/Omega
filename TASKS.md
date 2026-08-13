@@ -339,32 +339,21 @@ customer-shaped compiler concept is introduced.
 ### Frames, reach, and trust
 
 - **R5:** continue exact inferred may-write summaries and relational candidates.
-  Complete statement/value frames and transitive boundary wrappers preserve
-  facts outside their writes; opaque frames remain conservative fences. Named
-  state SCCs solve finite exact frames when write-capable parameters traverse
-  bijective permutations, including edges forwarded through structurally
-  transparent returned places. Stable local mutable aliases substitute exact
-  `self`/parameter origins through acyclic graphs and SCC equations; direct
-  rebinding changes only the rebound name, leaving earlier reborrows intact.
-  Exact returned-place relations compose through transparent helpers,
-  caller-isolated scratch locals, statement arguments, and direct alias
-  rebinding while all ordinary call writes remain published. Member projections
-  retain exact suffixes; indexing then coarsens irreversibly to the nearest
-  collection.
+  Exact frames compose through transparent returns/helpers, caller-isolated
+  scratch locals, statement/value positions, stable mutable aliases, and direct
+  alias replacement; rebinding leaves earlier reborrows intact. The bounded
+  non-reference direct-call expression class is complete through depth two,
+  including member projection and one or more independently bounded indexes.
+  Indexing irreversibly coarsens to the nearest backing collection while
+  preserving independent index-call writes. Finite named-state SCCs accept only
+  bijective write-capable parameter permutations. Primitive-only concrete
+  record/sum locals remain isolated through nested fixed arrays.
 
-  The current bounded expression class is a complete, non-reference direct-call
-  tree through depth two. It composes in return indexes, stable-alias indexes,
-  alias replacements, assignment targets and values, isolated primitive
-  scratch initializers, and mutable indexed statement arguments. Helper-result
-  member projection may precede the index; caller-aware instantiation retains
-  both collection-coarse callee writes and independent index-call writes.
-  Primitive-only concrete record/sum locals remain isolated through nested
-  fixed arrays. Recursive, boundary, deeper, rebinding or binding-reborrow,
-  reference-valued/opaque, escaped, non-bijective, generic, reference-bearing,
-  and out-of-isolated-root shapes remain fences. Continue with representable
-  relational candidates without restoring authored `stores` clauses or
-  treating lifetime elision as evidence; Git carries individual evidence
-  cohorts.
+  Continue with representable relational candidates. Recursive, boundary,
+  deeper, binding-reborrow, reference-valued/opaque, escaped, non-bijective,
+  generic, reference-bearing, and out-of-isolated-root shapes remain
+  conservative fences. Do not restore authored `stores` clauses or treat
+  lifetime elision as evidence; Git carries individual evidence cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
