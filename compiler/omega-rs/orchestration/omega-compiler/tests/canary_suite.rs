@@ -20786,16 +20786,10 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
     // `self.m.dx`, discharging the decision-17 obligation for `dx * 10` -- and the
     // scaled arg discriminates at runtime (dx=7 -> 70). Exit 70.
     let canary = pass_canary("arithmetic/runtime_nested_payload_range_narrowing_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-npr-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested payload range narrowing canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-npr-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested payload range narrowing canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested payload range narrowing canary should run");
     assert_eq!(
@@ -20806,7 +20800,7 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// The three faces the reentrant-value-call fence used to reject -- now
@@ -20854,16 +20848,10 @@ fn runtime_saturating_wide_boundaries_exit_canary_runs() {
     // cannot reach 64 bits). i64::MAX+1 -> MAX, MIN-1 -> MIN, u64 MAX+5 ->
     // MAX, 5-10 -> 0; exit 70.
     let canary = pass_canary("arithmetic/runtime_saturating_wide_boundaries_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-satwide-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wide saturating boundaries canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-satwide-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wide saturating boundaries canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wide saturating boundaries canary should run");
     assert_eq!(
@@ -20872,7 +20860,7 @@ fn runtime_saturating_wide_boundaries_exit_canary_runs() {
         "expected all four 64-bit saturating boundary directions to clamp (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20885,16 +20873,10 @@ fn runtime_saturating_param_carry_exit_canary_runs() {
     // the same 70 (it used to compute transition-arg arithmetic wide and exit
     // 71).
     let canary = pass_canary("arithmetic/runtime_saturating_param_carry_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-satcarry-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating param-carry canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-satcarry-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating param-carry canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating param-carry canary should run");
     assert_eq!(
@@ -20903,7 +20885,7 @@ fn runtime_saturating_param_carry_exit_canary_runs() {
         "expected the saturated recursion params + binary terminal to exit 70, got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20914,16 +20896,10 @@ fn runtime_saturating_expression_domain_exit_canary_runs() {
     // in-range add stays exact. Exercises the register-parametric write-path
     // sequences reused by the operand evaluator.
     let canary = pass_canary("arithmetic/runtime_saturating_expression_domain_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-satexpr-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating expression-domain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-satexpr-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating expression-domain canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating expression-domain canary should run");
     assert_eq!(
@@ -20932,7 +20908,7 @@ fn runtime_saturating_expression_domain_exit_canary_runs() {
         "expected all five operand-position saturating directions to hold (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20941,16 +20917,10 @@ fn runtime_wrapping_expression_guard_exit_canary_runs() {
     // IS the wrap natively (u8 200+100 compares as 44); the differential
     // oracle pins the interpreter's node-level wrap to the same exits.
     let canary = pass_canary("arithmetic/runtime_wrapping_expression_guard_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-wrapexpr-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wrapping expression-guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-wrapexpr-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wrapping expression-guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wrapping expression-guard canary should run");
     assert_eq!(
@@ -20959,7 +20929,7 @@ fn runtime_wrapping_expression_guard_exit_canary_runs() {
         "expected all three wrapped guard directions to hold (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
