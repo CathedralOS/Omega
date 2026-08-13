@@ -15,11 +15,11 @@ What it is trying to prove:
 
 Current runtime note:
 
-- Native macOS ARM64 planning reaches the emission phase, then blocks before
-  writing a binary because stdin is not yet routed through a safe line-buffered
-  runtime or libSystem-backed host binding.
-- Interactive terminal input is the intended runtime path once `read_line`
-  lowering is made safe again.
+- All four hosted targets lower directly from the sample's authored program
+  entry.
+- The native runtime harness covers closed stdin: the first prompt observes
+  EOF and the game exits cleanly with status 0.
+- Live terminal input remains the sample's intended interactive path.
 
 Current state cycle:
 
@@ -46,9 +46,8 @@ Sample layout:
 
 The ordinary target defaults supply console input/output and process exit, so
 the settled `build.omg` needs only target selection and an exact program-entry
-binding, not per-provider bindings. The current source still uses temporary
-`Main::main` discovery pending the corpus migration tracked by
-`ENTRY-CONTENT-ROOTS`; this is not supported language behavior.
+binding, not per-provider bindings. `build.omg` binds `Main::main` explicitly
+for every hosted target.
 
 Build output:
 

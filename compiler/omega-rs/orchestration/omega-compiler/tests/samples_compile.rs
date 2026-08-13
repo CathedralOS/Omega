@@ -106,6 +106,7 @@ const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
 const EXPLICIT_ENTRY_GAME_SAMPLES: &[&str] = &[
     "dice_histogram",
     "dice_roller",
+    "dungeon_crawler_cli",
     "score_tracker",
     "scoreboard",
     "tic_tac_toe",
