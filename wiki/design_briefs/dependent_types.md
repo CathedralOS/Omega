@@ -359,11 +359,14 @@ collection, while ordinary evaluation publishes every index-call write.
 The argument may index through a stable helper-local mutable alias; its
 established origin supplies the collection. It may instead index a structurally
 transparent helper result directly, with the helper's returned-place relation
-supplying the collection. An attached helper may likewise root that relation in
-its actual `self` receiver. An exact member projection may follow the helper
-result before one or more indexes: the suffix composes first, the first index
-coarsens to that nearest collection, and later indexes or members are absorbed;
-each index expression independently satisfies the same bounded-call rule.
+supplying the collection. The compiler-owned `as_mut_slice()` view is neutral
+on the argument spine: the callee write rebases to its backing array before the
+index coarsens it; deeper or recursive index trees remain opaque. An attached
+helper may likewise root that relation in its actual `self` receiver. An exact
+member projection may follow the helper result before one or more indexes: the
+suffix composes first, the first index coarsens to that nearest collection, and
+later indexes or members are absorbed; each index expression independently
+satisfies the same bounded-call rule.
 Recursive or opaque free/attached collection
 producers, boundary calls, and deeper or binding-reborrow index trees remain
 fences.
