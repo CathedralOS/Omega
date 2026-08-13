@@ -95,6 +95,11 @@ impl TerminalAbstractFunctionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAbstractOperation {
+    EstablishTrivialAffineLocal {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+    },
     CallUnit {
         psi_operation: OperationId,
         callee: MachineId,
@@ -335,6 +340,7 @@ pub enum TerminalAbstractOperation {
     },
     ReturnUnit {
         psi_edge: EdgeId,
+        trivial_affine_discards: Vec<PlaceId>,
     },
     /// Transfer one verified structural root and its complete live claim set
     /// into the function's declared structural result. Omega realization must

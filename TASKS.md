@@ -203,6 +203,12 @@ Remaining:
   or wider joins, reordered custody, computed structural guards/successors,
   wider projections, and incomplete evidence remain fenced until their entire
   slice is verifier-owned.
+  One-state Unit/effect bodies also accept a finite leading run of immutable,
+  unqualified, empty-record affine locals. Establishment is source ordered;
+  return cleanup is reverse-local then reverse-parameter order. Complete
+  custody and fuel attribution survive all five native artifact pipelines as
+  zero-byte runtime work. Nonempty, mutable, qualified, content-bearing,
+  nominal-cleanup, or post-effect locals remain fenced.
   Ranked tail-recursive call graphs remain rejected until tail position and
   ranking evidence are terminal and verifier-owned. Retire checked/source-tree
   consumers with each slice; nothing below terminal Psi may depend on

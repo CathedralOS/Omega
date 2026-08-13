@@ -59,12 +59,14 @@ fn emit_function(
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
+    let mut unit_affine_cleanup = None;
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut structural_return = None;
     let mut unit_stack = None;
     let mut unit_parameter_homes = Vec::new();
+    let mut unit_parameters = Vec::new();
     let mut scalar_stack_eligible = false;
     let mut scalar_control_flow = TerminalScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
@@ -77,6 +79,8 @@ fn emit_function(
             boundary_settlements = emitted.boundary_settlements;
             unit_stack = Some(emitted.stack);
             unit_parameter_homes = emitted.parameter_homes;
+            unit_parameters = emitted.parameters;
+            unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
         TerminalAssignedOperation::ReturnStructuralParameter {
@@ -396,9 +400,11 @@ fn emit_function(
         bytes,
         unit_stack,
         unit_parameter_homes,
+        unit_parameters,
         scalar_stack,
         internal_calls,
         internal_unit_calls,
+        unit_affine_cleanup,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -478,6 +484,8 @@ struct UnitEmission {
     boundary_settlements: Vec<TerminalBoundarySettlementRecord>,
     stack: TerminalUnitStackEvidence,
     parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
+    parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
+    affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -529,6 +537,7 @@ fn emit_unit_body(
                     omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
                         place: parameter.place,
                         structural_type: parameter.structural_type,
+                        multiplicity: parameter.multiplicity,
                         shape: parameter.shape,
                         source: parameter.placement.clone(),
                         byte_offset: home.byte_offset,
@@ -556,6 +565,7 @@ fn emit_unit_body(
                     omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
                         place: parameter.place,
                         structural_type: parameter.structural_type,
+                        multiplicity: parameter.multiplicity,
                         shape: parameter.shape,
                         source: parameter.placement.clone(),
                         byte_offset: home.byte_offset,
@@ -573,6 +583,8 @@ fn emit_unit_body(
         }
     };
     let mut returned = false;
+    let mut affine_cleanup = None;
+    let mut established_affine_locals = Vec::new();
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
@@ -581,6 +593,18 @@ fn emit_unit_body(
         let mut operation_site = None;
         let mut edge_site = None;
         match operation {
+            TerminalAssignedUnitOperation::EstablishTrivialAffineLocal {
+                psi_operation,
+                place,
+                structural_type,
+            } => {
+                operation_site = Some(*psi_operation);
+                established_affine_locals.push((
+                    *psi_operation,
+                    place.clone(),
+                    structural_type.clone(),
+                ));
+            }
             TerminalAssignedUnitOperation::Call {
                 psi_operation,
                 callee,
@@ -695,7 +719,31 @@ fn emit_unit_body(
                     code_offset: bytes.len(),
                 });
             }
-            TerminalAssignedUnitOperation::Return { psi_edge } => {
+            TerminalAssignedUnitOperation::Return {
+                psi_edge,
+                trivial_affine_discards,
+            } => {
+                let expected_local_prefix = established_affine_locals
+                    .iter()
+                    .rev()
+                    .map(|(_, place, _)| place.id)
+                    .collect::<Vec<_>>();
+                let expected_discards = expected_local_prefix
+                    .into_iter()
+                    .chain(
+                        body.parameters
+                            .iter()
+                            .rev()
+                            .filter(|parameter| {
+                                parameter.multiplicity
+                                    == psi_terminal::StructuralMultiplicity::Affine
+                            })
+                            .map(|parameter| parameter.place),
+                    )
+                    .collect::<Vec<_>>();
+                if trivial_affine_discards != &expected_discards {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                }
                 edge_site = Some(*psi_edge);
                 match target.architecture {
                     Architecture::X86_64 => {
@@ -722,6 +770,15 @@ fn emit_unit_body(
                         bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes())
                     }
                 }
+                affine_cleanup = Some(
+                    omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
+                        psi_edge: *psi_edge,
+                        locals: established_affine_locals.clone(),
+                        discards: trivial_affine_discards.clone(),
+                        code_offset,
+                        byte_count: bytes.len() - code_offset,
+                    },
+                );
                 returned = true;
             }
         }
@@ -781,6 +838,19 @@ fn emit_unit_body(
             stack_alignment: 16,
         },
         parameter_homes,
+        parameters: body
+            .parameters
+            .iter()
+            .map(
+                |parameter| omega_terminal_machine_code::TerminalUnitParameterRecord {
+                    place: parameter.place,
+                    structural_type: parameter.structural_type,
+                    multiplicity: parameter.multiplicity,
+                    shape: parameter.shape,
+                },
+            )
+            .collect(),
+        affine_cleanup,
     })
 }
 
@@ -5338,8 +5408,8 @@ mod tests {
         BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
     };
     use psi_terminal::{
-        SemanticFingerprint, StructuralArgument, StructuralPathSegment, TerminalPsiIdentity,
-        VocabularyMarker,
+        SemanticFingerprint, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+        TerminalPsiIdentity, VocabularyMarker,
     };
 
     fn emit_machine_code(
@@ -5403,6 +5473,7 @@ mod tests {
                             },
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: root_return,
+                                trivial_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5433,6 +5504,7 @@ mod tests {
                             },
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: leaf_return,
+                                trivial_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5544,6 +5616,7 @@ mod tests {
                         },
                         TerminalTargetUnitOperation::Return {
                             psi_edge: EdgeId::new(1).unwrap(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 }),
@@ -5590,6 +5663,7 @@ mod tests {
             let parameter = TerminalTargetStructuralParameter {
                 place,
                 structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
                 shape,
                 placement: call_plan.parameters[0].clone(),
             };
@@ -5613,6 +5687,7 @@ mod tests {
                                 },
                                 TerminalTargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(1).unwrap(),
+                                    trivial_affine_discards: Vec::new(),
                                 },
                             ],
                         }),
@@ -5625,6 +5700,7 @@ mod tests {
                             parameters: vec![parameter],
                             operations: vec![TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(2).unwrap(),
+                                trivial_affine_discards: Vec::new(),
                             }],
                         }),
                     },
@@ -5657,6 +5733,7 @@ mod tests {
         let parameter = |place: PlaceId, index: usize| TerminalTargetStructuralParameter {
             place,
             structural_type: ty,
+            multiplicity: StructuralMultiplicity::Unrestricted,
             shape,
             placement: call_plan.parameters[index].clone(),
         };
@@ -5699,6 +5776,7 @@ mod tests {
                             },
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(1).unwrap(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5711,6 +5789,7 @@ mod tests {
                         parameters: vec![parameter(first, 0), parameter(second, 1)],
                         operations: vec![TerminalTargetUnitOperation::Return {
                             psi_edge: EdgeId::new(2).unwrap(),
+                            trivial_affine_discards: Vec::new(),
                         }],
                     }),
                 },
@@ -5749,6 +5828,7 @@ mod tests {
         let parameter = |place: PlaceId, index: usize| TerminalTargetStructuralParameter {
             place,
             structural_type: ty,
+            multiplicity: StructuralMultiplicity::Unrestricted,
             shape,
             placement: call_plan.parameters[index].clone(),
         };
@@ -5785,6 +5865,7 @@ mod tests {
                             },
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(1).unwrap(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         ],
                     }),
@@ -5797,6 +5878,7 @@ mod tests {
                         parameters: vec![parameter(first, 0), parameter(second, 1)],
                         operations: vec![TerminalTargetUnitOperation::Return {
                             psi_edge: EdgeId::new(2).unwrap(),
+                            trivial_affine_discards: Vec::new(),
                         }],
                     }),
                 },
@@ -5870,6 +5952,7 @@ mod tests {
                 .map(|(index, shape)| TerminalTargetStructuralParameter {
                     place: PlaceId::new(index as u64 + 1).unwrap(),
                     structural_type: ty,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
                     shape: *shape,
                     placement: call_plan.parameters[index].clone(),
                 })
@@ -5909,6 +5992,7 @@ mod tests {
                                 },
                                 TerminalTargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(1).unwrap(),
+                                    trivial_affine_discards: Vec::new(),
                                 },
                             ],
                         }),
@@ -5921,6 +6005,7 @@ mod tests {
                             parameters,
                             operations: vec![TerminalTargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(2).unwrap(),
+                                trivial_affine_discards: Vec::new(),
                             }],
                         }),
                     },
@@ -5966,6 +6051,7 @@ mod tests {
                 let parameter = TerminalTargetStructuralParameter {
                     place,
                     structural_type: ty,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
                     shape,
                     placement: call_plan.parameters[0].clone(),
                 };
@@ -6001,6 +6087,7 @@ mod tests {
                                     },
                                     TerminalTargetUnitOperation::Return {
                                         psi_edge: EdgeId::new(1).unwrap(),
+                                        trivial_affine_discards: Vec::new(),
                                     },
                                 ],
                             }),
@@ -6013,6 +6100,7 @@ mod tests {
                                 parameters: vec![parameter],
                                 operations: vec![TerminalTargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(2).unwrap(),
+                                    trivial_affine_discards: Vec::new(),
                                 }],
                             }),
                         },

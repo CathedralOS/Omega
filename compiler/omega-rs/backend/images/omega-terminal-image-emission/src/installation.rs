@@ -18,7 +18,7 @@ use psi_core::{
 use psi_terminal::{
     CompletionReceipt, SemanticFingerprint, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, TerminalPsiIdentity, VocabularyMarker,
+    StructuralResultDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
@@ -28,7 +28,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 9;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 11;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -172,11 +172,15 @@ impl TerminalInstallationRecord {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalInstalledFunction {
     pub machine: MachineId,
     pub text_offset: usize,
     pub byte_count: usize,
+    pub unit_body: bool,
+    pub unit_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
+    pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
+    pub unit_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -266,6 +270,10 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 machine: function.machine,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
+                unit_body: function.unit_stack.is_some(),
+                unit_parameters: function.unit_parameters.clone(),
+                unit_parameter_homes: function.unit_parameter_homes.clone(),
+                unit_affine_cleanup: function.unit_affine_cleanup.clone(),
             })
             .collect(),
         structural_returns: image
@@ -405,6 +413,47 @@ pub fn encode_terminal_installation_record(
             u64::try_from(function.byte_count)
                 .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
         );
+        bytes.push(u8::from(function.unit_body));
+        bytes.extend_from_slice(&[0; 3]);
+        push_u32(
+            &mut bytes,
+            u32::try_from(function.unit_parameters.len())
+                .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
+        );
+        for parameter in &function.unit_parameters {
+            push_u64(&mut bytes, parameter.place.get());
+            push_u64(&mut bytes, parameter.structural_type.get());
+            bytes.push(multiplicity_tag(parameter.multiplicity));
+            bytes.extend_from_slice(&[0; 3]);
+            encode_shape(&mut bytes, parameter.shape)?;
+        }
+        push_u32(
+            &mut bytes,
+            u32::try_from(function.unit_parameter_homes.len())
+                .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
+        );
+        for home in &function.unit_parameter_homes {
+            push_u64(&mut bytes, home.place.get());
+            push_u64(&mut bytes, home.structural_type.get());
+            bytes.push(multiplicity_tag(home.multiplicity));
+            bytes.extend_from_slice(&[0; 3]);
+            encode_shape(&mut bytes, home.shape)?;
+            encode_direct_placement(&mut bytes, &home.source)?;
+            push_u32(&mut bytes, home.byte_offset);
+            bytes.push(u8::from(home.indirect));
+            bytes.extend_from_slice(&[0; 3]);
+        }
+        match &function.unit_affine_cleanup {
+            Some(cleanup) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                encode_unit_affine_cleanup(&mut bytes, cleanup)?;
+            }
+            None => {
+                bytes.push(0);
+                bytes.extend_from_slice(&[0; 3]);
+            }
+        }
     }
     push_u32(&mut bytes, structural_return_count);
     for installed in &record.structural_returns {
@@ -647,13 +696,92 @@ pub fn decode_terminal_installation_record(
     }
     let mut functions = Vec::with_capacity(function_count);
     for _ in 0..function_count {
+        let machine =
+            MachineId::new(reader.u64()?).ok_or(TerminalInstallationError::ZeroFunctionIdentity)?;
+        let text_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
+        let byte_count = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
+        let unit_body = decode_boolean(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let parameter_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
+        let mut unit_parameters = Vec::with_capacity(parameter_count);
+        for _ in 0..parameter_count {
+            let place = PlaceId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit parameter place"),
+            )?;
+            let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit parameter type"),
+            )?;
+            let multiplicity = decode_multiplicity(reader.u8()?)?;
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            unit_parameters.push(omega_terminal_machine_code::TerminalUnitParameterRecord {
+                place,
+                structural_type,
+                multiplicity,
+                shape: decode_shape(&mut reader)?,
+            });
+        }
+        let home_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
+        let mut unit_parameter_homes = Vec::with_capacity(home_count);
+        for _ in 0..home_count {
+            let place = PlaceId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit home place"),
+            )?;
+            let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit home type"),
+            )?;
+            let multiplicity = decode_multiplicity(reader.u8()?)?;
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            let shape = decode_shape(&mut reader)?;
+            let source = decode_direct_placement(&mut reader)?;
+            let byte_offset = reader.u32()?;
+            let indirect = decode_boolean(reader.u8()?)?;
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            unit_parameter_homes.push(
+                omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
+                    place,
+                    structural_type,
+                    multiplicity,
+                    shape,
+                    source,
+                    byte_offset,
+                    indirect,
+                },
+            );
+        }
         functions.push(TerminalInstalledFunction {
-            machine: MachineId::new(reader.u64()?)
-                .ok_or(TerminalInstallationError::ZeroFunctionIdentity)?,
-            text_offset: usize::try_from(reader.u64()?)
-                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
-            byte_count: usize::try_from(reader.u64()?)
-                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+            machine,
+            text_offset,
+            byte_count,
+            unit_body,
+            unit_parameters,
+            unit_parameter_homes,
+            unit_affine_cleanup: match reader.u8()? {
+                0 => {
+                    if reader.take(3)? != [0; 3] {
+                        return Err(TerminalInstallationError::NonzeroReservedField);
+                    }
+                    None
+                }
+                1 => {
+                    if reader.take(3)? != [0; 3] {
+                        return Err(TerminalInstallationError::NonzeroReservedField);
+                    }
+                    Some(decode_unit_affine_cleanup(&mut reader)?)
+                }
+                tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
+            },
         });
     }
     let structural_return_count = usize::try_from(reader.u32()?)
@@ -970,6 +1098,10 @@ pub fn validate_terminal_installation_record(
                 installed.machine != emitted.machine
                     || installed.text_offset != emitted.text_offset
                     || installed.byte_count != emitted.byte_count
+                    || installed.unit_body != emitted.unit_stack.is_some()
+                    || installed.unit_parameters != emitted.unit_parameters
+                    || installed.unit_parameter_homes != emitted.unit_parameter_homes
+                    || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
             })
     {
         return Err(TerminalInstallationError::ImageBindingMismatch);
@@ -1030,6 +1162,89 @@ fn validate_record_shape(
             || previous_function.is_some_and(|previous| previous >= function.machine)
         {
             return Err(TerminalInstallationError::NonCanonicalInstalledFunctions);
+        }
+        if function.unit_parameters.len() != function.unit_parameter_homes.len()
+            || function.unit_body != function.unit_affine_cleanup.is_some()
+            || (!function.unit_body
+                && (!function.unit_parameters.is_empty()
+                    || !function.unit_parameter_homes.is_empty()))
+            || function
+                .unit_parameters
+                .iter()
+                .zip(&function.unit_parameter_homes)
+                .any(|(parameter, home)| {
+                    parameter.place != home.place
+                        || parameter.structural_type != home.structural_type
+                        || parameter.multiplicity != home.multiplicity
+                        || parameter.shape != home.shape
+                })
+        {
+            return Err(TerminalInstallationError::InvalidUnitAffineCleanup(
+                function.machine,
+            ));
+        }
+        if let Some(cleanup) = &function.unit_affine_cleanup {
+            let end = cleanup
+                .code_offset
+                .checked_add(cleanup.byte_count)
+                .ok_or(TerminalInstallationError::FunctionOffsetNotRepresentable)?;
+            let expected_local_prefix = cleanup
+                .locals
+                .iter()
+                .rev()
+                .map(|(_, place, _)| place.id)
+                .collect::<Vec<_>>();
+            let expected_parameter_discards = function
+                .unit_parameter_homes
+                .iter()
+                .rev()
+                .filter(|home| home.multiplicity == StructuralMultiplicity::Affine)
+                .map(|home| home.place)
+                .collect::<Vec<_>>();
+            let Some(parameter_discards) = cleanup.discards.get(expected_local_prefix.len()..)
+            else {
+                return Err(TerminalInstallationError::InvalidUnitAffineCleanup(
+                    function.machine,
+                ));
+            };
+            let local_operations = cleanup
+                .locals
+                .iter()
+                .map(|(operation, _, _)| *operation)
+                .collect::<std::collections::BTreeSet<_>>();
+            if cleanup.byte_count == 0
+                || end != function.byte_count
+                || local_operations.len() != cleanup.locals.len()
+                || cleanup.locals.iter().enumerate().any(
+                    |(ordinal, (_, place, structural_type))| {
+                        !matches!(
+                            place.kind,
+                            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                                declaration_ordinal,
+                                structural_type: local_type,
+                            } if usize::try_from(declaration_ordinal) == Ok(ordinal)
+                                && local_type == structural_type.id
+                        ) || !matches!(
+                            structural_type.shape,
+                            StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                        )
+                    },
+                )
+                || cleanup.discards.get(..expected_local_prefix.len())
+                    != Some(expected_local_prefix.as_slice())
+                || cleanup
+                    .discards
+                    .iter()
+                    .copied()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    != cleanup.discards.len()
+                || parameter_discards != expected_parameter_discards
+            {
+                return Err(TerminalInstallationError::InvalidUnitAffineCleanup(
+                    function.machine,
+                ));
+            }
         }
         expected_text_offset = expected_text_offset
             .checked_add(function.byte_count)
@@ -1549,6 +1764,42 @@ fn encode_structural_return(
     push_u64(
         bytes,
         u64::try_from(returned.byte_count)
+            .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+    );
+    Ok(())
+}
+
+fn encode_unit_affine_cleanup(
+    bytes: &mut Vec<u8>,
+    cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
+) -> Result<(), TerminalInstallationError> {
+    push_u64(bytes, cleanup.psi_edge.get());
+    push_u32(
+        bytes,
+        u32::try_from(cleanup.locals.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
+    );
+    for (operation, local, local_type) in &cleanup.locals {
+        push_u64(bytes, operation.get());
+        encode_trivial_affine_local(bytes, local)?;
+        encode_trivial_affine_local_type(bytes, local_type)?;
+    }
+    push_u32(
+        bytes,
+        u32::try_from(cleanup.discards.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
+    );
+    for place in &cleanup.discards {
+        push_u64(bytes, place.get());
+    }
+    push_u64(
+        bytes,
+        u64::try_from(cleanup.code_offset)
+            .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(cleanup.byte_count)
             .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
     );
     Ok(())
@@ -2097,6 +2348,47 @@ fn decode_structural_return(
     })
 }
 
+fn decode_unit_affine_cleanup(
+    reader: &mut Reader<'_>,
+) -> Result<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord, TerminalInstallationError>
+{
+    let psi_edge = EdgeId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("Unit cleanup edge"),
+    )?;
+    let local_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    let mut locals = Vec::with_capacity(local_count);
+    for _ in 0..local_count {
+        let operation = OperationId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("Unit local operation"),
+        )?;
+        locals.push((
+            operation,
+            decode_trivial_affine_local(reader)?,
+            decode_trivial_affine_local_type(reader)?,
+        ));
+    }
+    let discard_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    let mut discards = Vec::with_capacity(discard_count);
+    for _ in 0..discard_count {
+        discards.push(PlaceId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("Unit cleanup place"),
+        )?);
+    }
+    Ok(
+        omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
+            psi_edge,
+            locals,
+            discards,
+            code_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+            byte_count: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+        },
+    )
+}
+
 fn decode_trivial_affine_local(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralPlaceDeclaration, TerminalInstallationError> {
@@ -2504,6 +2796,7 @@ pub enum TerminalInstallationError {
     StructuralReturnMachineMissing(MachineId),
     InvalidStructuralReturn(MachineId),
     InvalidInternalUnitCall(MachineId),
+    InvalidUnitAffineCleanup(MachineId),
     FuelAttributionMachineMissing(MachineId),
     NonCanonicalFuelAttributionOrder,
     DuplicateFuelAttributionSite {

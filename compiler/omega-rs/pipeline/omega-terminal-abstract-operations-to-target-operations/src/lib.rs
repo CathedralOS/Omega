@@ -245,7 +245,8 @@ fn lower_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
-            TerminalAbstractOperation::CallUnit { psi_operation, .. }
+            TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+            | TerminalAbstractOperation::CallUnit { psi_operation, .. }
             | TerminalAbstractOperation::BoundaryCallUnit { psi_operation, .. }
             | TerminalAbstractOperation::PortWrite { psi_operation, .. } => {
                 return Err(LoweringError::UnitOperationInScalarFunction {
@@ -1599,6 +1600,7 @@ fn lower_unit_function(
             |((parameter, shape), placement)| TerminalTargetStructuralParameter {
                 place: parameter.place,
                 structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
                 shape,
                 placement: placement.clone(),
             },
@@ -1617,6 +1619,18 @@ fn lower_unit_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::EstablishTrivialAffineLocal {
+                psi_operation,
+                place,
+                structural_type,
+            } => {
+                operations.push(TerminalTargetUnitOperation::EstablishTrivialAffineLocal {
+                    psi_operation: *psi_operation,
+                    place: place.clone(),
+                    structural_type: structural_type.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::CallUnit {
                 psi_operation,
                 callee,
@@ -1822,9 +1836,43 @@ fn lower_unit_function(
                 });
                 provenance.operations.push(*psi_operation);
             }
-            TerminalAbstractOperation::ReturnUnit { psi_edge } => {
+            TerminalAbstractOperation::ReturnUnit {
+                psi_edge,
+                trivial_affine_discards,
+            } => {
+                let local_places = operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        TerminalTargetUnitOperation::EstablishTrivialAffineLocal {
+                            place, ..
+                        } => Some(place.id),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                let expected = local_places
+                    .iter()
+                    .rev()
+                    .copied()
+                    .chain(
+                        function
+                            .structural_parameters
+                            .iter()
+                            .rev()
+                            .filter(|parameter| {
+                                parameter.multiplicity
+                                    == psi_terminal::StructuralMultiplicity::Affine
+                            })
+                            .map(|parameter| parameter.place),
+                    )
+                    .collect::<Vec<_>>();
+                if trivial_affine_discards != &expected {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
                 operations.push(TerminalTargetUnitOperation::Return {
                     psi_edge: *psi_edge,
+                    trivial_affine_discards: trivial_affine_discards.clone(),
                 });
                 provenance.edges.push(*psi_edge);
                 returned = true;
@@ -4134,7 +4182,8 @@ fn conditional_provenance(
     let mut provenance = TerminalPsiProvenance::default();
     for operation in &function.operations {
         let psi_operation = match operation {
-            TerminalAbstractOperation::CallUnit { psi_operation, .. }
+            TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+            | TerminalAbstractOperation::CallUnit { psi_operation, .. }
             | TerminalAbstractOperation::BoundaryCallUnit { psi_operation, .. }
             | TerminalAbstractOperation::PortWrite { psi_operation, .. }
             | TerminalAbstractOperation::Call { psi_operation, .. }
@@ -4196,7 +4245,7 @@ fn conditional_provenance(
         match operation {
             TerminalAbstractOperation::Jump { psi_edge, .. }
             | TerminalAbstractOperation::Return { psi_edge, .. }
-            | TerminalAbstractOperation::ReturnUnit { psi_edge }
+            | TerminalAbstractOperation::ReturnUnit { psi_edge, .. }
             | TerminalAbstractOperation::ReturnStructural { psi_edge, .. }
             | TerminalAbstractOperation::Crash { psi_edge, .. } => {
                 if edges.remove(psi_edge) {
@@ -4466,6 +4515,7 @@ mod tests {
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: EdgeId::new(1).unwrap(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 ),
@@ -4474,6 +4524,7 @@ mod tests {
                     callee_place,
                     vec![TerminalAbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(2).unwrap(),
+                        trivial_affine_discards: Vec::new(),
                     }],
                 ),
             ],
@@ -4739,6 +4790,7 @@ mod tests {
                     },
                     TerminalAbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(1).unwrap(),
+                        trivial_affine_discards: vec![argument_place],
                     },
                 ],
             }],

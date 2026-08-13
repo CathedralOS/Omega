@@ -158,6 +158,11 @@ pub struct TerminalAssignedAggregateCopy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedUnitOperation {
+    EstablishTrivialAffineLocal {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+    },
     Call {
         psi_operation: OperationId,
         callee: MachineId,
@@ -180,6 +185,7 @@ pub enum TerminalAssignedUnitOperation {
     },
     Return {
         psi_edge: EdgeId,
+        trivial_affine_discards: Vec<PlaceId>,
     },
 }
 

@@ -510,7 +510,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             && (machine.blocks.len() != 1
                 || !matches!(
                     machine.blocks[0].terminator,
-                    Terminator::ReturnStructural { .. }
+                    Terminator::ReturnStructural { .. } | Terminator::ReturnUnit { .. }
                 )
                 || establishments != expected_establishments)
         {

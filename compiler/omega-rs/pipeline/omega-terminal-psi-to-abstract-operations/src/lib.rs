@@ -97,6 +97,18 @@ fn lower_machine(
         }))
         .map(|value| (value.id, value.scalar_type))
         .collect::<BTreeMap<_, _>>();
+    let unit_affine_locals = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+            } => Some((place, declaration_ordinal, structural_type)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut lowered_unit_affine_locals = Vec::new();
 
     for block in &machine.blocks {
         block_entries.push(TerminalAbstractBlockEntry {
@@ -105,10 +117,40 @@ fn lower_machine(
         });
         for operation in &block.operations {
             match operation.kind.clone() {
-                OperationKind::EstablishTrivialAffineLocal { .. } => {
-                    return Err(LoweringError::UnsupportedStructuralReturn {
-                        machine: machine.id,
-                        edge: block.terminator.edge(),
+                OperationKind::EstablishTrivialAffineLocal { destination } => {
+                    let (place, ordinal, structural_type) = unit_affine_locals
+                        .iter()
+                        .find(|(place, _, _)| place.id == destination)
+                        .copied()
+                        .ok_or(LoweringError::UnsupportedStructuralReturn {
+                            machine: machine.id,
+                            edge: block.terminator.edge(),
+                        })?;
+                    let declaration = structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)
+                        .cloned()
+                        .ok_or(LoweringError::UnsupportedStructuralReturn {
+                            machine: machine.id,
+                            edge: block.terminator.edge(),
+                        })?;
+                    if usize::try_from(ordinal) != Ok(lowered_unit_affine_locals.len())
+                        || !matches!(declaration.shape, psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty())
+                    {
+                        return Err(LoweringError::UnsupportedStructuralReturn {
+                            machine: machine.id,
+                            edge: block.terminator.edge(),
+                        });
+                    }
+                    lowered_unit_affine_locals.push((
+                        operation.id,
+                        place.clone(),
+                        declaration.clone(),
+                    ));
+                    operations.push(TerminalAbstractOperation::EstablishTrivialAffineLocal {
+                        psi_operation: operation.id,
+                        place: place.clone(),
+                        structural_type: declaration,
                     });
                 }
                 OperationKind::CallUnit {
@@ -647,11 +689,28 @@ fn lower_machine(
                     scalar_type: result.scalar_type,
                 });
             }
-            Terminator::ReturnUnit { edge, .. } => {
+            Terminator::ReturnUnit {
+                edge,
+                trivial_affine_discards,
+            } => {
                 if result.is_some() {
                     return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
                 }
-                operations.push(TerminalAbstractOperation::ReturnUnit { psi_edge: *edge });
+                let expected_locals = lowered_unit_affine_locals
+                    .iter()
+                    .rev()
+                    .map(|(_, place, _)| place.id)
+                    .collect::<Vec<_>>();
+                if !trivial_affine_discards.starts_with(&expected_locals) {
+                    return Err(LoweringError::UnsupportedStructuralReturn {
+                        machine: machine.id,
+                        edge: *edge,
+                    });
+                }
+                operations.push(TerminalAbstractOperation::ReturnUnit {
+                    psi_edge: *edge,
+                    trivial_affine_discards: trivial_affine_discards.clone(),
+                });
             }
             Terminator::ReturnStructural { edge, .. } => {
                 return Err(LoweringError::UnsupportedStructuralReturn {

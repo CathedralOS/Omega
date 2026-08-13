@@ -74,6 +74,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     boundary_symbols.contains(target_machine)
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
             })
         });
@@ -91,11 +92,17 @@ pub(crate) fn build_checked_unit_effect_plans(
             )
         })
         .chain(candidates.iter().flat_map(|plan| {
-            std::iter::once(plan.attachment_type_identity.as_str()).chain(
-                plan.structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
+            std::iter::once(plan.attachment_type_identity.as_str())
+                .chain(
+                    plan.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+                .chain(
+                    plan.trivial_affine_locals
+                        .iter()
+                        .map(|local| local.type_identity.as_str()),
+                )
         }))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained_type_identities);
@@ -1400,16 +1407,50 @@ fn build_checked_machine(
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
     let statements = program.statement_table.statements(state.statement_nodes);
-    if calls.len() != statements.len()
-        || statements
+    let local_count = statements
+        .iter()
+        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+        .count();
+    let local_statements = &statements[..local_count];
+    let call_statements = &statements[local_count..];
+    if calls.len() != call_statements.len()
+        || call_statements
             .iter()
             .any(|statement| !matches!(statement, StatementNode::Call(_)))
     {
         return None;
     }
+    let local_rows = build_unit_trivial_affine_locals(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        &binders,
+        local_statements,
+    )?;
+    let trivial_affine_locals = local_rows
+        .iter()
+        .map(|(plan, _)| plan.clone())
+        .collect::<Vec<_>>();
+    let admitted_local_symbols = local_rows
+        .iter()
+        .map(|(_, symbol)| *symbol)
+        .collect::<Vec<_>>();
 
-    let mut operations = Vec::with_capacity(calls.len() + 1);
-    for (statement_index, call) in calls.iter().enumerate() {
+    let mut operations = trivial_affine_locals
+        .iter()
+        .map(
+            |local| CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: local.declaration_ordinal,
+                declaration_ordinal: local.declaration_ordinal,
+                type_identity: local.type_identity.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
+    operations.reserve(calls.len() + 1);
+    for (call_index, call) in calls.iter().enumerate() {
+        let statement_index = local_count.checked_add(call_index)?;
         if call.statement_index != statement_index || call.call_ordinal != 0 {
             return None;
         }
@@ -1425,6 +1466,10 @@ fn build_checked_machine(
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
         statement_index: u32::try_from(statements.len()).ok()?,
+        trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
+            .rev()
+            .map(|ordinal| u32::try_from(ordinal).ok())
+            .collect::<Option<Vec<_>>>()?,
         trivial_affine_discards: return_unit_affine_discards(
             facts,
             machine.symbol,
@@ -1432,7 +1477,7 @@ fn build_checked_machine(
             &structural_parameters,
             program.state_parameters(state),
             &operations,
-            &[],
+            &admitted_local_symbols,
         )?,
     });
 
@@ -1450,6 +1495,7 @@ fn build_checked_machine(
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
+        trivial_affine_locals,
         entry_claims,
         body_qualifications,
         contract_fingerprint: contract.fingerprint,
@@ -1457,6 +1503,113 @@ fn build_checked_machine(
         service_reach: state_flow.service_reach.clone(),
         operations,
     })
+}
+
+fn build_unit_trivial_affine_locals(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    statements: &[StatementNode],
+) -> Option<Vec<(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)>> {
+    statements
+        .iter()
+        .enumerate()
+        .map(|(declaration_ordinal, statement)| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            let TypeReferenceNode::Named {
+                name: local_type_name,
+                ..
+            } = program
+                .type_reference_table
+                .type_reference(local.type_reference)
+            else {
+                return None;
+            };
+            if local.is_mutable
+                || !local.initial_value.is_valid()
+                || crate::checks::type_multiplicity(program, local.type_reference)
+                    != Multiplicity::Affine
+                || !parameter_qualifications(program, shapes, local.type_reference, binders)?
+                    .is_empty()
+                // Psi validation currently recognizes the reserved nominal
+                // cleanup shape by this canonical qualified machine spelling.
+                // Do not classify such a type as trivial no-code disposal.
+                || program.machines().iter().any(|candidate| {
+                    candidate.name.as_str().ends_with("::drop")
+                        && candidate
+                            .attached_data
+                            .as_ref()
+                            .is_some_and(|attached| local_type_name == attached)
+                })
+            {
+                return None;
+            }
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(local.initial_value)
+            else {
+                return None;
+            };
+            if literal.case_name.is_some()
+                || !program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty()
+            {
+                return None;
+            }
+            let local_events = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && event.root == psi_facts::PlaceRoot::Symbol(local.symbol)
+                })
+                .map(|(_, event)| event)
+                .collect::<Vec<_>>();
+            let [event] = local_events.as_slice() else {
+                return None;
+            };
+            if event.source != PermissionEventSource::StateExit
+                || event.kind != PermissionEventKind::AffineDrop
+                || event.multiplicity != Multiplicity::Affine
+                || event.access != PermissionAccess::Owned
+                || event.claim_identity != PermissionClaimIdentity::Unknown
+                || event.provenance != psi_language_semantics::PermissionProvenance::Unknown
+                || event.obligation_live
+                || !facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .is_empty()
+            {
+                return None;
+            }
+            let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
+            let shape = shapes.types.get(&type_identity)?;
+            if !matches!(
+                &shape.shape,
+                CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+            ) {
+                return None;
+            }
+            Some((
+                CheckedTrivialAffineStructuralLocalPlan {
+                    declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
+                    type_identity,
+                },
+                local.symbol,
+            ))
+        })
+        .collect()
 }
 
 fn build_call_operation(
@@ -2304,6 +2457,7 @@ fn return_unit_affine_discards(
                 .map(|argument| argument.source_parameter_index)
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();
