@@ -15968,22 +15968,14 @@ fn runtime_literal_source_cast_exit_canary_runs() {
     // literal source) and emit nothing, leaving the destination 0. Guards both
     // float->int and int->float results, exits 70 only when both are correct.
     let canary = pass_canary("expressions/runtime_literal_source_cast_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-literal-source-cast-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("literal source cast canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("literal source cast canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("literal source cast canary should run");
 
@@ -15995,26 +15987,18 @@ fn runtime_literal_source_cast_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_float_constant_store_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_float_constant_store_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-runtime-float-store-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float constant store canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float constant store canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float constant store canary should run");
 
@@ -16026,26 +16010,18 @@ fn runtime_float_constant_store_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_match_value_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_match_value_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-runtime-match-value-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("match value canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("match value canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("match value canary should run");
 
@@ -16057,7 +16033,7 @@ fn runtime_match_value_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16065,17 +16041,11 @@ fn runtime_flat_boolean_logic_exit_canary_runs() {
     // Flat boolean logic in guards + value position: a && b, a || b, !b, a && c && !b,
     // and `let r = a && !b`. (The nested mix (a||b)&&c is a documented separate gap.)
     let canary = pass_canary("expressions/runtime_flat_boolean_logic_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-flat-boolean-logic-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("flat-boolean-logic canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("flat-boolean-logic canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("flat-boolean-logic canary should run");
     assert_eq!(
@@ -16085,7 +16055,7 @@ fn runtime_flat_boolean_logic_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16094,19 +16064,12 @@ fn runtime_enum_match_breadth_exit_canary_runs() {
     // (bind to a local first). grid[2]=Goal (non-first variant) and a field-name
     // collision (Potion.power vs Weapon.power) self-check to exit 70.
     let canary = pass_canary("expressions/runtime_enum_match_breadth_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-enum-match-breadth-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("enum match breadth canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("enum match breadth canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("enum match breadth canary should run");
 
@@ -16118,7 +16081,7 @@ fn runtime_enum_match_breadth_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
