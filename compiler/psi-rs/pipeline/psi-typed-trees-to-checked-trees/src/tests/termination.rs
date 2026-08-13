@@ -3680,11 +3680,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 #[test]
 fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
     let source = r#"
+    data Bucket {
+        cells: [u64; 2];
+    }
+
     data Main {
         value: u64;
         other_value: u64;
         cells: [u64; 2];
         matrix: [[u64; 2]; 2];
+        bucket: Bucket;
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -3710,6 +3715,14 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
 
     machine recursive_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         recursive_cells(cells)
+    }
+
+    machine return_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        bucket
+    }
+
+    machine recursive_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        recursive_bucket(bucket)
     }
 
     machine return_local_index(cells: &mut [u64; 2]) -> &mut u64 {
@@ -3759,6 +3772,29 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         cells: &mut [u64; 2]
     ) -> &mut u64 {
         &mut recursive_cells(cells).as_mut_slice()[make_index()]
+    }
+
+    machine return_projected_helper_slice_view_call_index<'bucket, 'value>(
+        bucket: &'bucket mut Bucket,
+        value: &'value mut u64
+    ) -> &'bucket mut u64 {
+        &mut return_bucket(bucket).cells.as_mut_slice()[
+            identity_index(write_index(value))
+        ]
+    }
+
+    machine return_deep_projected_helper_slice_view_call_index(
+        bucket: &mut Bucket
+    ) -> &mut u64 {
+        &mut return_bucket(bucket).cells.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ]
+    }
+
+    machine return_recursive_projected_helper_slice_view_call_index(
+        bucket: &mut Bucket
+    ) -> &mut u64 {
+        &mut recursive_bucket(bucket).cells.as_mut_slice()[make_index()]
     }
 
     machine return_deep_slice_view_call_index(
@@ -3860,6 +3896,30 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 1;
     }
 
+    machine Main::projected_helper_slice_view_call_index_result(&mut self) {
+        let alias: &mut u64 = return_projected_helper_slice_view_call_index(
+            &mut self.bucket,
+            &mut self.value
+        );
+        alias = 1;
+    }
+
+    machine Main::deep_projected_helper_slice_view_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_deep_projected_helper_slice_view_call_index(&mut self.bucket);
+        alias = 1;
+    }
+
+    machine Main::recursive_projected_helper_slice_view_call_index_result(
+        &mut self
+    ) {
+        let alias: &mut u64 =
+            return_recursive_projected_helper_slice_view_call_index(
+                &mut self.bucket
+            );
+        alias = 1;
+    }
+
     machine Main::deep_slice_view_call_index_result(&mut self) {
         let alias: &mut u64 =
             return_deep_slice_view_call_index(&mut self.cells);
@@ -3957,6 +4017,10 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::projected_helper_slice_view_call_index_result",
+            vec!["self.bucket.cells", "self.value"],
+        ),
+        (
             "Main::repeated_call_index_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
@@ -3994,8 +4058,10 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         "Main::deep_repeated_call_index_result",
         "Main::deep_slice_view_call_index_result",
         "Main::deep_slice_view_repeated_call_index_result",
+        "Main::deep_projected_helper_slice_view_call_index_result",
         "Main::recursive_call_index_result",
         "Main::recursive_helper_slice_view_call_index_result",
+        "Main::recursive_projected_helper_slice_view_call_index_result",
         "Main::recursive_slice_view_call_index_result",
     ] {
         let machine = typed
@@ -4019,6 +4085,10 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
 #[test]
 fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     let source = r#"
+    data Bucket {
+        cells: [u64; 2];
+    }
+
     data Main {
         value: u64;
         other_value: u64;
@@ -4026,6 +4096,8 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         other_cells: [u64; 2];
         matrix: [[u64; 2]; 2];
         other_matrix: [[u64; 2]; 2];
+        bucket: Bucket;
+        other_bucket: Bucket;
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -4051,6 +4123,14 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
 
     machine recursive_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         recursive_cells(cells)
+    }
+
+    machine return_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        bucket
+    }
+
+    machine recursive_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        recursive_bucket(bucket)
     }
 
     machine Main::local_index_alias(&mut self) {
@@ -4097,6 +4177,29 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     machine Main::recursive_helper_slice_view_call_index_alias(&mut self) {
         let alias: &mut u64 =
             &mut recursive_cells(&mut self.cells).as_mut_slice()[make_index()];
+        alias = 1;
+    }
+
+    machine Main::projected_helper_slice_view_call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut return_bucket(&mut self.bucket)
+            .cells
+            .as_mut_slice()[identity_index(write_index(&mut self.value))];
+        alias = 1;
+    }
+
+    machine Main::deep_projected_helper_slice_view_call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut return_bucket(&mut self.bucket)
+            .cells
+            .as_mut_slice()[identity_index(identity_index(make_index()))];
+        alias = 1;
+    }
+
+    machine Main::recursive_projected_helper_slice_view_call_index_alias(
+        &mut self
+    ) {
+        let alias: &mut u64 = &mut recursive_bucket(&mut self.bucket)
+            .cells
+            .as_mut_slice()[make_index()];
         alias = 1;
     }
 
@@ -4190,6 +4293,34 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = &mut recursive_cells(&mut self.other_cells).as_mut_slice()[
             make_index()
         ];
+        alias = 1;
+    }
+
+    machine Main::projected_helper_slice_view_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut return_bucket(&mut self.other_bucket)
+            .cells
+            .as_mut_slice()[identity_index(write_index(&mut self.value))];
+        alias = 1;
+    }
+
+    machine Main::deep_projected_helper_slice_view_call_index_alias_rebind(
+        &mut self
+    ) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut return_bucket(&mut self.other_bucket)
+            .cells
+            .as_mut_slice()[identity_index(identity_index(make_index()))];
+        alias = 1;
+    }
+
+    machine Main::recursive_projected_helper_slice_view_call_index_alias_rebind(
+        &mut self
+    ) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut recursive_bucket(&mut self.other_bucket)
+            .cells
+            .as_mut_slice()[make_index()];
         alias = 1;
     }
 
@@ -4317,6 +4448,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::projected_helper_slice_view_call_index_alias",
+            vec!["self.bucket.cells", "self.value"],
+        ),
+        (
             "Main::repeated_call_index_alias",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
@@ -4353,8 +4488,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         "Main::deep_call_index_alias",
         "Main::deep_slice_view_call_index_alias",
         "Main::deep_slice_view_repeated_call_index_alias",
+        "Main::deep_projected_helper_slice_view_call_index_alias",
         "Main::recursive_call_index_alias",
         "Main::recursive_helper_slice_view_call_index_alias",
+        "Main::recursive_projected_helper_slice_view_call_index_alias",
         "Main::recursive_slice_view_call_index_alias",
     ] {
         let machine = typed
@@ -4391,6 +4528,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         (
             "Main::helper_slice_view_call_index_alias_rebind",
             vec!["self.other_cells", "self.value"],
+        ),
+        (
+            "Main::projected_helper_slice_view_call_index_alias_rebind",
+            vec!["self.other_bucket.cells", "self.value"],
         ),
         (
             "Main::nested_call_index_alias_rebind",
@@ -4437,9 +4578,11 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         "Main::deep_call_index_alias_rebind",
         "Main::deep_slice_view_call_index_alias_rebind",
         "Main::deep_slice_view_repeated_call_index_alias_rebind",
+        "Main::deep_projected_helper_slice_view_call_index_alias_rebind",
         "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
         "Main::recursive_helper_slice_view_call_index_alias_rebind",
+        "Main::recursive_projected_helper_slice_view_call_index_alias_rebind",
         "Main::recursive_slice_view_call_index_alias_rebind",
         "Main::deep_repeated_call_index_alias_rebind",
     ] {
