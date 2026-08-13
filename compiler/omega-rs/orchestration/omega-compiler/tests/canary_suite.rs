@@ -11363,20 +11363,13 @@ fn by_value_case_param_self_write_exit_canary_runs() {
     // dispatch guard failed, the substate was never entered, and
     // `self.register.balance` stayed 0. Exits 70 when the write-back lands.
     let canary = pass_canary("calls/by_value_case_param_self_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-by-value-case-param-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("by-value case param self-write canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("by-value case param self-write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("by-value case param self-write canary should run");
 
@@ -11388,7 +11381,7 @@ fn by_value_case_param_self_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11400,22 +11393,15 @@ fn runtime_attached_machine_struct_arg_exit_canary_runs() {
     // lookup, so it gets its own rung. Exits 70 only when the callee saw the
     // real runtime field values (a dropped result-slot write reads 0 -> 71).
     let canary = pass_canary("calls/runtime_attached_machine_struct_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-attached-machine-struct-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("attached-machine struct arg canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("attached-machine struct arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("attached-machine struct arg canary should run");
 
@@ -11427,7 +11413,7 @@ fn runtime_attached_machine_struct_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11441,22 +11427,15 @@ fn runtime_record_forwarding_statement_call_exit_canary_runs() {
     // omitted record field with 1 first, pinning whole-construction ZII reset
     // rather than merely the two explicitly named field writes.
     let canary = pass_canary("calls/runtime_record_forwarding_statement_call_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-record-forwarding-statement-call-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("record-forwarding statement-call canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("record-forwarding statement-call canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("record-forwarding statement-call canary should run");
 
@@ -11468,7 +11447,7 @@ fn runtime_record_forwarding_statement_call_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11484,22 +11463,15 @@ fn runtime_free_machine_struct_return_exit_canary_runs() {
     // from a folded literal seed, rung 2 = struct from a chained call-result
     // seed. Exits 70 only when all four returned fields are correct.
     let canary = pass_canary("calls/runtime_free_machine_struct_return_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-free-machine-struct-return-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("free-machine struct return canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("free-machine struct return canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("free-machine struct return canary should run");
 
@@ -11511,7 +11483,7 @@ fn runtime_free_machine_struct_return_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11522,20 +11494,13 @@ fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
     // pinning call-count semantics (exactly one call). Exits 70 only when both
     // the returned value and the tally are correct.
     let canary = pass_canary("calls/runtime_free_machine_value_call_mut_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-mut-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("free-machine mut-arg value call canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("free-machine mut-arg value call canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("free-machine mut-arg value call canary should run");
 
@@ -11547,7 +11512,7 @@ fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11560,20 +11525,13 @@ fn runtime_free_machine_looping_value_call_exit_canary_runs() {
     // the entry segment as a real back-edge, and the looped accumulator is
     // delivered to the caller's `let n` slot. Exits 70 only when n == 5.
     let canary = pass_canary("calls/runtime_free_machine_looping_value_call_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-looping-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("looping free-machine value call canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("looping free-machine value call canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("looping free-machine value call canary should run");
 
@@ -11585,7 +11543,7 @@ fn runtime_free_machine_looping_value_call_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
