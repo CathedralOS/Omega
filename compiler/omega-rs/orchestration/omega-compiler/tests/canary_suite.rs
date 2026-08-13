@@ -10351,20 +10351,13 @@ fn runtime_inline_subslice_length_exit_canary_runs() {
 #[test]
 fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_end_fixed_array_subslice_local_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-rt-end-subslice-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime-end fixed-array subslice local canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime-end fixed-array subslice local canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-end fixed-array subslice local canary should run");
 
@@ -10377,7 +10370,7 @@ fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The ELEMENT-READ face of the fixed-array runtime-END subslice local: the
@@ -10387,20 +10380,13 @@ fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
 #[test]
 fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_end_fixed_array_subslice_element_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-rt-end-subslice-elem-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime-end fixed-array subslice element canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime-end fixed-array subslice element canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-end fixed-array subslice element canary should run");
 
@@ -10413,7 +10399,7 @@ fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A machine-field FIXED array's `.len` as a dispatch-guard comparison OPERAND
@@ -10424,20 +10410,12 @@ fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
 #[test]
 fn guard_fixed_array_len_operand_exit_canary_runs() {
     let canary = pass_canary("slices/guard_fixed_array_len_operand_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-guard-arr-len-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-guard-arr-len-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guard fixed-array len operand canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guard fixed-array len operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("guard fixed-array len operand canary should run");
 
@@ -10450,7 +10428,7 @@ fn guard_fixed_array_len_operand_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The FULL runtime-bounded fixed-array subslice arc: both bounds runtime params,
@@ -10461,22 +10439,15 @@ fn guard_fixed_array_len_operand_exit_canary_runs() {
 #[test]
 fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_bounded_fixed_array_subslice_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-rt-bounded-subslice-arg-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime-bounded fixed-array subslice arg canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime-bounded fixed-array subslice arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-bounded fixed-array subslice arg canary should run");
 
@@ -10489,7 +10460,7 @@ fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
