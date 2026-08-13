@@ -12819,22 +12819,15 @@ fn runtime_call_result_binary_operand_exit_canary_runs() {
     // to target" shortcut that fired even when the call was a sub-expression, dropping
     // the `+1`/`max`. It now fires only for a bare, non-builtin call value.
     let canary = pass_canary("expressions/runtime_call_result_binary_operand_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-call-result-binary-operand-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("call-result-binary-operand canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("call-result-binary-operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("call-result-binary-operand canary should run");
 
@@ -12848,7 +12841,7 @@ fn runtime_call_result_binary_operand_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12857,19 +12850,12 @@ fn runtime_cast_operand_exit_canary_runs() {
     // convert the source in place via a Convert value operand, not be dropped. Covers
     // int->float, float->int, and integer widening; exits 70 only when all convert.
     let canary = pass_canary("expressions/runtime_cast_operand_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-cast-operand-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-cast-operand-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cast-operand canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cast-operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cast-operand canary should run");
 
@@ -12881,7 +12867,7 @@ fn runtime_cast_operand_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12891,19 +12877,12 @@ fn runtime_f32_arithmetic_exit_canary_runs() {
     // with is_float recognizing F32 -- previously f32 was compared/operated as an
     // integer or as double precision. Exits 70 only when every f32 op is correct.
     let canary = pass_canary("expressions/runtime_f32_arithmetic_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-f32-arith-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-f32-arith-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32 arithmetic canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32 arithmetic canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32 arithmetic canary should run");
 
@@ -12915,7 +12894,7 @@ fn runtime_f32_arithmetic_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
