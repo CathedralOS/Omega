@@ -8754,20 +8754,13 @@ fn runtime_slice_length_field_exit_canary_runs() {
 #[test]
 fn runtime_guarded_runtime_index_increment_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_runtime_index_increment_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-guarded-rt-idx-inc-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded runtime-index increment canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guarded runtime-index increment canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("guarded runtime-index increment canary should run");
 
@@ -8781,7 +8774,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The accumulate-into-array keystone: a dominating guard `tallies[1] < 16`
@@ -8790,20 +8783,13 @@ stderr:
 #[test]
 fn runtime_guarded_element_increment_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_element_increment_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-guarded-elem-inc-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded element increment canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guarded element increment canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("guarded element increment canary should run");
 
@@ -8816,7 +8802,7 @@ fn runtime_guarded_element_increment_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // ARRAY-ELEMENT RANGES: `cells: [i32 [0..=7]; 4]` -- writes (const + runtime
