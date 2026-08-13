@@ -4335,6 +4335,32 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells
     }
 
+    machine return_after_helper_slice_view_index_target<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        return_cells(cells).as_mut_slice()[
+            identity_index(write_index(value))
+        ] = 1;
+        cells
+    }
+
+    machine return_after_deep_helper_slice_view_index_target(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        return_cells(cells).as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ] = 1;
+        cells
+    }
+
+    machine return_after_recursive_helper_slice_view_index_target(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        recursive_cells(cells).as_mut_slice()[make_index()] = 1;
+        cells
+    }
+
     machine return_after_recursive_helper_index_target(
         cells: &mut [u64; 2]
     ) -> &mut [u64; 2] {
@@ -4537,6 +4563,26 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias[0] = 2;
     }
 
+    machine Main::helper_slice_view_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_helper_slice_view_index_target(
+            &mut self.cells,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::deep_helper_slice_view_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_deep_helper_slice_view_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    machine Main::recursive_helper_slice_view_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_recursive_helper_slice_view_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
     machine Main::recursive_helper_index_target_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_recursive_helper_index_target(&mut self.cells);
@@ -4698,6 +4744,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::helper_slice_view_index_target_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
             "Main::projected_helper_index_target_result",
             vec!["self.bucket.cells", "self.result", "self.value"],
         ),
@@ -4755,6 +4805,8 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::recursive_helper_index_target_result",
         "Main::deep_slice_view_index_target_result",
         "Main::recursive_slice_view_index_target_result",
+        "Main::deep_helper_slice_view_index_target_result",
+        "Main::recursive_helper_slice_view_index_target_result",
         "Main::deep_projected_helper_index_target_result",
         "Main::recursive_projected_helper_index_target_result",
         "Main::deep_member_after_index_target_result",
