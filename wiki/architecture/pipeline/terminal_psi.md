@@ -306,8 +306,13 @@ without invoking a machine; nominal targets may be distinct or shared, and
 each drop may be empty or contain the bounded source-ordered zero-argument
 helper-call body accepted by the Unit nominal slice. Terminal production
 retains the cleanup targets and helpers in the same closed module. Contextual
-cleanup requirements, nested nominal ownership, projections, and wider
-cleanup/control shapes still fail closed.
+cleanup requirements are accepted for a finite all-nominal root list in the
+same direct-Boolean subset as Unit cleanup. Checked production binds every
+target premise to the exact caller root; terminal Psi carries canonical caller
+requirements, proof-only receivers, and distinct action obligations. Omega
+consumes those facts only after verification and projects the proof metadata
+away before target lowering. Mixed contextual roots, nested nominal ownership,
+projections, and wider cleanup/control shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -462,7 +467,8 @@ call ownership through target assignment, all five machine emitters, object and
 image custody, and canonical installation; no-code actions emit no target
 instruction. Current source production covers the wider trivial-discard scalar
 slice plus the finite mixed no-code/nominal, closed-result branch described
-above; contextual scalar cleanup remains fenced.
+above. Direct-Boolean contextual cleanup is complete for the all-nominal branch;
+mixed contextual roots remain fenced.
 
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends

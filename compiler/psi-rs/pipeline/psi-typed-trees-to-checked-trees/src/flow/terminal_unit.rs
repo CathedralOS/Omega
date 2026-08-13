@@ -646,6 +646,7 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
     let machines = program
@@ -659,6 +660,7 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
                 unit_effects,
                 &mut shapes,
                 machine,
+                diagnostics,
             )
         })
         .collect::<Vec<_>>();
@@ -686,19 +688,18 @@ fn build_structural_scalar_return_machine(
     unit_effects: &CheckedUnitEffectPlans,
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<CheckedStructuralScalarReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    if !program.state_contracts(state).is_empty()
-        || facts.flow.ownership.permissions.iter().any(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.source == PermissionEventSource::StateEntry
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-        })
-    {
+    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
+        event.machine_symbol == machine.symbol
+            && event.state_symbol == state.symbol
+            && event.source == PermissionEventSource::StateEntry
+            && event.kind == PermissionEventKind::Establish
+            && event.access == PermissionAccess::Owned
+    }) {
         return None;
     }
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
@@ -803,13 +804,38 @@ fn build_structural_scalar_return_machine(
                 type_graph_requires_nominal_drop(program, parameter.type_reference)
             })
     });
+    let all_nominal_cleanup = whole_discards.iter().all(|(_, position)| {
+        source_state_parameters
+            .get(*position as usize)
+            .is_some_and(|parameter| {
+                type_graph_requires_nominal_drop(program, parameter.type_reference)
+            })
+    });
     if has_nominal_cleanup
         && (structural_parameters.len() != source_state_parameters.len()
             || structural_parameters.len() != whole_discards.len()
             || !scalar_parameters.is_empty()
-            || !bindings.is_empty()
-            || !program.state_contracts(state).is_empty())
+            || !bindings.is_empty())
     {
+        return None;
+    }
+    if !program.state_contracts(state).is_empty() && !all_nominal_cleanup {
+        return None;
+    }
+    let caller_requirements = if has_nominal_cleanup {
+        nominal_cleanup_caller_boolean_requirements(
+            program,
+            facts,
+            machine,
+            state,
+            source_state_parameters,
+        )?
+    } else if program.state_contracts(state).is_empty() {
+        Vec::new()
+    } else {
+        return None;
+    };
+    if !caller_requirements.is_empty() && !all_nominal_cleanup {
         return None;
     }
     let cleanup_actions = whole_discards
@@ -863,15 +889,37 @@ fn build_structural_scalar_return_machine(
                 let [cleanup_machine] = cleanup_machines.as_slice() else {
                     return None;
                 };
+                let [cleanup_state] = program.machine_states(cleanup_machine) else {
+                    return None;
+                };
+                let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
+                    return None;
+                };
                 let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
-                if !checked_requires_expressions(
+                let cleanup_requirements = nominal_cleanup_boolean_requirements(
                     program,
                     facts,
-                    cleanup_machine.symbol,
-                    cleanup_target.state,
-                )?
-                .is_empty()
-                    || cleanup_target.attachment_type_identity != checked_parameter.type_identity
+                    cleanup_machine,
+                    cleanup_state,
+                    cleanup_receiver,
+                )?;
+                if let Some(missing) = nominal_cleanup_missing_requirement(
+                    checked_parameter.position,
+                    &caller_requirements,
+                    &cleanup_requirements,
+                ) {
+                    diagnostics.push(scalar_nominal_cleanup_missing_requirement_diagnostic(
+                        program,
+                        machine,
+                        state,
+                        return_statement_ordinal,
+                        source_parameter,
+                        cleanup_machine,
+                        missing,
+                    ));
+                    return None;
+                }
+                if cleanup_target.attachment_type_identity != checked_parameter.type_identity
                     || !is_bounded_scalar_nominal_cleanup_target(
                         facts,
                         unit_effects,
@@ -887,7 +935,7 @@ fn build_structural_scalar_return_machine(
                     cleanup_machine: cleanup_machine.symbol,
                     cleanup_state: cleanup_target.state,
                     cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
-                    requirements: Vec::new(),
+                    requirements: cleanup_requirements,
                 })
             })()?;
             Some(CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
@@ -904,6 +952,7 @@ fn build_structural_scalar_return_machine(
         bindings,
         result_type,
         return_statement_ordinal,
+        caller_requirements,
         cleanup_actions,
     })
 }
@@ -2143,9 +2192,10 @@ fn nominal_cleanup_caller_boolean_requirements(
     caller_state: &psi_typed_trees::state::State,
     source_parameters: &[StateParameter],
 ) -> Option<Vec<CheckedUnitNominalAffineCallerRequirementPlan>> {
-    // This producer is fenced to an empty one-state body, so the checked entry
-    // requirement is preserved unchanged at its sole Unit return edge. Wider
-    // bodies must instead consult the path-specific exit contexts.
+    // Both accepted callers preserve the checked entry requirements unchanged:
+    // the Unit lane has an empty body, while the scalar lane materializes one
+    // closed immediate value without inspecting or mutating structural roots.
+    // Wider bodies must instead consult path-specific exit contexts.
     let caller_requires =
         checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
     let mut requirements = caller_requires
@@ -2222,6 +2272,30 @@ fn nominal_cleanup_missing_requirement_diagnostic(
         "automatic cleanup requires at Unit return edge from {} state {} after statement 0",
         crate::labels::machine_name(program, caller_machine.symbol),
         crate::labels::symbol_name(program, caller_state.symbol),
+    );
+    Diagnostic::error(format!(
+        "cannot prove {edge}: missing {}.{} == {} required by {}",
+        source_parameter.name.as_str(),
+        missing.field_identity,
+        missing.expected,
+        crate::labels::machine_name(program, cleanup_machine.symbol),
+    ))
+}
+
+fn scalar_nominal_cleanup_missing_requirement_diagnostic(
+    program: &TypedTrees,
+    caller_machine: &psi_typed_trees::machine::Machine,
+    caller_state: &psi_typed_trees::state::State,
+    return_statement_ordinal: u32,
+    source_parameter: &StateParameter,
+    cleanup_machine: &psi_typed_trees::machine::Machine,
+    missing: CheckedUnitNominalAffineCleanupRequirementPlan,
+) -> Diagnostic {
+    let edge = format!(
+        "automatic cleanup requires at scalar return edge from {} state {} after statement {}",
+        crate::labels::machine_name(program, caller_machine.symbol),
+        crate::labels::symbol_name(program, caller_state.symbol),
+        return_statement_ordinal,
     );
     Diagnostic::error(format!(
         "cannot prove {edge}: missing {}.{} == {} required by {}",

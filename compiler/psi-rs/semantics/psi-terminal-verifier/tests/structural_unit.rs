@@ -161,7 +161,54 @@ fn scalar_return_contextual_cleanups_require_reverse_root_order() {
             .collect(),
     };
     validate_module(&module).expect("ordered scalar contextual cleanups validate");
-    assert_eq!(reconstruct_operation_obligations(&module).unwrap().len(), 4);
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    let first = psi_core::StructuralFieldId::new(1).expect("first field");
+    let second = psi_core::StructuralFieldId::new(2).expect("second field");
+    let expected = [
+        (3, place_id(2), first),
+        (4, place_id(2), second),
+        (1, place_id(1), first),
+        (2, place_id(1), second),
+    ];
+    assert_eq!(obligations.len(), expected.len());
+    for (reconstructed, (identity, root, field)) in obligations.iter().zip(expected) {
+        assert_eq!(reconstructed.obligation.id, obligation_id(identity));
+        assert_eq!(
+            reconstructed.obligation.proposition,
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(root, field),
+            )
+        );
+    }
+    let bundle = ProofBundle {
+        evidence: obligations
+            .into_iter()
+            .enumerate()
+            .map(|(index, reconstructed)| ObligationEvidence {
+                obligation: reconstructed.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(index as u64 + 1).expect("certificate"),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: reconstructed.obligation.proposition.clone(),
+                        rule: ProofRule::Assumption {
+                            index: module.machines[0]
+                                .contract
+                                .requires
+                                .iter()
+                                .position(|requirement| {
+                                    requirement == &reconstructed.obligation.proposition
+                                })
+                                .expect("scalar cleanup goal is a caller premise"),
+                        },
+                    },
+                }),
+            })
+            .collect(),
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("reverse-ordered scalar cleanup premises discharge per owned root");
 
     let Terminator::Return {
         cleanup_actions, ..

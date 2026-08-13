@@ -299,6 +299,10 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub bindings: Vec<CheckedScalarBinding>,
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
+    /// Complete canonical direct-Boolean caller facts preserved at the closed
+    /// scalar return edge. Nominal cleanup actions select root-local subsets
+    /// by `source_parameter_index`; no-code actions consume no premise.
+    pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
     /// Complete post-result cleanup stream in reverse authored parameter
     /// order. Keeping trivial and nominal actions in one list prevents either
     /// representation or a later producer from losing their relative order.
