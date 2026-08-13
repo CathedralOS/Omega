@@ -291,9 +291,11 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         requires self.ready
         { Helper::touch(); }
 
+        data Plain { observed: bool; }
+
         data Root {}
-        machine Root::measure(first: Token, second: Token) -> u64
-        requires first.ready, second.ready
+        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+        requires first.ready, plain.observed, second.ready
         { 7u64 }
     "#;
     let tokens = Lexer::new(source)
@@ -315,7 +317,7 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         .iter()
         .find(|machine| machine.id == entry_machine)
         .expect("contextual scalar entry");
-    assert_eq!(entry.contract.requires.len(), 2);
+    assert_eq!(entry.contract.requires.len(), 3);
     let Terminator::Return {
         cleanup_actions, ..
     } = &entry.blocks[0].terminator
@@ -323,12 +325,17 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         panic!("contextual scalar entry returns a scalar")
     };
     assert_eq!(lowered.proof_bundle.evidence.len(), 2);
-    assert!(cleanup_actions.iter().all(|action| matches!(
-        action,
-        TerminalAffineCleanupAction::InvokeNominal(cleanup)
-            if cleanup.cleanup_receiver.is_some()
-                && cleanup.requirement_obligations.len() == 1
-    )));
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::InvokeNominal(second),
+            TerminalAffineCleanupAction::DiscardRoot(_),
+            TerminalAffineCleanupAction::InvokeNominal(first),
+        ] if second.cleanup_receiver.is_some()
+            && first.cleanup_receiver == second.cleanup_receiver
+            && second.requirement_obligations.len() == 1
+            && first.requirement_obligations.len() == 1
+    ));
     drop(checked);
     drop(lowered);
 
@@ -349,13 +356,17 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
     else {
         panic!("contextual scalar result precedes its cleanup")
     };
-    assert_eq!(cleanup_actions.len(), 2);
-    assert!(cleanup_actions.iter().all(|action| matches!(
-        action,
-        TerminalAffineCleanupAction::InvokeNominal(cleanup)
-            if cleanup.cleanup_receiver.is_none()
-                && cleanup.requirement_obligations.is_empty()
-    )));
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::InvokeNominal(second),
+            TerminalAffineCleanupAction::DiscardRoot(_),
+            TerminalAffineCleanupAction::InvokeNominal(first),
+        ] if second.cleanup_receiver.is_none()
+            && first.cleanup_receiver.is_none()
+            && second.requirement_obligations.is_empty()
+            && first.requirement_obligations.is_empty()
+    ));
 
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)
@@ -374,7 +385,7 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
             .as_ref()
             .expect("emitted contextual scalar cleanup");
         assert_eq!(cleanup.actions, *cleanup_actions);
-        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 2);
+        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 3);
         assert_eq!(emitted_entry.internal_unit_calls.len(), 2);
         assert!(cleanup.code_offset > 0, "result bytes precede cleanups");
 

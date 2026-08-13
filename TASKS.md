@@ -235,13 +235,14 @@ Remaining:
   materialization through verification, interpretation, fixed fuel, and all
   five Omega object/image/install paths; nominal targets may be distinct or
   shared and no-code actions retain their exact positions without emitting
-  instructions. A finite all-nominal list additionally admits the same direct-
+  instructions. The finite mixed list additionally admits the same direct-
   Boolean contextual requirements as Unit cleanup: checked production retains
-  root-specific caller premises, terminal Psi reconstructs and verifies every
-  action obligation, and Omega projects proof-only receivers/obligation
-  identities after verification while preserving runtime action order through
-  all five targets. Mixed contextual roots, nested nominal ownership, and wider
-  scalar bodies remain to be added as complete vertical slices.
+  root-specific caller premises (including supported premises on no-code
+  roots), terminal Psi reconstructs and verifies every nominal action
+  obligation, and Omega projects proof-only receivers/obligation identities
+  after verification while preserving the complete runtime action order
+  through all five targets. Nested nominal ownership and wider scalar bodies
+  remain to be added as complete vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
