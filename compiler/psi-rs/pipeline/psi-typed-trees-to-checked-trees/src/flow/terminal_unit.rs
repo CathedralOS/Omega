@@ -1971,7 +1971,8 @@ fn build_partial_affine_unit_cleanup_machine(
         return None;
     }
     let mut operations = Vec::with_capacity(calls.len().saturating_add(1));
-    let mut moved_fields = Vec::<(String, String)>::with_capacity(calls.len());
+    let mut moved_paths =
+        Vec::<(Vec<CheckedUnitStructuralPathSegment>, String)>::with_capacity(calls.len());
     for call in calls {
         if !service_reach_is_empty(facts, call.service_reach) {
             return None;
@@ -1998,15 +1999,20 @@ fn build_partial_affine_unit_cleanup_machine(
         let [argument] = structural_arguments.as_slice() else {
             return None;
         };
-        let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice()
-        else {
+        if argument.path.is_empty()
+            || argument
+                .path
+                .iter()
+                .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+            || (argument.path.len() > 1 && calls.len() != 1)
+        {
             return None;
-        };
+        }
         if argument.source_parameter_index != 0
             || !claim_transfers.is_empty()
-            || moved_fields
+            || moved_paths
                 .iter()
-                .any(|(earlier, _)| earlier == moved_field)
+                .any(|(earlier, _)| earlier == &argument.path)
         {
             return None;
         }
@@ -2036,7 +2042,7 @@ fn build_partial_affine_unit_cleanup_machine(
         {
             return None;
         }
-        moved_fields.push((moved_field.clone(), argument.type_identity.clone()));
+        moved_paths.push((argument.path.clone(), argument.type_identity.clone()));
         operations.push(operation);
     }
 
@@ -2055,32 +2061,51 @@ fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
-    for (moved_field, moved_type) in &moved_fields {
-        let mut moved_candidates = fields.iter().filter(|field| field.identity == *moved_field);
-        let moved = moved_candidates.next()?;
-        if moved_candidates.next().is_some() || structural_field_type_identity(moved)? != moved_type
-        {
-            return None;
-        }
-    }
-    let residual_affine_discards = fields
-        .iter()
-        .rev()
-        .filter(|field| {
-            !moved_fields
-                .iter()
-                .any(|(moved, _)| moved == &field.identity)
-        })
-        .map(|field| {
-            Some(CheckedUnitPartialAffineDiscardPlan {
-                source_parameter_index: 0,
-                path: vec![CheckedUnitStructuralPathSegment::Field(
-                    field.identity.clone(),
-                )],
-                type_identity: structural_field_type_identity(field)?.clone(),
+    let residual_affine_discards = if moved_paths.len() == 1 && moved_paths[0].0.len() > 1 {
+        nested_partial_affine_residuals(
+            &shapes.types,
+            &checked_parameter.type_identity,
+            &moved_paths[0].0,
+            &moved_paths[0].1,
+        )?
+    } else {
+        let moved_fields = moved_paths
+            .iter()
+            .map(|(path, moved_type)| match path.as_slice() {
+                [CheckedUnitStructuralPathSegment::Field(field)] => {
+                    Some((field.as_str(), moved_type.as_str()))
+                }
+                _ => None,
             })
-        })
-        .collect::<Option<Vec<_>>>()?;
+            .collect::<Option<Vec<_>>>()?;
+        for (moved_field, moved_type) in &moved_fields {
+            let mut moved_candidates = fields.iter().filter(|field| field.identity == *moved_field);
+            let moved = moved_candidates.next()?;
+            if moved_candidates.next().is_some()
+                || structural_field_type_identity(moved)?.as_str() != *moved_type
+            {
+                return None;
+            }
+        }
+        fields
+            .iter()
+            .rev()
+            .filter(|field| {
+                !moved_fields
+                    .iter()
+                    .any(|(moved, _)| *moved == field.identity)
+            })
+            .map(|field| {
+                Some(CheckedUnitPartialAffineDiscardPlan {
+                    source_parameter_index: 0,
+                    path: vec![CheckedUnitStructuralPathSegment::Field(
+                        field.identity.clone(),
+                    )],
+                    type_identity: structural_field_type_identity(field)?.clone(),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?
+    };
     if residual_affine_discards.is_empty() {
         return None;
     }
@@ -2112,6 +2137,80 @@ fn build_partial_affine_unit_cleanup_machine(
         },
         residual_affine_discards,
     })
+}
+
+fn nested_partial_affine_residuals(
+    types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    root_type: &str,
+    moved_path: &[CheckedUnitStructuralPathSegment],
+    moved_type: &str,
+) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
+    fn visit(
+        types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+        current_type: &str,
+        moved_path: &[CheckedUnitStructuralPathSegment],
+        moved_type: &str,
+        prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
+        residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
+    ) -> Option<()> {
+        let [CheckedUnitStructuralPathSegment::Field(selected), tail @ ..] = moved_path else {
+            return None;
+        };
+        let declaration = types.get(current_type)?;
+        let CheckedUnitStructuralTypeShape::Record { fields } = &declaration.shape else {
+            return None;
+        };
+        if fields.is_empty()
+            || fields.iter().enumerate().any(|(index, field)| {
+                field.relevance.is_erased()
+                    || structural_field_type_identity(field).is_none()
+                    || fields[..index]
+                        .iter()
+                        .any(|earlier| earlier.identity == field.identity)
+            })
+        {
+            return None;
+        }
+        let selected_field = fields.iter().find(|field| field.identity == *selected)?;
+        let selected_type = structural_field_type_identity(selected_field)?;
+        for field in fields.iter().rev() {
+            let field_type = structural_field_type_identity(field)?;
+            prefix.push(CheckedUnitStructuralPathSegment::Field(
+                field.identity.clone(),
+            ));
+            if field.identity == *selected {
+                if tail.is_empty() {
+                    if field_type != moved_type {
+                        return None;
+                    }
+                } else {
+                    visit(types, selected_type, tail, moved_type, prefix, residuals)?;
+                }
+            } else {
+                residuals.push(CheckedUnitPartialAffineDiscardPlan {
+                    source_parameter_index: 0,
+                    path: prefix.clone(),
+                    type_identity: field_type.clone(),
+                });
+            }
+            prefix.pop();
+        }
+        Some(())
+    }
+
+    if moved_path.len() < 2 {
+        return None;
+    }
+    let mut residuals = Vec::new();
+    visit(
+        types,
+        root_type,
+        moved_path,
+        moved_type,
+        &mut Vec::new(),
+        &mut residuals,
+    )?;
+    Some(residuals)
 }
 
 fn structural_field_type_identity(field: &CheckedUnitStructuralFieldPlan) -> Option<&String> {
@@ -2318,7 +2417,7 @@ fn build_call_operation(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
-    allow_direct_field_projection: bool,
+    allow_field_path_projection: bool,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -2393,7 +2492,7 @@ fn build_call_operation(
         call.receiver_symbol,
         call.statement_index,
         true,
-        allow_direct_field_projection,
+        allow_field_path_projection,
     )?;
     if !boundary
         && !ordinary_projected_call_is_supported(
@@ -2405,7 +2504,7 @@ fn build_call_operation(
             target_machine,
             target_state,
             &structural_arguments,
-            allow_direct_field_projection,
+            allow_field_path_projection,
         )
     {
         return None;
@@ -2457,7 +2556,7 @@ fn ordinary_projected_call_is_supported(
     target_machine: &psi_typed_trees::machine::Machine,
     target_state: &psi_typed_trees::state::State,
     arguments: &[CheckedUnitStructuralArgumentPlan],
-    allow_direct_field_projection: bool,
+    allow_field_path_projection: bool,
 ) -> bool {
     if arguments.iter().all(|argument| argument.path.is_empty()) {
         return true;
@@ -2474,14 +2573,15 @@ fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    let direct_field = matches!(
-        arguments[0].path.as_slice(),
-        [CheckedUnitStructuralPathSegment::Field(_)]
-    );
-    if direct_field && !allow_direct_field_projection {
+    let field_path = !arguments[0].path.is_empty()
+        && arguments[0]
+            .path
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)));
+    if field_path && !allow_field_path_projection {
         return false;
     }
-    if !direct_field
+    if !field_path
         && !matches!(
             arguments[0].path.as_slice(),
             [CheckedUnitStructuralPathSegment::FixedIndex(_)]
@@ -2528,7 +2628,7 @@ fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    if direct_field {
+    if field_path {
         let [caller_parameter] = caller_parameters else {
             return false;
         };
@@ -2703,7 +2803,7 @@ fn structural_call_arguments(
     receiver_symbol: SymbolHandle,
     statement_index: usize,
     allow_fixed_index_projection: bool,
-    allow_direct_field_projection: bool,
+    allow_field_path_projection: bool,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
@@ -2808,8 +2908,8 @@ fn structural_call_arguments(
                     u64::try_from(*index).ok()?,
                 )]
             }
-            [psi_facts::PlaceSegment::Field { symbol }]
-                if allow_direct_field_projection
+            segments @ [psi_facts::PlaceSegment::Field { .. }, ..]
+                if allow_field_path_projection
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
@@ -2823,9 +2923,19 @@ fn structural_call_arguments(
                 if base_type_identity(program, projected_type, &[])? != target_identity {
                     return None;
                 }
-                vec![CheckedUnitStructuralPathSegment::Field(
-                    terminal_field_identity(program, *symbol)?,
-                )]
+                segments
+                    .iter()
+                    .map(|segment| match segment {
+                        psi_facts::PlaceSegment::Field { symbol } => {
+                            Some(CheckedUnitStructuralPathSegment::Field(
+                                terminal_field_identity(program, *symbol)?,
+                            ))
+                        }
+                        psi_facts::PlaceSegment::FixedIndex { .. }
+                        | psi_facts::PlaceSegment::Index { .. }
+                        | psi_facts::PlaceSegment::Case { .. } => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?
             }
             _ => return None,
         };

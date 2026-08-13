@@ -31,6 +31,20 @@ const SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Inner { left: Token; middle: Token; right: Token; }
+    data Outer { first: Token; inner: Inner; last: Token; }
+
+    data Sink {}
+    machine Sink::take(token: Token) {}
+
+    data Root {}
+    machine Root::enter(value: Outer) {
+        Sink::take(value.inner.middle);
+    }
+"#;
+
 #[test]
 fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
@@ -169,4 +183,103 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     );
     assert!(execution.live_affine_frontier().next().is_none());
     assert_eq!(meter.usage().total_units(), 5);
+}
+
+#[test]
+fn nested_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
+    let tokens = Lexer::new(NESTED_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("nested field transfer plus recursive residual cleanup lowers");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [root] = entry.structural_parameters.as_slice() else {
+        panic!("nested partial slice has one structural root")
+    };
+    let [block] = entry.blocks.as_slice() else {
+        panic!("nested partial slice has one block")
+    };
+    let [call] = block.operations.as_slice() else {
+        panic!("nested partial slice has one projected call")
+    };
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &call.kind
+    else {
+        panic!("nested partial slice calls Unit")
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        [
+            StructuralPathSegment::Field("inner".into()),
+            StructuralPathSegment::Field("middle".into()),
+        ]
+    );
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &block.terminator
+    else {
+        panic!("nested partial slice has path-sensitive return")
+    };
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|residual| residual.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![StructuralPathSegment::Field("last".into())],
+            vec![
+                StructuralPathSegment::Field("inner".into()),
+                StructuralPathSegment::Field("right".into()),
+            ],
+            vec![
+                StructuralPathSegment::Field("inner".into()),
+                StructuralPathSegment::Field("left".into()),
+            ],
+            vec![StructuralPathSegment::Field("first".into())],
+        ]
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs nested moved leaf plus maximal residual subtrees");
+    let semantic = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(
+        decode_module(&semantic).expect("semantic module decodes"),
+        lowered.semantic_module
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0x4e45_5354,
+        structural_type: root.structural_type,
+        qualifications: root.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("verified nested source artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(3);
+    assert_eq!(
+        execution.resume(&mut meter).expect("execution completes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert_eq!(meter.usage().total_units(), 3);
 }

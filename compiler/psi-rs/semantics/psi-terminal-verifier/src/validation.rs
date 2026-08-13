@@ -1023,6 +1023,129 @@ fn resolve_structural_path(
     Some(structural_type)
 }
 
+fn is_nonempty_field_path(path: &[StructuralPathSegment]) -> bool {
+    !path.is_empty()
+        && path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+}
+
+fn partial_affine_residuals(
+    module: &TerminalModule,
+    root_type: StructuralTypeId,
+    moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
+) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+    if moved_paths.is_empty() || moved_paths.iter().any(|path| !is_nonempty_field_path(path)) {
+        return None;
+    }
+    if moved_paths.iter().any(|path| path.len() > 1) {
+        if moved_paths.len() != 1 {
+            return None;
+        }
+        let moved_path = moved_paths.first()?;
+        let mut residuals = Vec::new();
+        collect_nested_partial_affine_residuals(
+            module,
+            root_type,
+            moved_path,
+            &mut Vec::new(),
+            &mut residuals,
+        )?;
+        return Some(residuals);
+    }
+
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    if fields.is_empty()
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+        })
+    {
+        return None;
+    }
+    let moved_identities = moved_paths
+        .iter()
+        .map(|path| match path.as_slice() {
+            [StructuralPathSegment::Field(identity)] => Some(identity),
+            _ => None,
+        })
+        .collect::<Option<BTreeSet<_>>>()?;
+    if moved_identities
+        .iter()
+        .any(|identity| !fields.iter().any(|field| field.identity == ***identity))
+    {
+        return None;
+    }
+    Some(
+        fields
+            .iter()
+            .rev()
+            .filter(|field| !moved_identities.contains(&field.identity))
+            .map(|field| {
+                let StructuralFieldType::Structural(structural_type) = field.field_type else {
+                    unreachable!("record field shape was checked above")
+                };
+                (
+                    vec![StructuralPathSegment::Field(field.identity.clone())],
+                    structural_type,
+                )
+            })
+            .collect(),
+    )
+}
+
+fn collect_nested_partial_affine_residuals(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    moved_path: &[StructuralPathSegment],
+    prefix: &mut Vec<StructuralPathSegment>,
+    residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+) -> Option<()> {
+    let [StructuralPathSegment::Field(moved_identity), remaining @ ..] = moved_path else {
+        return None;
+    };
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    if fields.is_empty()
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+        })
+    {
+        return None;
+    }
+    let mut found = false;
+    for field in fields.iter().rev() {
+        let StructuralFieldType::Structural(field_type) = field.field_type else {
+            unreachable!("record field shape was checked above")
+        };
+        prefix.push(StructuralPathSegment::Field(field.identity.clone()));
+        if field.identity == *moved_identity {
+            found = true;
+            if !remaining.is_empty() {
+                collect_nested_partial_affine_residuals(
+                    module, field_type, remaining, prefix, residuals,
+                )?;
+            }
+        } else {
+            residuals.push((prefix.clone(), field_type));
+        }
+        prefix.pop();
+    }
+    found.then_some(())
+}
+
 #[derive(Default)]
 struct IdRegistry {
     machines: BTreeSet<MachineId>,
@@ -1715,8 +1838,9 @@ fn validate_unit_operation_static(
                 !argument.path.is_empty()
                     && !matches!(
                         argument.path.as_slice(),
-                        [StructuralPathSegment::FixedIndex(_)] | [StructuralPathSegment::Field(_)]
+                        [StructuralPathSegment::FixedIndex(_)]
                     )
+                    && !is_nonempty_field_path(&argument.path)
             }) {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
                     operation: operation.id,
@@ -1727,8 +1851,8 @@ fn validate_unit_operation_static(
                                 && !matches!(
                                     argument.path.as_slice(),
                                     [StructuralPathSegment::FixedIndex(_)]
-                                        | [StructuralPathSegment::Field(_)]
                                 )
+                                && !is_nonempty_field_path(&argument.path)
                         })
                         .unwrap_or_default() as u32,
                 });
@@ -1914,17 +2038,17 @@ fn validate_unit_operation_static(
     Ok(())
 }
 
-/// Validate the complete bounded representation for a nonempty run of
-/// direct-field affine transfers followed by disposal of every residual
-/// sibling in reverse declaration order. This partition is checked
-/// independently of producer facts before the ownership walk relies on the
-/// path-sensitive terminator.
+/// Validate the complete bounded representation for either a nonempty run of
+/// direct-field affine transfers or one nested-field transfer, followed by
+/// disposal of every maximal residual sibling subtree in recursive reverse
+/// declaration order. This partition is checked independently of producer
+/// facts before the ownership walk relies on the path-sensitive terminator.
 fn validate_partial_affine_cleanup_shape(
     module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<(), ModuleError> {
-    let direct_field_calls = machine
+    let field_calls = machine
         .blocks
         .iter()
         .flat_map(|block| {
@@ -1940,9 +2064,7 @@ fn validate_partial_affine_cleanup_shape(
                 };
                 structural_arguments
                     .iter()
-                    .any(|argument| {
-                        matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_)])
-                    })
+                    .any(|argument| is_nonempty_field_path(&argument.path))
                     .then_some((
                         block,
                         operation,
@@ -1958,14 +2080,14 @@ fn validate_partial_affine_cleanup_shape(
         .iter()
         .filter(|block| matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. }))
         .collect::<Vec<_>>();
-    if direct_field_calls.is_empty() && partial_returns.is_empty() {
+    if field_calls.is_empty() && partial_returns.is_empty() {
         return Ok(());
     }
     let invalid = |block: BlockId| ModuleError::InvalidPartialAffineCleanup {
         machine: machine.id,
         block,
     };
-    let Some((block, ..)) = direct_field_calls.first() else {
+    let Some((block, ..)) = field_calls.first() else {
         return Err(invalid(
             partial_returns
                 .first()
@@ -1976,11 +2098,11 @@ fn validate_partial_affine_cleanup_shape(
         return Err(invalid(block.id));
     };
     if partial_block.id != block.id
-        || direct_field_calls
+        || field_calls
             .iter()
             .any(|(candidate, ..)| candidate.id != block.id)
         || !matches!(machine.result, TerminalMachineResult::Unit)
-        || block.operations.len() != direct_field_calls.len()
+        || block.operations.len() != field_calls.len()
         || machine.structural_parameters.len() != 1
         || machine.structural_places.len() != 1
         || !machine.entry_claims.is_empty()
@@ -2006,42 +2128,17 @@ fn validate_partial_affine_cleanup_shape(
     {
         return Err(invalid(block.id));
     }
-    let Some(root_type) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == root.structural_type)
-    else {
-        return Err(invalid(block.id));
-    };
-    let StructuralTypeShape::Record { fields } = &root_type.shape else {
-        return Err(invalid(block.id));
-    };
-    if fields.len() < 2
-        || fields.iter().any(|field| {
-            field.relevance.is_erased()
-                || !matches!(field.field_type, StructuralFieldType::Structural(_))
-        })
-    {
-        return Err(invalid(block.id));
-    }
-    let mut moved_identities = BTreeSet::new();
-    for (_, _, callee_id, arguments, claim_transfers) in &direct_field_calls {
+    let mut moved_paths = BTreeSet::new();
+    for (_, _, callee_id, arguments, claim_transfers) in &field_calls {
         let [argument] = arguments.as_slice() else {
             return Err(invalid(block.id));
         };
-        let [StructuralPathSegment::Field(moved_identity)] = argument.path.as_slice() else {
-            return Err(invalid(block.id));
-        };
-        if argument.place != root.place || !moved_identities.insert(moved_identity.clone()) {
+        if argument.place != root.place || !moved_paths.insert(argument.path.clone()) {
             return Err(invalid(block.id));
         }
-        let Some(moved_field) = fields
-            .iter()
-            .find(|field| field.identity == *moved_identity)
+        let Some(moved_type) =
+            resolve_structural_path(module, root.structural_type, &argument.path)
         else {
-            return Err(invalid(block.id));
-        };
-        let StructuralFieldType::Structural(moved_type) = moved_field.field_type else {
             return Err(invalid(block.id));
         };
         let Some(callee) = machines.get(callee_id).copied() else {
@@ -2060,6 +2157,14 @@ fn validate_partial_affine_cleanup_shape(
             return Err(invalid(block.id));
         }
     }
+    if moved_paths.iter().any(|path| path.len() > 1) && moved_paths.len() != 1 {
+        return Err(invalid(block.id));
+    }
+    let Some(expected_residuals) =
+        partial_affine_residuals(module, root.structural_type, &moved_paths)
+    else {
+        return Err(invalid(block.id));
+    };
     let Terminator::ReturnUnitPartialAffine {
         trivial_affine_discards,
         residual_affine_discards,
@@ -2068,26 +2173,16 @@ fn validate_partial_affine_cleanup_shape(
     else {
         unreachable!()
     };
-    let residual_fields = fields
-        .iter()
-        .rev()
-        .filter(|field| !moved_identities.contains(&field.identity))
-        .collect::<Vec<_>>();
-    if residual_fields.is_empty()
+    if expected_residuals.is_empty()
         || !trivial_affine_discards.is_empty()
-        || residual_affine_discards.len() != residual_fields.len()
-        || residual_affine_discards
-            .iter()
-            .zip(residual_fields)
-            .any(|(residual, field)| {
-                let StructuralFieldType::Structural(field_type) = field.field_type else {
-                    unreachable!("all record fields were checked as structural")
-                };
+        || residual_affine_discards.len() != expected_residuals.len()
+        || residual_affine_discards.iter().zip(expected_residuals).any(
+            |(residual, (path, structural_type))| {
                 residual.place != root.place
-                    || residual.path.as_slice()
-                        != [StructuralPathSegment::Field(field.identity.clone())]
-                    || residual.structural_type != field_type
-            })
+                    || residual.path != path
+                    || residual.structural_type != structural_type
+            },
+        )
     {
         return Err(invalid(block.id));
     }
@@ -2389,7 +2484,7 @@ fn validate_structural_arguments(
         let actual_multiplicity = if argument.path.is_empty() {
             actual.multiplicity
         } else if expected.multiplicity == StructuralMultiplicity::Affine
-            && matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_)])
+            && is_nonempty_field_path(&argument.path)
             && actual.multiplicity == StructuralMultiplicity::Affine
         {
             StructuralMultiplicity::Affine
@@ -2449,14 +2544,13 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
-            let claim_free_direct_affine =
-                matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_)])
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-                    && callee_claims.is_empty()
-                    && caller
-                        .entry_claims
-                        .iter()
-                        .all(|claim| claim.input != argument.place);
+            let claim_free_direct_affine = is_nonempty_field_path(&argument.path)
+                && parameter.multiplicity == StructuralMultiplicity::Affine
+                && callee_claims.is_empty()
+                && caller
+                    .entry_claims
+                    .iter()
+                    .all(|claim| claim.input != argument.place);
             if !claim_free_direct_affine
                 && !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty())
             {
@@ -3711,10 +3805,10 @@ struct StructuralOwnershipFrontier {
     // enforce by-value affine/linear use even when no linear claim row exists.
     claims: BTreeMap<ClaimId, LiveClaim>,
     owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
-    /// Exact direct fields already transferred from an otherwise-live affine
+    /// Exact field paths already transferred from an otherwise-live affine
     /// root. The root remains present until its complementary residual action
     /// proves complete exhaustion at `ReturnUnitPartialAffine`.
-    moved_direct_fields: BTreeMap<PlaceId, BTreeSet<String>>,
+    moved_field_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
 }
 
 fn validate_structural_frontier(
@@ -3764,7 +3858,7 @@ fn validate_structural_frontier(
                     .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),
-        moved_direct_fields: BTreeMap::new(),
+        moved_field_paths: BTreeMap::new(),
     };
 
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
@@ -3833,7 +3927,7 @@ fn validate_structural_frontier(
             .any(|candidate| candidate.owned_places != frontier.owned_places)
             || frontiers
                 .iter()
-                .any(|candidate| candidate.moved_direct_fields != frontier.moved_direct_fields)
+                .any(|candidate| candidate.moved_field_paths != frontier.moved_field_paths)
         {
             return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block_id));
         }
@@ -3937,15 +4031,19 @@ fn validate_structural_frontier(
                 .iter()
                 .filter(|argument| !argument.path.is_empty())
             {
-                if let [StructuralPathSegment::Field(identity)] = argument.path.as_slice()
+                if is_nonempty_field_path(&argument.path)
                     && matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. })
                 {
+                    let moved = frontier
+                        .moved_field_paths
+                        .entry(argument.place)
+                        .or_default();
                     if !frontier.owned_places.contains_key(&argument.place)
-                        || !frontier
-                            .moved_direct_fields
-                            .entry(argument.place)
-                            .or_default()
-                            .insert(identity.clone())
+                        || moved.iter().any(|existing| {
+                            existing.starts_with(&argument.path)
+                                || argument.path.starts_with(existing)
+                        })
+                        || !moved.insert(argument.path.clone())
                     {
                         return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                             operation: operation.id,
@@ -4044,50 +4142,38 @@ fn validate_structural_frontier(
                     });
                 };
                 let root_place = first_residual.place;
-                let mut residual_identities = BTreeSet::new();
-                if residual_affine_discards.iter().any(|residual| {
-                    let [StructuralPathSegment::Field(identity)] = residual.path.as_slice() else {
-                        return true;
-                    };
-                    residual.place != root_place || !residual_identities.insert(identity.clone())
-                }) {
+                if residual_affine_discards
+                    .iter()
+                    .any(|residual| residual.place != root_place)
+                {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
                     });
                 }
-                let Some(moved) = frontier.moved_direct_fields.remove(&root_place) else {
+                let Some(moved) = frontier.moved_field_paths.remove(&root_place) else {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
                     });
                 };
-                let expected_fields = machine
+                let expected_residuals = machine
                     .structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == root_place)
                     .and_then(|parameter| {
-                        module.structural_types.iter().find_map(|declaration| {
-                            (declaration.id == parameter.structural_type)
-                                .then_some(&declaration.shape)
-                        })
-                    })
-                    .and_then(|shape| match shape {
-                        StructuralTypeShape::Record { fields } => Some(
-                            fields
-                                .iter()
-                                .map(|field| field.identity.clone())
-                                .collect::<BTreeSet<_>>(),
-                        ),
-                        _ => None,
+                        partial_affine_residuals(module, parameter.structural_type, &moved)
                     });
-                let covered_fields = moved
-                    .union(&residual_identities)
-                    .cloned()
-                    .collect::<BTreeSet<_>>();
                 if moved.is_empty()
-                    || !moved.is_disjoint(&residual_identities)
-                    || expected_fields.as_ref() != Some(&covered_fields)
+                    || expected_residuals.as_ref().is_none_or(|expected| {
+                        residual_affine_discards.len() != expected.len()
+                            || residual_affine_discards.iter().zip(expected).any(
+                                |(residual, (path, structural_type))| {
+                                    residual.path != *path
+                                        || residual.structural_type != *structural_type
+                                },
+                            )
+                    })
                     || frontier.owned_places.remove(&root_place)
                         != Some(StructuralMultiplicity::Affine)
                 {
@@ -4103,7 +4189,7 @@ fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
-                if !frontier.moved_direct_fields.is_empty() {
+                if !frontier.moved_field_paths.is_empty() {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
@@ -4136,7 +4222,7 @@ fn validate_structural_frontier(
                         });
                     }
                 }
-                if !frontier.moved_direct_fields.is_empty()
+                if !frontier.moved_field_paths.is_empty()
                     || !frontier.claims.is_empty()
                     || !frontier.owned_places.is_empty()
                 {

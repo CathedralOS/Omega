@@ -78,7 +78,74 @@ fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_clea
 }
 
 #[test]
-fn direct_field_partial_cleanup_fails_closed_outside_finite_structural_records() {
+fn retains_one_nested_field_transfer_with_recursive_maximal_residual_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Deep { low: Token; middle: Token; high: Token; }
+        data Inner { before: Token; deep: Deep; after: Token; }
+        data Outer { first: Token; inner: Inner; last: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::enter(value: Outer) {
+            Sink::take(value.inner.deep.middle);
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("one nested field move has an exact maximal residual plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &plan.machine.operations[0]
+    else {
+        panic!("nested partial cleanup begins with one Unit call")
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        [
+            CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+            CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+            CheckedUnitStructuralPathSegment::Field("middle".to_owned()),
+        ]
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| discard.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![CheckedUnitStructuralPathSegment::Field("last".to_owned())],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("after".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("high".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("low".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("before".to_owned()),
+            ],
+            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
     let checked = checked(
         r#"
         data Token { value: u64; }
@@ -93,8 +160,9 @@ fn direct_field_partial_cleanup_fails_closed_outside_finite_structural_records()
         machine Root::missing(value: One) {
             Sink::take(value.right);
         }
-        machine Root::nested(value: Outer) {
+        machine Root::nested_multiple(value: Outer) {
             Sink::take(value.inner.right);
+            Sink::take(value.left);
         }
         machine Root::complete(value: Pair) {
             Sink::take(value.right);
@@ -106,7 +174,7 @@ fn direct_field_partial_cleanup_fails_closed_outside_finite_structural_records()
         "#,
     );
 
-    for machine in ["missing", "nested", "complete", "scalar"] {
+    for machine in ["missing", "nested_multiple", "complete", "scalar"] {
         assert!(
             checked
                 .facts
