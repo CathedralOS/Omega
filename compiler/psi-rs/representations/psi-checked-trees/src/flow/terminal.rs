@@ -496,8 +496,8 @@ pub struct CheckedUnitStructuralArgumentPlan {
     /// Dense index into the caller's structural parameter list.
     pub source_parameter_index: u32,
     /// Empty names the complete source parameter. Accepted projected slices
-    /// retain exactly one literal fixed-array index or direct record field;
-    /// their specialized checked plans constrain the legal destination.
+    /// retain exactly one literal fixed-array index or a finite nonempty record
+    /// field path; their specialized checked plans constrain the destination.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
 }
@@ -539,8 +539,9 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     /// published through `CheckedUnitEffectPlans` while its return cleanup is
     /// still path-sensitive.
     pub machine: CheckedUnitEffectMachinePlan,
-    /// Exact reverse-declaration-ordered residual cleanup after every
-    /// source-ordered projected call commits.
+    /// Exact maximal residual subtrees after every source-ordered projected
+    /// call commits. Nested paths recurse at their selected ancestor while
+    /// retaining reverse declaration order at every record level.
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 

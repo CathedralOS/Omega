@@ -1199,6 +1199,182 @@ fn multiple_direct_field_partial_affine_moves_reject_duplicates_and_exhaustion()
 }
 
 #[test]
+fn one_nested_partial_affine_move_validates_recursive_residual_order() {
+    let module = nested_partial_affine_field_module();
+    let caller = &module.machines[0];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        vec![
+            StructuralPathSegment::Field("nested".into()),
+            StructuralPathSegment::Field("middle".into()),
+        ]
+    );
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| discard.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![StructuralPathSegment::Field("right".into())],
+            vec![
+                StructuralPathSegment::Field("nested".into()),
+                StructuralPathSegment::Field("right".into()),
+            ],
+            vec![
+                StructuralPathSegment::Field("nested".into()),
+                StructuralPathSegment::Field("left".into()),
+            ],
+            vec![StructuralPathSegment::Field("left".into())],
+        ]
+    );
+    validate_module(&module).expect("one nested move has an exact maximal residual partition");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("nested partial affine cleanup introduces no authored proposition");
+}
+
+#[test]
+fn nested_partial_affine_move_rejects_forged_residual_subtrees() {
+    let expected = |module: &TerminalModule| ModuleError::InvalidPartialAffineCleanup {
+        machine: module.machines[0].id,
+        block: module.machines[0].blocks[0].id,
+    };
+
+    let mut missing = nested_partial_affine_field_module();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut missing.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.remove(1);
+    assert_eq!(validate_module(&missing).unwrap_err(), expected(&missing));
+
+    let mut ancestor = nested_partial_affine_field_module();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut ancestor.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards[1].path = vec![StructuralPathSegment::Field("nested".into())];
+    residual_affine_discards[1].structural_type = structural_type_id(4);
+    assert_eq!(validate_module(&ancestor).unwrap_err(), expected(&ancestor));
+
+    let mut descendant = nested_partial_affine_field_module();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut descendant.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards[0]
+        .path
+        .push(StructuralPathSegment::Field("missing".into()));
+    assert_eq!(
+        validate_module(&descendant).unwrap_err(),
+        expected(&descendant)
+    );
+
+    let mut reordered = nested_partial_affine_field_module();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.swap(1, 2);
+    assert_eq!(
+        validate_module(&reordered).unwrap_err(),
+        expected(&reordered)
+    );
+}
+
+#[test]
+fn nested_partial_affine_move_rejects_a_second_move_and_path_overlap() {
+    let expected = |module: &TerminalModule| ModuleError::InvalidPartialAffineCleanup {
+        machine: module.machines[0].id,
+        block: module.machines[0].blocks[0].id,
+    };
+
+    let mut second_nested = nested_partial_affine_field_module();
+    let mut second_call = second_nested.machines[0].blocks[0].operations[0].clone();
+    second_call.id = operation_id(2);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut second_call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![
+        StructuralPathSegment::Field("nested".into()),
+        StructuralPathSegment::Field("left".into()),
+    ];
+    second_nested.machines[0].blocks[0]
+        .operations
+        .push(second_call);
+    assert_eq!(
+        validate_module(&second_nested).unwrap_err(),
+        expected(&second_nested)
+    );
+
+    let mut overlapping = nested_partial_affine_field_module();
+    let inner_type = structural_type_id(4);
+    let mut ancestor_callee = overlapping.machines[1].clone();
+    ancestor_callee.id = machine_id(3);
+    ancestor_callee.structural_parameters[0].structural_type = inner_type;
+    ancestor_callee.entry = block_id(3);
+    ancestor_callee.blocks[0].id = block_id(3);
+    ancestor_callee.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: vec![place_id(2)],
+    };
+    ancestor_callee.contract.id = contract_id(3);
+    let mut ancestor_call = overlapping.machines[0].blocks[0].operations[0].clone();
+    ancestor_call.id = operation_id(2);
+    let OperationKind::CallUnit {
+        callee,
+        structural_arguments,
+        ..
+    } = &mut ancestor_call.kind
+    else {
+        unreachable!()
+    };
+    *callee = ancestor_callee.id;
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("nested".into())];
+    overlapping.machines[0].blocks[0]
+        .operations
+        .insert(0, ancestor_call);
+    overlapping.machines.push(ancestor_callee);
+    assert_eq!(
+        validate_module(&overlapping).unwrap_err(),
+        expected(&overlapping)
+    );
+}
+
+#[test]
 fn direct_field_partial_affine_return_rejects_forged_conservation_shapes() {
     let expected = |module: &TerminalModule| ModuleError::InvalidPartialAffineCleanup {
         machine: module.machines[0].id,
@@ -2539,6 +2715,91 @@ fn multiple_move_partial_affine_field_module() -> TerminalModule {
         unreachable!()
     };
     residual_affine_discards.remove(0);
+    module
+}
+
+fn nested_partial_affine_field_module() -> TerminalModule {
+    let mut module = partial_affine_field_module();
+    let inner = StructuralTypeDeclaration {
+        id: structural_type_id(4),
+        identity: "Nested".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![
+                StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(4).expect("field identity"),
+                    identity: "left".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(structural_type_id(1)),
+                },
+                StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(5).expect("field identity"),
+                    identity: "middle".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(structural_type_id(1)),
+                },
+                StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(6).expect("field identity"),
+                    identity: "right".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(structural_type_id(1)),
+                },
+            ],
+        },
+    };
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        unreachable!()
+    };
+    fields[1].identity = "nested".into();
+    fields[1].field_type = StructuralFieldType::Structural(inner.id);
+    module.structural_types.push(inner);
+
+    let caller_block = &mut module.machines[0].blocks[0];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller_block.operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![
+        StructuralPathSegment::Field("nested".into()),
+        StructuralPathSegment::Field("middle".into()),
+    ];
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut caller_block.terminator
+    else {
+        unreachable!()
+    };
+    *residual_affine_discards = vec![
+        StructuralAffineDiscard {
+            place: place_id(1),
+            path: vec![StructuralPathSegment::Field("right".into())],
+            structural_type: structural_type_id(1),
+        },
+        StructuralAffineDiscard {
+            place: place_id(1),
+            path: vec![
+                StructuralPathSegment::Field("nested".into()),
+                StructuralPathSegment::Field("right".into()),
+            ],
+            structural_type: structural_type_id(1),
+        },
+        StructuralAffineDiscard {
+            place: place_id(1),
+            path: vec![
+                StructuralPathSegment::Field("nested".into()),
+                StructuralPathSegment::Field("left".into()),
+            ],
+            structural_type: structural_type_id(1),
+        },
+        StructuralAffineDiscard {
+            place: place_id(1),
+            path: vec![StructuralPathSegment::Field("left".into())],
+            structural_type: structural_type_id(1),
+        },
+    ];
     module
 }
 
