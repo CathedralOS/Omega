@@ -15462,22 +15462,13 @@ fn arithmetic_domain_trapping_mul_overflow_aborts() {
 fn arithmetic_domain_saturating_signed_exit_canary_runs() {
     // Decision 17 S1b: signed `i8 in Saturating` clamps 100+100=200 to 127.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_signed_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-sat-signed-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_saturating_signed canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_saturating_signed canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_signed canary should run");
 
@@ -15489,7 +15480,7 @@ fn arithmetic_domain_saturating_signed_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15497,22 +15488,13 @@ fn arithmetic_domain_requires_proven_exact_exit_canary_runs() {
     // Decision 17 S4: a `requires`-bounded param (amount in [0,100]) proves
     // `amount + amount` in [0,200] -> exact (no domain). compute(35) -> 70.
     let canary = pass_canary("expressions/arithmetic_domain_requires_proven_exact_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-requires-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_requires_proven_exact canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_requires_proven_exact canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_requires_proven_exact canary should run");
 
@@ -15524,7 +15506,7 @@ fn arithmetic_domain_requires_proven_exact_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15532,20 +15514,11 @@ fn arithmetic_domain_range_proven_exact_exit_canary_runs() {
     // Decision 17 S4: range-constraint narrowing proves `x + y` (each in [0,100])
     // is in [0,200], so it stays EXACT (no domain needed). 40+30=70.
     let canary = pass_canary("expressions/arithmetic_domain_range_proven_exact_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-range-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_range_proven_exact canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_range_proven_exact canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_range_proven_exact canary should run");
 
@@ -15557,7 +15530,7 @@ fn arithmetic_domain_range_proven_exact_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15565,20 +15538,11 @@ fn arithmetic_domain_cast_exit_canary_runs() {
     // Decision 17 S2: a domain `as` cast crosses domains -- `(a as u8 in
     // Saturating) + b` lets an exact `a` join saturating arithmetic; 200+100->255.
     let canary = pass_canary("expressions/arithmetic_domain_cast_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-cast-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_cast canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_cast canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_cast canary should run");
 
@@ -15590,29 +15554,20 @@ fn arithmetic_domain_cast_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn arithmetic_domain_trapping_exit_canary_runs() {
     // Decision 17 S1b: `u8 in Trapping` runs normally when in range (100+50=150).
     let canary = pass_canary("expressions/arithmetic_domain_trapping_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-trapping-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_trapping canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_trapping canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping canary should run");
 
@@ -15624,7 +15579,7 @@ fn arithmetic_domain_trapping_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15723,17 +15678,11 @@ fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
     // caller's exact arithmetic on the result stay Exact (5+5+60=70). Enforcement
     // (callee must return in range) makes trusting the range sound.
     let canary = pass_canary("expressions/arithmetic_domain_return_range_proven_exact_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-return-range-exact-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("return-range proven-exact canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("return-range proven-exact canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("return-range proven-exact canary should run");
     assert_eq!(
@@ -15745,7 +15694,7 @@ stderr:
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
