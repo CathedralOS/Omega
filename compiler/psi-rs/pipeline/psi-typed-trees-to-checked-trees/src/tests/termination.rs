@@ -4209,6 +4209,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells: [Cell; 2];
     }
 
+    data GridBucket {
+        rows: [[u64; 2]; 2];
+    }
+
     data Main {
         value: u64;
         other_value: u64;
@@ -4217,6 +4221,7 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         matrix: [[u64; 2]; 2];
         bucket: Bucket;
         cell_bucket: CellBucket;
+        grid_bucket: GridBucket;
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -4258,6 +4263,14 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 
     machine recursive_cell_bucket(bucket: &mut CellBucket) -> &mut CellBucket {
         recursive_cell_bucket(bucket)
+    }
+
+    machine return_grid_bucket(bucket: &mut GridBucket) -> &mut GridBucket {
+        bucket
+    }
+
+    machine recursive_grid_bucket(bucket: &mut GridBucket) -> &mut GridBucket {
+        recursive_grid_bucket(bucket)
     }
 
     machine Main::return_attached_cells(&mut self) -> &mut [u64; 2] {
@@ -4360,6 +4373,38 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         result: &'result mut u64
     ) -> &'result mut u64 {
         recursive_cell_bucket(bucket).cells[make_index()].value = 1;
+        result
+    }
+
+    machine return_after_projected_repeated_index_target<
+        'bucket, 'result, 'first, 'second
+    >(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'result mut u64 {
+        return_grid_bucket(bucket).rows[
+            write_index(first)
+        ][write_index(second)] = 1;
+        result
+    }
+
+    machine return_after_deep_projected_repeated_index_target<'bucket, 'result>(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        return_grid_bucket(bucket).rows[
+            identity_index(identity_index(make_index()))
+        ][make_index()] = 1;
+        result
+    }
+
+    machine return_after_recursive_projected_repeated_index_target<'bucket, 'result>(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        recursive_grid_bucket(bucket).rows[make_index()][make_index()] = 1;
         result
     }
 
@@ -4504,6 +4549,32 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias = 2;
     }
 
+    machine Main::projected_repeated_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_projected_repeated_index_target(
+            &mut self.grid_bucket,
+            &mut self.result,
+            &mut self.value,
+            &mut self.other_value
+        );
+        alias = 2;
+    }
+
+    machine Main::deep_projected_repeated_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_projected_repeated_index_target(
+            &mut self.grid_bucket,
+            &mut self.result
+        );
+        alias = 2;
+    }
+
+    machine Main::recursive_projected_repeated_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_projected_repeated_index_target(
+            &mut self.grid_bucket,
+            &mut self.result
+        );
+        alias = 2;
+    }
+
     machine Main::attached_helper_index_target_result(&mut self) {
         let alias: &mut u64 = self.return_after_attached_helper_index_target();
         alias = 2;
@@ -4587,6 +4658,15 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.cell_bucket.cells", "self.result", "self.value"],
         ),
         (
+            "Main::projected_repeated_index_target_result",
+            vec![
+                "self.grid_bucket.rows",
+                "self.other_value",
+                "self.result",
+                "self.value",
+            ],
+        ),
+        (
             "Main::attached_helper_index_target_result",
             vec!["self.cells", "self.result", "self.value"],
         ),
@@ -4629,6 +4709,8 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::recursive_projected_helper_index_target_result",
         "Main::deep_member_after_index_target_result",
         "Main::recursive_member_after_index_target_result",
+        "Main::deep_projected_repeated_index_target_result",
+        "Main::recursive_projected_repeated_index_target_result",
         "Main::recursive_attached_index_target_result",
         "Main::deep_repeated_index_target_result",
     ] {
