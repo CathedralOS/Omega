@@ -4807,6 +4807,51 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 2;
     }
 
+    machine Main::prior_alias_survives_helper_slice_view_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        let prior: &mut u64 = &mut alias;
+        alias = &mut return_cells(&mut self.other_cells).as_mut_slice()[
+            identity_index(write_index(&mut self.value))
+        ];
+        prior = 1;
+        alias = 2;
+    }
+
+    machine Main::prior_alias_survives_attached_projected_slice_view_rebind(
+        &mut self
+    ) {
+        let alias: &mut u64 = &mut self.cells[0];
+        let prior: &mut u64 = &mut alias;
+        alias = &mut self.return_attached_bucket()
+            .cells
+            .as_mut_slice()[identity_index(write_index(&mut self.value))];
+        prior = 1;
+        alias = 2;
+    }
+
+    machine Main::prior_alias_survives_slice_view_member_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        let prior: &mut u64 = &mut alias;
+        alias = &mut self.other_cell_bucket.cells.as_mut_slice()[
+            identity_index(write_index(&mut self.value))
+        ].value;
+        prior = 1;
+        alias = 2;
+    }
+
+    machine Main::prior_alias_survives_member_repeated_collection_view_rebind(
+        &mut self
+    ) {
+        let collection: &mut [[u64; 2]; 2] = &mut self.other_grid_bucket.rows;
+        let alias: &mut u64 = &mut self.cells[0];
+        let prior: &mut u64 = &mut alias;
+        alias = &mut collection.as_mut_slice()[write_index(&mut self.value)][
+            write_index(&mut self.other_value)
+        ];
+        prior = 1;
+        alias = 2;
+    }
+
     machine Main::helper_slice_view_call_index_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut return_cells(&mut self.other_cells).as_mut_slice()[
@@ -5263,6 +5308,31 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         (
             "Main::prior_alias_survives_slice_view_call_index_rebind",
             vec!["self.cells", "self.other_cells", "self.value"],
+        ),
+        (
+            "Main::prior_alias_survives_helper_slice_view_rebind",
+            vec!["self.cells", "self.other_cells", "self.value"],
+        ),
+        (
+            "Main::prior_alias_survives_attached_projected_slice_view_rebind",
+            vec!["self.bucket.cells", "self.cells", "self.value"],
+        ),
+        (
+            "Main::prior_alias_survives_slice_view_member_rebind",
+            vec![
+                "self.cells",
+                "self.other_cell_bucket.cells",
+                "self.value",
+            ],
+        ),
+        (
+            "Main::prior_alias_survives_member_repeated_collection_view_rebind",
+            vec![
+                "self.cells",
+                "self.other_grid_bucket.rows",
+                "self.other_value",
+                "self.value",
+            ],
         ),
         (
             "Main::helper_slice_view_call_index_alias_rebind",
