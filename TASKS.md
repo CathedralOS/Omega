@@ -59,14 +59,23 @@ Remaining:
   fixtures: pure language/checker fixtures stop at checked artifacts, while
   deployable/provider/artifact/ABI/layout/native tests select an exact
   target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
-  entry explicitly. Production and development interpreter execution likewise
-  requires an exact choice, while checked-only compilation selects no storage
-  root. Fix unrelated lowering/runtime defects separately. In particular,
+  entry explicitly. The CLI basics cohort and the five deployable proof
+  samples now author all four hosted roots; the two proof-only samples remain
+  targetless. The active pass-canary umbrella uses its explicit legacy fixture
+  entry and asserts that state-graph lowering occurred, so it cannot silently
+  collapse into checked-only coverage. Production and development interpreter
+  execution likewise requires an exact choice, while checked-only compilation
+  selects no storage root. Fix unrelated lowering/runtime defects separately. In
+  particular,
   `samples/cli/basics/temperature_convert` now selects its exact authored
   `Main::main` entry, but direct production lowering still rejects
   `self.fahrenheit = self.celsius * 1.8 + 32.0` because that entry-shaped float
-  assignment lacks runtime value/write lowering; keep this engineering defect
-  separate from entry selection. Final firmware
+  assignment lacks runtime value/write lowering. Restored explicit legacy-entry
+  coverage exposed and fixed lost checked float-operator identity across inlined
+  calls. The arithmetic sqrt, min/max, running-fold, and literal-cast runtime
+  canaries still need checked operator/provider evidence propagated into their
+  direct and desugared expressions before Omega can lower their writes; keep
+  these engineering defects separate from entry selection. Final firmware
   composition of
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.

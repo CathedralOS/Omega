@@ -39785,6 +39785,10 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("build/explicit_program_entry_binding", "windows_x64"),
     ("build/receiver_bound_program_entry", "windows_x64"),
+    (
+        "build/static_machine_parameter_config_compile",
+        "windows_x64",
+    ),
     ("build/uefi_program_entry_storage_roots", "uefi_x64"),
     ("inline_asm/asm_fences_compile", "linux_x64"),
     ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
@@ -40336,6 +40340,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_membership_carrier_mismatch",
     "generics/const_data_where_membership_false",
     "generics/const_data_where_mixed_fact_violated",
+    "generics/generic_machine_where_machine_requirement",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/negative_const_data_argument_unsigned",
@@ -40484,6 +40489,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "traits/generic_trait_default_binding_mismatch",
     "traits/inherited_default_ambiguous",
     "traits/inherited_default_reabstracted",
+    "traits/trait_oneoff_machine_requirement",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
     "traits/trait_requires_unknown",
@@ -42150,7 +42156,7 @@ fn pass_canaries_compile() {
     for canary_name in WINDOWS_HOST_PASS_CANARIES.iter().copied().filter(selected) {
         selected_count += 1;
         let canary = pass_canary(canary_name);
-        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+        if let Err(diagnostics) = compile_legacy_backend_canary_without_output(&canary) {
             failures.push(format!(
                 "windows-host {}:\n{}",
                 canary.display(),
@@ -42166,7 +42172,7 @@ fn pass_canaries_compile() {
         selected_count += 1;
         let canary = pass_canary(canary_name);
 
-        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+        if let Err(diagnostics) = compile_legacy_backend_canary_without_output(&canary) {
             failures.push(format!(
                 "{}:\n{}",
                 canary.display(),
@@ -45866,6 +45872,35 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     result
 }
 
+fn compile_legacy_backend_canary_without_output(
+    canary_dir: &Path,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    // ACTIVE_PASS is legacy backend coverage, not another checked-only corpus.
+    // Name the fixture entry explicitly until each deployable/artifact fixture
+    // authors a target-owned ProgramEntry; never rediscover Main::main by name.
+    let build_dir = unique_no_output_build_dir();
+    let result = compile_with_test_entry(
+        CompileOptions {
+            root_path: canary_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: false,
+        },
+        "Main::main",
+    );
+    let result = result.and_then(|report| {
+        if build_dir.join("06_state_graph.html").is_file() {
+            Ok(report)
+        } else {
+            Err(vec![Diagnostic::error(
+                "legacy backend canary stopped before state-graph lowering",
+            )])
+        }
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    result
+}
+
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
     compile_to_checked(&canary_dir.join("main.omg"), None).map(|_| ())
 }
@@ -46621,7 +46656,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_nat_structural_recursion_exit",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
-    "build/static_machine_parameter_config_compile",
     "recast/runtime_record_view_exit",
     "recast/runtime_record_array_view_mutable_write_exit",
     "recast/constant_offset_record_view_after_write_exit",
@@ -46639,7 +46673,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/extent_root_provider_adapter",
     "core/carry_permission_provider_adapter",
     "core/task_lifecycle_operations",
-    "tasks/task_runtime_machine_selection_compile",
     "data/record_pattern_let_exit",
     "data/record_pattern_double_underscore_field",
     "data/record_pattern_bind_all_exit",
@@ -46799,7 +46832,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_value_call_agreeing_exit",
     "generics/runtime_generic_param_position_inference_exit",
     "generics/runtime_generic_multiple_specializations_exit",
-    "generics/generic_machine_where_machine_requirement",
     "host/runtime_tick_count_monotonic_exit",
     "host/runtime_user32_key_state_exit",
     "host/runtime_tick_paced_marquee_exit",
@@ -46810,12 +46842,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "memory/repr_native_stable_layout",
     "operators/runtime_integer_division_value",
     "traits/trait_generic_bound_static_dispatch",
-    "traits/trait_oneoff_machine_requirement",
     "versioning/runtime_version_migration_exit",
     "versioning/runtime_versioned_match_zii_exit",
     "versioning/runtime_versioned_three_era_match_zii_exit",
     "wire/wire_generic_trait",
-    "wire/decode_requirement_surface",
     "wire/wire_compatibility_demand_report",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",

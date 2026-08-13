@@ -5,6 +5,8 @@ data PollResult {
 data DriverLoop {
 }
 
+// Generic member requirements must name a trait and bind an explicit
+// conformance. Anonymous one-off requirements are rejected.
 machine DriverLoop::poll_once<T>(device: &mut T)
 where
     machine T::poll(&mut self, out: &mut PollResult)

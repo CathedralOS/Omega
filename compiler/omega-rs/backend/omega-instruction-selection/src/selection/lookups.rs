@@ -103,9 +103,13 @@ fn operator_origin_key(origin: psi_checked_trees::CheckedValueOrigin) -> Option<
 /// Recover the canonical checked-tree identity of an operator after downstream
 /// planners have copied its expression into a private table. `copy_from`
 /// preserves the authored source span on every node, including the operator
-/// token span on binary expressions, so the span plus statement origin is the
-/// stable identity across those tables. When a realization necessarily
-/// rebuilds a normalized operator without that identity, the stricter
+/// token span on binary expressions, so the span plus the matched fact's
+/// statement origin is the stable identity across those tables. The supplied
+/// `source_key` is the runtime operand-resolution context and may differ from
+/// that origin after an inlined callee parameter is substituted with a caller
+/// expression. Exact handle/span identity therefore recovers the origin before
+/// applying any state filter. When a realization necessarily rebuilds a
+/// normalized operator without that identity, the stricter same-state
 /// evidence-equivalence bridge below is the only fallback.
 fn canonical_checked_operator_expression(
     program: &psi_checked_trees::CheckedTrees,
@@ -138,17 +142,14 @@ fn canonical_checked_operator_expression(
         )
     {
         let psi_checked_trees::CheckedValueOrigin::StateStatement {
-            machine_symbol,
-            state_symbol,
+            machine_symbol: _,
+            state_symbol: _,
             statement_index: _,
             ..
         } = origin
         else {
             continue;
         };
-        if machine_symbol != source_key.machine || state_symbol != source_key.state {
-            continue;
-        }
         let same_expression = if table_is_canonical {
             candidate_expression == expression
         } else {
@@ -427,6 +428,8 @@ mod float_provider_plan_tests {
     use omega_control_flow::{
         ControlFlowPlan, StateFlow, StateValueFact, StateValueOrigin, StateValueStatementRole,
     };
+    use psi_checked_trees::{CheckedOperatorUseFact, CheckedValueStatementRole};
+    use psi_source::{SourceId, SourceSpan, Span};
     use psi_symbols::SymbolHandle;
 
     fn carried(identities: &[Option<u64>]) -> CarriedFloatProviderPlan {
@@ -493,6 +496,69 @@ mod float_provider_plan_tests {
         assert_eq!(
             reconcile_float_provider_plan_evidence(checked, CarriedFloatProviderPlan::Resolved(11)),
             CarriedFloatProviderPlan::Resolved(11)
+        );
+    }
+
+    #[test]
+    fn exact_operator_span_recovers_callee_origin_in_caller_operand_context() {
+        let callee_key = StateKey {
+            machine: SymbolHandle::from_arena_index(31),
+            state: SymbolHandle::from_arena_index(32),
+            segment_index: 0,
+        };
+        let caller_key = StateKey {
+            machine: SymbolHandle::from_arena_index(41),
+            state: SymbolHandle::from_arena_index(42),
+            segment_index: 0,
+        };
+        let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol: callee_key.machine,
+            state_symbol: callee_key.state,
+            statement_index: 3,
+            role: CheckedValueStatementRole::LocalInitializer,
+        };
+
+        let mut program = psi_checked_trees::CheckedTrees::default();
+        let left = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let right = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let expression = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Binary(
+                psi_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: psi_checked_trees::expression::BinaryOperator::And,
+                    right,
+                },
+            ));
+        program.typed.expression_table.set_source_span(
+            expression,
+            SourceSpan::new(SourceId(7), Span::new(100, 110)),
+        );
+        program.facts.operators.uses.insert(CheckedOperatorUseFact {
+            expression,
+            origin,
+            provider_plan_identity: 17,
+            ..CheckedOperatorUseFact::default()
+        });
+
+        let mut realized = ExpressionTable::new();
+        let realized_expression = realized.copy_from(&program.expression_table, expression);
+        assert_eq!(
+            canonical_checked_operator_expression(
+                &program,
+                caller_key,
+                9,
+                &realized,
+                realized_expression,
+            ),
+            CanonicalOperatorExpression::Resolved { expression, origin }
         );
     }
 }
