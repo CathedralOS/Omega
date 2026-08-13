@@ -60,11 +60,12 @@ pub use psi_build_time_evaluation::{
     compute_access_plan, compute_layout_plan, compute_placement_plan,
 };
 pub use psi_layout_plans::{
-    ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, MaterializationAction,
-    MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
-    ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, SymbolicMaterializationPlan,
-    decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
-    normalized_layout_plan_fingerprint,
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, DataSymbolId,
+    EntryStubId, MaterializationAction, MaterializationContext, MaterializationDiagnostic,
+    MaterializationWrite, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
+    SymbolicFieldValue, SymbolicMaterializationPlan, decode_scalar_layout,
+    derive_symbolic_materialization, materialize_aggregate_layout_into,
+    materialize_scalar_layout_into, normalized_layout_plan_fingerprint,
 };
 pub use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,

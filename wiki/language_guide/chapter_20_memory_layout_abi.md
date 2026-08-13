@@ -697,6 +697,14 @@ privately, but it retains the exact signed/unsigned fit constraint in its
 invocation evidence and checks the resolved value before any write or context
 publication.
 
+The same target-neutral foundation accepts compiler-sized owned aggregate
+fields only through one whole-field `At` placement. It stages zeroed output,
+checks the exact supplied extent and every destination interval, and rejects
+missing, extra, incomplete, overlapping, fragmented, stored-integer, or
+out-of-bounds fields before changing the destination. This is the normalized
+writer primitive; deriving its field bytes from a typed source-owned value is
+the remaining source-materialization bridge.
+
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or
