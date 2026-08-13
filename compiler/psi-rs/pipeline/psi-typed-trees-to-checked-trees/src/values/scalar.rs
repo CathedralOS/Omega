@@ -286,12 +286,32 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 ) -> Option<CheckedBooleanExpression> {
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
-    if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
-        && member.case_variant.is_none()
-        && let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
-        && let Some(parameter_position) = parameters
-            .iter()
-            .position(|parameter| path.symbol.is_valid() && parameter.symbol == path.symbol)
+    fn structural_parameter_field_path(
+        program: &TypedTrees,
+        parameters: &[StateParameter],
+        expression: ExpressionHandle,
+        fields: &mut Vec<String>,
+    ) -> Option<u32> {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(name) => parameters
+                .iter()
+                .position(|parameter| name.symbol.is_valid() && parameter.symbol == name.symbol)
+                .and_then(|position| u32::try_from(position).ok()),
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                let parameter =
+                    structural_parameter_field_path(program, parameters, member.receiver, fields)?;
+                fields.push(member.member.as_str().to_owned());
+                Some(parameter)
+            }
+            _ => None,
+        }
+    }
+
+    let mut path = Vec::new();
+    if let Some(parameter_position) =
+        structural_parameter_field_path(program, parameters, expression, &mut path)
+        && !path.is_empty()
+        && let ExpressionNode::Member(member) = program.expression_table.expression(expression)
         && program.data_definitions().iter().any(|data| {
             program.data_members(data).iter().any(|candidate| {
                 let psi_typed_trees::data::DataMember::Field(field) = candidate else {
@@ -304,8 +324,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         })
     {
         return Some(CheckedBooleanExpression::StructuralParameterField {
-            parameter_position: u32::try_from(parameter_position).ok()?,
-            field: member.member.as_str().to_owned(),
+            parameter_position,
+            path,
         });
     }
     let parameter_types = parameters

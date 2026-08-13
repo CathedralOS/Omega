@@ -10114,63 +10114,95 @@ fn lower_structural_crash_route_buckets(
                         Ok(psi_terminal::CrashRouteGuard::Truth)
                     }
                     psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                        let (parameter_position, field) = match predicate.scalar_expression() {
-                            Some(CheckedBooleanExpression::StructuralParameterField {
-                                parameter_position,
-                                field,
-                            }) => (*parameter_position, field.as_str()),
-                            None => match predicate.expression() {
-                                Some(psi_checked_trees::CrashPredicateExpression::Member {
+                        fn member_path(
+                            expression: &psi_checked_trees::CrashPredicateExpression,
+                            path: &mut Vec<String>,
+                        ) -> Option<u32> {
+                            match expression {
+                                psi_checked_trees::CrashPredicateExpression::Parameter(position) => {
+                                    Some(*position)
+                                }
+                                psi_checked_trees::CrashPredicateExpression::Member {
                                     receiver,
                                     member,
-                                }) => match receiver.as_ref() {
-                                    psi_checked_trees::CrashPredicateExpression::Parameter(
-                                        position,
-                                    ) => (*position, member.as_str()),
-                                    _ => return unsupported(
-                                        "structural crash member receiver is not a direct parameter",
-                                    ),
-                                },
+                                } => {
+                                    let parameter = member_path(receiver, path)?;
+                                    path.push(member.clone());
+                                    Some(parameter)
+                                }
+                                _ => None,
+                            }
+                        }
+
+                        let (parameter_position, path) = match predicate.scalar_expression() {
+                            Some(CheckedBooleanExpression::StructuralParameterField {
+                                parameter_position,
+                                path,
+                            }) => (*parameter_position, path.clone()),
+                            None => match predicate.expression() {
+                                Some(expression) => {
+                                    let mut path = Vec::new();
+                                    let Some(parameter) = member_path(expression, &mut path) else {
+                                        return unsupported(
+                                            "structural crash member receiver is not a parameter field path",
+                                        );
+                                    };
+                                    (parameter, path)
+                                }
                                 _ => return unsupported(
-                                    "structural crash route is not one direct Boolean member projection",
+                                    "structural crash route is not one Boolean member path",
                                 ),
                             },
                             Some(_) => return unsupported(
-                                "structural crash route is not one direct Boolean member projection",
+                                "structural crash route is not one Boolean member path",
                             ),
                         };
+                        if path.is_empty() {
+                            return unsupported("structural crash route has an empty member path");
+                        }
                         let parameter = parameters
                             .iter()
                             .find(|parameter| parameter.position == parameter_position)
                             .ok_or(LoweringError::Unsupported(
                                 "structural crash route names a non-structural parameter",
                             ))?;
-                        let declaration = structural_types
-                            .iter()
-                            .find(|declaration| declaration.id == parameter.structural_type)
-                            .ok_or(LoweringError::Unsupported(
-                                "structural crash route parameter type is absent",
-                            ))?;
-                        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                            return unsupported(
-                                "structural crash route receiver is not a record",
-                            );
-                        };
-                        let field = fields
-                            .iter()
-                            .find(|candidate| candidate.identity == field)
-                            .filter(|field| {
-                                !field.relevance.is_erased()
-                                    && field.field_type
-                                        == StructuralFieldType::Scalar(ScalarType::Boolean)
-                            })
-                            .ok_or(LoweringError::Unsupported(
-                                "structural crash route field is absent, erased, or non-Boolean",
-                            ))?;
+                        let mut structural_type = parameter.structural_type;
+                        let mut terminal_path = Vec::with_capacity(path.len());
+                        for (index, identity) in path.iter().enumerate() {
+                            let declaration = structural_types
+                                .iter()
+                                .find(|declaration| declaration.id == structural_type)
+                                .ok_or(LoweringError::Unsupported(
+                                    "structural crash route path type is absent",
+                                ))?;
+                            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                                return unsupported(
+                                    "structural crash route path receiver is not a record",
+                                );
+                            };
+                            let field = fields
+                                .iter()
+                                .find(|candidate| candidate.identity == *identity)
+                                .filter(|field| !field.relevance.is_erased())
+                                .ok_or(LoweringError::Unsupported(
+                                    "structural crash route path field is absent or erased",
+                                ))?;
+                            terminal_path.push(field.id);
+                            let is_last = index + 1 == path.len();
+                            match (&field.field_type, is_last) {
+                                (StructuralFieldType::Structural(next), false) => {
+                                    structural_type = *next;
+                                }
+                                (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {}
+                                _ => return unsupported(
+                                    "structural crash route path does not end at a Boolean field",
+                                ),
+                            }
+                        }
                         Ok(psi_terminal::CrashRouteGuard::Predicate(
                             psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
                                 ScalarTerm::boolean(true),
-                                ScalarTerm::boolean_field(parameter.place, field.id),
+                                ScalarTerm::boolean_field_path(parameter.place, terminal_path),
                             )),
                         ))
                     }

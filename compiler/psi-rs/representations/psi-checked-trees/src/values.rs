@@ -219,10 +219,12 @@ pub enum CheckedBooleanExpression {
     Local {
         position: usize,
     },
-    /// Direct relevant Boolean field below one structural entry parameter.
+    /// Nonempty path to a relevant Boolean field below one structural entry
+    /// parameter. Terminal production resolves every authored identity to the
+    /// canonical structural field ID at that exact type level.
     StructuralParameterField {
         parameter_position: u32,
-        field: String,
+        path: Vec<String>,
     },
     Not(Box<CheckedBooleanExpression>),
     Equal {

@@ -52,7 +52,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 4;
+const FORMAT_MARKER: u16 = 5;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -2341,10 +2341,13 @@ fn encode_scalar_term(
             writer.id(*id);
             encode_scalar_type(writer, *scalar_type);
         }
-        ScalarTerm::BooleanField { root, field } => {
+        ScalarTerm::BooleanField { root, path } => {
             writer.u8(34);
             writer.id(*root);
-            writer.id(*field);
+            writer.len("Boolean field path", path.len())?;
+            for field in path {
+                writer.id(*field);
+            }
         }
         ScalarTerm::Boolean(value) => {
             writer.u8(2);
@@ -3877,7 +3880,15 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             ScalarTerm::saturating_integer_remainder(scalar_type, left, right)
                 .map_err(CodecError::MalformedProposition)?
         }
-        34 => ScalarTerm::boolean_field(reader.id("PlaceId")?, reader.id("StructuralFieldId")?),
+        34 => {
+            let root = reader.id("PlaceId")?;
+            let count = reader.count()?;
+            let mut path = Vec::new();
+            for _ in 0..count {
+                path.push(reader.id("StructuralFieldId")?);
+            }
+            ScalarTerm::boolean_field_path(root, path)
+        }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
 }

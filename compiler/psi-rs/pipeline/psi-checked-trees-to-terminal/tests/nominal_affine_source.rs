@@ -1648,10 +1648,13 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     assert_eq!(target_left, &psi_core::ScalarTerm::boolean(true));
     let psi_core::ScalarTerm::BooleanField {
         root: target_root,
-        field: target_field,
+        path: target_path,
     } = target_right
     else {
         panic!("target contextual requirement names its Boolean field")
+    };
+    let [target_field] = target_path.as_slice() else {
+        panic!("target contextual requirement names one direct Boolean field")
     };
     assert_eq!(*target_root, receiver);
     let psi_core::Proposition::Equal(caller_left, caller_right) = caller_requirement else {
