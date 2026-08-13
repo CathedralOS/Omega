@@ -1698,7 +1698,7 @@ fn build_nominal_affine_unit_cleanup_machine(
     {
         return None;
     }
-    let allow_executable_drop = source_parameters.len() == 1;
+    let mut executable_cleanup_count = 0_usize;
     let mut cleanups = Vec::with_capacity(source_parameters.len());
     for (source_parameter, checked_parameter) in
         source_parameters.iter().zip(&structural_parameters).rev()
@@ -1766,7 +1766,10 @@ fn build_nominal_affine_unit_cleanup_machine(
         let cleanup_statements = program
             .statement_table
             .statements(cleanup_state.statement_nodes);
-        if (!allow_executable_drop && !cleanup_statements.is_empty())
+        if !cleanup_statements.is_empty() {
+            executable_cleanup_count += 1;
+        }
+        if executable_cleanup_count > 1
             || cleanup_statements.len() > 2
             || cleanup_statements
                 .iter()
