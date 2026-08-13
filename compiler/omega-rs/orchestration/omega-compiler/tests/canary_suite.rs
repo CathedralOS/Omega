@@ -10470,22 +10470,15 @@ fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_concat_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-concat-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier concat canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier concat canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier concat canary should run");
 
@@ -10498,7 +10491,7 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 owned `[u8; N] in Utf8` carrier MULTI-SEGMENT concat into a `&mut` OUT-PARAM
@@ -10508,22 +10501,15 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_alias_concat_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-alias-concat-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier alias concat canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier alias concat canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier alias concat canary should run");
 
@@ -10536,7 +10522,7 @@ fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 owned carrier concat with a FRAME-LOCAL source: `out_line = "== " + src +
@@ -10544,22 +10530,15 @@ fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_local_source_concat_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-local-source-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier local source concat canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier local source concat canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier local source concat canary should run");
 
@@ -10572,7 +10551,7 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // Carrier sibling of the slice-view-element test: a value-call guards on the
