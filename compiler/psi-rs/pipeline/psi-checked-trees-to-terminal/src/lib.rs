@@ -1731,11 +1731,6 @@ fn lower_structural_scalar_return_machine(
                 );
             }
             staged_short_circuit_bindings.push((binding_index, *expression));
-            if staged_short_circuit_bindings.len() > 2 {
-                return unsupported(
-                    "structural scalar cleanup supports at most two short-circuit local stages",
-                );
-            }
         }
     }
     for (binding_index, binding) in plan
@@ -10201,7 +10196,7 @@ mod tests {
     }
 
     #[test]
-    fn structural_scalar_return_supports_two_carried_short_circuit_local_continuations() {
+    fn structural_scalar_return_supports_repeated_carried_short_circuit_local_continuations() {
         let mut checked = hard_root_checked_fixture();
         install_structural_scalar_return_fixture(&mut checked);
         let plan = &mut checked
@@ -10235,9 +10230,19 @@ mod tests {
                 primitive_type: PrimitiveType::Bool,
                 value: CheckedScalarBindingValue::Expression,
             },
+            psi_checked_trees::CheckedScalarBinding {
+                statement_ordinal: 5,
+                primitive_type: PrimitiveType::Bool,
+                value: CheckedScalarBindingValue::Expression,
+            },
+            psi_checked_trees::CheckedScalarBinding {
+                statement_ordinal: 6,
+                primitive_type: PrimitiveType::Bool,
+                value: CheckedScalarBindingValue::Expression,
+            },
         ];
         plan.result_type = PrimitiveType::Bool;
-        plan.return_statement_ordinal = 5;
+        plan.return_statement_ordinal = 7;
         checked.facts.values.scalar_expressions.expressions = vec![
             psi_checked_trees::CheckedLocatedScalarExpression {
                 state: plan.state,
@@ -10292,27 +10297,53 @@ mod tests {
             psi_checked_trees::CheckedLocatedScalarExpression {
                 state: plan.state,
                 statement_ordinal: 5,
+                role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 5 },
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::And {
+                        left: Box::new(CheckedBooleanExpression::Local { position: 4 }),
+                        right: Box::new(CheckedBooleanExpression::Constant(true)),
+                    },
+                )),
+            },
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: plan.state,
+                statement_ordinal: 6,
+                role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 6 },
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Local {
+                        position: 5,
+                    })),
+                )),
+            },
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: plan.state,
+                statement_ordinal: 7,
                 role: CheckedScalarExpressionRole::Return,
                 expression: CheckedScalarExpression::Boolean(Box::new(
-                    CheckedBooleanExpression::Local { position: 4 },
+                    CheckedBooleanExpression::Local { position: 6 },
                 )),
             },
         ];
 
         let lowered = lower_machine(&checked, "example::Root::enter")
-            .expect("two short-circuit locals should compose through carried continuations");
+            .expect("repeated short-circuit locals should compose through carried continuations");
         let machine = &lowered.semantic_module.machines[0];
-        assert_eq!(machine.blocks.len(), 11);
+        assert_eq!(machine.blocks.len(), 16);
         let second_stage = machine
             .blocks
             .iter()
             .find(|block| block.id == block_id(6))
             .expect("the first short-circuit result enters the second decision stage");
-        let continuation = machine
+        let third_stage = machine
             .blocks
             .iter()
             .find(|block| block.id == block_id(11))
-            .expect("the second short-circuit result enters the return continuation");
+            .expect("the second short-circuit result enters the third decision stage");
+        let continuation = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == block_id(16))
+            .expect("the final short-circuit result enters the return continuation");
         assert!(matches!(
             machine.blocks[0].operations.first(),
             Some(Operation {
@@ -10329,6 +10360,20 @@ mod tests {
         ));
         assert!(matches!(
             second_stage.operations.as_slice(),
+            [Operation {
+                kind: OperationKind::BooleanNot { .. },
+                ..
+            }]
+        ));
+        assert!(matches!(
+            third_stage.parameters.as_slice(),
+            [ValueDeclaration {
+                scalar_type: ScalarType::Boolean,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            third_stage.operations.as_slice(),
             [Operation {
                 kind: OperationKind::BooleanNot { .. },
                 ..
@@ -10356,7 +10401,7 @@ mod tests {
             } if trivial_affine_discards == &[place_id(2), place_id(1)]
         ));
         assert!(
-            machine.blocks[..10]
+            machine.blocks[..15]
                 .iter()
                 .all(|block| match &block.terminator {
                     Terminator::Conditional {
@@ -10371,7 +10416,9 @@ mod tests {
                         trivial_affine_discards,
                         ..
                     } => {
-                        matches!(*target, target if target == block_id(6) || target == block_id(11))
+                        matches!(*target, target if target == block_id(6)
+                            || target == block_id(11)
+                            || target == block_id(16))
                             && trivial_affine_discards.is_empty()
                     }
                     _ => false,
@@ -10391,15 +10438,17 @@ mod tests {
             lowered.semantic_module
         );
 
-        checked.facts.values.scalar_expressions.expressions[4].expression =
-            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-                left: Box::new(CheckedBooleanExpression::Local { position: 3 }),
-                right: Box::new(CheckedBooleanExpression::Constant(true)),
-            }));
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines[0]
+            .bindings[5]
+            .primitive_type = PrimitiveType::I32;
         assert!(matches!(
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
-                "structural scalar cleanup supports at most two short-circuit local stages"
+                "structural scalar short-circuit binding has a non-Boolean carrier"
             ))
         ));
     }

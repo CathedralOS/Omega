@@ -389,7 +389,7 @@ fn structural_scalar_return_retains_short_circuit_return_cleanup() {
 }
 
 #[test]
-fn structural_scalar_return_supports_two_carried_short_circuit_local_continuations() {
+fn structural_scalar_return_supports_repeated_carried_short_circuit_local_continuations() {
     let supported = checked(
         r#"
         data Token { value: i32; }
@@ -398,9 +398,11 @@ fn structural_scalar_return_supports_two_carried_short_circuit_local_continuatio
         {
             let seed: bool = true;
             let first: bool = seed && false;
-            let middle: bool = !first;
-            let second: bool = middle || false;
-            let inverted: bool = !second;
+            let first_middle: bool = !first;
+            let second: bool = first_middle || false;
+            let second_middle: bool = !second;
+            let third: bool = second_middle && true;
+            let inverted: bool = !third;
             inverted
         }
         "#,
@@ -416,14 +418,14 @@ fn structural_scalar_return_supports_two_carried_short_circuit_local_continuatio
         .flow
         .terminal_structural_scalar_returns
         .for_machine(machine)
-        .expect("branch-free scalar work may surround two carried short-circuit continuations");
-    assert_eq!(plan.bindings.len(), 5);
+        .expect("branch-free scalar work may surround repeated short-circuit continuations");
+    assert_eq!(plan.bindings.len(), 7);
     assert!(
         plan.bindings
             .iter()
             .all(|binding| binding.primitive_type == psi_typed_trees::types::PrimitiveType::Bool)
     );
-    assert_eq!(plan.return_statement_ordinal, 5);
+    assert_eq!(plan.return_statement_ordinal, 7);
     assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
 
     let rejected = checked(
@@ -432,10 +434,8 @@ fn structural_scalar_return_supports_two_carried_short_circuit_local_continuatio
         data Root {}
         machine Root::measure(token: Token) -> bool
         {
-            let first: bool = true && false;
-            let second: bool = first || true;
-            let third: bool = second && true;
-            third
+            let mut staged: bool = true && false;
+            staged
         }
         "#,
     );
@@ -452,6 +452,6 @@ fn structural_scalar_return_supports_two_carried_short_circuit_local_continuatio
             .terminal_structural_scalar_returns
             .for_machine(machine)
             .is_none(),
-        "a third short-circuit local stage remains fail-closed"
+        "mutable short-circuit local stages remain fail-closed"
     );
 }

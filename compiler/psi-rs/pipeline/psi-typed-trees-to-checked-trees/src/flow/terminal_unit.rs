@@ -276,25 +276,18 @@ fn build_structural_scalar_return_machine(
         return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    let short_circuit_binding_count = bindings
-        .iter()
-        .enumerate()
-        .filter(|(binding_index, _)| {
-            let Ok(binding_ordinal) = u32::try_from(*binding_index) else {
-                return false;
-            };
-            matches!(facts.values.scalar_expressions.expression_at(
+    let has_short_circuit_binding = bindings.iter().enumerate().any(|(binding_index, _)| {
+        let Ok(binding_ordinal) = u32::try_from(binding_index) else {
+            return false;
+        };
+        matches!(facts.values.scalar_expressions.expression_at(
                 state.symbol,
                 binding_ordinal,
                 CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
             ), Some(CheckedScalarExpression::Boolean(expression))
                 if checked_boolean_contains_short_circuit(expression))
-        })
-        .count();
-    if short_circuit_binding_count > 2 {
-        return None;
-    }
-    let return_supported = if short_circuit_binding_count != 0 {
+    });
+    let return_supported = if has_short_circuit_binding {
         is_branch_free_structural_scalar_expression(
             return_expression,
             scalar_parameters.len(),
