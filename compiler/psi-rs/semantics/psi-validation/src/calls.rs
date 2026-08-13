@@ -1488,6 +1488,9 @@ fn summarize_state_written_paths(
                 }
                 let relative = stable_assignment_target_path(
                     program,
+                    machine,
+                    &machine_symbols,
+                    active_states,
                     assignment.target,
                     parameters,
                     &isolated_local_roots,
@@ -2064,9 +2067,15 @@ fn stable_alias_place_origin(
 }
 
 /// Resolve an assignment target using the established direct-place behavior,
-/// with one additional structural case for a transparent call-produced place.
+/// plus the bounded structural origin algebra shared by stable aliases. This
+/// admits a validated effectful index through a stable alias or transparent
+/// helper result while preserving the depth, rebinding, and opacity fences.
+#[allow(clippy::too_many_arguments)]
 fn stable_assignment_target_path(
     program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
     target: ExpressionHandle,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -2077,8 +2086,11 @@ fn stable_assignment_target_path(
         return Some(rebase_local_alias_path(&relative, aliases));
     }
     Some(
-        stable_alias_expression_origin(
+        stable_alias_initializer_origin(
             program,
+            current_machine,
+            machine_symbols,
+            active_states,
             target,
             parameters,
             isolated_local_roots,
@@ -3778,6 +3790,9 @@ fn build_permuted_cycle_frame_equation<'program>(
                 }
                 let relative = stable_assignment_target_path(
                     program,
+                    machine,
+                    machine_symbols,
+                    &mut active_states,
                     assignment.target,
                     parameters,
                     &isolated_local_roots,
