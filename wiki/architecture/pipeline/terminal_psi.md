@@ -170,17 +170,17 @@ path, type, layout, copy bytes, and claim transfer through installation.
 Nested/dynamic indexes, wider signatures, projected contracts, content-bearing
 partitions, partial returns, and aggregate construction remain fenced.
 
-The first claim-free partial-cleanup slice accepts one affine transparent
-record with exactly two relevant structural fields. One direct field may move
-to a one-parameter ordinary Unit callee; the Unit return then names the sole
-residual sibling by exact root, canonical field path, and leaf type. The
-verifier independently proves that the moved and residual paths are distinct
-and exhaust the root. Interpretation charges the return edge before disposing
-the residual path, so fuel exhaustion cannot clean early. Omega carries both
-paths and types through all five target pipelines, object/image validation, and
-canonical installation records while emitting no cleanup instruction or
-runtime bitmap. Claims, content, contracts, nominal `drop`, nested paths,
-wider records, and multiple moves remain fenced.
+The claim-free flat partial-cleanup slice accepts one affine transparent record
+with at least two relevant structural fields. One direct field may move to a
+one-parameter ordinary Unit callee; the Unit return then names every residual
+sibling by exact root, canonical field path, and leaf type in reverse
+declaration order. The verifier independently proves that the moved and
+residual paths are disjoint and exhaust the root. Interpretation charges the
+return edge before disposing the residual paths, so fuel exhaustion cannot
+clean early. Omega carries every path and type through all five target
+pipelines, object/image validation, and canonical installation records while
+emitting no cleanup instruction or runtime bitmap. Claims, content, contracts,
+nominal `drop`, nested paths, and multiple moves remain fenced.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

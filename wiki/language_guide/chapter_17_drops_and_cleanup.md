@@ -234,7 +234,11 @@ payload field leaves same-case siblings live while impossible case alternatives
 remain inactive.
 
 An aggregate with structural field cleanup may be partially moved. Its cleanup
-plan visits only the remaining live fields.
+plan visits only the remaining live fields. The implemented terminal slice
+accepts one direct move from a flat affine record with at least two relevant
+structural fields and cleans every residual sibling in reverse declaration
+order. Nested paths, multiple moves, claims, content evidence, contracts, and
+nominal `drop` remain fenced from that slice.
 
 A type with a nominal whole-value `drop` body may not be partially moved:
 the body is entitled to receive one whole valid value. Such a type exposes an
