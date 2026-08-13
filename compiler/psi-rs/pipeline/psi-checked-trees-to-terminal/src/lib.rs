@@ -12,17 +12,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
-    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    types::PrimitiveType,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPropositionBinderArgumentKind,
+    CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralReturnMachinePlan,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitBoundaryMachinePlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
@@ -54,12 +54,12 @@ use psi_terminal::{
     MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -1541,6 +1541,22 @@ fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    let mut partial_matches = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .machines
+        .iter()
+        .filter(|plan| plan.machine.machine == selection.machine);
+    if let Some(plan) = partial_matches.next() {
+        if partial_matches.next().is_some() {
+            return unsupported("partial affine Unit cleanup plan is duplicated");
+        }
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("partial affine Unit cleanup requires an attached signature");
+        }
+        return lower_partial_affine_unit_cleanup_machine(checked, plan);
+    }
     if let Some(plan) = checked
         .facts
         .flow
@@ -3256,6 +3272,199 @@ fn lower_structural_type_plans(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok((declarations, type_ids))
+}
+
+fn lower_partial_affine_unit_cleanup_machine(
+    checked: &CheckedTrees,
+    partial: &CheckedPartialAffineUnitCleanupMachinePlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let plan = &partial.machine;
+    if checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .any(|candidate| candidate.machine == plan.machine)
+    {
+        return unsupported("partial affine Unit machine is also published in the root-only lane");
+    }
+    let [parameter] = plan.structural_parameters.as_slice() else {
+        return unsupported("partial affine Unit cleanup requires one structural parameter");
+    };
+    let [residual] = partial.residual_affine_discards.as_slice() else {
+        return unsupported("partial affine Unit cleanup requires one residual action");
+    };
+    let [
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            structural_arguments,
+            claim_transfers,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index,
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+        },
+    ] = plan.operations.as_slice()
+    else {
+        return unsupported("partial affine Unit cleanup operation sequence drifted");
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        return unsupported("partial affine Unit cleanup requires one structural argument");
+    };
+    let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice() else {
+        return unsupported("partial affine Unit transfer is not one direct field");
+    };
+    let [CheckedUnitStructuralPathSegment::Field(residual_field)] = residual.path.as_slice() else {
+        return unsupported("partial affine Unit cleanup is not one direct field");
+    };
+    if parameter.position != 0
+        || parameter.is_self
+        || parameter.multiplicity != Multiplicity::Affine
+        || !parameter.qualifications.is_empty()
+        || !plan.trivial_affine_locals.is_empty()
+        || !plan.entry_claims.is_empty()
+        || !plan.body_qualifications.is_empty()
+        || coordinate.statement_index != 0
+        || coordinate.call_ordinal != 0
+        || *statement_index != 1
+        || !claim_transfers.is_empty()
+        || argument.source_parameter_index != 0
+        || residual.source_parameter_index != 0
+        || moved_field == residual_field
+        || !trivial_affine_local_discard_ordinals.is_empty()
+        || !trivial_affine_discards.is_empty()
+    {
+        return unsupported("partial affine Unit cleanup signature or coordinates drifted");
+    }
+
+    let partial_plans = &checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types;
+    if partial_plans
+        .iter()
+        .any(|candidate| candidate.identity.is_empty())
+        || partial_plans.iter().enumerate().any(|(index, candidate)| {
+            partial_plans[..index]
+                .iter()
+                .any(|earlier| earlier.identity == candidate.identity)
+        })
+    {
+        return unsupported("partial affine Unit structural types are empty or duplicated");
+    }
+    let source_shape = partial_plans
+        .iter()
+        .find(|candidate| candidate.identity == parameter.type_identity)
+        .ok_or(LoweringError::Unsupported(
+            "partial affine Unit parameter type is absent from its checked shapes",
+        ))?;
+    let CheckedUnitStructuralTypeShape::Record { fields } = &source_shape.shape else {
+        return unsupported("partial affine Unit parameter is not a record");
+    };
+    let [first, second] = fields.as_slice() else {
+        return unsupported("partial affine Unit record no longer has exactly two fields");
+    };
+    let checked_field_type = |identity: &str| {
+        fields
+            .iter()
+            .find(|field| field.identity == identity)
+            .and_then(|field| (!field.relevance.is_erased()).then_some(&field.field_type))
+            .and_then(|field_type| match field_type {
+                CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                    Some(type_identity.as_str())
+                }
+                CheckedUnitStructuralFieldType::Scalar(_)
+                | CheckedUnitStructuralFieldType::Erased { .. } => None,
+            })
+    };
+    if first.identity == second.identity
+        || checked_field_type(moved_field) != Some(argument.type_identity.as_str())
+        || checked_field_type(residual_field) != Some(residual.type_identity.as_str())
+    {
+        return unsupported("partial affine Unit field path or type identity drifted");
+    }
+    let target = unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
+    let [target_parameter] = target.structural_parameters.as_slice() else {
+        return unsupported("partial affine Unit target signature drifted");
+    };
+    if target_parameter.type_identity != argument.type_identity
+        || target_parameter.is_self
+        || target_parameter.multiplicity != Multiplicity::Affine
+        || !target_parameter.qualifications.is_empty()
+    {
+        return unsupported("partial affine Unit target parameter drifted");
+    }
+
+    // Reuse the ordinary closure lowerer only after validating the separate
+    // checked lane. The staged copy is local producer state; no compatibility
+    // or alternate artifact path escapes this function.
+    let mut staged = checked.clone();
+    let staged_unit = &mut staged.facts.flow.terminal_unit_effects;
+    for shape in partial_plans {
+        match staged_unit
+            .structural_types
+            .iter()
+            .find(|candidate| candidate.identity == shape.identity)
+        {
+            Some(existing) if existing != shape => {
+                return unsupported(
+                    "partial affine Unit structural type conflicts with its closure",
+                );
+            }
+            Some(_) => {}
+            None => staged_unit.structural_types.push(shape.clone()),
+        }
+    }
+    staged_unit.machines.push(plan.clone());
+    let mut lowered = lower_attached_unit_closure(&staged, plan.machine)?;
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .ok_or(LoweringError::Unsupported(
+            "partial affine Unit entry machine was not lowered",
+        ))?;
+    let [terminal_parameter] = entry.structural_parameters.as_slice() else {
+        return unsupported("partial affine Unit terminal parameter drifted");
+    };
+    let [block] = entry.blocks.as_mut_slice() else {
+        return unsupported("partial affine Unit terminal control drifted");
+    };
+    let Terminator::ReturnUnit {
+        edge,
+        trivial_affine_discards: lowered_trivial_discards,
+    } = &block.terminator
+    else {
+        return unsupported("partial affine Unit terminal return drifted");
+    };
+    if !lowered_trivial_discards.is_empty() {
+        return unsupported("partial affine Unit return acquired root-only cleanup");
+    }
+    let residual_type = lookup_type_id(
+        &lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.identity.clone(), declaration.id))
+            .collect::<Vec<_>>(),
+        &residual.type_identity,
+    )?;
+    block.terminator = Terminator::ReturnUnitPartialAffine {
+        edge: *edge,
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: vec![StructuralAffineDiscard {
+            place: terminal_parameter.place,
+            path: lower_structural_path(&residual.path),
+            structural_type: residual_type,
+        }],
+    };
+    Ok(lowered)
 }
 
 fn lower_attached_unit_closure(
@@ -9324,7 +9533,12 @@ mod tests {
             ContentFieldSegment,
         },
     };
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_symbols::SymbolHandle;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
     fn unit_claim_at(
         machine: SymbolHandle,
@@ -9341,6 +9555,192 @@ mod tests {
 
     fn unit_claim(machine: SymbolHandle, state: SymbolHandle) -> PermissionClaimIdentity {
         unit_claim_at(machine, state, 0)
+    }
+
+    fn partial_affine_unit_checked_fixture() -> CheckedTrees {
+        let source = r#"
+            data Token { value: u64; }
+            data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take(token: Token) {}
+            data Root {}
+            machine Root::enter(pair: Pair) {
+                Sink::take(pair.right);
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        lower_typed_trees(typed).expect("check")
+    }
+
+    #[test]
+    fn partial_affine_unit_cleanup_lowers_exact_terminal_paths_before_verification() {
+        let checked = partial_affine_unit_checked_fixture();
+        let [plan] = checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .machines
+            .as_slice()
+        else {
+            panic!("expected one checked partial-cleanup plan")
+        };
+        let lowered = lower_partial_affine_unit_cleanup_machine(&checked, plan)
+            .expect("strict checked partial cleanup should lower in memory");
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .expect("terminal entry");
+        let [call] = entry.blocks[0].operations.as_slice() else {
+            panic!("partial cleanup entry should contain its one call")
+        };
+        let OperationKind::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = &call.kind
+        else {
+            panic!("partial cleanup entry should call Unit")
+        };
+        assert_eq!(
+            structural_arguments[0].path,
+            [StructuralPathSegment::Field("right".to_owned())]
+        );
+        assert!(claim_transfers.is_empty());
+        let Terminator::ReturnUnitPartialAffine {
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } = &entry.blocks[0].terminator
+        else {
+            panic!("partial cleanup requires its distinct terminal return")
+        };
+        assert!(trivial_affine_discards.is_empty());
+        assert_eq!(residual_affine_discards.len(), 1);
+        assert_eq!(
+            residual_affine_discards[0].path,
+            [StructuralPathSegment::Field("left".to_owned())]
+        );
+        assert_eq!(
+            residual_affine_discards[0].place,
+            entry.structural_parameters[0].place
+        );
+        assert!(
+            lowered
+                .semantic_module
+                .structural_types
+                .iter()
+                .any(|declaration| {
+                    declaration.id == residual_affine_discards[0].structural_type
+                        && declaration.identity.contains("Token")
+                })
+        );
+        assert!(matches!(
+            psi_terminal_verifier::validate_module(&lowered.semantic_module),
+            Err(psi_terminal_verifier::ModuleError::PartialAffineCleanupNotYetVerified)
+        ));
+        assert!(matches!(
+            psi_terminal_codec::encode_module(&lowered.semantic_module),
+            Err(psi_terminal_codec::CodecError::InvalidModule(
+                psi_terminal_verifier::ModuleError::PartialAffineCleanupNotYetVerified
+            ))
+        ));
+        let entry_name = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .find(|selection| selection.machine == plan.machine.machine)
+            .expect("partial cleanup terminal selection")
+            .name
+            .clone();
+        assert!(matches!(
+            lower_machine(&checked, &entry_name),
+            Err(LoweringError::InvalidTerminalModule(
+                psi_terminal_verifier::ModuleError::PartialAffineCleanupNotYetVerified
+            ))
+        ));
+    }
+
+    #[test]
+    fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates() {
+        let checked = partial_affine_unit_checked_fixture();
+        let original = checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .machines[0]
+            .clone();
+
+        let mut stale = original.clone();
+        stale.residual_affine_discards[0]
+            .path
+            .push(CheckedUnitStructuralPathSegment::Field("nested".to_owned()));
+        assert!(matches!(
+            lower_partial_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "partial affine Unit cleanup is not one direct field"
+            ))
+        ));
+
+        let mut stale = original.clone();
+        stale.residual_affine_discards[0].type_identity = "stale::Token".to_owned();
+        assert!(matches!(
+            lower_partial_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "partial affine Unit field path or type identity drifted"
+            ))
+        ));
+
+        let mut stale_checked = partial_affine_unit_checked_fixture();
+        let stale_plan = stale_checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .machines[0]
+            .clone();
+        let source_identity = stale_plan.machine.structural_parameters[0]
+            .type_identity
+            .clone();
+        let shape = stale_checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == source_identity)
+            .expect("partial source shape");
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+            unreachable!()
+        };
+        let mut extra = fields[0].clone();
+        extra.identity = "extra".to_owned();
+        fields.push(extra);
+        assert!(matches!(
+            lower_partial_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
+            Err(LoweringError::Unsupported(
+                "partial affine Unit record no longer has exactly two fields"
+            ))
+        ));
+
+        let mut stale = original;
+        let CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
+            &mut stale.machine.operations[0]
+        else {
+            unreachable!()
+        };
+        coordinate.statement_index = 1;
+        assert!(matches!(
+            lower_partial_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "partial affine Unit cleanup signature or coordinates drifted"
+            ))
+        ));
     }
 
     fn hard_root_checked_fixture() -> CheckedTrees {

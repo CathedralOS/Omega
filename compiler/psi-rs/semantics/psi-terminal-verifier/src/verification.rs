@@ -233,6 +233,7 @@ fn reconstruct_machine_semantics(
             } => vec![when_true.target, when_false.target],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
@@ -1123,7 +1124,9 @@ fn reconstruct_machine_semantics(
                 ));
                 exits.push(axioms);
             }
-            Terminator::ReturnUnit { .. } => exits.push(axioms),
+            Terminator::ReturnUnit { .. } | Terminator::ReturnUnitPartialAffine { .. } => {
+                exits.push(axioms)
+            }
             Terminator::ReturnStructural {
                 returned_claims, ..
             } => {

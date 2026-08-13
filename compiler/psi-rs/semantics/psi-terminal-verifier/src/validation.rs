@@ -75,6 +75,14 @@ fn validate_module_with_policy(
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
+    if module.machines.iter().any(|machine| {
+        machine
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. }))
+    }) {
+        return Err(ModuleError::PartialAffineCleanupNotYetVerified);
+    }
     validate_proposition_vocabulary(module)?;
     validate_structural_foundation(module)?;
 
@@ -3385,6 +3393,7 @@ fn validate_structural_frontier(
             } => vec![when_true.target, when_false.target],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
@@ -3613,6 +3622,9 @@ fn validate_structural_frontier(
                     });
                 }
             }
+            Terminator::ReturnUnitPartialAffine { .. } => {
+                return Err(ModuleError::PartialAffineCleanupNotYetVerified);
+            }
             Terminator::Return {
                 trivial_affine_discards,
                 ..
@@ -3823,6 +3835,7 @@ fn validate_control_flow(
             } => vec![when_true.target, when_false.target],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
@@ -4003,6 +4016,9 @@ fn validate_control_flow(
                         block: block.id,
                     });
                 }
+            }
+            Terminator::ReturnUnitPartialAffine { .. } => {
+                return Err(ModuleError::PartialAffineCleanupNotYetVerified);
             }
             Terminator::ReturnStructural { source, .. } => {
                 if machine.result.structural().is_none() {
@@ -4706,6 +4722,7 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    PartialAffineCleanupNotYetVerified,
     EmptyModule,
     DuplicatePropositionDeclaration(PropositionId),
     DuplicatePropositionApplication(PropositionId),

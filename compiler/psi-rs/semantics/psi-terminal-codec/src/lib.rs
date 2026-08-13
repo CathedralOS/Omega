@@ -1857,6 +1857,11 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(*place);
             }
         }
+        Terminator::ReturnUnitPartialAffine { .. } => {
+            return Err(CodecError::UnsupportedSemanticVariant(
+                "ReturnUnitPartialAffine",
+            ));
+        }
         Terminator::ReturnStructural {
             edge,
             source,
@@ -3818,6 +3823,7 @@ impl<'bytes> Reader<'bytes> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodecError {
+    UnsupportedSemanticVariant(&'static str),
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),

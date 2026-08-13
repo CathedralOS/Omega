@@ -82,6 +82,7 @@ impl TerminalFuelSchedule {
             | Terminator::Conditional { .. }
             | Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => 1,
         }
@@ -218,6 +219,7 @@ impl TerminalFuelMeter {
             Terminator::Jump { edge, .. }
             | Terminator::Return { edge, .. }
             | Terminator::ReturnUnit { edge, .. }
+            | Terminator::ReturnUnitPartialAffine { edge, .. }
             | Terminator::ReturnStructural { edge, .. }
             | Terminator::Crash { edge, .. } => *edge,
             Terminator::Conditional { .. } => {

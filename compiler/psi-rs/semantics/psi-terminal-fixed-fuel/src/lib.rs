@@ -259,6 +259,7 @@ pub fn derive_fixed_safe_point_segments(
             }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => {}
         }
@@ -450,6 +451,7 @@ fn outcome_bounds_from(
         (
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. },
             Some(prefix),
         ) => OutcomeBounds {
@@ -601,6 +603,12 @@ fn derive_segment_bound(
                 });
             }
             Terminator::ReturnUnit { edge, .. } => {
+                return Err(FixedFuelError::SegmentEndNotReached {
+                    requested: end_edge,
+                    reached_terminal: edge,
+                });
+            }
+            Terminator::ReturnUnitPartialAffine { edge, .. } => {
                 return Err(FixedFuelError::SegmentEndNotReached {
                     requested: end_edge,
                     reached_terminal: edge,

@@ -501,6 +501,16 @@ pub struct StructuralArgument {
     pub path: Vec<StructuralPathSegment>,
 }
 
+/// One exact claim-free affine structural place disposed on an ordinary edge.
+/// Unlike the root-only trivial discard vocabulary, this action retains the
+/// canonical path and independently checkable leaf type reached by that path.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralAffineDiscard {
+    pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub structural_type: StructuralTypeId,
+}
+
 /// Transfer one caller-local live claim through the structural argument at
 /// `argument_index`. The callee reconstructs its own entry claim from that
 /// parameter; callers cannot author callee-local claim identities.
@@ -778,6 +788,15 @@ pub enum Terminator {
         /// Entries are structural places in reverse declaration order.
         trivial_affine_discards: Vec<PlaceId>,
     },
+    /// Finish normally after committing an exact projected transfer and then
+    /// disposing only the remaining live affine structural places. This is a
+    /// distinct pre-release variant so root-only consumers cannot silently
+    /// erase path-sensitive cleanup.
+    ReturnUnitPartialAffine {
+        edge: EdgeId,
+        trivial_affine_discards: Vec<PlaceId>,
+        residual_affine_discards: Vec<StructuralAffineDiscard>,
+    },
     /// Transfer one structural value and its complete live claim set to the
     /// machine result. Fuel is charged before any transfer or cleanup commits.
     ReturnStructural {
@@ -818,6 +837,7 @@ impl Terminator {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
+            | Self::ReturnUnitPartialAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } => {
@@ -831,6 +851,7 @@ impl Terminator {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
+            | Self::ReturnUnitPartialAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => (*edge, None),
             Self::Conditional {
