@@ -13114,17 +13114,11 @@ fn runtime_value_call_let_combine_exit_canary_runs() {
     // eagerly and correct (dbl(3)=6, dbl(4)=8 -> 6*100+8 == 608 -> exit 70). Guards against
     // re-broadening the shared-value-call-slot fence into a false positive on this valid pattern.
     let canary = pass_canary("calls/runtime_value_call_let_combine_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call let-combine canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value-call let-combine canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value-call let-combine canary should run");
     assert_eq!(
@@ -13135,7 +13129,7 @@ fn runtime_value_call_let_combine_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
