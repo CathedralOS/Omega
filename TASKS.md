@@ -434,8 +434,9 @@ reach or trust, and private proof improvements do not change public identity.
   exact reverse-declaration affine cleanup through Unit/scalar returns and
   bounded acyclic structural control, including short-circuit Boolean stages and
   one equal-frontier diamond. One direct-field partial-record transfer now
-  preserves and disposes its exact residual sibling through interpretation and
-  all five native artifact paths. One whole affine parameter whose record is
+  preserves and disposes every residual sibling of a finite flat structural
+  record in reverse declaration order through interpretation and all five
+  native artifact paths. One whole affine parameter whose record is
   empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native
   artifact paths. The cleanup may be empty or make a finite source-ordered
@@ -445,8 +446,8 @@ reach or trust, and private proof improvements do not change public identity.
   interpretation, fuel, and every native artifact path. They may share a
   target, and every action may use the bounded executable body, including a
   shared cleanup target or helper; native calls retain exact edge/action
-  ordinals. Add contextual cleanup-contract checking,
-  wider structural partial-value cleanup, repeated-cycle resource composition, and
+  ordinals. Add contextual cleanup-contract checking, nested and multiple-move
+  structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
