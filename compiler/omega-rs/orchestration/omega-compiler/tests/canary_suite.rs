@@ -13579,16 +13579,11 @@ fn runtime_bubble_sort_exit_canary_runs() {
     // Bubble sort with nested loops, the adjacent index `j+1` via a field, a field-bound
     // compare, and a value-swap. Sorts [5,2,8,1,9,3] and self-checks four cells -> 70.
     let canary = pass_canary("collections/runtime_bubble_sort_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-bubble-sort-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bubble sort canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-bubble-sort-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bubble sort canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bubble sort canary should run");
     assert_eq!(
@@ -13598,7 +13593,7 @@ fn runtime_bubble_sort_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13607,16 +13602,11 @@ fn runtime_2d_transpose_exit_canary_runs() {
     // (row,col) and transposed output index are computed into fields, then used as plain
     // indices. Self-checks four transposed cells -> exit 70. Proves 2D/matrix data.
     let canary = pass_canary("collections/runtime_2d_transpose_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("2d transpose canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("2d transpose canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("2d transpose canary should run");
     assert_eq!(
@@ -13626,7 +13616,7 @@ fn runtime_2d_transpose_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
