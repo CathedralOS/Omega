@@ -2056,7 +2056,6 @@ fn lower_unit_function(
                             function.machine,
                         ));
                     }
-                    let mut executable_cleanup_count = 0_usize;
                     for cleanup in &nominal_cleanups {
                         let Some(cleanup_function) =
                             functions.get(&cleanup.cleanup_machine).copied()
@@ -2081,19 +2080,13 @@ fn lower_unit_function(
                                 function.machine,
                             ));
                         }
-                        executable_cleanup_count +=
-                            usize::from(validate_bounded_nominal_cleanup_body(
-                                function.machine,
-                                cleanup,
-                                cleanup_function,
-                                functions,
-                                structural_types,
-                            )?);
-                    }
-                    if nominal_cleanups.len() == 2 && executable_cleanup_count > 1 {
-                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        validate_bounded_nominal_cleanup_body(
                             function.machine,
-                        ));
+                            cleanup,
+                            cleanup_function,
+                            functions,
+                            structural_types,
+                        )?;
                     }
                 }
                 if !nominal_cleanups.is_empty()
@@ -2173,7 +2166,7 @@ fn validate_bounded_nominal_cleanup_body(
     cleanup_function: &TerminalAbstractFunction,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<bool, LoweringError> {
+) -> Result<(), LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(caller);
     let Some((cleanup_return, helper_calls)) = cleanup_function.operations.split_last() else {
         return Err(invalid());
@@ -2215,7 +2208,6 @@ fn validate_bounded_nominal_cleanup_body(
     {
         return Err(invalid());
     }
-    let executable = !helper_sites.is_empty();
     for (_, helper_machine) in helper_sites {
         let helper = functions
             .get(&helper_machine)
@@ -2249,7 +2241,7 @@ fn validate_bounded_nominal_cleanup_body(
             return Err(invalid());
         }
     }
-    Ok(executable)
+    Ok(())
 }
 
 fn structural_shape(
@@ -4733,7 +4725,7 @@ mod tests {
     };
 
     #[test]
-    fn two_nominal_cleanups_admit_at_most_one_bounded_executable_body() {
+    fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bodies() {
         let caller = MachineId::new(1).unwrap();
         let executable_cleanup = MachineId::new(2).unwrap();
         let empty_cleanup = MachineId::new(3).unwrap();
@@ -4862,10 +4854,21 @@ mod tests {
                 claim_transfers: Vec::new(),
             },
         );
-        assert!(matches!(
-            lower_to_target_operations(&plan, NativeTarget::linux_x64()),
-            Err(LoweringError::UnsupportedOperationInUnitFunction(machine)) if machine == caller
-        ));
+        lower_to_target_operations(&plan, NativeTarget::linux_x64())
+            .expect("two distinct executable cleanup bodies lower");
+
+        let TerminalAbstractOperation::ReturnUnit {
+            cleanup_actions, ..
+        } = &mut plan.functions[0].operations[0]
+        else {
+            unreachable!("caller remains a direct return")
+        };
+        let TerminalAffineCleanupAction::InvokeNominal(second) = &mut cleanup_actions[1] else {
+            unreachable!("second action remains nominal")
+        };
+        second.cleanup_machine = executable_cleanup;
+        lower_to_target_operations(&plan, NativeTarget::linux_x64())
+            .expect("two actions sharing one executable cleanup body lower");
     }
 
     #[test]

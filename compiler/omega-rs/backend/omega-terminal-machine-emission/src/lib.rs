@@ -808,27 +808,25 @@ fn emit_unit_body(
                     return Err(EmissionError::UnsupportedAggregatePlacement);
                 }
                 edge_site = Some(*psi_edge);
-                let nominal_execution = nominal_cleanups
+                let nominal_execution = cleanup_actions
                     .iter()
                     .enumerate()
-                    .map(|(action_ordinal, cleanup)| {
-                        Ok((
+                    .filter_map(|(action_ordinal, action)| {
+                        let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
+                            action
+                        else {
+                            return None;
+                        };
+                        Some(
                             u32::try_from(action_ordinal)
-                                .map_err(|_| EmissionError::UnsupportedAggregatePlacement)?,
-                            *cleanup,
-                            executable_nominal_cleanup(cleanup, functions)?,
-                        ))
+                                .map_err(|_| EmissionError::UnsupportedAggregatePlacement)
+                                .and_then(|action_ordinal| {
+                                    executable_nominal_cleanup(cleanup, functions)
+                                        .map(|executable| (action_ordinal, cleanup, executable))
+                                }),
+                        )
                     })
                     .collect::<Result<Vec<_>, EmissionError>>()?;
-                if nominal_execution.len() == 2
-                    && nominal_execution
-                        .iter()
-                        .filter(|(_, _, executable)| *executable)
-                        .count()
-                        > 1
-                {
-                    return Err(EmissionError::UnsupportedAggregatePlacement);
-                }
                 for (action_ordinal, cleanup, executable) in nominal_execution {
                     if executable {
                         let owner = TerminalCallSiteOwner::CleanupAction {
@@ -5887,42 +5885,147 @@ mod tests {
                 assert_eq!(root.internal_calls[0].target, cleanup_machine);
                 assert_eq!(root.internal_unit_calls[0].target, cleanup_machine);
             }
+
+            let (mut both_empty, _, _) = two_nominal_one_executable_plan(target, 0);
+            let TerminalTargetOperation::UnitBody(cleanup_body) =
+                &mut both_empty.functions[1].operation
+            else {
+                unreachable!("cleanup remains Unit")
+            };
+            cleanup_body.operations.remove(0);
+            let emitted =
+                emit_machine_code(&both_empty).expect("two empty cleanups remain admitted");
+            assert!(emitted.functions[0].internal_calls.is_empty());
+            assert!(emitted.functions[0].internal_unit_calls.is_empty());
+
+            let (mut shared, edge, cleanup_machine) = two_nominal_one_executable_plan(target, 0);
+            let TerminalTargetOperation::UnitBody(root_body) = &mut shared.functions[0].operation
+            else {
+                unreachable!("root remains Unit")
+            };
+            let TerminalTargetUnitOperation::Return {
+                cleanup_actions, ..
+            } = &mut root_body.operations[0]
+            else {
+                unreachable!("root remains a direct return")
+            };
+            let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(second) =
+                &mut cleanup_actions[1]
+            else {
+                unreachable!("second action remains nominal")
+            };
+            second.cleanup_machine = cleanup_machine;
+            let emitted = emit_machine_code(&shared)
+                .expect("two actions sharing one executable cleanup emit");
+            let root = &emitted.functions[0];
+            assert_eq!(root.internal_calls.len(), 2);
+            assert_eq!(root.internal_unit_calls.len(), 2);
+            for (action_ordinal, (relocation, custody)) in root
+                .internal_calls
+                .iter()
+                .zip(&root.internal_unit_calls)
+                .enumerate()
+            {
+                let owner = TerminalCallSiteOwner::CleanupAction {
+                    edge,
+                    action_ordinal: u32::try_from(action_ordinal).unwrap(),
+                };
+                assert_eq!(relocation.owner, owner);
+                assert_eq!(custody.owner, owner);
+                assert_eq!(relocation.target, cleanup_machine);
+                assert_eq!(custody.target, cleanup_machine);
+            }
+            assert!(root.internal_calls[0].offset < root.internal_calls[1].offset);
+            assert!(
+                root.internal_unit_calls[0].code_offset < root.internal_unit_calls[1].code_offset
+            );
+
+            let (mut distinct, edge, first_cleanup) = two_nominal_one_executable_plan(target, 0);
+            let second_cleanup = distinct.functions[2].machine;
+            let helper_machine = MachineId::new(4).expect("shared empty helper");
+            let helper_return = EdgeId::new(4).expect("shared helper return");
+            let mut helper = distinct.functions[2].clone();
+            helper.machine = helper_machine;
+            helper.provenance.edges = vec![helper_return];
+            let TerminalTargetOperation::UnitBody(helper_body) = &mut helper.operation else {
+                unreachable!("helper remains Unit")
+            };
+            let TerminalTargetUnitOperation::Return { psi_edge, .. } =
+                &mut helper_body.operations[0]
+            else {
+                unreachable!("helper remains empty")
+            };
+            *psi_edge = helper_return;
+            let TerminalTargetOperation::UnitBody(first_body) =
+                &mut distinct.functions[1].operation
+            else {
+                unreachable!("first cleanup remains Unit")
+            };
+            let TerminalTargetUnitOperation::Call { callee, .. } = &mut first_body.operations[0]
+            else {
+                unreachable!("first cleanup remains executable")
+            };
+            *callee = helper_machine;
+            let second_call = OperationId::new(2).expect("second cleanup call");
+            distinct.functions[2]
+                .provenance
+                .operations
+                .push(second_call);
+            let TerminalTargetOperation::UnitBody(second_body) =
+                &mut distinct.functions[2].operation
+            else {
+                unreachable!("second cleanup remains Unit")
+            };
+            second_body.operations.insert(
+                0,
+                TerminalTargetUnitOperation::Call {
+                    psi_operation: second_call,
+                    callee: helper_machine,
+                    arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                },
+            );
+            distinct.functions.push(helper);
+            let emitted = emit_machine_code(&distinct)
+                .expect("two distinct executable cleanup targets emit in action order");
+            let root = &emitted.functions[0];
+            assert_eq!(
+                root.internal_calls
+                    .iter()
+                    .map(|call| (call.owner, call.target))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (
+                        TerminalCallSiteOwner::CleanupAction {
+                            edge,
+                            action_ordinal: 0,
+                        },
+                        first_cleanup,
+                    ),
+                    (
+                        TerminalCallSiteOwner::CleanupAction {
+                            edge,
+                            action_ordinal: 1,
+                        },
+                        second_cleanup,
+                    ),
+                ]
+            );
+            assert_eq!(
+                root.internal_unit_calls
+                    .iter()
+                    .map(|call| (call.owner, call.target))
+                    .collect::<Vec<_>>(),
+                root.internal_calls
+                    .iter()
+                    .map(|call| (call.owner, call.target))
+                    .collect::<Vec<_>>()
+            );
+            assert!(root.internal_calls[0].offset < root.internal_calls[1].offset);
+            assert!(
+                root.internal_unit_calls[0].code_offset < root.internal_unit_calls[1].code_offset
+            );
         }
-
-        let (mut both_empty, _, _) = two_nominal_one_executable_plan(NativeTarget::linux_x64(), 0);
-        let TerminalTargetOperation::UnitBody(cleanup_body) =
-            &mut both_empty.functions[1].operation
-        else {
-            unreachable!("cleanup remains Unit")
-        };
-        cleanup_body.operations.remove(0);
-        let emitted = emit_machine_code(&both_empty).expect("two empty cleanups remain admitted");
-        assert!(emitted.functions[0].internal_calls.is_empty());
-        assert!(emitted.functions[0].internal_unit_calls.is_empty());
-
-        let (mut both_executable, _, cleanup_machine) =
-            two_nominal_one_executable_plan(NativeTarget::linux_x64(), 0);
-        let TerminalTargetOperation::UnitBody(root_body) =
-            &mut both_executable.functions[0].operation
-        else {
-            unreachable!("root remains Unit")
-        };
-        let TerminalTargetUnitOperation::Return {
-            cleanup_actions, ..
-        } = &mut root_body.operations[0]
-        else {
-            unreachable!("root remains a direct return")
-        };
-        let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(second) =
-            &mut cleanup_actions[1]
-        else {
-            unreachable!("second action remains nominal")
-        };
-        second.cleanup_machine = cleanup_machine;
-        assert!(matches!(
-            emit_machine_code(&both_executable),
-            Err(EmissionError::UnsupportedAggregatePlacement)
-        ));
     }
 
     fn assert_two_call_nominal_cleanup(target: NativeTarget) {
