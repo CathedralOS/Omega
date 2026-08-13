@@ -430,7 +430,7 @@ fn retains_two_executable_drop_bodies_with_distinct_helpers() {
 }
 
 #[test]
-fn retains_three_call_executable_drop_body_in_source_order() {
+fn retains_five_call_executable_drop_body_in_source_order() {
     let checked = checked(
         r#"
         data FirstHelper {}
@@ -439,12 +439,18 @@ fn retains_three_call_executable_drop_body_in_source_order() {
         machine SecondHelper::touch() {}
         data ThirdHelper {}
         machine ThirdHelper::touch() {}
+        data FourthHelper {}
+        machine FourthHelper::touch() {}
+        data FifthHelper {}
+        machine FifthHelper::touch() {}
 
         data Token { value: u64; }
         machine Token::drop(&mut self) {
             FirstHelper::touch();
             SecondHelper::touch();
             ThirdHelper::touch();
+            FourthHelper::touch();
+            FifthHelper::touch();
         }
 
         data Root {}
@@ -456,7 +462,7 @@ fn retains_three_call_executable_drop_body_in_source_order() {
         .flow
         .terminal_nominal_affine_unit_cleanups
         .for_machine(machine_named(&checked, "enter"))
-        .expect("three-call executable cleanup is retained");
+        .expect("five-call executable cleanup is retained");
     let [cleanup] = plan.cleanups.as_slice() else {
         panic!("entry retains one nominal cleanup")
     };
@@ -466,8 +472,8 @@ fn retains_three_call_executable_drop_body_in_source_order() {
         .terminal_unit_effects
         .for_machine(cleanup.cleanup_machine)
         .expect("cleanup has an exact Unit plan");
-    assert_eq!(target.operations.len(), 4);
-    let helper_targets = target.operations[..3]
+    assert_eq!(target.operations.len(), 6);
+    let helper_targets = target.operations[..5]
         .iter()
         .map(|operation| match operation {
             CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => *target_machine,
@@ -479,12 +485,14 @@ fn retains_three_call_executable_drop_body_in_source_order() {
         [
             "FirstHelper::touch",
             "SecondHelper::touch",
-            "ThirdHelper::touch"
+            "ThirdHelper::touch",
+            "FourthHelper::touch",
+            "FifthHelper::touch"
         ]
         .map(|name| machine_named(&checked, name))
     );
     assert!(matches!(
-        target.operations[3],
+        target.operations[5],
         CheckedUnitEffectOperationPlan::ReturnUnit { .. }
     ));
 }
@@ -592,7 +600,8 @@ fn retains_wide_flat_mixed_primitive_record_for_whole_root_nominal_cleanup() {
 }
 
 #[test]
-fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_shapes() {
+fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed_for_unsupported_shapes()
+ {
     let checked = checked(
         r#"
         data Empty {}
@@ -623,7 +632,7 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
         machine Root::exact(token: Token) {}
         machine Root::two(first: Token, second: Token) {}
         machine Root::three(first: Token, second: Token, third: Token) {}
-        machine Root::four(first: Token, second: Token, third: Token, fourth: Token) {}
+        machine Root::five(first: Token, second: Token, third: Token, fourth: Token, fifth: Token) {}
         machine Root::with_local(token: Token) {
             let local: Empty = Empty {};
         }
@@ -688,8 +697,24 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
             .all(|cleanup| cleanup.cleanup_machine == three.cleanups[0].cleanup_machine),
         "same-type roots may share one exact cleanup target"
     );
+    let five = plans
+        .for_machine(machine_named(&checked, "five"))
+        .expect("five whole affine roots have an ordered cleanup plan");
+    assert_eq!(
+        five.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        [4, 3, 2, 1, 0],
+        "five independent roots clean in reverse declaration order"
+    );
+    assert!(
+        five.cleanups
+            .iter()
+            .all(|cleanup| cleanup.cleanup_machine == five.cleanups[0].cleanup_machine),
+        "same-type roots may share one exact cleanup target"
+    );
     for machine in [
-        "four",
         "with_local",
         "with_call",
         "with_contract",
@@ -713,7 +738,7 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
     }
     assert_eq!(
         plans.machines.len(),
-        3,
+        4,
         "rejected candidates must not leave partial cleanup plans"
     );
 }

@@ -218,10 +218,9 @@ fn validate_program_internal(
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
-        // The executable cleanup slice is deliberately tiny: besides the
-        // established empty body, admit one, two, or three ordinary zero-argument
-        // calls to mutually distinct exact-empty attached helpers. Wider
-        // executable bodies remain fenced as pending engineering.
+        // Besides the established empty body, the executable cleanup slice
+        // admits a finite nonempty source-ordered list of ordinary zero-argument
+        // calls to mutually distinct exact-empty attached helpers.
         if machine.name.as_str().ends_with("::drop")
             && program.machine_states(machine).iter().any(|state| {
                 !program
@@ -232,7 +231,7 @@ fn validate_program_internal(
             && !is_exact_executable_drop_body(program, machine)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has a non-empty `drop` body outside the executable cleanup slice. Keep the body empty, or use one, two, or three ordinary zero-argument calls to mutually distinct empty attached helpers.",
+                "machine `{}` has a non-empty `drop` body outside the executable cleanup slice. Keep the body empty, or use a finite nonempty source-ordered list of ordinary zero-argument calls to mutually distinct empty attached helpers.",
                 machine.name,
             )));
         }
@@ -482,7 +481,7 @@ fn is_exact_executable_drop_body(
     let statements = program
         .statement_table
         .statements(cleanup_state.statement_nodes);
-    if !(1..=3).contains(&statements.len()) {
+    if statements.is_empty() {
         return false;
     }
 

@@ -272,6 +272,21 @@ fn three_nominal_affine_cleanups_count_shared_executable_target_and_helper_three
 }
 
 #[test]
+fn finite_nominal_cleanup_list_counts_every_shared_executable_invocation() {
+    let module = five_ordered_shared_executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("five shared executable cleanup actions verify");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("five shared executable cleanups have an exact repeated bound");
+    assert_eq!(certificate.ceiling_units(), 16);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
     let module = executable_nominal_affine_fixture();
     let verified = verify_module(
@@ -1342,6 +1357,44 @@ fn three_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
             cleanup_machine: machine_id(901),
         },
     );
+    module
+}
+
+fn five_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
+    let mut module = three_ordered_shared_executable_nominal_affine_fixture();
+    let caller = &mut module.machines[0];
+    for position in 3_u32..5 {
+        let place = place_id(u64::from(position) + 900);
+        caller
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place,
+                position,
+                is_self: false,
+                structural_type: structural_type_id(900),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            });
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position,
+                is_self: false,
+            },
+        });
+        let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cleanups.insert(
+            0,
+            NominalAffineCleanup {
+                place,
+                structural_type: structural_type_id(900),
+                cleanup_machine: machine_id(901),
+            },
+        );
+    }
     module
 }
 

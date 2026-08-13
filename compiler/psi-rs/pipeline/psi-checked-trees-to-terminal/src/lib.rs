@@ -3296,11 +3296,11 @@ fn lower_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if (2..=3).contains(&nominal.cleanups.len()) {
+    if nominal.cleanups.len() >= 2 {
         return lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal);
     }
     let [cleanup] = nominal.cleanups.as_slice() else {
-        return unsupported("nominal affine Unit cleanup list must contain one to three actions");
+        return unsupported("nominal affine Unit cleanup list must be nonempty");
     };
     let plan = &nominal.machine;
     if checked
@@ -3437,8 +3437,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
     else {
         return unsupported("nominal cleanup target operation sequence drifted");
     };
-    if cleanup_calls.len() > 3
-        || usize::try_from(*statement_index).ok() != Some(cleanup_calls.len())
+    if usize::try_from(*statement_index).ok() != Some(cleanup_calls.len())
         || !trivial_affine_local_discard_ordinals.is_empty()
         || !trivial_affine_discards.is_empty()
     {
@@ -3795,8 +3794,8 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 .is_empty()
     };
     let parameter_count = plan.structural_parameters.len();
-    if !(2..=3).contains(&parameter_count) || nominal.cleanups.len() != parameter_count {
-        return unsupported("ordered nominal cleanup requires two or three matched actions");
+    if parameter_count < 2 || nominal.cleanups.len() != parameter_count {
+        return unsupported("ordered nominal cleanup requires matched actions");
     }
     let [
         CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -3907,8 +3906,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         else {
             return unsupported("ordered nominal cleanup target does not end in Unit return");
         };
-        if target_calls.len() > 3
-            || usize::try_from(*statement_index).ok() != Some(target_calls.len())
+        if usize::try_from(*statement_index).ok() != Some(target_calls.len())
             || !trivial_affine_local_discard_ordinals.is_empty()
             || !trivial_affine_discards.is_empty()
         {

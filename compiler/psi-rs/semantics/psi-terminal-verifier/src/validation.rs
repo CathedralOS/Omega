@@ -2125,7 +2125,7 @@ fn validate_nominal_affine_cleanup_shape(
         || !block.parameters.is_empty()
         || !block.operations.is_empty()
         || machine.parameters.len() != 0
-        || !(1..=3).contains(&cleanups.len())
+        || cleanups.is_empty()
         || machine.structural_parameters.len() != cleanups.len()
         || machine.structural_places.len() != cleanups.len()
         || !machine.entry_claims.is_empty()
@@ -2189,7 +2189,6 @@ fn validate_nominal_affine_cleanup_shape(
             || !target.contract.crash_routes.is_empty()
             || !target.contract.requires.is_empty()
             || !target.contract.ensures.is_empty()
-            || target_block.operations.len() > 3
         {
             return Err(invalid(block.id));
         }
