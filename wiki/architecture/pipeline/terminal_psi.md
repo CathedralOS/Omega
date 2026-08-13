@@ -192,12 +192,14 @@ responsible for reconstructing the emitted cleanup frontier.
 
 The first nonempty scalar-return source path composes the same cleanup evidence
 with an attached, one-state signature containing only claim-free affine
-structural parameters and one explicitly landed closed integer literal return.
-The checked row carries the exact structural signature, scalar result carrier,
+structural parameters and one closed integer return expression. Its leaves are
+explicitly landed literals; its internal nodes are the already checked terminal
+integer operations and casts, with no parameter or local references. The
+checked row carries the exact structural signature, scalar result carrier,
 return coordinate, and reverse-declaration cleanup positions. Production
-revalidates that the checked scalar expression is still the closed literal,
-materializes it before the return edge, resolves cleanup positions to structural
-places, and emits the existing verified scalar `Return`. Computed or Boolean
+revalidates the closed expression shape, materializes it and reconstructs any
+exact-operation proofs before the return edge, resolves cleanup positions to
+structural places, and emits the existing verified scalar `Return`. Boolean
 results, scalar locals, mixed scalar/structural parameter namespaces, contracts,
 claims, effects, and multi-state control remain outside this source slice; none
 is represented by smuggling structural custody through scalar parameters.

@@ -213,14 +213,11 @@ fn build_structural_scalar_return_machine(
         return None;
     };
     let result_type = program.primitive_type_reference(state.return_type)?;
-    if !matches!(
-        facts.values.scalar_expressions.expression_at(
-            state.symbol,
-            0,
-            CheckedScalarExpressionRole::Return,
-        )?,
-        CheckedScalarExpression::IntegerLiteral { .. }
-    ) {
+    if !is_closed_integer_expression(facts.values.scalar_expressions.expression_at(
+        state.symbol,
+        0,
+        CheckedScalarExpressionRole::Return,
+    )?) {
         return None;
     }
     let binders = machine_binders(program, machine);
@@ -254,6 +251,23 @@ fn build_structural_scalar_return_machine(
             .map(|(_, position)| position)
             .collect(),
     })
+}
+
+fn is_closed_integer_expression(expression: &CheckedScalarExpression) -> bool {
+    match expression {
+        CheckedScalarExpression::IntegerLiteral { .. } => true,
+        CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+            is_closed_integer_expression(left) && is_closed_integer_expression(right)
+        }
+        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+        | CheckedScalarExpression::IntegerWiden { operand, .. }
+        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+            is_closed_integer_expression(operand)
+        }
+        CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::Local { .. }
+        | CheckedScalarExpression::Boolean(_) => false,
+    }
 }
 
 fn build_structural_unit_control_machine(

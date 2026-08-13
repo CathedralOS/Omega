@@ -201,11 +201,12 @@ Remaining:
   interpretation, metering, fixed-fuel derivation, and Omega consumption; its
   primitive-only source producer emits the empty list. The first nonempty
   scalar-return source path now handles an attached one-state machine with only
-  claim-free affine structural parameters and one explicitly landed closed
-  integer literal: it materializes the scalar before exact reverse-declaration
-  cleanup. Computed/Boolean returns, locals, mixed scalar/structural parameter
-  namespaces, contracts, claims, effects, and multi-state control remain
-  fenced. Unconditional
+  claim-free affine structural parameters and one closed integer expression:
+  landed literal leaves and checked terminal integer operations/casts
+  materialize—with exact-operation proofs reconstructed—before exact
+  reverse-declaration cleanup. Boolean returns, parameter/local references,
+  mixed scalar/structural parameter namespaces, contracts, claims, effects, and
+  multi-state control remain fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
   arguments are materialized; each ordered conditional successor carries its
@@ -479,8 +480,9 @@ reach or trust, and private proof improvements do not change public identity.
   path now composes exact ordinary-edge cleanup with source-handle-free state
   signatures and whole-parameter transfers for acyclic, single-predecessor Unit
   machines. A separate one-state scalar-return path materializes one checked
-  closed integer literal before exact cleanup of its complete affine structural
-  frontier. Neither is yet the complete `EdgeCleanupPlan`, conditional-control
+  closed integer expression and reconstructs exact-operation proofs before
+  exact cleanup of its complete affine structural frontier. Neither is yet the
+  complete `EdgeCleanupPlan`, conditional-control
   path, repeated-cycle composition, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
