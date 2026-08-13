@@ -19393,22 +19393,14 @@ fn case_payload_native_construction_canary_runs() {
     // destructured `steps` binding reads the payload member into the target
     // state's argument. Promoted from pending/ when payload codegen landed.
     let canary = pass_canary("data/case_payload_native_construction");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-case-payload-construction-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("case payload construction canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("case payload construction canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("case payload construction canary should run");
 
@@ -19420,7 +19412,7 @@ fn case_payload_native_construction_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19429,22 +19421,14 @@ fn runtime_record_field_value_pattern_exit_canary_runs() {
     // `header.ok == 0` guard.  The matched arm must bind `version` from the
     // same evaluated subject and route its value to the target state.
     let canary = pass_canary("data/runtime_record_field_value_pattern_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-record-field-value-pattern-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("record field-value pattern canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("record field-value pattern canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("record field-value pattern canary should run");
 
@@ -19456,7 +19440,7 @@ fn runtime_record_field_value_pattern_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19466,22 +19450,14 @@ fn runtime_case_payload_guard_read_exit_canary_runs() {
     // the enum value, not match on tag alone -- a decoy same-case arm with a
     // wrong bonus sits first and catches a dropped `if` clause.
     let canary = pass_canary("data/runtime_case_payload_guard_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-case-payload-guard-read-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("case payload guard read canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("case payload guard read canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("case payload guard read canary should run");
 
@@ -19493,7 +19469,7 @@ fn runtime_case_payload_guard_read_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19502,22 +19478,14 @@ fn case_membership_value_exit_canary_runs() {
     // tag-only compare. The constructed payload (`dx: 3`) exits 71 if the
     // compare reads payload bytes instead of clamping to the tag.
     let canary = pass_canary("data/case_membership_value_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-case-membership-value-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("case membership value canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("case membership value canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("case membership value canary should run");
 
@@ -19529,7 +19497,7 @@ fn case_membership_value_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19538,22 +19506,14 @@ fn match_exhaustive_by_cases_canary_runs() {
     // a complete tag set (no `_`), and the counted dispatch still selects
     // the right arm at runtime.
     let canary = pass_canary("data/match_exhaustive_by_cases");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-match-exhaustive-by-cases-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("exhaustive-by-cases canary should compile without a `_` arm");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("exhaustive-by-cases canary should compile without a `_` arm");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("exhaustive-by-cases canary should run");
 
@@ -19565,7 +19525,7 @@ fn match_exhaustive_by_cases_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19575,22 +19535,14 @@ fn match_exhaustive_by_case_union_domain_canary_runs() {
     // -- no `_` needed -- and classifies at runtime: the held value is the
     // SECOND union member, so a lowering that drops union arms exits 71.
     let canary = pass_canary("data/match_exhaustive_by_case_union_domain");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-match-exhaustive-union-domain-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("case-union-domain canary should compile without a `_` arm");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("case-union-domain canary should compile without a `_` arm");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("case-union-domain canary should run");
 
@@ -19602,7 +19554,7 @@ fn match_exhaustive_by_case_union_domain_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19610,22 +19562,14 @@ fn case_membership_union_guard_exit_canary_runs() {
     // Decision 11: a union of implicit case domains as a transition guard
     // subject; the held value matches the SECOND (payload-bearing) arm.
     let canary = pass_canary("data/case_membership_union_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-case-membership-union-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("case membership union guard canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("case membership union guard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("case membership union guard canary should run");
 
@@ -19637,7 +19581,7 @@ fn case_membership_union_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
