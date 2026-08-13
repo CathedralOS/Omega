@@ -13785,17 +13785,11 @@ fn runtime_indexed_struct_write_loop_exit_canary_runs() {
     // A whole-struct write to a runtime-indexed array-of-structs element in a loop (entity-array
     // population): `self.arr[self.i] = Pt{..}`. Fill 3 elements, sum 10+15+10 = 35 -> exit 70.
     let canary = pass_canary("collections/runtime_indexed_struct_write_loop_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-indexed-struct-write-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed struct-write loop canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed struct-write loop canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed struct-write loop canary should run");
     assert_eq!(
@@ -13805,7 +13799,7 @@ fn runtime_indexed_struct_write_loop_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13814,16 +13808,10 @@ fn std_option_runtime_match_exit_canary_runs() {
     // extraction. `b` is never written, so its all-zero home representation
     // must dispatch as None.
     let canary = pass_canary("collections/std_option_runtime_match_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("std Optional runtime match canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("std Optional runtime match canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("std option runtime match canary should run");
     assert_eq!(
@@ -13833,7 +13821,7 @@ fn std_option_runtime_match_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13842,17 +13830,11 @@ fn runtime_indexed_read_then_guard_exit_canary_runs() {
     // then compare that place (a direct `transition nums[i] > 5` silently takes the first arm).
     // nums[2]=9 -> v=9 -> 9>5 true -> exit 70; a dropped index would read nums[0]=1 -> 71.
     let canary = pass_canary("collections/runtime_indexed_read_then_guard_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-indexed-read-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-read-then-guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed-read-then-guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed-read-then-guard canary should run");
     assert_eq!(
@@ -13862,7 +13844,7 @@ fn runtime_indexed_read_then_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
