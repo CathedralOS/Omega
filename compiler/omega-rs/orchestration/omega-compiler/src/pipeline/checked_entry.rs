@@ -126,9 +126,18 @@ fn compile_to_checked_inner(
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_config = computed_build_config.config;
-    let selected_program_entry_machine =
-        crate::pipeline::build_config::selected_program_entry_machine(&build_config, target_name)?
-            .map(|entry| entry.machine_name.to_owned());
+    // A semantic-only checked compilation has no selected target and therefore
+    // no storage root. Authored bindings remain available in the evaluated
+    // build configuration, but only an exact target selection may activate one
+    // for interpreter or production execution.
+    let selected_program_entry_machine = match target_name {
+        Some(target_name) => crate::pipeline::build_config::selected_program_entry_machine(
+            &build_config,
+            Some(target_name),
+        )?
+        .map(|entry| entry.machine_name.to_owned()),
+        None => None,
+    };
     let target_provider_defaults = crate::pipeline::build_config::compute_target_provider_defaults(
         &typed,
         &target_default_machine_names,
