@@ -780,7 +780,7 @@ fn emit_unit_body(
                         })
                         .collect::<Vec<_>>();
                     let residual_root = residuals.first().map(|residual| residual.place);
-                    let moved_paths = body.operations[..operation_ordinal]
+                    let moved = body.operations[..operation_ordinal]
                         .iter()
                         .filter_map(|operation| match operation {
                             TerminalAssignedUnitOperation::Call { copies, .. } => Some(copies),
@@ -788,7 +788,7 @@ fn emit_unit_body(
                         })
                         .flatten()
                         .filter(|copy| Some(copy.place) == residual_root)
-                        .map(|copy| copy.path.as_slice())
+                        .map(|copy| (copy.path.as_slice(), copy.structural_type))
                         .collect::<Vec<_>>();
                     cleanup_actions.get(..expected_local_actions.len())
                         == Some(expected_local_actions.as_slice())
@@ -818,24 +818,38 @@ fn emit_unit_body(
                                     && !earlier.path.starts_with(&residual.path)
                             })
                         })
-                        && !moved_paths.is_empty()
-                        && moved_paths.iter().all(|moved| {
-                            !moved.is_empty()
-                                && moved.iter().all(|segment| {
+                        && !moved.is_empty()
+                        && moved.iter().all(|(moved_path, _)| {
+                            !moved_path.is_empty()
+                                && moved_path.iter().all(|segment| {
                                     matches!(segment,
                                         psi_terminal::StructuralPathSegment::Field(identity)
                                             if !identity.is_empty())
                                 })
                                 && residuals.iter().all(|residual| {
-                                    !moved.starts_with(&residual.path)
-                                        && !residual.path.starts_with(moved)
+                                    !moved_path.starts_with(&residual.path)
+                                        && !residual.path.starts_with(moved_path)
                                 })
                         })
-                        && moved_paths.iter().enumerate().all(|(index, moved)| {
-                            moved_paths[..index].iter().all(|earlier| {
-                                !moved.starts_with(earlier) && !earlier.starts_with(moved)
+                        && moved.iter().enumerate().all(|(index, (moved_path, _))| {
+                            moved[..index].iter().all(|(earlier, _)| {
+                                !moved_path.starts_with(earlier) && !earlier.starts_with(moved_path)
                             })
                         })
+                        && residual_root
+                            .and_then(|root| {
+                                body.parameters
+                                    .iter()
+                                    .find(|parameter| parameter.place == root)
+                            })
+                            .is_some_and(|parameter| {
+                                exact_partial_cleanup_partition(
+                                    &body.structural_types,
+                                    parameter.structural_type,
+                                    &moved,
+                                    &residuals,
+                                )
+                            })
                 } || (expected_local_prefix.is_empty()
                     && !nominal_cleanups.is_empty()
                     && nominal_cleanups.len() == cleanup_actions.len()
@@ -940,6 +954,7 @@ fn emit_unit_body(
                 affine_cleanup = Some(
                     omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
                         psi_edge: *psi_edge,
+                        structural_types: body.structural_types.clone(),
                         locals: established_affine_locals.clone(),
                         actions: cleanup_actions.clone(),
                         code_offset,
@@ -1263,6 +1278,113 @@ fn executable_nominal_cleanup(
         }
     }
     Ok(!helper_sites.is_empty())
+}
+
+fn exact_partial_cleanup_partition(
+    declarations: &[psi_terminal::StructuralTypeDeclaration],
+    root_type: psi_core::StructuralTypeId,
+    moved: &[(
+        &[psi_terminal::StructuralPathSegment],
+        psi_core::StructuralTypeId,
+    )],
+    residuals: &[&psi_terminal::StructuralAffineDiscard],
+) -> bool {
+    if declarations.is_empty() || moved.is_empty() || residuals.is_empty() {
+        return false;
+    }
+    let mut by_id = std::collections::BTreeMap::new();
+    let mut identities = std::collections::BTreeSet::new();
+    for declaration in declarations {
+        if declaration.identity.is_empty()
+            || !identities.insert(declaration.identity.as_str())
+            || by_id.insert(declaration.id, declaration).is_some()
+        {
+            return false;
+        }
+    }
+    if declarations.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+        return false;
+    }
+    let mut expected = Vec::new();
+    append_expected_partial_residuals(root_type, &[], moved, &by_id, &mut expected).is_some()
+        && residuals.len() == expected.len()
+        && residuals
+            .iter()
+            .zip(expected)
+            .all(|(actual, (path, structural_type))| {
+                actual.path == path && actual.structural_type == structural_type
+            })
+}
+
+fn append_expected_partial_residuals(
+    structural_type: psi_core::StructuralTypeId,
+    prefix: &[psi_terminal::StructuralPathSegment],
+    moved: &[(
+        &[psi_terminal::StructuralPathSegment],
+        psi_core::StructuralTypeId,
+    )],
+    declarations: &std::collections::BTreeMap<
+        psi_core::StructuralTypeId,
+        &psi_terminal::StructuralTypeDeclaration,
+    >,
+    output: &mut Vec<(
+        Vec<psi_terminal::StructuralPathSegment>,
+        psi_core::StructuralTypeId,
+    )>,
+) -> Option<()> {
+    let psi_terminal::StructuralTypeShape::Record { fields } =
+        &declarations.get(&structural_type)?.shape
+    else {
+        return None;
+    };
+    if fields.is_empty()
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || !matches!(
+                    field.field_type,
+                    psi_terminal::StructuralFieldType::Structural(_)
+                )
+        })
+    {
+        return None;
+    }
+    for field in fields.iter().rev() {
+        let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type else {
+            return None;
+        };
+        let matching = moved
+            .iter()
+            .filter(|(path, _)| {
+                matches!(path.first(), Some(psi_terminal::StructuralPathSegment::Field(identity))
+                    if identity == &field.identity)
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        let mut field_path = prefix.to_vec();
+        field_path.push(psi_terminal::StructuralPathSegment::Field(
+            field.identity.clone(),
+        ));
+        if matching.is_empty() {
+            output.push((field_path, field_type));
+        } else if matching.iter().any(|(path, _)| path.len() == 1) {
+            if matching.len() != 1 || matching[0].1 != field_type {
+                return None;
+            }
+        } else {
+            let nested = matching
+                .iter()
+                .map(|(path, leaf)| (&path[1..], *leaf))
+                .collect::<Vec<_>>();
+            append_expected_partial_residuals(
+                field_type,
+                &field_path,
+                &nested,
+                declarations,
+                output,
+            )?;
+        }
+    }
+    Some(())
 }
 
 fn x86_unit_parameter_homes(
@@ -5668,6 +5790,79 @@ mod tests {
         super::emit_machine_code(&assigned)
     }
 
+    #[test]
+    fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
+        let root_type = StructuralTypeId::new(1).expect("root type");
+        let moved_type = StructuralTypeId::new(2).expect("moved type");
+        let residual_type = StructuralTypeId::new(3).expect("residual type");
+        let mut declarations = vec![
+            psi_terminal::StructuralTypeDeclaration {
+                id: root_type,
+                identity: "Root".into(),
+                shape: psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![
+                        psi_terminal::StructuralFieldDeclaration {
+                            id: psi_core::StructuralFieldId::new(1).expect("moved field"),
+                            identity: "moved".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: psi_terminal::StructuralFieldType::Structural(moved_type),
+                        },
+                        psi_terminal::StructuralFieldDeclaration {
+                            id: psi_core::StructuralFieldId::new(2).expect("residual field"),
+                            identity: "residual".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: psi_terminal::StructuralFieldType::Structural(
+                                residual_type,
+                            ),
+                        },
+                    ],
+                },
+            },
+            psi_terminal::StructuralTypeDeclaration {
+                id: moved_type,
+                identity: "Moved".into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            psi_terminal::StructuralTypeDeclaration {
+                id: residual_type,
+                identity: "Residual".into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ];
+        let moved_path = vec![StructuralPathSegment::Field("moved".into())];
+        let moved = vec![(moved_path.as_slice(), moved_type)];
+        let residual = psi_terminal::StructuralAffineDiscard {
+            place: PlaceId::new(1).expect("place"),
+            path: vec![StructuralPathSegment::Field("residual".into())],
+            structural_type: residual_type,
+        };
+        let residuals = vec![&residual];
+
+        assert!(exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &moved,
+            &residuals,
+        ));
+
+        declarations[2].identity = "Moved".into();
+        assert!(!exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &moved,
+            &residuals,
+        ));
+
+        declarations[2].identity = "Residual".into();
+        declarations.swap(1, 2);
+        assert!(!exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &moved,
+            &residuals,
+        ));
+    }
+
     fn executable_nominal_cleanup_plan(
         target: NativeTarget,
     ) -> (
@@ -5727,6 +5922,7 @@ mod tests {
                             edges: vec![root_return],
                         },
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan: root_call_plan,
                             parameters: vec![root_parameter],
                             operations: vec![TerminalTargetUnitOperation::Return {
@@ -5747,6 +5943,7 @@ mod tests {
                             edges: vec![cleanup_return],
                         },
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan: empty_call_plan.clone(),
                             parameters: Vec::new(),
                             operations: vec![
@@ -5771,6 +5968,7 @@ mod tests {
                             edges: vec![helper_return],
                         },
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan: empty_call_plan,
                             parameters: Vec::new(),
                             operations: vec![TerminalTargetUnitOperation::Return {
@@ -6340,6 +6538,7 @@ mod tests {
                         edges: vec![root_return],
                     },
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: empty_call_plan.clone(),
                         parameters: Vec::new(),
                         operations: vec![
@@ -6364,6 +6563,7 @@ mod tests {
                         edges: vec![leaf_return],
                     },
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: empty_call_plan,
                         parameters: Vec::new(),
                         operations: vec![
@@ -6485,6 +6685,7 @@ mod tests {
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                    structural_types: Vec::new(),
                     call_plan,
                     parameters: Vec::new(),
                     operations: vec![
@@ -6557,6 +6758,7 @@ mod tests {
                         attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan: call_plan.clone(),
                             parameters: vec![parameter.clone()],
                             operations: vec![
@@ -6578,6 +6780,7 @@ mod tests {
                         attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan,
                             parameters: vec![parameter],
                             operations: vec![TerminalTargetUnitOperation::Return {
@@ -6642,6 +6845,7 @@ mod tests {
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
                         parameters: vec![parameter(first, 0), parameter(second, 1)],
                         operations: vec![
@@ -6669,6 +6873,7 @@ mod tests {
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
                         parameters: vec![parameter(first, 0), parameter(second, 1)],
                         operations: vec![TerminalTargetUnitOperation::Return {
@@ -6739,6 +6944,7 @@ mod tests {
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
                         parameters: vec![parameter(first, 0), parameter(second, 1)],
                         operations: vec![
@@ -6760,6 +6966,7 @@ mod tests {
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
                         parameters: vec![parameter(first, 0), parameter(second, 1)],
                         operations: vec![TerminalTargetUnitOperation::Return {
@@ -6868,6 +7075,7 @@ mod tests {
                         attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan: call_plan.clone(),
                             parameters: parameters.clone(),
                             operations: vec![
@@ -6889,6 +7097,7 @@ mod tests {
                         attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            structural_types: Vec::new(),
                             call_plan,
                             parameters,
                             operations: vec![TerminalTargetUnitOperation::Return {
@@ -6965,6 +7174,7 @@ mod tests {
                             attachment: None,
                             provenance: TerminalPsiProvenance::default(),
                             operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                                structural_types: Vec::new(),
                                 call_plan: call_plan.clone(),
                                 parameters: vec![parameter.clone()],
                                 operations: vec![
@@ -6986,6 +7196,7 @@ mod tests {
                             attachment: None,
                             provenance: TerminalPsiProvenance::default(),
                             operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                                structural_types: Vec::new(),
                                 call_plan,
                                 parameters: vec![parameter],
                                 operations: vec![TerminalTargetUnitOperation::Return {

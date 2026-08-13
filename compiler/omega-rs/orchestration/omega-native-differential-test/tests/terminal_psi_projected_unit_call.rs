@@ -113,6 +113,25 @@ const NESTED_PARTIAL_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const MIXED_DEPTH_PARTIAL_AFFINE_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Deep { x: Token; y: Token; z: Token; }
+    data Inner { a: Token; deep: Deep; c: Token; }
+    data Outer { pre: Token; direct: Token; inner: Inner; post: Token; }
+    data DirectHelper {}
+    machine DirectHelper::take(token: Token) {}
+    data InnerHelper {}
+    machine InnerHelper::take(token: Token) {}
+    data DeepHelper {}
+    machine DeepHelper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(outer: Outer) {
+        DirectHelper::take(outer.direct);
+        InnerHelper::take(outer.inner.a);
+        DeepHelper::take(outer.inner.deep.y);
+    }
+"#;
+
 const NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
     data FirstCleanupHelper {}
@@ -318,6 +337,26 @@ fn nested_partial_affine_plan() -> omega_terminal_abstract_operations::TerminalA
         encode_proof_bundle(&terminal.proof_bundle).expect("encode nested partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified nested partial affine artifact enters Omega")
+}
+
+fn mixed_depth_partial_affine_plan()
+-> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(MIXED_DEPTH_PARTIAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed-depth partial affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed-depth partial affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed-depth partial affine source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type mixed-depth partial affine source");
+    let checked = lower_typed_trees(typed).expect("check mixed-depth partial affine source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower mixed-depth partial affine Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode mixed-depth partial affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode mixed-depth partial affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified mixed-depth partial affine artifact enters Omega")
 }
 
 fn nominal_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
@@ -1088,6 +1127,136 @@ fn nested_move_preserves_maximal_residual_subtrees_on_all_targets() {
             installed.unit_affine_cleanup.as_ref().unwrap().actions,
             cleanup_actions
         );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
+fn mixed_depth_moves_preserve_exact_partition_and_artifact_type_graph() {
+    let plan = mixed_depth_partial_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let expected_paths = [
+        vec![StructuralPathSegment::Field("post".into())],
+        vec![
+            StructuralPathSegment::Field("inner".into()),
+            StructuralPathSegment::Field("c".into()),
+        ],
+        vec![
+            StructuralPathSegment::Field("inner".into()),
+            StructuralPathSegment::Field("deep".into()),
+            StructuralPathSegment::Field("z".into()),
+        ],
+        vec![
+            StructuralPathSegment::Field("inner".into()),
+            StructuralPathSegment::Field("deep".into()),
+            StructuralPathSegment::Field("x".into()),
+        ],
+        vec![StructuralPathSegment::Field("pre".into())],
+    ];
+    assert_eq!(cleanup_actions.len(), expected_paths.len());
+    for (action, path) in cleanup_actions.iter().zip(&expected_paths) {
+        assert!(matches!(action,
+            TerminalAffineCleanupAction::DiscardResidual(residual) if residual.path == *path));
+    }
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let moved = emitted
+            .internal_unit_calls
+            .iter()
+            .map(|call| {
+                let [argument] = call.arguments.as_slice() else {
+                    panic!("each mixed-depth call has one argument")
+                };
+                (argument.path.clone(), argument.source_byte_offset)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            moved,
+            [
+                (vec![StructuralPathSegment::Field("direct".into())], 8),
+                (
+                    vec![
+                        StructuralPathSegment::Field("inner".into()),
+                        StructuralPathSegment::Field("a".into()),
+                    ],
+                    16,
+                ),
+                (
+                    vec![
+                        StructuralPathSegment::Field("inner".into()),
+                        StructuralPathSegment::Field("deep".into()),
+                        StructuralPathSegment::Field("y".into()),
+                    ],
+                    32,
+                ),
+            ]
+        );
+        let cleanup = emitted.unit_affine_cleanup.as_ref().unwrap();
+        assert_eq!(cleanup.actions, cleanup_actions);
+        assert!(!cleanup.structural_types.is_empty());
+
+        let mut omitted = machine.clone();
+        omitted
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions
+            .remove(2);
+        assert!(build_terminal_object_artifact(&omitted).is_err());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed_cleanup = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_ref()
+            .unwrap();
+        assert_eq!(installed_cleanup.actions, cleanup_actions);
+        assert_eq!(installed_cleanup.structural_types, cleanup.structural_types);
         validate_terminal_installation_record(&installation, &image).unwrap();
         let bytes = encode_terminal_installation_record(&installation).unwrap();
         assert_eq!(

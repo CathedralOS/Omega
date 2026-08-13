@@ -15,7 +15,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ProfileDecisionId, ServiceId, StructuralDomainId, StructuralTypeId,
+    ProfileDecisionId, ServiceId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
     CompletionReceipt, SemanticFingerprint, StructuralAffineDiscard, StructuralArgument,
@@ -31,7 +31,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 16;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 17;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -1414,7 +1414,7 @@ fn validate_record_shape(
                             .iter()
                             .find(|parameter| parameter.place == residual_root)
                             .map(|parameter| parameter.structural_type);
-                        let moved_paths = record
+                        let moved = record
                             .internal_unit_calls
                             .iter()
                             .filter(|call| call.machine == function.machine)
@@ -1423,7 +1423,7 @@ fn validate_record_shape(
                                 argument.place == residual_root
                                     && Some(argument.root_structural_type) == parameter_type
                             })
-                            .map(|argument| argument.path.as_slice())
+                            .map(|argument| (argument.path.as_slice(), argument.structural_type))
                             .collect::<Vec<_>>();
                         cleanup.actions.get(..discards.len()).is_none_or(|prefix| {
                             !prefix.iter().zip(&discards).all(|(action, place)| {
@@ -1461,8 +1461,8 @@ fn validate_record_shape(
                                     })
                                 })
                             || parameter_type.is_none()
-                            || moved_paths.is_empty()
-                            || moved_paths.iter().any(|path| {
+                            || moved.is_empty()
+                            || moved.iter().any(|(path, _)| {
                                 path.is_empty()
                                     || path.iter().any(|segment| {
                                         !matches!(segment,
@@ -1476,14 +1476,23 @@ fn validate_record_shape(
                                                 || residual.path.starts_with(path)
                                         })
                             })
-                            || moved_paths
+                            || moved
                                 .iter()
                                 .enumerate()
-                                .any(|(index, path)| {
-                                    moved_paths[..index].iter().any(|earlier| {
-                                        path.starts_with(earlier) || earlier.starts_with(path)
+                                .any(|(index, (path, _))| {
+                                    moved[..index].iter().any(|(earlier, _)| {
+                                        path.starts_with(earlier)
+                                            || earlier.starts_with(path)
                                     })
                                 })
+                            || parameter_type.is_none_or(|root_type| {
+                                !super::exact_partial_cleanup_partition(
+                                    &cleanup.structural_types,
+                                    root_type,
+                                    &moved,
+                                    residuals,
+                                )
+                            })
                     }
                     (nominal @ [_, _, ..], []) => {
                         let bodies = nominal
@@ -2207,6 +2216,7 @@ fn encode_unit_affine_cleanup(
     cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
 ) -> Result<(), TerminalInstallationError> {
     push_u64(bytes, cleanup.psi_edge.get());
+    encode_structural_types(bytes, &cleanup.structural_types)?;
     push_u32(
         bytes,
         u32::try_from(cleanup.locals.len())
@@ -2679,6 +2689,81 @@ fn encode_trivial_affine_local_type(
     Ok(())
 }
 
+fn encode_structural_types(
+    bytes: &mut Vec<u8>,
+    declarations: &[psi_terminal::StructuralTypeDeclaration],
+) -> Result<(), TerminalInstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(declarations.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralTypes)?,
+    );
+    for declaration in declarations {
+        push_u64(bytes, declaration.id.get());
+        encode_identity(bytes, &declaration.identity)?;
+        match &declaration.shape {
+            psi_terminal::StructuralTypeShape::Record { fields } => {
+                bytes.extend_from_slice(&[1, 0, 0, 0]);
+                push_u32(
+                    bytes,
+                    u32::try_from(fields.len())
+                        .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?,
+                );
+                for field in fields {
+                    push_u64(bytes, field.id.get());
+                    encode_identity(bytes, &field.identity)?;
+                    bytes.push(u8::from(field.relevance.is_erased()));
+                    match &field.field_type {
+                        psi_terminal::StructuralFieldType::Scalar(
+                            psi_core::ScalarType::Boolean,
+                        ) => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&[0; 2]);
+                        }
+                        psi_terminal::StructuralFieldType::Scalar(
+                            psi_core::ScalarType::Integer(integer),
+                        ) => {
+                            bytes.push(2);
+                            bytes.push(u8::from(integer.is_address()));
+                            bytes.push(u8::from(matches!(
+                                integer.sign(),
+                                psi_core::IntegerSign::Signed
+                            )));
+                            push_u16(bytes, integer.bits());
+                        }
+                        psi_terminal::StructuralFieldType::Structural(structural_type) => {
+                            bytes.push(3);
+                            bytes.extend_from_slice(&[0; 2]);
+                            push_u64(bytes, structural_type.get());
+                        }
+                        psi_terminal::StructuralFieldType::Erased { type_identity } => {
+                            bytes.push(4);
+                            bytes.extend_from_slice(&[0; 2]);
+                            encode_identity(bytes, type_identity)?;
+                        }
+                    }
+                }
+            }
+            psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
+                bytes.extend_from_slice(&[2, 0, 0, 0]);
+                push_u64(bytes, element.get());
+                push_u64(bytes, *length);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn encode_identity(bytes: &mut Vec<u8>, identity: &str) -> Result<(), TerminalInstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(identity.len())
+            .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?,
+    );
+    bytes.extend_from_slice(identity.as_bytes());
+    Ok(())
+}
+
 fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
@@ -2853,6 +2938,7 @@ fn decode_unit_affine_cleanup(
     let psi_edge = EdgeId::new(reader.u64()?).ok_or(
         TerminalInstallationError::ZeroStructuralReturnIdentity("Unit cleanup edge"),
     )?;
+    let structural_types = decode_structural_types(reader)?;
     let local_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
     if local_count > reader.remaining() {
@@ -2925,6 +3011,7 @@ fn decode_unit_affine_cleanup(
     }
     Ok(
         omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
+            structural_types,
             psi_edge,
             locals,
             actions,
@@ -2980,6 +3067,145 @@ fn decode_trivial_affine_local_type(
         identity,
         shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
     })
+}
+
+fn decode_structural_types(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<psi_terminal::StructuralTypeDeclaration>, TerminalInstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralTypes)?;
+    if count > reader.remaining() {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut declarations = Vec::with_capacity(count);
+    for _ in 0..count {
+        let id = StructuralTypeId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("structural type"),
+        )?;
+        let identity = decode_identity(reader)?;
+        let shape_tag = reader.u8()?;
+        if reader.u8()? != 0 || reader.u8()? != 0 || reader.u8()? != 0 {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let shape = match shape_tag {
+            1 => {
+                let field_count = usize::try_from(reader.u32()?)
+                    .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?;
+                if field_count > reader.remaining() {
+                    return Err(TerminalInstallationError::UnexpectedEnd);
+                }
+                let mut fields = Vec::with_capacity(field_count);
+                for _ in 0..field_count {
+                    let field_id = StructuralFieldId::new(reader.u64()?).ok_or(
+                        TerminalInstallationError::ZeroStructuralReturnIdentity("structural field"),
+                    )?;
+                    let field_identity = decode_identity(reader)?;
+                    let relevance = match reader.u8()? {
+                        0 => psi_terminal::BindingRelevance::Relevant,
+                        1 => psi_terminal::BindingRelevance::Erased,
+                        value => return Err(TerminalInstallationError::InvalidBoolean(value)),
+                    };
+                    let field_type = match reader.u8()? {
+                        1 => {
+                            if reader.u16()? != 0 {
+                                return Err(TerminalInstallationError::NonzeroReservedField);
+                            }
+                            psi_terminal::StructuralFieldType::Scalar(psi_core::ScalarType::Boolean)
+                        }
+                        2 => {
+                            let is_address = decode_boolean(reader.u8()?)?;
+                            let signed = decode_boolean(reader.u8()?)?;
+                            let bits = reader.u16()?;
+                            let integer = if is_address {
+                                if signed {
+                                    return Err(
+                                        TerminalInstallationError::InvalidStructuralTypeShape,
+                                    );
+                                }
+                                psi_core::IntegerType::address(bits)
+                            } else {
+                                psi_core::IntegerType::new(
+                                    if signed {
+                                        psi_core::IntegerSign::Signed
+                                    } else {
+                                        psi_core::IntegerSign::Unsigned
+                                    },
+                                    bits,
+                                )
+                            }
+                            .map_err(|_| TerminalInstallationError::InvalidStructuralTypeShape)?;
+                            psi_terminal::StructuralFieldType::Scalar(
+                                psi_core::ScalarType::Integer(integer),
+                            )
+                        }
+                        3 => {
+                            if reader.u16()? != 0 {
+                                return Err(TerminalInstallationError::NonzeroReservedField);
+                            }
+                            psi_terminal::StructuralFieldType::Structural(
+                                StructuralTypeId::new(reader.u64()?).ok_or(
+                                    TerminalInstallationError::ZeroStructuralReturnIdentity(
+                                        "nested structural type",
+                                    ),
+                                )?,
+                            )
+                        }
+                        4 => {
+                            if reader.u16()? != 0 {
+                                return Err(TerminalInstallationError::NonzeroReservedField);
+                            }
+                            psi_terminal::StructuralFieldType::Erased {
+                                type_identity: decode_identity(reader)?,
+                            }
+                        }
+                        tag => {
+                            return Err(TerminalInstallationError::InvalidStructuralFieldTypeTag(
+                                tag,
+                            ));
+                        }
+                    };
+                    fields.push(psi_terminal::StructuralFieldDeclaration {
+                        id: field_id,
+                        identity: field_identity,
+                        relevance,
+                        field_type,
+                    });
+                }
+                psi_terminal::StructuralTypeShape::Record { fields }
+            }
+            2 => psi_terminal::StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(reader.u64()?).ok_or(
+                    TerminalInstallationError::ZeroStructuralReturnIdentity(
+                        "fixed-array element type",
+                    ),
+                )?,
+                length: reader.u64()?,
+            },
+            tag => {
+                return Err(TerminalInstallationError::InvalidStructuralTypeShapeTag(
+                    tag,
+                ));
+            }
+        };
+        declarations.push(psi_terminal::StructuralTypeDeclaration {
+            id,
+            identity,
+            shape,
+        });
+    }
+    Ok(declarations)
+}
+
+fn decode_identity(reader: &mut Reader<'_>) -> Result<String, TerminalInstallationError> {
+    let len = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?;
+    let identity = std::str::from_utf8(reader.take(len)?)
+        .map_err(|_| TerminalInstallationError::InvalidStructuralTypeIdentity)?
+        .to_owned();
+    if identity.is_empty() {
+        return Err(TerminalInstallationError::InvalidStructuralTypeIdentity);
+    }
+    Ok(identity)
 }
 
 fn decode_structural_parameter(
@@ -3305,6 +3531,8 @@ pub enum TerminalInstallationError {
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
+    TooManyStructuralTypes,
+    TooManyStructuralFields,
     TooManyStructuralQualifications,
     TooManyFuelAttributions,
     TooManyPortEffects,
@@ -3331,6 +3559,9 @@ pub enum TerminalInstallationError {
     InvalidStructuralReturnLocal,
     StructuralTypeIdentityTooLong,
     InvalidStructuralTypeIdentity,
+    InvalidStructuralTypeShape,
+    InvalidStructuralTypeShapeTag(u8),
+    InvalidStructuralFieldTypeTag(u8),
     ZeroFuelScheduleIdentity,
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),
