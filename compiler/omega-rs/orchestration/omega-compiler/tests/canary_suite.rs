@@ -8693,22 +8693,15 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-byte-write-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier byte write canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier byte write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier byte write canary should run");
 
@@ -8721,7 +8714,7 @@ fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A runtime slice `.len` (descriptor read of a slice PARAM, not a folded
@@ -8732,20 +8725,13 @@ fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
 #[test]
 fn runtime_slice_length_field_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_slice_length_field_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-slice-length-field-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("slice length field canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("slice length field canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("slice length field canary should run");
 
@@ -8758,7 +8744,7 @@ fn runtime_slice_length_field_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The RUNTIME-index guarded element increment: both the operand hoist
