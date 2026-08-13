@@ -27,6 +27,8 @@
 //!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated interpreter cohort likewise lowers directly for every hosted
 //!    target without legacy staging.
+//!  * `game_samples_compile_from_authored_program_entry_bindings` — the
+//!    migrated games cohort has the same exact hosted-root guarantees.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -91,6 +93,15 @@ const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
     "stack_calculator",
     "stack_vm",
     "token_interpreter",
+];
+const EXPLICIT_ENTRY_GAME_SAMPLES: &[&str] = &[
+    "dice_histogram",
+    "dice_roller",
+    "score_tracker",
+    "scoreboard",
+    "tic_tac_toe",
+    "turn_combat",
+    "vending_machine",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -586,6 +597,60 @@ fn interpreter_samples_compile_from_authored_program_entry_bindings() {
             checked.selected_program_entry_machine(),
             None,
             "checked-only interpreter sample {sample} must not select a storage root"
+        );
+    }
+}
+
+#[test]
+fn game_samples_compile_from_authored_program_entry_bindings() {
+    for sample in EXPLICIT_ENTRY_GAME_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/games")
+            .join(sample)
+            .join("main.omg");
+        for target in HOSTED_SAMPLE_TARGETS {
+            let checked =
+                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
+                    panic!(
+                        "game sample {sample} should select its authored {target} entry: \
+                         {diagnostics:#?}"
+                    )
+                });
+            assert_eq!(
+                checked.selected_program_entry_machine(),
+                Some("Main::main"),
+                "game sample {sample} must select its authored Main::main binding for {target}"
+            );
+
+            let build_dir = std::env::temp_dir().join(format!(
+                "omega-authored-game-entry-{sample}-{target}-{}",
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&build_dir);
+            compile_program(CompileOptions {
+                root_path: main_path.clone(),
+                build_dir: Some(build_dir.clone()),
+                target_name: Some((*target).to_owned()),
+                write_output: false,
+            })
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "game sample {sample} should lower directly for {target} without a staged \
+                     entry: {diagnostics:#?}"
+                )
+            });
+            let _ = fs::remove_dir_all(build_dir);
+        }
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "game sample {sample} should remain entry-agnostic when checked: \
+                 {diagnostics:#?}"
+            )
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            None,
+            "checked-only game sample {sample} must not select a storage root"
         );
     }
 }
