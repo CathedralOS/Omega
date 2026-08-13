@@ -2189,7 +2189,7 @@ fn validate_nominal_affine_cleanup_shape(
             || !target.contract.crash_routes.is_empty()
             || !target.contract.requires.is_empty()
             || !target.contract.ensures.is_empty()
-            || target_block.operations.len() > 2
+            || target_block.operations.len() > 3
         {
             return Err(invalid(block.id));
         }

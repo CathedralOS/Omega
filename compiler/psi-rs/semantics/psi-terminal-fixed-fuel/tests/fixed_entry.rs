@@ -293,6 +293,26 @@ fn two_helper_nominal_affine_cleanup_has_exact_six_unit_bound() {
 }
 
 #[test]
+fn three_helper_nominal_affine_cleanup_has_exact_eight_unit_bound() {
+    let module = three_helper_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("three-helper nominal cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("three-helper nominal cleanup has an exact fixed bound");
+
+    assert_eq!(
+        certificate.ceiling_units(),
+        8,
+        "root edge + three call/helper edges + drop edge"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
     let local_type = structural_type_id(900);
     let first = place_id(900);
@@ -1436,6 +1456,39 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
             ensures: Vec::new(),
         },
     });
+    module
+}
+
+fn three_helper_nominal_affine_fixture() -> TerminalModule {
+    let mut module = two_helper_nominal_affine_fixture();
+    let third_helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(903),
+        identity: "test::ThirdHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(third_helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(903),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(904),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let mut third_helper = module.machines[2].clone();
+    third_helper.id = machine_id(904);
+    third_helper.attachment = Some(third_helper_type.id);
+    third_helper.entry = block_id(904);
+    third_helper.blocks[0].id = block_id(904);
+    third_helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(904),
+        trivial_affine_discards: Vec::new(),
+    };
+    third_helper.contract.id = contract_id(904);
+    module.machines.push(third_helper);
     module
 }
 

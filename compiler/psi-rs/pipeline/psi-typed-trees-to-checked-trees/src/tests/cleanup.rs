@@ -67,6 +67,29 @@ fn accepts_exact_two_call_executable_cleanup_shape() {
 }
 
 #[test]
+fn accepts_exact_three_call_executable_cleanup_shape() {
+    let source = r#"
+        data First {}
+        machine First::touch() {}
+        data Second {}
+        machine Second::touch() {}
+        data Third {}
+        machine Third::touch() {}
+        data Wrapper { value: i32; }
+        machine Wrapper::drop(&mut self) {
+            First::touch();
+            Second::touch();
+            Third::touch();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("exact three-call cleanup shape should check");
+}
+
+#[test]
 fn executable_cleanup_rejects_repeated_wider_or_nonempty_helpers() {
     rejects(
         r#"
@@ -104,11 +127,14 @@ fn executable_cleanup_rejects_repeated_wider_or_nonempty_helpers() {
             machine Second::touch() {}
             data Third {}
             machine Third::touch() {}
+            data Fourth {}
+            machine Fourth::touch() {}
             data Wrapper { value: i32; }
             machine Wrapper::drop(&mut self) {
                 First::touch();
                 Second::touch();
                 Third::touch();
+                Fourth::touch();
             }
         "#,
         "outside the executable cleanup slice",

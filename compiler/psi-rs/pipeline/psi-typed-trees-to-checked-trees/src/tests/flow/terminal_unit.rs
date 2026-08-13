@@ -430,6 +430,66 @@ fn retains_two_executable_drop_bodies_with_distinct_helpers() {
 }
 
 #[test]
+fn retains_three_call_executable_drop_body_in_source_order() {
+    let checked = checked(
+        r#"
+        data FirstHelper {}
+        machine FirstHelper::touch() {}
+        data SecondHelper {}
+        machine SecondHelper::touch() {}
+        data ThirdHelper {}
+        machine ThirdHelper::touch() {}
+
+        data Token { value: u64; }
+        machine Token::drop(&mut self) {
+            FirstHelper::touch();
+            SecondHelper::touch();
+            ThirdHelper::touch();
+        }
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("three-call executable cleanup is retained");
+    let [cleanup] = plan.cleanups.as_slice() else {
+        panic!("entry retains one nominal cleanup")
+    };
+    let target = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(cleanup.cleanup_machine)
+        .expect("cleanup has an exact Unit plan");
+    assert_eq!(target.operations.len(), 4);
+    let helper_targets = target.operations[..3]
+        .iter()
+        .map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => *target_machine,
+            _ => panic!("cleanup prefix remains a helper call"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        helper_targets,
+        [
+            "FirstHelper::touch",
+            "SecondHelper::touch",
+            "ThirdHelper::touch"
+        ]
+        .map(|name| machine_named(&checked, name))
+    );
+    assert!(matches!(
+        target.operations[3],
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+    ));
+}
+
+#[test]
 fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
     let checked = checked(
         r#"
