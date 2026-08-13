@@ -5207,6 +5207,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         value
     }
 
+    machine recursive_value() -> u64 {
+        recursive_value()
+    }
+
     machine combine(first: u64, second: u64) -> u64 {
         first + second
     }
@@ -5450,6 +5454,36 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
         cells
     }
 
+    machine return_after_slice_view_composed_assignment<'cells, 'target, 'source>(
+        cells: &'cells mut [u64; 2],
+        target_value: &'target mut u64,
+        source_value: &'source mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells.as_mut_slice()[identity_index(write_index(target_value))] =
+            identity(compute(source_value));
+        cells
+    }
+
+    machine return_after_deep_slice_view_target_assignment<'cells, 'target, 'source>(
+        cells: &'cells mut [u64; 2],
+        target_value: &'target mut u64,
+        source_value: &'source mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells.as_mut_slice()[
+            identity_index(identity_index(write_index(target_value)))
+        ] = identity(compute(source_value));
+        cells
+    }
+
+    machine return_after_recursive_slice_view_value_assignment<'cells, 'target>(
+        cells: &'cells mut [u64; 2],
+        target_value: &'target mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells.as_mut_slice()[identity_index(write_index(target_value))] =
+            recursive_value();
+        cells
+    }
+
     machine return_after_deep_target_assignment<'cells, 'target, 'source>(
         cells: &'cells mut [u64; 2],
         target_value: &'target mut u64,
@@ -5499,6 +5533,32 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
         alias[0] = 3;
     }
 
+    machine Main::slice_view_composed_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_slice_view_composed_assignment(
+            &mut self.cells,
+            &mut self.target_value,
+            &mut self.source_value
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::deep_slice_view_target_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_deep_slice_view_target_assignment(
+            &mut self.cells,
+            &mut self.target_value,
+            &mut self.source_value
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::recursive_slice_view_value_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_recursive_slice_view_value_assignment(
+            &mut self.cells,
+            &mut self.target_value
+        );
+        alias[0] = 3;
+    }
+
     machine Main::deep_target_assignment_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_deep_target_assignment(
             &mut self.cells,
@@ -5544,32 +5604,39 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
-    let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::composed_assignment_result")
-        .expect("composed assignment machine");
-    let entry = typed
-        .machine_states(machine)
-        .first()
-        .expect("composed assignment entry state");
-    assert_eq!(
-        resolver
-            .inferred_state_write_frame(machine, entry)
-            .complete_paths(),
-        Some(
-            ["self.cells", "self.source_value", "self.target_value"]
-                .map(str::to_owned)
-                .as_slice()
-        ),
-        "the target and value call trees must independently publish their writes"
-    );
+    for name in [
+        "Main::composed_assignment_result",
+        "Main::slice_view_composed_assignment_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                ["self.cells", "self.source_value", "self.target_value"]
+                    .map(str::to_owned)
+                    .as_slice()
+            ),
+            "{name} target and value call trees must independently publish their writes"
+        );
+    }
 
     for name in [
         "Main::deep_target_assignment_result",
         "Main::deep_value_assignment_result",
         "Main::reborrow_target_assignment_result",
         "Main::reborrow_value_assignment_result",
+        "Main::deep_slice_view_target_assignment_result",
+        "Main::recursive_slice_view_value_assignment_result",
     ] {
         let machine = typed
             .machines()

@@ -212,10 +212,13 @@ Current ownership is:
   or opaque free/attached collection producers remain fences. The
   bounded indexed target and bounded non-reference value tree may coexist on
   one assignment; their frames compose independently, while either side
-  exceeding its rail fences the relation. Other ordinary exact frames remain
-  published, and effect-free discarded expressions and direct Unit statement
-  calls with complete non-rebinding frames are neutral, including exact sibling
-  direct value-call arguments and their bounded two-level direct-call trees. An
+  exceeding its rail fences the relation. A compiler-owned mutable-slice view
+  on the target collection is neutral to that composition: the target index
+  and value tree retain independent depth-two budgets and publish all call
+  writes. Other ordinary exact frames remain published, and effect-free
+  discarded expressions and direct Unit statement calls with complete
+  non-rebinding frames are neutral, including exact sibling direct value-call
+  arguments and their bounded two-level direct-call trees. An
   internal statement call may also take a mutable indexed argument whose index
   is such a tree: caller-alias-aware instantiation coarsens callee writes to the
   argument's collection and publishes index-call writes. The indexed argument
