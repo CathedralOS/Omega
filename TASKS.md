@@ -61,12 +61,10 @@ Remaining:
   target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
   entry explicitly. The CLI basics cohort and the five deployable proof
   samples, the eight CLI algorithm samples, the six CLI interpreter samples,
-  seven deployable CLI game samples, all eleven CLI text samples, all thirteen
+  eight deployable CLI game samples, all eleven CLI text samples, all thirteen
   CLI collection samples, eleven deployable CLI rendering samples, and twelve
   deployable CLI simulation samples now author all four hosted roots; the two
   proof-only samples remain targetless.
-  `dungeon_crawler_cli` still has a non-Unit `main` plus an existing Linux
-  host-call argument lowering gap and remains in the legacy staging set.
   The formerly staged `bouncing_ball_2d` and `particle_sim` samples now select
   the required core float-operation providers explicitly; their direct and
   nested mutable floating-point machine-field writes lower on all four hosted
