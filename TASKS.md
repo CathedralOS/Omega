@@ -360,64 +360,36 @@ customer-shaped compiler concept is introduced.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows. The
-  durable trust report now copies each routed provider entry/result claim with
-  exact plan fingerprint, requirement, subject, authority flow, semantic
-  domain, carry policy, predicate-discharge requirement, and grant provenance;
-  granted rows also retain the exact authored root-grant selectors that
-  activated the selected plan, while unselected candidates retain none;
-  the qualification artifact also retains the canonical requirement overload
-  identity and predicate-body status beside its readable label; vacuous-use
-  rows, safe-point and activation-wide carry rows, and machine-contract rows
-  retain the exact owning machine overload identity. Continue with
-  consumers that still lack exact blast-radius rows. Provider-slot grants now
-  resolve through the selected closure, so lock/report/runtime admission bind
-  the same plan and leave unselected candidates dev-active. Selected provider
-  schemas, rows, adapter dispatch, and calling-plan lookup now require exact
-  nonempty overload identities; no name-only singleton compatibility remains.
+  retained selected-provider rows already bind exact plan, overload, grant,
+  subject, authority-flow, semantic-domain, carry, predicate, and root-selector
+  identity across lock/report/runtime admission. Continue with consumers that
+  still lack exact blast-radius rows. Selected schemas, adapter dispatch, and
+  calling-plan lookup require nonempty overload identities; name-only singleton
+  matching remains forbidden.
 
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 
 ### Multiplicity, tasks, and execution
 
-- **CML4:** construct the complete `EdgeCleanupPlan` after outgoing-value materialization and
-  transfer-map commitment. Add reverse-declaration cleanup, contextual cleanup
-  contract checking, structural partial-value cleanup, nominal-drop
-  partial-move rejection, repeated-cycle resource composition, and
-  conservation/backend-ledger reporting. The first narrow checked-to-terminal
-  path now composes exact ordinary-edge cleanup with source-handle-free state
-  signatures and whole-parameter transfers for acyclic, single-predecessor Unit
-  machines. A separate one-state scalar-return path materializes immutable
-  primitive locals and a scalar return, reconstructs exact-operation proofs, and
-  cleans its complete affine structural frontier. Final short-circuit returns
-  repeat cleanup on every value leaf; repeated short-circuit Boolean locals
-  converge through typed continuations and defer cleanup to the final return.
-  Structural Unit control now admits up to two retained-Boolean decision states
-  and one exact two-predecessor diamond whose incoming paths reconstruct the
-  same custody frontier; jumps and conditional arms may forward direct primitive
-  inputs before cleanup. These slices are not yet the complete
-  `EdgeCleanupPlan`, general conditional CFG, repeated-cycle composition, or
-  conservation witness.
+- **CML4:** construct the complete `EdgeCleanupPlan` after outgoing-value
+  materialization and transfer-map commitment. Accepted terminal slices carry
+  exact reverse-declaration affine cleanup through Unit/scalar returns and
+  bounded acyclic structural control, including short-circuit Boolean stages and
+  one equal-frontier diamond. Add contextual cleanup-contract checking,
+  structural partial-value cleanup, nominal-drop partial-move rejection,
+  repeated-cycle resource composition, and conservation/backend-ledger
+  reporting. The accepted slices are not yet a general conditional CFG,
+  complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
-  park/resume, and implement the suspension-safe-loan subset. The terminal
-  Unit-body native slice now retains exact code-positioned stack/link evidence;
-  object construction validates the instructions, derives local and caller-live
-  peaks, and composes an acyclic closure demand. The branch-free scalar slice
-  likewise retains and replays exact frame and temporary-stack mutations,
-  validates typed direct-call outbound/link evidence against those mutations,
-  derives caller-live bytes with pending temporaries, and joins the same
-  acyclic closure. One bounded scalar CFG shape is also sealed: a top-level
-  Boolean-parameter or linear Boolean-expression condition with two direct
-  linear integer return arms. Object validation distinguishes the condition
-  branch form, requires exact x86 flag-preserving frame release and AArch64
-  `B.EQ` evidence for expression conditions, replays the balanced condition
-  prefix and both arms independently, and takes their maximum. Typed scalar
-  calls in the prefix or either arm reuse exact call evidence and closure
-  composition. Extend that accounting to nested/reconvergent conditionals,
-  crashes in arms, division/remainder expressions, the external entry adapter,
-  and installed-root/provider admission before treating it as a full root
+  park/resume, and implement the suspension-safe-loan subset. Accepted Unit,
+  branch-free scalar, and one two-arm scalar conditional native shape retain and
+  replay exact code-positioned frame/link/temporary evidence and compose an
+  acyclic closure demand. Extend accounting to nested/reconvergent conditionals,
+  crashes in arms, division/remainder, the external entry adapter, and
+  installed-root/provider admission before calling it a complete root
   `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
