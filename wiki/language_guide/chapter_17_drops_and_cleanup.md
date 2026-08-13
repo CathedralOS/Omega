@@ -235,14 +235,12 @@ remain inactive.
 
 An aggregate with structural field cleanup may be partially moved. Its cleanup
 plan visits only the remaining live fields. The implemented terminal slice
-accepts a finite nonempty set of distinct direct moves from a flat affine record
-with at least two relevant structural fields, provided at least one sibling
-remains, and cleans every residual sibling in reverse declaration order. The
-slice additionally admits one arbitrary-depth all-field move. It cleans the
-maximal live sibling subtrees around the moved path in recursive reverse
-declaration order and never cleans a partially moved ancestor whole. Multiple
-moves involving a nested path, arrays/cases, claims, content evidence,
-contracts, and nominal `drop` remain fenced from that slice.
+accepts a finite nonempty set of pairwise prefix-disjoint, nonempty all-field
+moves from one claim-free affine record, provided at least one residual subtree
+remains. It cleans every maximal live residual subtree in recursive reverse
+declaration order and never cleans a partially moved ancestor whole. Arrays and
+cases, claims, content evidence, contracts, and nominal `drop` remain fenced
+from that slice.
 
 A type with a nominal whole-value `drop` body may not be partially moved:
 the body is entitled to receive one whole valid value. Such a type exposes an
