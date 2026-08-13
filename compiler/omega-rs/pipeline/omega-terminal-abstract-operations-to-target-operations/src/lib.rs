@@ -2171,7 +2171,7 @@ fn validate_bounded_nominal_cleanup_body(
     let Some((cleanup_return, helper_calls)) = cleanup_function.operations.split_last() else {
         return Err(invalid());
     };
-    if helper_calls.len() > 2
+    if helper_calls.len() > 3
         || !matches!(cleanup_return,
             TerminalAbstractOperation::ReturnUnit { cleanup_actions, .. }
                 if cleanup_actions.is_empty())
