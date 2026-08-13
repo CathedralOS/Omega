@@ -197,21 +197,23 @@ bytes. Nonempty, mutable, qualified, content-bearing, nominal-cleanup, and
 post-effect locals remain fenced.
 
 The bounded nominal-cleanup slice accepts one root-only, one-state Unit machine
-with exactly one claim-free, unqualified affine parameter whose record is empty
-or contains only relevant Terminal-supported Boolean/integer fields, plus its
-exact attached `T::drop(&mut self)` machine. The body is empty or contains up
-to two source-ordered ordinary zero-argument calls to mutually distinct
-exact-empty attached helpers. The
-return names the whole place, type, and cleanup-machine identity. Verification
-reconstructs the exact two-, three-, or four-machine closure; interpretation
-retains the receiver and charges the caller edge, each cleanup call and helper
-edge in source order, then the cleanup edge. Fixed fuel composes the same
-closure. Omega erases an
-empty receiver or assigns a nonempty one its ordinary ABI home, emits an
-edge-owned native cleanup call before teardown, and preserves the helper's
-operation-owned calls separately through all five object, image, and
-installation paths. Nested/erased receivers, three-or-more-call bodies, multiple
-ordered cleanup actions, claims, qualifications, locals, and non-root edges
+with one or two claim-free, unqualified affine parameters whose records are
+empty or contain only relevant Terminal-supported Boolean/integer fields, plus
+their exact attached `T::drop(&mut self)` machines. One cleanup may be empty or
+contain up to two source-ordered ordinary zero-argument calls to mutually
+distinct exact-empty attached helpers. Two cleanups run in reverse parameter
+declaration order and both drop bodies must be empty; repeated use of the same
+cleanup machine remains legal because each action names a distinct place. The
+return carries the ordered whole-place/type/machine list. Verification
+reconstructs its exact deduplicated machine closure; interpretation charges the
+caller edge once and executes each cleanup sequentially; fixed fuel counts
+every invocation, including a repeated target. Omega carries all return
+cleanup kinds in one ordered action stream through abstract, target, assigned,
+machine, object, image, and installation artifacts. Empty drops emit no native
+call; the one-cleanup executable form remains an edge-owned call before
+teardown with source-ordered operation-owned helper calls. Wider lists,
+executable multi-cleanup bodies, nested/erased receivers,
+three-or-more-call bodies, claims, qualifications, locals, and non-root edges
 remain fenced.
 
 An unconditional jump and each ordered conditional successor may carry an

@@ -40,16 +40,20 @@ declared service reach, but automatic cleanup is always:
 - nonblocking; and
 - free of abort, trap, or another abnormal outcome.
 
-The implemented terminal subset is deliberately narrower: one root-only Unit
-return may invoke an attached `drop` for one whole claim-free,
-unqualified affine record that is empty or contains only relevant Boolean or
-integer fields. The body is empty or contains up to two source-ordered ordinary
-zero-argument calls to mutually distinct exact-empty attached helpers. Psi
-preserves the whole receiver and executes the complete call sequence; Omega gives a nonempty receiver its
-ordinary ABI home, emits the cleanup invocation on the ownership edge, and
-preserves distinct cleanup-edge and helper-operation custody. Nested or erased
-receivers, three-or-more-call bodies, and multiple ordered cleanup actions remain
-pending engineering work under the rules below.
+The implemented terminal subset is deliberately narrower. A root-only Unit
+return may invoke attached `drop` for one or two whole claim-free, unqualified
+affine records that are empty or contain only relevant Boolean or integer
+fields. Two cleanups run in reverse parameter declaration order and currently
+require empty drop bodies; the same cleanup machine may appear twice because
+the actions own different places. A single cleanup body may instead contain up
+to two source-ordered ordinary zero-argument calls to mutually distinct
+exact-empty attached helpers. Psi preserves each whole receiver and executes
+the complete ordered list. Omega represents all return cleanup as one ordered
+action stream, assigns nonempty receivers their ordinary ABI homes, and emits
+only executable cleanup calls while retaining distinct edge and operation
+custody. Wider lists, executable multi-cleanup bodies, nested or erased
+receivers, and three-or-more-call bodies remain pending engineering work under
+the rules below.
 
 A release that waits, suspends, may fail, or promises protocol completion is an
 explicit consuming machine such as `close`, `flush`, `commit`, `finish`, or
