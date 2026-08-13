@@ -792,7 +792,6 @@ fn validate_structural_return_record(
         || returned.shape != returned.result_placement.shape
         || returned.shape.byte_size != 8
         || returned.returned_claims.len() != 1
-        || !(1..=2).contains(&returned.parameters.len())
         || returned
             .parameters
             .iter()
@@ -802,8 +801,17 @@ fn validate_structural_return_record(
             })
         || returned.parameters.first() != Some(&returned.source)
         || returned.parameters.iter().skip(1).any(|parameter| {
-            parameter.place == returned.source.place || parameter.place == returned.result.place
+            parameter.place == returned.source.place
+                || parameter.place == returned.result.place
+                || !parameter.qualifications.is_empty()
         })
+        || returned
+            .parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != returned.parameters.len()
         || returned.trivial_affine_locals.iter().enumerate().any(|(index, (_, local, local_type))| {
             !matches!(
                 local.kind,

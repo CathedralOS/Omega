@@ -715,8 +715,8 @@ fn lower_structural_machine(
     let Some(parameter) = machine.structural_parameters.first() else {
         return Err(unsupported());
     };
-    let discarded = machine.structural_parameters.get(1);
-    if !matches!(machine.structural_parameters.len(), 1 | 2) {
+    let discarded = machine.structural_parameters.get(1..).unwrap_or_default();
+    if machine.structural_parameters.is_empty() {
         return Err(unsupported());
     }
     let [entry_claim] = machine.entry_claims.as_slice() else {
@@ -735,7 +735,8 @@ fn lower_structural_machine(
         .iter()
         .find(|place| place.id == result.place)
         .ok_or_else(unsupported)?;
-    let discarded_place = discarded
+    let discarded_places = discarded
+        .iter()
         .map(|discarded| {
             machine
                 .structural_places
@@ -743,7 +744,7 @@ fn lower_structural_machine(
                 .find(|place| place.id == discarded.place)
                 .ok_or_else(unsupported)
         })
-        .transpose()?;
+        .collect::<Result<Vec<_>, _>>()?;
     let trivial_affine_locals = block
         .operations
         .iter()
@@ -793,11 +794,19 @@ fn lower_structural_machine(
     if !machine.parameters.is_empty()
         || parameter.position != 0
         || parameter.is_self
-        || discarded.is_some_and(|discarded| {
-            discarded.position != 1
+        || discarded.iter().enumerate().any(|(index, discarded)| {
+            usize::try_from(discarded.position) != Ok(index + 1)
                 || discarded.is_self
                 || discarded.multiplicity != StructuralMultiplicity::Affine
+                || !discarded.qualifications.is_empty()
         })
+        || machine
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != machine.structural_parameters.len()
         || parameter.multiplicity != StructuralMultiplicity::Linear
         || result.multiplicity != StructuralMultiplicity::Linear
         || parameter.structural_type != result.structural_type
@@ -811,7 +820,7 @@ fn lower_structural_machine(
                 .iter()
                 .rev()
                 .map(|(_, local, _)| local.id)
-                .chain(discarded.iter().map(|discarded| discarded.place))
+                .chain(discarded.iter().rev().map(|discarded| discarded.place))
                 .collect::<Vec<_>>()
         || block.id != machine.entry
         || !block.parameters.is_empty()
@@ -829,13 +838,13 @@ fn lower_structural_machine(
         )
         || result_place.id != result.place
         || result_place.kind != StructuralPlaceKind::Result
-        || discarded_place.is_some_and(|place| {
+        || discarded_places.iter().enumerate().any(|(index, place)| {
             !matches!(
                 place.kind,
                 StructuralPlaceKind::Parameter {
-                    position: 1,
+                    position,
                     is_self: false
-                }
+                } if usize::try_from(position) == Ok(index + 1)
             )
         })
         || trivial_affine_locals

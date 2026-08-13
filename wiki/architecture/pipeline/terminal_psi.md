@@ -361,8 +361,9 @@ qualifications, and claim identities, charging fuel before custody or cleanup
 commits; canonical encoding and fixed-fuel derivation cover the same edge.
 The exact checked-source slice accepts one attached, one-state passthrough of a
 whole linear parameter with matching qualifications and one whole-root claim.
-It may additionally carry one claim-free affine structural parameter, whose
-place is discarded after result materialization in canonical reverse order. It
+It may additionally carry a finite tail of unqualified, claim-free affine
+structural parameters, whose places are discarded after result materialization
+in canonical reverse parameter order. It
 may also establish a finite consecutive prefix of immutable, unqualified
 empty-record affine locals before the return. Terminal Psi declares each local
 without a source handle, charges each explicit establishment operation, and
@@ -374,7 +375,8 @@ Omega realizes that exact slice through its target calling policy when the value
 has one direct eight-byte integer fragment. The source and result placements,
 typed local establishment, Psi edge, claim set, exact affine cleanup, and fuel
 attribution survive target assignment, machine emission, object/image
-construction, and canonical installation. The locals are not ABI parameters;
+construction, and canonical installation. Direct register and stack parameter
+homes are retained exactly. The locals are not ABI parameters;
 claim identity and trivial cleanup are zero-runtime semantic metadata rather
 than extra ABI words or cleanup instructions. Wider or
 indirect values, projections, structural calls, and broader control remain

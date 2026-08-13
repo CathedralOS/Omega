@@ -135,7 +135,7 @@ fn checked_source() -> psi_checked_trees::CheckedTrees {
 
 fn assert_source_structural_return(
     machine_name: &str,
-    has_parameter_cleanup: bool,
+    parameter_cleanup_count: usize,
     local_cleanup_count: usize,
 ) {
     let checked = checked_source();
@@ -244,7 +244,7 @@ fn assert_source_structural_return(
         .collect::<Vec<_>>();
     assert_eq!(
         machine.structural_parameters.len(),
-        usize::from(has_parameter_cleanup) + 1
+        parameter_cleanup_count + 1
     );
     assert_eq!(*source, machine.structural_parameters[0].place);
     assert_eq!(returned_claims, &[entry_claim.claim]);
@@ -269,9 +269,9 @@ fn assert_source_structural_return(
         path: Vec::new(),
     };
     let mut structural_arguments = vec![argument.clone()];
-    if let Some(cleanup_parameter) = machine.structural_parameters.get(1) {
+    for (index, cleanup_parameter) in machine.structural_parameters.iter().skip(1).enumerate() {
         structural_arguments.push(TerminalStructuralValue {
-            opaque_identity: 0xd15c_a4d,
+            opaque_identity: 0xd15c_a4d + u64::try_from(index).expect("cleanup index fits u64"),
             structural_type: cleanup_parameter.structural_type,
             qualifications: cleanup_parameter.qualifications.clone(),
             path: Vec::new(),
@@ -336,7 +336,7 @@ fn assert_source_structural_return(
             && abstract_locals == &trivial_affine_locals
             && trivial_affine_discards == &expected_cleanup
     ));
-    if has_parameter_cleanup || local_cleanup_count != 0 {
+    if parameter_cleanup_count != 0 || local_cleanup_count != 0 {
         let mut missing_cleanup = abstract_plan.clone();
         let [
             TerminalAbstractOperation::ReturnStructural {
@@ -390,6 +390,16 @@ fn assert_source_structural_return(
         assert_eq!(returned_claims, &[claim]);
         assert_eq!(target_locals, &trivial_affine_locals);
         assert_eq!(trivial_affine_discards, &expected_cleanup);
+        if parameter_cleanup_count == 8 {
+            assert!(
+                call_plan.parameters.iter().any(|placement| placement
+                    .locations
+                    .iter()
+                    .any(|location| matches!(location, ValueLocation::Stack { .. }))),
+                "eight affine tails must exercise incoming stack placement under {:?}",
+                case.policy
+            );
+        }
 
         let assigned = assign_registers(&target_plan).unwrap_or_else(|error| {
             panic!("{:?} structural assignment failed: {error:?}", case.target)
@@ -421,7 +431,7 @@ fn assert_source_structural_return(
         assert_eq!(assigned_claims, returned_claims);
         assert_eq!(assigned_locals, target_locals);
         assert_eq!(assigned_cleanup, trivial_affine_discards);
-        if has_parameter_cleanup || local_cleanup_count != 0 {
+        if parameter_cleanup_count != 0 || local_cleanup_count != 0 {
             let mut noncanonical_cleanup = target_plan.clone();
             let TerminalTargetOperation::ReturnStructuralParameter {
                 trivial_affine_discards,
@@ -511,7 +521,7 @@ fn assert_source_structural_return(
             "{:?} object validation must reject a silently dropped live claim",
             case.target
         );
-        if has_parameter_cleanup || local_cleanup_count != 0 {
+        if parameter_cleanup_count != 0 || local_cleanup_count != 0 {
             let mut dropped_cleanup = machine_code.clone();
             dropped_cleanup.functions[0]
                 .structural_return
@@ -631,7 +641,7 @@ fn assert_source_structural_return(
                 );
             }
         }
-        if has_parameter_cleanup {
+        if parameter_cleanup_count != 0 {
             let mut aliased_parameter = machine_code.clone();
             let aliased_custody = aliased_parameter.functions[0]
                 .structural_return
@@ -644,6 +654,21 @@ fn assert_source_structural_return(
                 "{:?} object validation must reject an affine parameter aliased to the returned place",
                 case.target
             );
+            if parameter_cleanup_count > 1 {
+                let mut duplicate_tail = machine_code.clone();
+                let custody = duplicate_tail.functions[0]
+                    .structural_return
+                    .as_mut()
+                    .expect("structural custody row");
+                custody.parameters[2].place = custody.parameters[1].place;
+                custody.trivial_affine_discards[parameter_cleanup_count - 2] =
+                    custody.parameters[1].place;
+                assert!(
+                    build_terminal_object_artifact(&duplicate_tail).is_err(),
+                    "{:?} object validation must reject pairwise-aliased affine tails",
+                    case.target
+                );
+            }
         }
 
         let object = build_terminal_object_artifact(&machine_code).unwrap_or_else(|error| {
@@ -781,7 +806,9 @@ fn assert_source_structural_return(
                 )),
                 "canonical installation decoding must reject a gapped second-local ordinal"
             );
+        }
 
+        if expected_cleanup.len() >= 2 {
             let mut reordered_cleanup_bytes = installation_bytes.clone();
             let cleanup_place_offset = custody_offset + cleanup_count_in_suffix + 4;
             let first_cleanup =
@@ -798,10 +825,10 @@ fn assert_source_structural_return(
                 Err(TerminalInstallationError::InvalidStructuralReturn(
                     machine.id
                 )),
-                "canonical installation decoding must reject reordered local cleanup"
+                "canonical installation decoding must reject reordered cleanup"
             );
         }
-        if has_parameter_cleanup || local_cleanup_count != 0 {
+        if parameter_cleanup_count != 0 || local_cleanup_count != 0 {
             let mut changed_cleanup_bytes = installation_bytes.clone();
             let cleanup_place_offset = custody_offset + cleanup_count_in_suffix + 4;
             changed_cleanup_bytes[cleanup_place_offset..cleanup_place_offset + 8]
@@ -820,7 +847,7 @@ fn assert_source_structural_return(
             assert!(host_structural_round_trip(
                 case.bytes,
                 OPAQUE_REGION_IDENTITY,
-                has_parameter_cleanup
+                parameter_cleanup_count
             ));
         }
     }
@@ -828,15 +855,16 @@ fn assert_source_structural_return(
 
 #[test]
 fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop() {
-    assert_source_structural_return("Main::forward", false, 0);
-    assert_source_structural_return("Main::forward_and_drop", true, 0);
-    assert_source_structural_return("Main::forward_with_local", false, 1);
-    assert_source_structural_return("Main::forward_with_two_locals", false, 2);
-    assert_source_structural_return("Main::forward_with_local_and_drop", true, 1);
+    assert_source_structural_return("Main::forward", 0, 0);
+    assert_source_structural_return("Main::forward_and_drop", 1, 0);
+    assert_source_structural_return("Main::forward_and_drop_eight", 8, 0);
+    assert_source_structural_return("Main::forward_with_local", 0, 1);
+    assert_source_structural_return("Main::forward_with_two_locals", 0, 2);
+    assert_source_structural_return("Main::forward_with_local_and_drop", 1, 1);
 }
 
 #[cfg(unix)]
-fn host_structural_round_trip(bytes: &[u8], value: u64, has_cleanup: bool) -> bool {
+fn host_structural_round_trip(bytes: &[u8], value: u64, cleanup_count: usize) -> bool {
     let nonce = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("wall clock after epoch")
@@ -865,7 +893,13 @@ fn host_structural_round_trip(bytes: &[u8], value: u64, has_cleanup: bool) -> bo
             ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {encoded_bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
         )
     };
-    let driver = if has_cleanup {
+    let driver = if cleanup_count == 8 {
+        format!(
+            "#include <stdint.h>\n\
+extern uint64_t terminal_entry(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);\n\
+int main(void) {{ return terminal_entry(UINT64_C({value}), 1, 2, 3, 4, 5, 6, 7, 8) == UINT64_C({value}) ? 0 : 1; }}\n"
+        )
+    } else if cleanup_count == 1 {
         format!(
             "#include <stdint.h>\n\
 extern uint64_t terminal_entry(uint64_t, uint64_t);\n\

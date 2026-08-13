@@ -1612,8 +1612,14 @@ fn lower_structural_return_machine(
             "structural result plan is not one exact whole-root linear transfer with affine cleanup",
         );
     };
-    let discarded_plan = plan.structural_parameters.get(1);
-    let expected_discards: &[u32] = if discarded_plan.is_some() { &[1] } else { &[] };
+    let discarded_plans = &plan.structural_parameters[1..];
+    let expected_discards = (1..plan.structural_parameters.len())
+        .rev()
+        .map(|position| u32::try_from(position).ok())
+        .collect::<Option<Vec<_>>>()
+        .ok_or(LoweringError::Unsupported(
+            "structural result cleanup position is not representable",
+        ))?;
     let expected_local_discards = plan
         .trivial_affine_locals
         .iter()
@@ -1621,8 +1627,7 @@ fn lower_structural_return_machine(
         .map(|local| local.declaration_ordinal)
         .collect::<Vec<_>>();
     if plan.returned_parameter_index != 0
-        || !matches!(plan.structural_parameters.len(), 1 | 2)
-        || plan.trivial_affine_discards.as_slice() != expected_discards
+        || plan.trivial_affine_discards != expected_discards
         || plan.trivial_affine_local_discard_ordinals != expected_local_discards
         || plan
             .trivial_affine_locals
@@ -1634,9 +1639,9 @@ fn lower_structural_return_machine(
             })
         || returned_plan.multiplicity != Multiplicity::Linear
         || returned_plan.is_self
-        || discarded_plan.is_some_and(|discarded| {
-            discarded.multiplicity != Multiplicity::Affine || discarded.is_self
-        })
+        || discarded_plans
+            .iter()
+            .any(|discarded| discarded.multiplicity != Multiplicity::Affine || discarded.is_self)
         || plan.result.multiplicity != Multiplicity::Linear
         || plan.entry_claim.parameter_index != 0
         || !plan.entry_claim.path.is_empty()
@@ -1675,7 +1680,7 @@ fn lower_structural_return_machine(
     let input = parameters.first().ok_or(LoweringError::Unsupported(
         "structural result plan has no input",
     ))?;
-    let discarded = parameters.get(1);
+    let discarded = &parameters[1..];
     let result_place = place_id(RESULT_STRUCTURAL_PLACE_ID);
     if input.place == result_place {
         return unsupported("structural result place collides with its input namespace");
@@ -1765,11 +1770,11 @@ fn lower_structural_return_machine(
         return unsupported("structural result content roots do not match the checked signature");
     }
     let mut expected_places = content_places;
-    if let Some(discarded) = discarded {
+    for discarded in discarded {
         expected_places.insert(
             discarded.place,
             StructuralPlaceKind::Parameter {
-                position: 1,
+                position: discarded.position,
                 is_self: discarded.is_self,
             },
         );
@@ -1788,7 +1793,7 @@ fn lower_structural_return_machine(
         .iter()
         .rev()
         .map(|(_, _, place)| *place)
-        .chain(discarded.iter().map(|value| value.place))
+        .chain(discarded.iter().rev().map(|value| value.place))
         .collect();
 
     let terminal_machine = machine_id(1);

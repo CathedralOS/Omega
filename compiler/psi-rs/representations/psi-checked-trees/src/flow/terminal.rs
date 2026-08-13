@@ -358,8 +358,8 @@ pub struct CheckedStructuralReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
-    /// Exact structural signature in dense terminal order. The established
-    /// root-only form has one parameter; the first cleanup extension has two.
+    /// Exact structural signature in dense terminal order: one returned linear
+    /// root followed by a finite claim-free affine cleanup tail.
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Dense parameter index of the whole root transferred to the result.
     pub returned_parameter_index: u32,

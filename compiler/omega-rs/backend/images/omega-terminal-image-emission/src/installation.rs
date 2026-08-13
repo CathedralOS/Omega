@@ -28,7 +28,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 7;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 8;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -1023,11 +1023,19 @@ fn validate_record_shape(
             || returned.shape != ValueShape::integer(8, 8)
             || returned.source_placement.shape != returned.shape
             || returned.result_placement.shape != returned.shape
-            || !(1..=2).contains(&returned.parameters.len())
             || returned.parameters.first() != Some(&returned.source)
             || returned.parameters.iter().skip(1).any(|parameter| {
-                parameter.place == returned.source.place || parameter.place == returned.result.place
+                parameter.place == returned.source.place
+                    || parameter.place == returned.result.place
+                    || !parameter.qualifications.is_empty()
             })
+            || returned
+                .parameters
+                .iter()
+                .map(|parameter| parameter.place)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != returned.parameters.len()
             || returned.trivial_affine_locals.iter().enumerate().any(|(index, (_, local, local_type))| {
                 !matches!(
                     local.kind,
@@ -1464,21 +1472,38 @@ fn encode_placement(
     placement: &ValuePlacement,
 ) -> Result<(), TerminalInstallationError> {
     encode_shape(bytes, placement.shape)?;
-    let [
+    let [location] = placement.locations.as_slice() else {
+        return Err(TerminalInstallationError::UnsupportedStructuralReturnPlacement);
+    };
+    match location {
         ValueLocation::Register {
             register,
             value_byte_offset,
             byte_size,
-        },
-    ] = placement.locations.as_slice()
-    else {
-        return Err(TerminalInstallationError::UnsupportedStructuralReturnPlacement);
-    };
-    bytes.push(register_tag(*register)?);
-    bytes.push(0);
-    push_u16(bytes, *value_byte_offset);
-    push_u16(bytes, *byte_size);
-    push_u16(bytes, 0);
+        } => {
+            bytes.push(1);
+            bytes.push(register_tag(*register)?);
+            push_u16(bytes, *value_byte_offset);
+            push_u16(bytes, *byte_size);
+            push_u16(bytes, 0);
+        }
+        ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            byte_size,
+            alignment,
+        } => {
+            bytes.push(2);
+            bytes.push(0);
+            push_u16(bytes, *value_byte_offset);
+            push_u16(bytes, *byte_size);
+            push_u16(bytes, *alignment);
+            push_u32(bytes, *stack_byte_offset);
+        }
+        ValueLocation::Indirect { .. } => {
+            return Err(TerminalInstallationError::UnsupportedStructuralReturnPlacement);
+        }
+    }
     Ok(())
 }
 
@@ -1678,22 +1703,37 @@ fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, TerminalInstallat
 
 fn decode_placement(reader: &mut Reader<'_>) -> Result<ValuePlacement, TerminalInstallationError> {
     let shape = decode_shape(reader)?;
-    let register = decode_register(reader.u8()?)?;
-    if reader.u8()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    let value_byte_offset = reader.u16()?;
-    let byte_size = reader.u16()?;
-    if reader.u16()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
+    let location_kind = reader.u8()?;
+    let detail = reader.u8()?;
+    let location = match location_kind {
+        1 => {
+            let value_byte_offset = reader.u16()?;
+            let byte_size = reader.u16()?;
+            if reader.u16()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            ValueLocation::Register {
+                register: decode_register(detail)?,
+                value_byte_offset,
+                byte_size,
+            }
+        }
+        2 => {
+            if detail != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            ValueLocation::Stack {
+                value_byte_offset: reader.u16()?,
+                byte_size: reader.u16()?,
+                alignment: reader.u16()?,
+                stack_byte_offset: reader.u32()?,
+            }
+        }
+        _ => return Err(TerminalInstallationError::UnsupportedStructuralReturnPlacement),
+    };
     Ok(ValuePlacement {
         shape,
-        locations: vec![ValueLocation::Register {
-            register,
-            value_byte_offset,
-            byte_size,
-        }],
+        locations: vec![location],
     })
 }
 
@@ -1725,6 +1765,14 @@ fn register_tag(register: MachineRegister) -> Result<u8, TerminalInstallationErr
         MachineRegister::X86Rsi => Ok(5),
         MachineRegister::X86Rdx => Ok(6),
         MachineRegister::Aarch64X(1) => Ok(7),
+        MachineRegister::X86R8 => Ok(8),
+        MachineRegister::X86R9 => Ok(9),
+        MachineRegister::Aarch64X(2) => Ok(10),
+        MachineRegister::Aarch64X(3) => Ok(11),
+        MachineRegister::Aarch64X(4) => Ok(12),
+        MachineRegister::Aarch64X(5) => Ok(13),
+        MachineRegister::Aarch64X(6) => Ok(14),
+        MachineRegister::Aarch64X(7) => Ok(15),
         _ => Err(TerminalInstallationError::UnsupportedStructuralReturnRegister(register)),
     }
 }
@@ -1738,6 +1786,14 @@ fn decode_register(value: u8) -> Result<MachineRegister, TerminalInstallationErr
         5 => Ok(MachineRegister::X86Rsi),
         6 => Ok(MachineRegister::X86Rdx),
         7 => Ok(MachineRegister::Aarch64X(1)),
+        8 => Ok(MachineRegister::X86R8),
+        9 => Ok(MachineRegister::X86R9),
+        10 => Ok(MachineRegister::Aarch64X(2)),
+        11 => Ok(MachineRegister::Aarch64X(3)),
+        12 => Ok(MachineRegister::Aarch64X(4)),
+        13 => Ok(MachineRegister::Aarch64X(5)),
+        14 => Ok(MachineRegister::Aarch64X(6)),
+        15 => Ok(MachineRegister::Aarch64X(7)),
         _ => Err(TerminalInstallationError::InvalidStructuralReturnRegister(
             value,
         )),
