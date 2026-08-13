@@ -556,9 +556,10 @@ fn scalar_return_rejects_the_exact_nominal_root_missing_a_cleanup_premise() {
         requires self.ready
         {}
 
+        data Plain { observed: bool; }
         data Root {}
-        machine Root::measure(first: Token, second: Token) -> u64
-        requires first.ready
+        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+        requires first.ready, plain.observed
         { 7u64 }
         "#,
     );
@@ -572,28 +573,92 @@ fn scalar_return_rejects_the_exact_nominal_root_missing_a_cleanup_premise() {
 }
 
 #[test]
-fn contextual_scalar_cleanup_keeps_mixed_roots_and_wider_scalar_bodies_fenced() {
+fn scalar_return_retains_mixed_contextual_facts_and_cleanup_order() {
     let mixed = checked(
         r#"
-        data Plain { value: u64; }
-        data Token { ready: bool; }
+        data Token { ready: bool; enabled: bool; }
         machine Token::drop(&mut self)
-        requires self.ready
+        requires self.ready, !self.enabled
         {}
+        data Plain { observed: bool; }
         data Root {}
-        machine Root::measure(plain: Plain, token: Token) -> u64
-        requires token.ready
+        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+        requires
+            first.ready;
+            !first.enabled;
+            plain.observed;
+            second.ready;
+            !second.enabled
+        { 7u64 }
+        "#,
+    );
+    let plan = mixed
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&mixed, "measure"))
+        .expect("mixed contextual roots retain one complete checked cleanup stream");
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "enabled", false),
+            (0, "ready", true),
+            (1, "observed", true),
+            (2, "enabled", false),
+            (2, "ready", true),
+        ],
+        "supported trivial-root facts remain caller assumptions",
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("mixed contextual actions preserve reverse authored root order")
+    };
+    assert_eq!(second.source_parameter_index, 2);
+    assert_eq!(first.source_parameter_index, 0);
+    for cleanup in [second, first] {
+        assert_eq!(
+            cleanup
+                .requirements
+                .iter()
+                .map(|requirement| { (requirement.field_identity.as_str(), requirement.expected) })
+                .collect::<Vec<_>>(),
+            vec![("enabled", false), ("ready", true)],
+        );
+    }
+}
+
+#[test]
+fn contextual_scalar_cleanup_keeps_all_trivial_roots_and_wider_bodies_fenced() {
+    let all_trivial = checked(
+        r#"
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(plain: Plain) -> u64
+        requires plain.observed
         { 7u64 }
         "#,
     );
     assert!(
-        mixed
+        all_trivial
             .facts
             .flow
             .terminal_structural_scalar_returns
-            .for_machine(machine_named(&mixed, "measure"))
+            .for_machine(machine_named(&all_trivial, "measure"))
             .is_none(),
-        "mixed contextual roots require a later proof-root rebasing slice",
+        "contextual scalar cleanup remains tied to at least one nominal action",
     );
 
     let wider = checked(

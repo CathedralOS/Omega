@@ -2651,13 +2651,6 @@ fn lower_nominal_structural_scalar_return_machine(
         || !plan.scalar_parameters.is_empty()
         || !plan.bindings.is_empty()
         || plan.return_statement_ordinal != 0
-        || (!plan.caller_requirements.is_empty()
-            && plan.cleanup_actions.iter().any(|action| {
-                matches!(
-                    action,
-                    CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_)
-                )
-            }))
     {
         return unsupported("nominal scalar return exceeds its first bounded slice");
     }
@@ -2681,6 +2674,7 @@ fn lower_nominal_structural_scalar_return_machine(
         }
     }
     let mut nominal_parameters = Vec::new();
+    let mut nominal_source_positions = Vec::new();
     for parameter in &plan.structural_parameters {
         if plan.cleanup_actions.iter().any(|action| {
             matches!(
@@ -2693,6 +2687,7 @@ fn lower_nominal_structural_scalar_return_machine(
             normalized.position = u32::try_from(nominal_parameters.len()).map_err(|_| {
                 LoweringError::Unsupported("nominal scalar return root count exceeds u32")
             })?;
+            nominal_source_positions.push(parameter.position);
             nominal_parameters.push(normalized);
         }
     }
@@ -2708,24 +2703,35 @@ fn lower_nominal_structural_scalar_return_machine(
         .collect::<Vec<_>>();
     for cleanup in &mut nominal_cleanups {
         cleanup.source_parameter_index = u32::try_from(
-            plan.structural_parameters
+            nominal_source_positions
                 .iter()
-                .filter(|parameter| {
-                    plan.cleanup_actions.iter().any(|action| {
-                        matches!(
-                            action,
-                            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(candidate)
-                                if candidate.source_parameter_index == parameter.position
-                        )
-                    })
-                })
-                .position(|parameter| parameter.position == cleanup.source_parameter_index)
+                .position(|position| *position == cleanup.source_parameter_index)
                 .ok_or(LoweringError::Unsupported(
                     "nominal scalar return cleanup root is absent",
                 ))?,
         )
         .map_err(|_| LoweringError::Unsupported("nominal scalar return root count exceeds u32"))?;
     }
+    let nominal_caller_requirements = plan
+        .caller_requirements
+        .iter()
+        .filter_map(|requirement| {
+            let compact_position = nominal_source_positions
+                .iter()
+                .position(|position| *position == requirement.source_parameter_index)?;
+            let mut normalized = requirement.clone();
+            Some(
+                u32::try_from(compact_position)
+                    .map(|position| {
+                        normalized.source_parameter_index = position;
+                        normalized
+                    })
+                    .map_err(|_| {
+                        LoweringError::Unsupported("nominal scalar return root count exceeds u32")
+                    }),
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let contract = checked
         .facts
         .contract_plans
@@ -2765,7 +2771,7 @@ fn lower_nominal_structural_scalar_return_machine(
     };
     let nominal = CheckedNominalAffineUnitCleanupMachinePlan {
         machine: synthetic,
-        caller_requirements: plan.caller_requirements.clone(),
+        caller_requirements: nominal_caller_requirements,
         cleanups: nominal_cleanups,
     };
     let mut staged = checked.clone();
@@ -2850,20 +2856,28 @@ fn lower_nominal_structural_scalar_return_machine(
     let mut next_place = 1_u64;
     let structural_parameters =
         lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
-    let entry = lowered
+    let entry_index = lowered
         .semantic_module
         .machines
-        .iter_mut()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .iter()
+        .position(|machine| machine.id == lowered.semantic_module.entry)
         .ok_or(LoweringError::Unsupported(
             "nominal scalar return entry machine was not retained",
         ))?;
-    let [block] = entry.blocks.as_mut_slice() else {
+    let compact_parameters = lowered.semantic_module.machines[entry_index]
+        .structural_parameters
+        .clone();
+    let [compact_block] = lowered.semantic_module.machines[entry_index]
+        .blocks
+        .as_slice()
+    else {
         return unsupported("nominal scalar return entry control is not a single block");
     };
-    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &block.terminator else {
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &compact_block.terminator else {
         return unsupported("nominal scalar return synthetic cleanup edge drifted");
     };
+    let edge = *edge;
+    let mut terminal_nominals = cleanups.clone();
     if cleanups.len()
         != plan
             .cleanup_actions
@@ -2878,7 +2892,211 @@ fn lower_nominal_structural_scalar_return_machine(
     {
         return unsupported("nominal scalar return synthetic cleanup count drifted");
     }
-    let mut terminal_nominals = cleanups.iter().cloned();
+
+    let mut caller_place_rebase = BTreeMap::new();
+    for compact in &compact_parameters {
+        let source_position = nominal_source_positions
+            .get(usize::try_from(compact.position).map_err(|_| {
+                LoweringError::Unsupported(
+                    "nominal scalar return compact root position exceeds usize",
+                )
+            })?)
+            .copied()
+            .ok_or(LoweringError::Unsupported(
+                "nominal scalar return compact root is absent",
+            ))?;
+        let full = structural_parameters
+            .iter()
+            .find(|parameter| parameter.position == source_position)
+            .ok_or(LoweringError::Unsupported(
+                "nominal scalar return full root is absent",
+            ))?;
+        if compact.structural_type != full.structural_type
+            || caller_place_rebase
+                .insert(compact.place, full.place)
+                .is_some()
+        {
+            return unsupported("nominal scalar return compact root mapping drifted");
+        }
+    }
+    if caller_place_rebase.len() != nominal_source_positions.len() {
+        return unsupported("nominal scalar return compact root mapping is incomplete");
+    }
+
+    let mut next_proof_root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.structural_places)
+        .map(|place| place.id.get())
+        .chain(
+            structural_parameters
+                .iter()
+                .map(|parameter| parameter.place.get()),
+        )
+        .max()
+        .unwrap_or(0);
+    let mut receiver_place_rebase = BTreeMap::new();
+    for cleanup in &terminal_nominals {
+        let Some(receiver) = cleanup.cleanup_receiver else {
+            continue;
+        };
+        if receiver_place_rebase.contains_key(&receiver) {
+            continue;
+        }
+        next_proof_root = next_proof_root
+            .checked_add(1)
+            .ok_or(LoweringError::Unsupported(
+                "contextual nominal scalar proof-root identity space is exhausted",
+            ))?;
+        receiver_place_rebase.insert(receiver, place_id(next_proof_root));
+    }
+
+    for requirement in &mut lowered.semantic_module.machines[entry_index]
+        .contract
+        .requires
+    {
+        rebase_direct_boolean_requirement_root(
+            requirement,
+            &caller_place_rebase,
+            "contextual nominal scalar caller requirement root drifted",
+        )?;
+    }
+    let mut full_caller_clauses = plan
+        .caller_requirements
+        .iter()
+        .map(|requirement| {
+            let parameter = structural_parameters
+                .iter()
+                .find(|parameter| parameter.position == requirement.source_parameter_index)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal scalar full caller root is absent",
+                ))?;
+            let structural_type = lowered
+                .semantic_module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal scalar full caller type is absent",
+                ))?;
+            let field = match &structural_type.shape {
+                StructuralTypeShape::Record { fields } => fields
+                    .iter()
+                    .find(|field| field.identity == requirement.field_identity)
+                    .filter(|field| {
+                        !field.relevance.is_erased()
+                            && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                    })
+                    .map(|field| field.id),
+                StructuralTypeShape::FixedArray { .. } => None,
+            }
+            .ok_or(LoweringError::Unsupported(
+                "contextual nominal scalar full caller field drifted",
+            ))?;
+            Ok((
+                (requirement.expected, parameter.place, field),
+                Proposition::Equal(
+                    ScalarTerm::boolean(requirement.expected),
+                    ScalarTerm::boolean_field(parameter.place, field),
+                ),
+            ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    full_caller_clauses.sort_by_key(|((expected, root, field), _)| {
+        (
+            *expected,
+            root.get().to_le_bytes(),
+            field.get().to_le_bytes(),
+        )
+    });
+    if full_caller_clauses
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0)
+    {
+        return unsupported("contextual nominal scalar full caller requirements are duplicated");
+    }
+    let full_caller_requires = full_caller_clauses
+        .into_iter()
+        .map(|(_, proposition)| proposition)
+        .collect::<Vec<_>>();
+    let compact_caller_requires = lowered.semantic_module.machines[entry_index]
+        .contract
+        .requires
+        .clone();
+    let assumption_rebase = compact_caller_requires
+        .iter()
+        .map(|requirement| {
+            full_caller_requires
+                .iter()
+                .position(|full| full == requirement)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal scalar proof assumption is absent from the full caller",
+                ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    lowered.semantic_module.machines[entry_index]
+        .contract
+        .requires = full_caller_requires;
+    let target_receivers = terminal_nominals
+        .iter()
+        .filter_map(|cleanup| {
+            cleanup
+                .cleanup_receiver
+                .map(|receiver| (cleanup.cleanup_machine, receiver))
+        })
+        .collect::<BTreeMap<_, _>>();
+    for (target, receiver) in target_receivers {
+        if terminal_nominals.iter().any(|cleanup| {
+            cleanup.cleanup_machine == target && cleanup.cleanup_receiver != Some(receiver)
+        }) {
+            return unsupported("shared contextual scalar cleanup receiver drifted");
+        }
+        let target = lowered
+            .semantic_module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == target)
+            .ok_or(LoweringError::Unsupported(
+                "contextual nominal scalar cleanup target is absent",
+            ))?;
+        for requirement in &mut target.contract.requires {
+            rebase_direct_boolean_requirement_root(
+                requirement,
+                &receiver_place_rebase,
+                "contextual nominal scalar cleanup receiver drifted",
+            )?;
+        }
+    }
+    for evidence in &mut lowered.proof_bundle.evidence {
+        let EvidenceRoute::CertificateDerived(certificate) = &mut evidence.route else {
+            return unsupported("contextual nominal scalar cleanup evidence route drifted");
+        };
+        let ProofRule::Assumption { index } = &mut certificate.proof.rule else {
+            return unsupported("contextual nominal scalar cleanup proof rule drifted");
+        };
+        *index = *assumption_rebase
+            .get(*index)
+            .ok_or(LoweringError::Unsupported(
+                "contextual nominal scalar cleanup proof assumption index drifted",
+            ))?;
+        rebase_direct_boolean_requirement_root(
+            &mut certificate.proof.conclusion,
+            &caller_place_rebase,
+            "contextual nominal scalar cleanup proof conclusion drifted",
+        )?;
+    }
+    for cleanup in &mut terminal_nominals {
+        if let Some(receiver) = cleanup.cleanup_receiver {
+            cleanup.cleanup_receiver = Some(*receiver_place_rebase.get(&receiver).ok_or(
+                LoweringError::Unsupported(
+                    "contextual nominal scalar cleanup receiver mapping is absent",
+                ),
+            )?);
+        }
+    }
+
+    let mut terminal_nominals = terminal_nominals.into_iter();
     let cleanup_actions = plan
         .cleanup_actions
         .iter()
@@ -2914,10 +3132,13 @@ fn lower_nominal_structural_scalar_return_machine(
     if terminal_nominals.next().is_some() {
         return unsupported("nominal scalar return synthetic cleanup stream is long");
     }
-    let edge = *edge;
     let mut next_value = 1_u64;
     let mut operations = OperationBuffer::new(operation_identity_base);
     let value = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
+    let entry = &mut lowered.semantic_module.machines[entry_index];
+    let [block] = entry.blocks.as_mut_slice() else {
+        return unsupported("nominal scalar return entry control is not a single block");
+    };
     block.operations = operations.operations;
     block.terminator = Terminator::Return {
         edge,
@@ -2941,6 +3162,20 @@ fn lower_nominal_structural_scalar_return_machine(
         .collect();
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
+}
+
+fn rebase_direct_boolean_requirement_root(
+    proposition: &mut Proposition,
+    places: &BTreeMap<PlaceId, PlaceId>,
+    error: &'static str,
+) -> Result<(), LoweringError> {
+    let Proposition::Equal(ScalarTerm::Boolean(_), ScalarTerm::BooleanField { root, .. }) =
+        proposition
+    else {
+        return unsupported(error);
+    };
+    *root = *places.get(root).ok_or(LoweringError::Unsupported(error))?;
+    Ok(())
 }
 
 fn is_structural_scalar_return_expression(

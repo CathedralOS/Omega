@@ -804,22 +804,12 @@ fn build_structural_scalar_return_machine(
                 type_graph_requires_nominal_drop(program, parameter.type_reference)
             })
     });
-    let all_nominal_cleanup = whole_discards.iter().all(|(_, position)| {
-        source_state_parameters
-            .get(*position as usize)
-            .is_some_and(|parameter| {
-                type_graph_requires_nominal_drop(program, parameter.type_reference)
-            })
-    });
     if has_nominal_cleanup
         && (structural_parameters.len() != source_state_parameters.len()
             || structural_parameters.len() != whole_discards.len()
             || !scalar_parameters.is_empty()
             || !bindings.is_empty())
     {
-        return None;
-    }
-    if !program.state_contracts(state).is_empty() && !all_nominal_cleanup {
         return None;
     }
     let caller_requirements = if has_nominal_cleanup {
@@ -830,14 +820,14 @@ fn build_structural_scalar_return_machine(
             state,
             source_state_parameters,
         )?
-    } else if program.state_contracts(state).is_empty() {
-        Vec::new()
     } else {
-        return None;
+        let checked_contracts =
+            checked_requires_expressions(program, facts, machine.symbol, state.symbol)?;
+        if !checked_contracts.is_empty() {
+            return None;
+        }
+        Vec::new()
     };
-    if !caller_requirements.is_empty() && !all_nominal_cleanup {
-        return None;
-    }
     let cleanup_actions = whole_discards
         .iter()
         .map(|(_, position)| {

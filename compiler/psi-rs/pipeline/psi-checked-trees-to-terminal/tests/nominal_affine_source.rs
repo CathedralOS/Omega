@@ -1,4 +1,4 @@
-use psi_core::{IntegerSign, IntegerType, ScalarType};
+use psi_core::{IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType};
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -271,6 +271,20 @@ const CONTEXTUAL_SCALAR_RETURN_SOURCE: &str = r#"
     data Root {}
     machine Root::measure(first: Token, second: Token) -> u64
     requires first.ready, second.ready
+    { 7u64 }
+"#;
+
+const MIXED_CONTEXTUAL_SCALAR_RETURN_SOURCE: &str = r#"
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+    requires first.ready, plain.observed, second.ready
     { 7u64 }
 "#;
 
@@ -678,6 +692,128 @@ fn contextual_scalar_return_preserves_proof_context_after_result_materialization
             &AdmissionProfile::default(),
         )
         .is_err()
+    );
+}
+
+#[test]
+fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots() {
+    let tokens = Lexer::new(MIXED_CONTEXTUAL_SCALAR_RETURN_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed contextual scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed contextual scalar cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type mixed contextual scalar cleanup source");
+    let checked = lower_typed_trees(typed).expect("check mixed contextual scalar cleanup source");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed contextual scalar cleanup lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("mixed contextual scalar entry");
+    let [first, plain, second] = entry.structural_parameters.as_slice() else {
+        panic!("full scalar entry retains both nominal roots and the no-code root")
+    };
+    let caller_roots = entry
+        .contract
+        .requires
+        .iter()
+        .map(|requirement| match requirement {
+            Proposition::Equal(_, ScalarTerm::BooleanField { root, .. }) => *root,
+            _ => panic!("bounded caller requirement remains a direct Boolean field"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(caller_roots.len(), 3);
+    assert!(caller_roots.contains(&first.place));
+    assert!(caller_roots.contains(&plain.place));
+    assert!(caller_roots.contains(&second.place));
+
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("mixed contextual entry returns a scalar")
+    };
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+        TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+        TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("mixed contextual cleanup retains complete reverse-authored order")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(*plain_cleanup, plain.place);
+    assert_eq!(first_cleanup.place, first.place);
+    assert_eq!(
+        second_cleanup.cleanup_machine, first_cleanup.cleanup_machine,
+        "both nominal roots reuse one contextual cleanup target",
+    );
+    assert_eq!(
+        second_cleanup.cleanup_receiver,
+        first_cleanup.cleanup_receiver
+    );
+    let receiver = second_cleanup
+        .cleanup_receiver
+        .expect("shared cleanup target retains one proof-only receiver");
+    assert!(
+        ![first.place, plain.place, second.place].contains(&receiver),
+        "proof-only receiver does not alias the restored full entry roots",
+    );
+    assert_eq!(second_cleanup.requirement_obligations.len(), 1);
+    assert_eq!(first_cleanup.requirement_obligations.len(), 1);
+    assert_ne!(
+        second_cleanup.requirement_obligations,
+        first_cleanup.requirement_obligations
+    );
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("rebased mixed contextual scalar cleanup verifies");
+    let semantics = encode_module(&lowered.semantic_module).expect("mixed semantic module encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("mixed proof bundle encodes");
+    assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+
+    let mut swapped = lowered.semantic_module.clone();
+    let entry = swapped
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == swapped.entry)
+        .expect("tampered mixed contextual entry");
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &mut entry.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+        TerminalAffineCleanupAction::DiscardRoot(_),
+        TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+    ] = cleanup_actions.as_mut_slice()
+    else {
+        unreachable!()
+    };
+    std::mem::swap(
+        &mut second_cleanup.requirement_obligations,
+        &mut first_cleanup.requirement_obligations,
+    );
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &swapped,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "root-specific contextual obligations cannot be swapped across the no-code action",
     );
 }
 
