@@ -9238,22 +9238,15 @@ stderr:
 #[test]
 fn runtime_frame_indexed_param_field_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_param_field_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-frame-idx-param-field-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("frame indexed param field canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("frame indexed param field canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("frame indexed param field canary should run");
 
@@ -9267,7 +9260,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // Inline LOCAL copy and immediate writes at a machine-field runtime index.
@@ -9309,20 +9302,13 @@ stderr:
 #[test]
 fn runtime_frame_indexed_byte_param_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_byte_param_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-frame-idx-byte-read-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("frame indexed byte param read canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("frame indexed byte param read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("frame indexed byte param read canary should run");
 
@@ -9336,7 +9322,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A VALUE-machine reading a MEMBER array of its by-value struct param at a
