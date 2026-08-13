@@ -228,9 +228,9 @@ Current ownership is:
   rebases through the alias or helper and view to its backing array before the
   index coarsens it. Deeper index trees and
   recursive or opaque free/attached view producers remain fences. An exact
-  member projection may be carried by the stable alias or follow a helper
-  result before the view; the suffix composes before view preservation and
-  index coarsening, while a member after the index remains absorbed by the
+  member projection may be carried by the stable alias or follow a free or
+  attached helper result before the view; the suffix composes before view
+  preservation and index coarsening, while a member after the index remains absorbed by the
   coarse backing collection. With repeated indexes, the first fixes that coarse
   collection, later indexes stay absorbed, and every independently bounded
   index frame publishes. The indexed argument may project through a stable
