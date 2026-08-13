@@ -2152,7 +2152,7 @@ fn validate_nominal_affine_cleanup_shape(
     else {
         return Err(invalid(block.id));
     };
-    if !matches!(&source_type.shape, StructuralTypeShape::Record { fields } if fields.is_empty()) {
+    if !bounded_nominal_cleanup_receiver_shape(&source_type.shape) {
         return Err(invalid(block.id));
     }
     let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
@@ -2183,6 +2183,29 @@ fn validate_nominal_affine_cleanup_shape(
         return Err(invalid(block.id));
     }
     Ok(())
+}
+
+fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
+    let StructuralTypeShape::Record { fields } = shape else {
+        return false;
+    };
+    match fields.as_slice() {
+        [] => true,
+        [field] => {
+            !field.relevance.is_erased()
+                && match field.field_type {
+                    StructuralFieldType::Scalar(ScalarType::Boolean) => true,
+                    StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                        matches!(integer.bits(), 8 | 16 | 32 | 64)
+                            && (!integer.is_address() || integer.bits() == 64)
+                    }
+                    StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => {
+                        false
+                    }
+                }
+        }
+        _ => false,
+    }
 }
 
 fn validate_unit_call_contract_places(

@@ -173,7 +173,8 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
 /// Build the checked front of the first executable nominal-cleanup slice.
 ///
 /// The admitted caller is deliberately tiny: one state, one whole claim-free
-/// unqualified affine parameter of an empty record type, an empty Unit body,
+/// unqualified affine parameter of an empty record type or a record with one
+/// relevant terminal-supported primitive scalar field, an empty Unit body,
 /// and one exact checked empty `Type::drop(&mut self)` attached to that type.
 /// Anything wider is omitted atomically. In particular, the return operation
 /// publishes no trivial discard for the parameter; the separate cleanup row
@@ -1648,16 +1649,11 @@ fn build_nominal_affine_unit_cleanup_machine(
         .data_definitions()
         .iter()
         .find(|data| data.symbol == *parameter_data_symbol)?;
-    if !program.data_type_parameters(parameter_data).is_empty()
-        || !program.data_members(parameter_data).is_empty()
-    {
+    if !program.data_type_parameters(parameter_data).is_empty() {
         return None;
     }
     let parameter_shape = shapes.types.get(&checked_parameter.type_identity)?;
-    if !matches!(
-        &parameter_shape.shape,
-        CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
-    ) {
+    if !is_bounded_nominal_cleanup_record(&parameter_shape.shape) {
         return None;
     }
     let attachment_shape = shapes.types.get(&attachment_type_identity)?;
@@ -1796,6 +1792,34 @@ fn build_nominal_affine_unit_cleanup_machine(
             cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
         },
     })
+}
+
+fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
+    match shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => match fields.as_slice() {
+            [] => true,
+            [field] => {
+                !field.relevance.is_erased()
+                    && matches!(
+                        &field.field_type,
+                        CheckedUnitStructuralFieldType::Scalar(
+                            PrimitiveType::Bool
+                                | PrimitiveType::I8
+                                | PrimitiveType::I16
+                                | PrimitiveType::I32
+                                | PrimitiveType::I64
+                                | PrimitiveType::U8
+                                | PrimitiveType::U16
+                                | PrimitiveType::U32
+                                | PrimitiveType::U64
+                                | PrimitiveType::Addr
+                        )
+                    )
+            }
+            _ => false,
+        },
+        CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
+    }
 }
 
 fn build_partial_affine_unit_cleanup_machine(

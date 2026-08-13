@@ -324,14 +324,74 @@ fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discar
 }
 
 #[test]
-fn empty_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() {
+fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("one-scalar-field nominal-cleanup plan");
+    let token_shape = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == plan.cleanup.type_identity)
+        .expect("cleanup type shape");
+    let [field] = record_fields(token_shape) else {
+        panic!("bounded nominal cleanup retains exactly one field")
+    };
+    assert_eq!(field.identity, "value");
+    assert_eq!(field.relevance, BindingRelevance::Relevant);
+    assert!(matches!(
+        field.field_type,
+        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64)
+    ));
+    assert!(plan.machine.entry_claims.is_empty());
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+            ..
+        }] if trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
+fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() {
     let checked = checked(
         r#"
         data Empty {}
         data Token {}
         machine Token::drop(&mut self) {}
-        data Nonempty { value: u64; }
-        machine Nonempty::drop(&mut self) {}
+        machine Token::self_cleanup(self) {}
+        data Wide { first: u64; second: u64; }
+        machine Wide::drop(&mut self) {}
+        data Leaf {}
+        data Structural { value: Leaf; }
+        machine Structural::drop(&mut self) {}
+        data ErasedOnly { proof [erased]: u64; }
+        machine ErasedOnly::drop(&mut self) {}
+        data ScalarAndErased { value: u64; proof [erased]: u64; }
+        machine ScalarAndErased::drop(&mut self) {}
+        data Float { value: f64; }
+        machine Float::drop(&mut self) {}
+        data Qualified { value: u64; }
+        domain Qualified::Owned;
+        machine Qualified::drop(&mut self) {}
         data Generic<T> {}
         machine Generic::drop(&mut self) {}
         data Wrapper { token: Token; }
@@ -350,7 +410,12 @@ fn empty_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() 
         machine Root::with_contract(token: Token)
         ensures true
         {}
-        machine Root::nonempty(value: Nonempty) {}
+        machine Root::wide(value: Wide) {}
+        machine Root::structural(value: Structural) {}
+        machine Root::erased(value: ErasedOnly) {}
+        machine Root::scalar_and_erased(value: ScalarAndErased) {}
+        machine Root::floating(value: Float) {}
+        machine Root::qualified(value: Qualified in Owned) {}
         machine Root::generic(value: Generic<u64>) {}
         machine Root::nested(value: Wrapper) {}
 
@@ -370,7 +435,13 @@ fn empty_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() 
         "with_local",
         "with_call",
         "with_contract",
-        "nonempty",
+        "self_cleanup",
+        "wide",
+        "structural",
+        "erased",
+        "scalar_and_erased",
+        "floating",
+        "qualified",
         "generic",
         "nested",
         "attached_nonempty",

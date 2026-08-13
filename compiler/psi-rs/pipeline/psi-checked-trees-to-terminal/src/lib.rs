@@ -3354,19 +3354,26 @@ fn lower_nominal_affine_unit_cleanup_machine(
     {
         return unsupported("nominal affine Unit structural types are empty or duplicated");
     }
-    for identity in [&plan.attachment_type_identity, &parameter.type_identity] {
-        let shape = nominal_types
-            .iter()
-            .find(|candidate| candidate.identity == **identity)
-            .ok_or(LoweringError::Unsupported(
-                "nominal affine Unit type is absent from its checked shapes",
-            ))?;
-        if !matches!(
-            &shape.shape,
-            CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
-        ) {
-            return unsupported("nominal affine Unit structural type is not an empty record");
-        }
+    let attachment_shape = nominal_types
+        .iter()
+        .find(|candidate| candidate.identity == plan.attachment_type_identity)
+        .ok_or(LoweringError::Unsupported(
+            "nominal affine Unit attachment type is absent from its checked shapes",
+        ))?;
+    if !matches!(
+        &attachment_shape.shape,
+        CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+    ) {
+        return unsupported("nominal affine Unit attachment is not an empty record");
+    }
+    let parameter_shape = nominal_types
+        .iter()
+        .find(|candidate| candidate.identity == parameter.type_identity)
+        .ok_or(LoweringError::Unsupported(
+            "nominal affine Unit parameter type is absent from its checked shapes",
+        ))?;
+    if !is_bounded_nominal_cleanup_record(&parameter_shape.shape) {
+        return unsupported("nominal affine Unit parameter is outside the bounded record shape");
     }
 
     let cleanup_target = unique_unit_machine(
@@ -3537,6 +3544,34 @@ fn lower_nominal_affine_unit_cleanup_machine(
         },
     };
     Ok(lowered)
+}
+
+fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
+    match shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => match fields.as_slice() {
+            [] => true,
+            [field] => {
+                !field.relevance.is_erased()
+                    && matches!(
+                        &field.field_type,
+                        CheckedUnitStructuralFieldType::Scalar(
+                            PrimitiveType::Bool
+                                | PrimitiveType::I8
+                                | PrimitiveType::I16
+                                | PrimitiveType::I32
+                                | PrimitiveType::I64
+                                | PrimitiveType::U8
+                                | PrimitiveType::U16
+                                | PrimitiveType::U32
+                                | PrimitiveType::U64
+                                | PrimitiveType::Addr
+                        )
+                    )
+            }
+            _ => false,
+        },
+        CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
+    }
 }
 
 fn lower_partial_affine_unit_cleanup_machine(
@@ -9851,6 +9886,20 @@ mod tests {
         lower_typed_trees(typed).expect("check")
     }
 
+    fn nominal_affine_scalar_unit_checked_fixture() -> CheckedTrees {
+        let source = r#"
+            data Token { value: u64; }
+            machine Token::drop(&mut self) {}
+            data Root {}
+            machine Root::enter(token: Token) {}
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        lower_typed_trees(typed).expect("check")
+    }
+
     #[test]
     fn nominal_affine_unit_cleanup_lowers_exact_target_into_terminal_closure() {
         let checked = nominal_affine_unit_checked_fixture();
@@ -9930,6 +9979,109 @@ mod tests {
     }
 
     #[test]
+    fn nominal_affine_scalar_unit_cleanup_retains_exact_field_shape() {
+        let checked = nominal_affine_scalar_unit_checked_fixture();
+        let [plan] = checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines
+            .as_slice()
+        else {
+            panic!("expected one checked scalar nominal-cleanup plan")
+        };
+        let lowered = lower_nominal_affine_unit_cleanup_machine(&checked, plan)
+            .expect("one-scalar-field nominal cleanup should lower");
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .expect("terminal entry");
+        let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator
+        else {
+            panic!("scalar nominal cleanup requires its distinct terminal return")
+        };
+        let cleanup_type = lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == cleanup.structural_type)
+            .expect("nominal cleanup structural type");
+        let StructuralTypeShape::Record { fields } = &cleanup_type.shape else {
+            panic!("nominal scalar cleanup retains a record")
+        };
+        let [field] = fields.as_slice() else {
+            panic!("nominal scalar cleanup retains exactly one field")
+        };
+        assert_eq!(field.identity, "value");
+        assert!(!field.relevance.is_erased());
+        assert!(matches!(field.field_type, StructuralFieldType::Scalar(_)));
+
+        for bad_field_type in [
+            CheckedUnitStructuralFieldType::Scalar(PrimitiveType::F64),
+            CheckedUnitStructuralFieldType::Erased {
+                type_identity: "named(name(Erased))".to_owned(),
+            },
+            CheckedUnitStructuralFieldType::Structural {
+                type_identity: plan.machine.attachment_type_identity.clone(),
+            },
+        ] {
+            let mut stale = checked.clone();
+            let shape = stale
+                .facts
+                .flow
+                .terminal_nominal_affine_unit_cleanups
+                .structural_types
+                .iter_mut()
+                .find(|shape| shape.identity == plan.cleanup.type_identity)
+                .expect("nominal cleanup shape");
+            let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+                panic!("scalar fixture has a record shape")
+            };
+            fields[0].field_type = bad_field_type;
+            let stale_plan = stale
+                .facts
+                .flow
+                .terminal_nominal_affine_unit_cleanups
+                .machines[0]
+                .clone();
+            assert!(matches!(
+                lower_nominal_affine_unit_cleanup_machine(&stale, &stale_plan),
+                Err(LoweringError::Unsupported(
+                    "nominal affine Unit parameter is outside the bounded record shape"
+                ))
+            ));
+        }
+
+        let mut stale = checked.clone();
+        let shape = stale
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == plan.cleanup.type_identity)
+            .expect("nominal cleanup shape");
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+            panic!("scalar fixture has a record shape")
+        };
+        fields.push(fields[0].clone());
+        let stale_plan = stale
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines[0]
+            .clone();
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&stale, &stale_plan),
+            Err(LoweringError::Unsupported(
+                "nominal affine Unit parameter is outside the bounded record shape"
+            ))
+        ));
+    }
+
+    #[test]
     fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
         let checked = nominal_affine_unit_checked_fixture();
         let original = checked
@@ -10004,7 +10156,7 @@ mod tests {
         assert!(matches!(
             lower_nominal_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
             Err(LoweringError::Unsupported(
-                "nominal affine Unit structural type is not an empty record"
+                "nominal affine Unit parameter is outside the bounded record shape"
             ))
         ));
 
