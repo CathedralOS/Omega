@@ -179,7 +179,9 @@ closed without a partial row. The first structural-control producer consumes a
 composed checked plan for attached, multi-state, Unit-returning machines whose
 states contain only claim-free affine structural parameters and either return
 naturally, contain one unconditional ordinary local jump, or select two ordered
-ordinary successors from one retained Boolean scalar input. Whole-parameter
+ordinary successors from one retained Boolean scalar input. Exactly one state
+may select successors, so an unconditional prefix may precede that decision
+while multiple or nested conditional states remain fenced. Whole-parameter
 arguments provide exact type-preserving transfer maps; each map and its exact
 cleanup row must independently partition the source frontier. Production
 resolves checked parameter positions against the source-handle-free state

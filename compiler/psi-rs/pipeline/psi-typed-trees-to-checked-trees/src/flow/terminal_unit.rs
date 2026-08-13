@@ -698,8 +698,7 @@ fn build_structural_unit_control_machine(
                 && when_false.exit == TransitionExit::Ordinary
                 && when_false.guard == TransitionGuardNode::Always
                 && !when_true.continuation.is_valid()
-                && !when_false.continuation.is_valid()
-                && state_index == 0 =>
+                && !when_false.continuation.is_valid() =>
             {
                 let guard_expression = facts.values.scalar_expressions.expression_at(
                     state.symbol,
@@ -884,6 +883,19 @@ fn build_structural_unit_control_machine(
             scalar_parameters: source_scalar_parameters.clone(),
             terminator,
         });
+    }
+    if checked_states
+        .iter()
+        .filter(|state| {
+            matches!(
+                state.terminator,
+                CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
+            )
+        })
+        .count()
+        > 1
+    {
+        return None;
     }
     Some(CheckedStructuralUnitControlMachinePlan {
         machine: machine.symbol,
