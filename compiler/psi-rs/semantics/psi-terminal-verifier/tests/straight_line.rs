@@ -2350,6 +2350,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     let machine = &mut module.machines[0];
     let affine_parameter_place = PlaceId::new(776).unwrap();
     let local_place = PlaceId::new(777).unwrap();
+    let second_local_place = PlaceId::new(778).unwrap();
     let local_type = StructuralTypeId::new(777).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
         id: local_type,
@@ -2360,6 +2361,13 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
         id: local_place,
         kind: StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: 0,
+            structural_type: local_type,
+        },
+    });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: second_local_place,
+        kind: StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: 1,
             structural_type: local_type,
         },
     });
@@ -2387,6 +2395,13 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
             destination: local_place,
         },
     });
+    machine.blocks[0].operations.push(Operation {
+        id: OperationId::new(778).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::EstablishTrivialAffineLocal {
+            destination: second_local_place,
+        },
+    });
     let Terminator::ReturnStructural {
         trivial_affine_discards,
         ..
@@ -2394,8 +2409,36 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     else {
         unreachable!()
     };
-    *trivial_affine_discards = vec![local_place, affine_parameter_place];
+    *trivial_affine_discards = vec![second_local_place, local_place, affine_parameter_place];
     validate_module(&module).expect("exact local establishment and cleanup validate");
+
+    let mut ordinal_gap = module.clone();
+    let StructuralPlaceKind::TrivialAffineLocal {
+        declaration_ordinal,
+        ..
+    } = &mut ordinal_gap.machines[0]
+        .structural_places
+        .iter_mut()
+        .find(|place| place.id == second_local_place)
+        .unwrap()
+        .kind
+    else {
+        unreachable!()
+    };
+    *declaration_ordinal = 2;
+    assert!(matches!(
+        validate_module(&ordinal_gap),
+        Err(ModuleError::NonCanonicalTrivialAffineLocals(_))
+    ));
+
+    let mut reordered_establishment = module.clone();
+    reordered_establishment.machines[0].blocks[0]
+        .operations
+        .reverse();
+    assert!(matches!(
+        validate_module(&reordered_establishment),
+        Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(_))
+    ));
 
     let mut missing_cleanup = module.clone();
     let Terminator::ReturnStructural {
@@ -2439,7 +2482,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     duplicate_establishment.machines[0].blocks[0]
         .operations
         .push(Operation {
-            id: OperationId::new(778).unwrap(),
+            id: OperationId::new(779).unwrap(),
             ..duplicate
         });
     assert!(matches!(

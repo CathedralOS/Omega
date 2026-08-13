@@ -162,7 +162,6 @@ fn assign_function(
                 || parameters.iter().skip(1).any(|parameter| {
                     parameter.place == source.place || parameter.place == result.place
                 })
-                || trivial_affine_locals.len() > 1
                 || trivial_affine_locals
                     .iter()
                     .enumerate()
@@ -183,6 +182,12 @@ fn assign_function(
                             psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
                         )
                 })
+                || trivial_affine_locals
+                    .iter()
+                    .map(|(_, local, _)| local.id)
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    != trivial_affine_locals.len()
                 || trivial_affine_discards
                     != &trivial_affine_locals
                         .iter()

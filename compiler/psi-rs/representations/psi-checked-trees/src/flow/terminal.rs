@@ -365,15 +365,14 @@ pub struct CheckedStructuralReturnMachinePlan {
     pub returned_parameter_index: u32,
     pub result: CheckedStructuralResultPlan,
     /// Source-handle-free declarations for the exact trivial affine locals
-    /// established before the whole-root return. The first slice admits zero
-    /// or one empty-record local.
+    /// established before the whole-root return, in dense declaration order.
     pub trivial_affine_locals: Vec<CheckedTrivialAffineStructuralLocalPlan>,
     /// Exact local declaration coordinates cleaned before parameter cleanup,
     /// in reverse declaration order.
     pub trivial_affine_local_discard_ordinals: Vec<u32>,
     pub entry_claim: CheckedUnitEntryClaimPlan,
-    /// Exact reverse-declaration affine cleanup positions committed after
-    /// result materialization. The first accepted extension has one row.
+    /// Exact reverse-declaration affine parameter cleanup positions committed
+    /// after result materialization.
     pub trivial_affine_discards: Vec<u32>,
     /// Exact identity shared by the entry claim, normalized claim outcome, and
     /// identity-reshuffle fact.

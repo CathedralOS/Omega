@@ -804,7 +804,6 @@ fn validate_structural_return_record(
         || returned.parameters.iter().skip(1).any(|parameter| {
             parameter.place == returned.source.place || parameter.place == returned.result.place
         })
-        || returned.trivial_affine_locals.len() > 1
         || returned.trivial_affine_locals.iter().enumerate().any(|(index, (_, local, local_type))| {
             !matches!(
                 local.kind,
@@ -822,6 +821,13 @@ fn validate_structural_return_record(
                     psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
                 )
         })
+        || returned
+            .trivial_affine_locals
+            .iter()
+            .map(|(_, local, _)| local.id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != returned.trivial_affine_locals.len()
         || returned.trivial_affine_discards
             != returned
                 .trivial_affine_locals

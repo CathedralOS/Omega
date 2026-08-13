@@ -1381,7 +1381,6 @@ fn lower_structural_return_function(
             .any(|(index, parameter)| {
                 parameter.is_self || usize::try_from(parameter.position) != Ok(index)
             })
-        || trivial_affine_locals.len() > 1
         || !entry_claim.path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
     {
@@ -1441,6 +1440,12 @@ fn lower_structural_return_function(
                     )
                 })
         })
+        || trivial_affine_locals
+            .iter()
+            .map(|(_, local, _)| local.id)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != trivial_affine_locals.len()
         || function
             .structural_parameters
             .iter()

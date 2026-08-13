@@ -60,7 +60,7 @@ const SOURCE: &str = r#"
         let scratch: NominalScratch = NominalScratch {};
         region
     }
-    machine Main::too_many_locals(region: Region in Owned) -> Region in Owned {
+    machine Main::forward_with_two_locals(region: Region in Owned) -> Region in Owned {
         let first: EmptyScratch = EmptyScratch {};
         let second: EmptyScratch = EmptyScratch {};
         region
@@ -573,6 +573,111 @@ fn structural_return_establishes_and_discards_one_trivial_affine_local() {
 }
 
 #[test]
+fn structural_return_establishes_multiple_locals_in_declaration_order_and_discards_in_reverse() {
+    let checked = checked_source();
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .machines
+        .iter()
+        .find(|plan| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == plan.machine
+                    && machine.name.as_str() == "Main::forward_with_two_locals"
+            })
+        })
+        .expect("checker should publish every consecutive trivial affine local");
+    assert_eq!(
+        plan.trivial_affine_locals
+            .iter()
+            .map(|local| local.declaration_ordinal)
+            .collect::<Vec<_>>(),
+        [0, 1]
+    );
+    assert_eq!(plan.trivial_affine_local_discard_ordinals, [1, 0]);
+
+    let lowered =
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Main::forward_with_two_locals")
+            .expect("multiple affine locals should lower");
+    let machine = &lowered.semantic_module.machines[0];
+    let destinations = machine.blocks[0]
+        .operations
+        .iter()
+        .map(|operation| match operation.kind {
+            psi_terminal::OperationKind::EstablishTrivialAffineLocal { destination } => destination,
+            _ => panic!("each prefix local needs an establishment operation"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(destinations.len(), 2);
+    for (declaration_ordinal, destination) in destinations.iter().enumerate() {
+        assert!(matches!(
+            machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *destination)
+                .expect("local place declaration")
+                .kind,
+            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: actual,
+                ..
+            } if actual == declaration_ordinal as u32
+        ));
+    }
+    let psi_terminal::Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(trivial_affine_discards, &[destinations[1], destinations[0]]);
+
+    let semantic = encode_module(&lowered.semantic_module).expect("semantics encode");
+    assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs dense establishment and reverse cleanup");
+
+    let TerminalMachineResult::Structural(result) = &machine.result else {
+        unreachable!()
+    };
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0x5eed,
+        structural_type: result.structural_type,
+        qualifications: result.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        std::slice::from_ref(&argument),
+    )
+    .expect("artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(2);
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
+            TerminalStructuralResult {
+                value: argument,
+                claims: vec![machine.entry_claims[0].claim],
+            }
+        ))
+    );
+}
+
+#[test]
 fn structural_return_cleans_local_before_affine_parameter() {
     let checked = checked_source();
     let lowered =
@@ -628,7 +733,8 @@ fn producer_fences_locals_and_authored_contracts() {
             "Main::forward",
             "Main::forward_and_drop",
             "Main::forward_with_local",
-            "Main::forward_with_local_and_drop"
+            "Main::forward_with_local_and_drop",
+            "Main::forward_with_two_locals"
         ]
     );
     assert!(psi_checked_trees_to_terminal::lower_machine(&checked, "Main::through_local").is_err());
@@ -639,7 +745,6 @@ fn producer_fences_locals_and_authored_contracts() {
     for rejected in [
         "Main::local_partial_value",
         "Main::local_nominal_cleanup",
-        "Main::too_many_locals",
         "Main::local_control",
     ] {
         assert!(

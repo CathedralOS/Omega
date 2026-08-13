@@ -173,14 +173,17 @@ fn build_structural_return_machine(
         return None;
     };
     let statements = program.statement_table.statements(state.statement_nodes);
-    let (local_statements, return_expression) = match statements {
-        [StatementNode::Expression(return_expression)] => (&[][..], *return_expression),
-        [
-            local @ StatementNode::LocalData(_),
-            StatementNode::Expression(return_expression),
-        ] => (std::slice::from_ref(local), *return_expression),
-        _ => return None,
+    let (return_statement, local_statements) = statements.split_last()?;
+    let StatementNode::Expression(return_expression) = return_statement else {
+        return None;
     };
+    if !local_statements
+        .iter()
+        .all(|statement| matches!(statement, StatementNode::LocalData(_)))
+    {
+        return None;
+    }
+    let return_expression = *return_expression;
     if !program.machine_contracts(machine).is_empty() {
         return None;
     }

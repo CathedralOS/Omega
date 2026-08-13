@@ -195,10 +195,11 @@ outside this bounded carrier.
 Platform-entry writes, dispatch/state-call arguments, and synthesized
 continuations obey the same event and provenance rules. Affine exits run in
 reverse declaration order. One root-only structural-result slice admits a
-single immutable, unqualified empty-record affine local: checked facts retain
-its declaration ordinal and type identity, terminal Psi explicitly establishes
-it, and the return cleanup orders it before any affine parameter. This does not
-generalize local cleanup to control edges, nominal drop, or partial values.
+finite consecutive prefix of immutable, unqualified empty-record affine locals:
+checked facts retain each dense declaration ordinal and type identity, terminal
+Psi explicitly establishes them in declaration order, and return cleanup orders
+them in reverse before any affine parameter. This does not generalize local
+cleanup to control edges, nominal drop, or partial values.
 Checked facts retain the first per-edge cleanup subset for ordinary named
 transitions: each exact source-state/statement/target row names the whole,
 claim-free affine parameter positions discarded on that arm after subtracting
