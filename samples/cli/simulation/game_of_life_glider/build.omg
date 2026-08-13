@@ -1,4 +1,4 @@
-// elevator is deployable on every hosted target.
+// game_of_life_glider is deployable on every hosted target.
 
 target windows_x64 {
 }

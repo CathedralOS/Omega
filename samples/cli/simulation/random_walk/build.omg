@@ -1,4 +1,4 @@
-// elevator is deployable on every hosted target.
+// random_walk is deployable on every hosted target.
 
 target windows_x64 {
 }
