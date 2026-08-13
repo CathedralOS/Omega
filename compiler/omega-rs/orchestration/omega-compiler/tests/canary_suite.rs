@@ -8990,20 +8990,12 @@ fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
 #[test]
 fn runtime_declared_range_index_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_declared_range_index_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-range-idx-read-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-range-idx-read-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("declared range index read canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("declared range index read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("declared range index read canary should run");
 
@@ -9016,7 +9008,7 @@ fn runtime_declared_range_index_read_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The WRITE face of the declared-range index proof: `self.arr[self.i] = 30`
@@ -9024,20 +9016,13 @@ fn runtime_declared_range_index_read_exit_canary_runs() {
 #[test]
 fn runtime_declared_range_index_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_declared_range_index_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-range-idx-write-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("declared range index write canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("declared range index write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("declared range index write canary should run");
 
@@ -9050,7 +9035,7 @@ fn runtime_declared_range_index_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A range constraint with a CONSTANT-EXPRESSION bound: `x: i32 [0 - 1..=40]`
