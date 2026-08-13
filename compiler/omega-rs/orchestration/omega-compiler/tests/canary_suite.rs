@@ -12224,19 +12224,12 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
     // checks the eight expected bytes (hand-computed in its header comment)
     // and the written count in-language; exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire encode canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire encode canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire encode canary should run");
 
@@ -12248,7 +12241,7 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12259,19 +12252,12 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
     // the recycled field's tag/value bytes, and the written count; exits 70
     // when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_era_discriminator_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire era discriminator canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire era discriminator canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire era discriminator canary should run");
 
@@ -12283,7 +12269,7 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12325,20 +12311,12 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     // decoded field equals the original (zigzag round-trips -2). Exits 70 on
     // a full match.
     let canary = pass_canary("wire/runtime_wire_roundtrip_primitive_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-roundtrip-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-roundtrip-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire roundtrip canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire roundtrip canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire roundtrip canary should run");
 
@@ -12350,7 +12328,7 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
