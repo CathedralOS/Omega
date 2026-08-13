@@ -188,8 +188,12 @@ Current ownership is:
   the whole right-hand side; reference-valued roots keep their existing
   relational handling. One top-level concrete primitive-only record or
   selected-case literal may likewise contain an independently bounded call
-  tree in each direct common or payload field. Generic, recursive, or
-  reference-bearing carriers and nested computed field shapes remain fences.
+  tree in each direct common or payload field. A direct field may instead be
+  one nested concrete primitive-only plain-record literal whose direct fields
+  obey the same rule. This aggregate depth-two rail composes without changing
+  the call-depth budget. A third aggregate level, nested selected cases,
+  generic, recursive, or reference-bearing carriers, and calls under operators
+  or other computed field shapes remain fences.
   Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are

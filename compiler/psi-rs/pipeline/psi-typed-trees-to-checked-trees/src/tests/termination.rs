@@ -7112,12 +7112,26 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
     data PairChoice {
         tag: u64;
         case Values(first: u64, second: u64);
+        case Wrapped(pair: Pair);
         case Empty;
     }
 
     data GenericChoice<T> {
         case Value(value: T);
         case Empty;
+    }
+
+    data NestedPair {
+        pair: Pair;
+        marker: u64;
+    }
+
+    data DeepPair {
+        nested: NestedPair;
+    }
+
+    data ChoiceHolder {
+        choice: PairChoice;
     }
 
     data Main {
@@ -7127,6 +7141,9 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         generic_pair: GenericPair<u64>;
         choice: PairChoice;
         generic_choice: GenericChoice<u64>;
+        nested_pair: NestedPair;
+        deep_pair: DeepPair;
+        choice_holder: ChoiceHolder;
         cells: [u64; 2];
     }
 
@@ -7283,6 +7300,70 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_nested_record_value_calls<'cells, 'nested, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        nested: &'nested mut NestedPair,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        nested = NestedPair {
+            pair: Pair {
+                first: identity(compute(first)),
+                second: identity(identity(identity(compute(second))))
+            },
+            marker: 0
+        };
+        cells
+    }
+
+    machine return_after_case_nested_record_value_calls<'cells, 'choice, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        choice: &'choice mut PairChoice,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        choice = PairChoice::Wrapped {
+            tag: 0,
+            pair: Pair {
+                first: identity(compute(first)),
+                second: identity(identity(identity(compute(second))))
+            }
+        };
+        cells
+    }
+
+    machine return_after_deep_record_value_call<'cells, 'deep, 'value>(
+        cells: &'cells mut [u64; 2],
+        deep: &'deep mut DeepPair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        deep = DeepPair {
+            nested: NestedPair {
+                pair: Pair {
+                    first: compute(value),
+                    second: 0
+                },
+                marker: 0
+            }
+        };
+        cells
+    }
+
+    machine return_after_nested_case_value_call<'cells, 'holder, 'value>(
+        cells: &'cells mut [u64; 2],
+        holder: &'holder mut ChoiceHolder,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        holder = ChoiceHolder {
+            choice: PairChoice::Values {
+                tag: 0,
+                first: compute(value),
+                second: 0
+            }
+        };
+        cells
+    }
+
     machine return_after_too_deep_value_call<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -7413,6 +7494,44 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::nested_record_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nested_record_value_calls(
+            &mut self.cells,
+            &mut self.nested_pair,
+            &mut self.value,
+            &mut self.other
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::case_nested_record_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_case_nested_record_value_calls(
+            &mut self.cells,
+            &mut self.choice,
+            &mut self.value,
+            &mut self.other
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::deep_record_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_deep_record_value_call(
+            &mut self.cells,
+            &mut self.deep_pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::nested_case_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nested_case_value_call(
+            &mut self.cells,
+            &mut self.choice_holder,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::too_deep_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_too_deep_value_call(&mut self.cells, &mut self.value);
@@ -7476,6 +7595,14 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             "Main::case_value_call_assignment_result",
             vec!["self.cells", "self.choice", "self.other", "self.value"],
         ),
+        (
+            "Main::nested_record_value_call_assignment_result",
+            vec!["self.cells", "self.nested_pair", "self.other", "self.value"],
+        ),
+        (
+            "Main::case_nested_record_value_call_assignment_result",
+            vec!["self.cells", "self.choice", "self.other", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -7510,6 +7637,8 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::computed_record_field_assignment_result",
         "Main::generic_case_value_call_assignment_result",
         "Main::computed_case_field_assignment_result",
+        "Main::deep_record_value_call_assignment_result",
+        "Main::nested_case_value_call_assignment_result",
     ] {
         let machine = typed
             .machines()

@@ -2631,10 +2631,12 @@ fn statement_call_preserves_transparent_result(
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. One primitive-only record or selected-case literal may
-/// independently contain such a tree in each field. Reference-bearing or
-/// generic literals, computed field expressions, and unknown return types fail
-/// closed.
+/// independently contain such a tree in each field, and one nested plain-record
+/// literal may do the same. Reference-bearing or generic literals, nested
+/// cases, wider aggregate depth, computed field expressions, and unknown
+/// return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
+const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
 
 fn value_expression_assignment_preserves_transparent_result(
     program: &TypedTrees,
@@ -2655,28 +2657,81 @@ fn value_expression_assignment_preserves_transparent_result(
             parameters,
             aliases,
         ),
-        ExpressionNode::StructLiteral(literal)
-            if struct_literal_type_is_caller_isolated(program, literal) =>
-        {
-            program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .all(|field| {
-                    !expression_is_effectful_for_transparent_result(program, field.value)
-                        || value_call_assignment_preserves_transparent_result(
-                            program,
-                            current_machine,
-                            field.value,
-                            symbols,
-                            active_states,
-                            parameters,
-                            aliases,
-                        )
-                })
+        ExpressionNode::StructLiteral(_) => {
+            aggregate_value_assignment_preserves_transparent_result(
+                program,
+                current_machine,
+                expression,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+                TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+                true,
+            )
         }
         _ => false,
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn aggregate_value_assignment_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_aggregate_depth: usize,
+    case_literal_allowed: bool,
+) -> bool {
+    if remaining_aggregate_depth == 0 {
+        return false;
+    }
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    if (!case_literal_allowed && literal.case_name.is_some())
+        || !struct_literal_type_is_caller_isolated(program, literal)
+    {
+        return false;
+    }
+    program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .all(|field| {
+            if !expression_is_effectful_for_transparent_result(program, field.value) {
+                return true;
+            }
+            match program.expression_table.expression(field.value) {
+                ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    field.value,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                ),
+                ExpressionNode::StructLiteral(_) => {
+                    aggregate_value_assignment_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        field.value,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                        remaining_aggregate_depth - 1,
+                        false,
+                    )
+                }
+                _ => false,
+            }
+        })
 }
 
 fn value_call_assignment_preserves_transparent_result(
