@@ -10563,22 +10563,15 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
 #[test]
 fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_value_call_slice_view_carrier_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-value-call-slice-view-carrier-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call slice-view carrier guard canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value-call slice-view carrier guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value-call slice-view carrier guard canary should run");
 
@@ -10591,7 +10584,7 @@ fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A value-call forwarded a SLICE-VIEW element by value (`read(r[0])`, r a local
@@ -10603,22 +10596,15 @@ fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
 #[test]
 fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_slice_view_element_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-value-call-slice-view-elem-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call slice-view element canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value-call slice-view element canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value-call slice-view element canary should run");
 
@@ -10631,7 +10617,7 @@ fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A `let`-local capturing `self.vm.sp + 1`, where `self.vm.sp` is reassigned
