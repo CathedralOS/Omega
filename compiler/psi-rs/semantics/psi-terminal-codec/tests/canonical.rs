@@ -15,9 +15,9 @@ use psi_terminal::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -37,7 +37,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "bc32e0baba7290957af65b60a73c4e4127c8d884fe02160fc112a0032bbeec97"
+        "5d8c5e420ee68e79b0538e1e5662a44e95a06d3d0c86c6c9701f5a3fd7d38fa0"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -209,7 +209,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 2_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 3_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -230,6 +230,48 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let mut changed = module.clone();
     changed.machines[0].attachment = Some(structural_type_id(3));
     assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
+}
+
+#[test]
+fn structural_result_and_return_round_trip_as_semantic_identity() {
+    let mut module = structural_effect_fixture();
+    module.machines.truncate(1);
+    module.boundary_machines.clear();
+    let machine = &mut module.machines[0];
+    machine.blocks[0].operations.clear();
+    let result_place = place_id(11);
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type: structural_type_id(1),
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: vec![structural_domain_id(1)],
+    });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: result_place,
+        kind: StructuralPlaceKind::Result,
+    });
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(100),
+        source: place_id(10),
+        returned_claims: vec![claim_id(1)],
+        trivial_affine_discards: Vec::new(),
+    };
+
+    let bytes = encode_module(&module).expect("structural return should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let baseline = semantic_fingerprint(&module).unwrap();
+    assert_eq!(
+        baseline,
+        semantic_fingerprint(&decode_module(&bytes).unwrap()).unwrap()
+    );
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    returned_claims.clear();
+    assert!(encode_module(&module).is_err());
 }
 
 #[test]

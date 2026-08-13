@@ -3,7 +3,7 @@ use psi_core::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm,
-    ScalarType, StructuralPlaceKind, ValueId, content_conservation_fingerprint,
+    ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId, content_conservation_fingerprint,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
@@ -12,9 +12,10 @@ use psi_proof_kernel::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    MachineContract, Operation, OperationKind, OperationResult, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    MachineContract, Operation, OperationKind, OperationResult, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -2254,9 +2255,104 @@ fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
 }
 
 #[test]
+fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
+    let (module, _, _) = identity_reshuffle_module();
+
+    let mut missing_structural_claim = module.clone();
+    missing_structural_claim.machines[0].entry_claims.clear();
+    assert!(matches!(
+        validate_module(&missing_structural_claim),
+        Err(ModuleError::LinearParameterHasNoEntryClaim { .. })
+    ));
+
+    let mut wrong_claim = module.clone();
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut wrong_claim.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *returned_claims = vec![ClaimId::new(2).unwrap()];
+    assert!(matches!(
+        validate_module(&wrong_claim),
+        Err(ModuleError::StructuralReturnClaimSetMismatch { .. })
+    ));
+
+    let mut wrong_source = module.clone();
+    let result_place = wrong_source.machines[0].result.structural().unwrap().place;
+    let Terminator::ReturnStructural { source, .. } =
+        &mut wrong_source.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *source = result_place;
+    assert!(matches!(
+        validate_module(&wrong_source),
+        Err(ModuleError::StructuralReturnRequiresParameterSource { .. })
+    ));
+
+    let mut wrong_root = module.clone();
+    wrong_root.machines[0].content_identity_reshuffles[0]
+        .output
+        .root = PlaceId::new(999).unwrap();
+    assert!(matches!(
+        validate_module(&wrong_root),
+        Err(ModuleError::ContentIdentityReshuffleRequiresCurrentResult(
+            _
+        ))
+    ));
+
+    let mut wrong_signature = module.clone();
+    let result = wrong_signature.machines[0]
+        .result
+        .structural()
+        .unwrap()
+        .clone();
+    wrong_signature
+        .structural_domains
+        .push(psi_terminal::StructuralDomainDeclaration {
+            id: psi_core::StructuralDomainId::new(91).unwrap(),
+            identity: "Other".into(),
+            carrier: result.structural_type,
+        });
+    let TerminalMachineResult::Structural(result) = &mut wrong_signature.machines[0].result else {
+        unreachable!()
+    };
+    result
+        .qualifications
+        .push(psi_core::StructuralDomainId::new(91).unwrap());
+    assert!(matches!(
+        validate_module(&wrong_signature),
+        Err(ModuleError::StructuralReturnSignatureMismatch { .. })
+    ));
+
+    let mut scalar_carrier = module;
+    scalar_carrier.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: ValueId::new(999).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    assert!(matches!(
+        validate_module(&scalar_carrier),
+        Err(ModuleError::ScalarMachineHasResultStructuralPlace { .. })
+    ));
+
+    scalar_carrier.machines[0].result = TerminalMachineResult::Unit;
+    assert!(matches!(
+        validate_module(&scalar_carrier),
+        Err(ModuleError::UnitMachineHasResultStructuralPlace { .. })
+    ));
+}
+
+#[test]
 fn sum_case_identity_reshuffle_reconstructs_content_equality() {
     let (mut module, _, obligation) = identity_reshuffle_module();
     module.vocabulary_marker = VocabularyMarker::CURRENT;
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    let TerminalMachineResult::Structural(result) = &mut module.machines[0].result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    module.machines[0].entry_claims.clear();
     let segments = vec![
         ContentPlaceSegment::Case("Present".to_owned()),
         ContentPlaceSegment::Field("region".to_owned()),
@@ -2311,7 +2407,7 @@ fn partition_composition_replay_is_not_semantic_authority() {
             .expect_err("producer-carried replay evidence cannot authorize its source theorem"),
         VerificationError::RejectedEvidence {
             obligation,
-            error: EvidenceError::Certificate(ProofError::SemanticAxiomConclusionMismatch(1)),
+            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(1)),
         }
     );
 }
@@ -2351,7 +2447,7 @@ fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
             .expect_err("an entry-claim binding alone does not authorize a partition theorem"),
         VerificationError::RejectedEvidence {
             obligation,
-            error: EvidenceError::Certificate(ProofError::SemanticAxiomConclusionMismatch(0)),
+            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(0)),
         }
     );
 }
@@ -2573,6 +2669,12 @@ fn partition_composition_rejects_theorem_drift() {
 #[test]
 fn sum_case_content_paths_require_nonempty_case_names() {
     let (mut empty, _, _) = identity_reshuffle_module();
+    empty.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    let TerminalMachineResult::Structural(result) = &mut empty.machines[0].result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    empty.machines[0].entry_claims.clear();
     empty.machines[0].content_identity_reshuffles[0]
         .input
         .segments = vec![ContentPlaceSegment::Case(String::new())];
@@ -2609,6 +2711,12 @@ fn identity_reshuffles_fail_closed_when_malformed() {
 
     let (mut reordered, _, _) = identity_reshuffle_module();
     let machine = &mut reordered.machines[0];
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    let TerminalMachineResult::Structural(result) = &mut machine.result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
     machine.content_entry_claims[0].input.segments =
         vec![ContentPlaceSegment::Field("left".to_owned())];
     machine.content_identity_reshuffles[0].input.segments =
@@ -2633,10 +2741,9 @@ fn identity_reshuffles_fail_closed_when_malformed() {
 }
 
 fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
-    let parameter = ValueId::new(90).expect("parameter");
-    let result = ValueId::new(91).expect("result");
     let input_root = PlaceId::new(90).expect("input place");
     let output_root = PlaceId::new(91).expect("output place");
+    let structural_type = StructuralTypeId::new(90).expect("structural type");
     let claim = ClaimId::new(1).expect("claim");
     let reshuffle = ContentIdentityReshuffle {
         claim,
@@ -2669,16 +2776,26 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),
         attachment: None,
-        structural_parameters: Vec::new(),
-        entry_claims: Vec::new(),
-        published_service_ceiling: Vec::new(),
-        parameters: vec![ValueDeclaration {
-            id: parameter,
-            scalar_type: ScalarType::Boolean,
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: input_root,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: Vec::new(),
         }],
-        result: TerminalMachineResult::Scalar(ValueDeclaration {
-            id: result,
-            scalar_type: ScalarType::Boolean,
+        entry_claims: vec![psi_terminal::EntryClaim {
+            claim,
+            input: input_root,
+            field_path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        parameters: Vec::new(),
+        result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: output_root,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -2705,10 +2822,11 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             id: BlockId::new(90).expect("block"),
             parameters: Vec::new(),
             operations: Vec::new(),
-            terminator: Terminator::Return {
+            terminator: Terminator::ReturnStructural {
                 trivial_affine_discards: Vec::new(),
                 edge: EdgeId::new(90).expect("edge"),
-                value: parameter,
+                source: input_root,
+                returned_claims: vec![claim],
             },
         }],
         contract: MachineContract {
@@ -2725,7 +2843,11 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
-            structural_types: Vec::new(),
+            structural_types: vec![StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "Region".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            }],
             structural_domains: Vec::new(),
             services: Vec::new(),
             boundary_machines: Vec::new(),
@@ -2857,9 +2979,10 @@ fn content_conservation_is_ensures_only_and_entry_cannot_name_result() {
     result_entry_module.machines[0].structural_places[0].kind = StructuralPlaceKind::Result;
     assert_eq!(
         validate_module(&result_entry_module).expect_err("result has no entry version"),
-        ModuleError::MalformedProposition(PropositionError::EntryResultStructuralPlace(
-            PlaceId::new(80).expect("place")
-        ))
+        ModuleError::ScalarMachineHasResultStructuralPlace {
+            machine: MachineId::new(80).expect("machine"),
+            place: PlaceId::new(80).expect("place"),
+        }
     );
 
     let (mut duplicate_parameter, _, _) = reflexive_content_module();

@@ -258,6 +258,7 @@ fn terminal_summary(
             match machine.result {
                 TerminalMachineResult::Unit => "unit",
                 TerminalMachineResult::Scalar(_) => "scalar",
+                TerminalMachineResult::Structural(_) => "structural",
             },
             format_ids(machine.published_service_ceiling.iter().map(|service| {
                 format!(

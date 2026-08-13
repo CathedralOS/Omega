@@ -166,10 +166,18 @@ impl TerminalEffectHandler for AcceptTerminalEffects {
 /// The normal result of terminal-Psi execution.
 ///
 /// Unit is a successful absence of a value, not a distinguished scalar.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalExecutionResult {
     Unit,
     Scalar(TerminalScalarValue),
+    Structural(TerminalStructuralResult),
+}
+
+/// A structural value returned with the exact live claims transferred into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralResult {
+    pub value: TerminalStructuralValue,
+    pub claims: Vec<ClaimId>,
 }
 
 impl TerminalScalarValue {
@@ -289,7 +297,7 @@ impl TerminalExecution {
                         structural_parameters: machine.structural_parameters.clone(),
                         entry_claims: machine.entry_claims.clone(),
                         content_entry_claims: machine.content_entry_claims.clone(),
-                        result: machine.result,
+                        result: machine.result.clone(),
                         entry: machine.entry,
                         blocks: machine
                             .blocks
@@ -358,8 +366,8 @@ impl TerminalExecution {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-        if let Some(result) = self.result {
-            return Ok(TerminalExecutionStatus::Complete(result));
+        if let Some(result) = &self.result {
+            return Ok(TerminalExecutionStatus::Complete(result.clone()));
         }
         if let Some(crash) = &self.crash {
             return Ok(TerminalExecutionStatus::Crashed(crash.clone()));
@@ -1217,7 +1225,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Scalar(result);
-                    self.result = Some(result);
+                    self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
                 Terminator::ReturnUnit {
@@ -1256,7 +1264,67 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Unit;
-                    self.result = Some(result);
+                    self.result = Some(result.clone());
+                    return Ok(TerminalExecutionStatus::Complete(result));
+                }
+                Terminator::ReturnStructural {
+                    source,
+                    returned_claims,
+                    trivial_affine_discards,
+                    ..
+                } => {
+                    let machine = self.machines.get(&self.current_machine).ok_or(
+                        TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                    )?;
+                    let Some(signature) = machine.result.structural() else {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    };
+                    if !self.call_stack.is_empty() {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    let value = self.structural_values.get(source).cloned().ok_or(
+                        TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
+                    )?;
+                    if value.structural_type != signature.structural_type
+                        || signature
+                            .qualifications
+                            .iter()
+                            .any(|domain| !value.qualifications.contains(domain))
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    let actual_claims = self
+                        .live_claims
+                        .iter()
+                        .filter_map(|(claim, live)| (live.place == Some(*source)).then_some(*claim))
+                        .collect::<Vec<_>>();
+                    if actual_claims != *returned_claims
+                        || self
+                            .live_claims
+                            .keys()
+                            .any(|claim| !returned_claims.contains(claim))
+                        || trivial_affine_discards.iter().any(|place| {
+                            *place == *source || !self.structural_values.contains_key(place)
+                        })
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    if let Err(error) = meter.charge_terminator(&terminator) {
+                        return meter_status(error);
+                    }
+                    // Commit only after fuel and every structural/claim check succeeds.
+                    self.structural_values.remove(source);
+                    for claim in returned_claims {
+                        self.live_claims.remove(claim);
+                    }
+                    for place in trivial_affine_discards {
+                        self.structural_values.remove(place);
+                    }
+                    let result = TerminalExecutionResult::Structural(TerminalStructuralResult {
+                        value,
+                        claims: returned_claims.clone(),
+                    });
+                    self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
                 Terminator::Crash {
@@ -1402,9 +1470,12 @@ fn bind_entry_claims(
         }
     }
     for entry_claim in content_entry_claims {
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.place == entry_claim.input.root);
         claims.entry(entry_claim.claim).or_insert(LiveClaim {
-            place: None,
-            multiplicity: None,
+            place: parameter.map(|_| entry_claim.input.root),
+            multiplicity: parameter.map(|parameter| parameter.multiplicity),
         });
     }
     Ok(claims)
@@ -1617,8 +1688,8 @@ pub struct MeasuredTerminalExecution {
 }
 
 impl MeasuredTerminalExecution {
-    pub const fn value(&self) -> TerminalExecutionResult {
-        self.value
+    pub fn value(&self) -> TerminalExecutionResult {
+        self.value.clone()
     }
 
     pub const fn usage(&self) -> &TerminalFuelUsage {

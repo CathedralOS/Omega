@@ -85,6 +85,12 @@ A linear value must reach an explicit terminal consumer on every exit path.
 annotation is added. Consumption is derived from ordinary ownership flow: a
 returned outcome that contains the same obligation transfers it back, while an
 outcome that does not contain it requires the callee to have consumed it.
+Terminal Psi now represents the first such transfer directly for a root-only,
+whole-parameter result: the structural result signature and `ReturnStructural`
+edge carry one exact live linear value and its ordered whole-root claim set.
+The verifier performs the transfer only on that exit; content equality is not
+an entry axiom. Checked-source production, structural calls, projections, and
+native ABI realization remain later slices.
 Cancellation and failure paths obey the same conservation law. A `try_*`
 operation that has not completed must therefore return the live linear value
 in its pending/failure case.

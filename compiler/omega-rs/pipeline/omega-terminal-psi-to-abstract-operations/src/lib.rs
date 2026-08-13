@@ -62,6 +62,21 @@ fn lower_decoded_verified_module(
 }
 
 fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, LoweringError> {
+    if let Some(edge) = machine.blocks.iter().find_map(|block| {
+        if let Terminator::ReturnStructural { edge, .. } = &block.terminator {
+            Some(*edge)
+        } else {
+            None
+        }
+    }) {
+        return Err(LoweringError::UnsupportedStructuralReturn {
+            machine: machine.id,
+            edge,
+        });
+    }
+    if machine.result.structural().is_some() {
+        return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+    }
     let result = machine.result.scalar();
     let blocks = machine
         .blocks
@@ -638,6 +653,12 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                 }
                 operations.push(TerminalAbstractOperation::ReturnUnit { psi_edge: *edge });
             }
+            Terminator::ReturnStructural { edge, .. } => {
+                return Err(LoweringError::UnsupportedStructuralReturn {
+                    machine: machine.id,
+                    edge: *edge,
+                });
+            }
             Terminator::Crash {
                 edge,
                 cause,
@@ -686,10 +707,27 @@ pub enum LoweringError {
     SemanticIdentity(CodecError),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
+    /// Omega has not yet assigned a target ABI or realization shape to a
+    /// structural terminal result.
+    UnsupportedStructuralResult(MachineId),
+    /// Omega has not yet implemented ownership-preserving structural result
+    /// transfer. Reject before emitting any partial abstract-operation plan.
+    UnsupportedStructuralReturn {
+        machine: MachineId,
+        edge: psi_core::EdgeId,
+    },
     VerifiedEntryMachineMissing(MachineId),
-    VerifiedBlockMissing { machine: MachineId, block: BlockId },
-    VerifiedControlCycle { machine: MachineId, block: BlockId },
-    VerifiedJumpArityMismatch { edge: psi_core::EdgeId },
+    VerifiedBlockMissing {
+        machine: MachineId,
+        block: BlockId,
+    },
+    VerifiedControlCycle {
+        machine: MachineId,
+        block: BlockId,
+    },
+    VerifiedJumpArityMismatch {
+        edge: psi_core::EdgeId,
+    },
     VerifiedWrappingAddMalformed(psi_core::OperationId),
     VerifiedSaturatingAddMalformed(psi_core::OperationId),
     VerifiedWrappingSubtractMalformed(psi_core::OperationId),

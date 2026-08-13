@@ -319,15 +319,15 @@ cannot return along that execution. Omega still resolves the typed call
 relocation and preserves the callee leaf; it does not reinterpret a crash as a
 scalar result.
 
-### Value-less normal return slice
+### Normal result slices
 
-A terminal machine result is either `Scalar`, with one stable result
-pseudo-value, or `Unit`, with no runtime value at all. `ReturnUnit` is a normal
-exit, not a distinguished Boolean or integer: it creates no `ValueId`, result
-structural place, or return-equality axiom. Contracts on a unit machine may
-refer to its parameters but cannot name an absent result. The scalar `Call`
-operation cannot target a unit machine; unit calls require their own complete
-operation slice rather than an ignored result convention.
+A terminal machine result is `Scalar`, with one stable result pseudo-value;
+`Structural`, with an exact type, multiplicity, qualification set, and result
+place; or `Unit`, with no runtime value. `ReturnUnit` is a normal exit, not a
+distinguished Boolean or integer: it creates no `ValueId`, result structural
+place, or return-equality axiom. Contracts on a unit machine may refer to its
+parameters but cannot name an absent result. Scalar and unit calls remain
+distinct complete operation slices rather than ignored-result conventions.
 
 Canonical encoding, independent verification, interpretation, and fixed-fuel
 derivation implement this distinction. A unit return charges exactly its one
@@ -336,6 +336,18 @@ producer and Omega native lowering remain explicitly scalar-only, so this is
 artifact-core scaffolding rather than a source-visible unit-entry or Cathedral
 hard-root claim. Attached roots, linear custody, provider/port effects, and
 native unit realization remain gated on their complete vertical slices.
+
+The first structural-result artifact slice is root-only whole-parameter
+passthrough. `ReturnStructural` names the live source place and exact ordered
+claim set transferred to the declared result place. Verification requires a
+matching linear signature and whole-root entry/content binding, rejects result
+places on scalar or Unit machines, and reconstructs content-identity facts only
+at the validated return edge. Interpretation preserves the opaque value,
+qualifications, and claim identities, charging fuel before custody or cleanup
+commits; canonical encoding and fixed-fuel derivation cover the same edge.
+Checked-source production and Omega ABI realization remain unfinished. Omega
+therefore rejects a verified structural return before emitting any partial
+abstract-operation plan; structural calls are not yet admitted.
 
 Normal scalar returns carry the exact canonical list of live unclaimed affine
 parameters to discard; the list is empty when no cleanup is required.

@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        2
+        3
     }
 }
 
@@ -40,31 +40,39 @@ pub struct ValueDeclaration {
 ///
 /// Unit is the absence of a runtime value. It therefore has no `ValueId`, no
 /// scalar type, and no result pseudo-value that contracts can name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalMachineResult {
     Unit,
     Scalar(ValueDeclaration),
+    Structural(StructuralResultDeclaration),
 }
 
 impl TerminalMachineResult {
-    pub const fn scalar(self) -> Option<ValueDeclaration> {
+    pub const fn scalar(&self) -> Option<ValueDeclaration> {
         match self {
-            Self::Unit => None,
-            Self::Scalar(result) => Some(result),
+            Self::Scalar(result) => Some(*result),
+            Self::Unit | Self::Structural(_) => None,
         }
     }
 
     pub const fn scalar_ref(&self) -> Option<&ValueDeclaration> {
         match self {
-            Self::Unit => None,
             Self::Scalar(result) => Some(result),
+            Self::Unit | Self::Structural(_) => None,
         }
     }
 
     pub fn scalar_mut(&mut self) -> Option<&mut ValueDeclaration> {
         match self {
-            Self::Unit => None,
             Self::Scalar(result) => Some(result),
+            Self::Unit | Self::Structural(_) => None,
+        }
+    }
+
+    pub const fn structural(&self) -> Option<&StructuralResultDeclaration> {
+        match self {
+            Self::Structural(result) => Some(result),
+            Self::Unit | Self::Scalar(_) => None,
         }
     }
 }
@@ -161,6 +169,17 @@ pub struct StructuralParameterDeclaration {
     /// Strictly ordered exact signature preconditions. A parameter does not
     /// establish these facts by declaration: its caller or root installation
     /// must discharge them at invocation.
+    pub qualifications: Vec<StructuralDomainId>,
+}
+
+/// Exact normal structural result signature. The result place is proof-visible
+/// and receives ownership only through a `ReturnStructural` edge.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralResultDeclaration {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: StructuralMultiplicity,
+    /// Strictly ordered qualifications transferred with the value.
     pub qualifications: Vec<StructuralDomainId>,
 }
 
@@ -732,6 +751,16 @@ pub enum Terminator {
         /// Entries are structural places in reverse declaration order.
         trivial_affine_discards: Vec<PlaceId>,
     },
+    /// Transfer one structural value and its complete live claim set to the
+    /// machine result. Fuel is charged before any transfer or cleanup commits.
+    ReturnStructural {
+        edge: EdgeId,
+        source: PlaceId,
+        /// Strictly ordered exact live claims transferred with `source`.
+        returned_claims: Vec<ClaimId>,
+        /// Exact no-code affine discards committed after result materialization.
+        trivial_affine_discards: Vec<PlaceId>,
+    },
     /// Leave checked execution without cleanup or a successor.
     ///
     /// `site_guard` is the canonical conjunction known on every path into this
@@ -762,6 +791,7 @@ impl Terminator {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
+            | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } => {
                 panic!("a conditional terminator has two successor edges")
@@ -774,6 +804,7 @@ impl Terminator {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
+            | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => (*edge, None),
             Self::Conditional {
                 when_true,

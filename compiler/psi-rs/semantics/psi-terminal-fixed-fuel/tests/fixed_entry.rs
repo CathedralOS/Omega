@@ -1,12 +1,15 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ContractClause, CrashCause, CrashRouteBucket,
-    CrashRouteGuard, MachineContract, Operation, OperationKind, OperationResult,
-    ServiceDeclaration, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
@@ -60,6 +63,68 @@ fn unit_return_is_one_normal_edge_unit() {
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].end_edge(), edge_id(900));
     assert_eq!(segments[0].ceiling_units(), 1);
+}
+
+#[test]
+fn structural_return_is_one_normal_edge_unit() {
+    let structural_type = structural_type_id(900);
+    let source = place_id(900);
+    let result_place = place_id(901);
+    let claim = claim_id(1);
+    let mut module = unit_fixture();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::Resource".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    }];
+    let machine = &mut module.machines[0];
+    machine.structural_parameters = vec![StructuralParameterDeclaration {
+        place: source,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    }];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: source,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: result_place,
+            kind: psi_core::StructuralPlaceKind::Result,
+        },
+    ];
+    machine.entry_claims = vec![EntryClaim {
+        claim,
+        input: source,
+        field_path: Vec::new(),
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(900),
+        source,
+        returned_claims: vec![claim],
+        trivial_affine_discards: Vec::new(),
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("structural return verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
+    assert_eq!(certificate.ceiling_units(), 1);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }
 
 #[test]
@@ -741,3 +806,6 @@ id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(boundary_id, BoundaryMachineId);
 id_constructor!(service_id, ServiceId);
+id_constructor!(place_id, PlaceId);
+id_constructor!(claim_id, ClaimId);
+id_constructor!(structural_type_id, StructuralTypeId);

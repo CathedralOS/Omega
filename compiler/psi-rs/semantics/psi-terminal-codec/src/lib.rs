@@ -42,9 +42,9 @@ use psi_terminal::{
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralArgument,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
@@ -1278,11 +1278,28 @@ fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), 
     encode_optional_id(writer, machine.attachment);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
     encode_structural_parameters(writer, &machine.structural_parameters)?;
-    match machine.result {
+    match &machine.result {
         TerminalMachineResult::Unit => writer.u8(0),
         TerminalMachineResult::Scalar(result) => {
             writer.u8(1);
-            encode_declaration(writer, result);
+            encode_declaration(writer, *result);
+        }
+        TerminalMachineResult::Structural(result) => {
+            writer.u8(2);
+            writer.id(result.place);
+            writer.id(result.structural_type);
+            writer.u8(match result.multiplicity {
+                StructuralMultiplicity::Unrestricted => 1,
+                StructuralMultiplicity::Affine => 2,
+                StructuralMultiplicity::Linear => 3,
+            });
+            writer.len(
+                "structural result qualifications",
+                result.qualifications.len(),
+            )?;
+            for qualification in &result.qualifications {
+                writer.id(*qualification);
+            }
         }
     }
     writer.len("structural places", machine.structural_places.len())?;
@@ -1753,6 +1770,27 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             writer.id(*edge);
             writer.len(
                 "return Unit trivial affine discards",
+                trivial_affine_discards.len(),
+            )?;
+            for place in trivial_affine_discards {
+                writer.id(*place);
+            }
+        }
+        Terminator::ReturnStructural {
+            edge,
+            source,
+            returned_claims,
+            trivial_affine_discards,
+        } => {
+            writer.u8(6);
+            writer.id(*edge);
+            writer.id(*source);
+            writer.len("structural return claims", returned_claims.len())?;
+            for claim in returned_claims {
+                writer.id(*claim);
+            }
+            writer.len(
+                "structural return trivial affine discards",
                 trivial_affine_discards.len(),
             )?;
             for place in trivial_affine_discards {
@@ -2613,6 +2651,17 @@ fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
+        2 => TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: reader.id("PlaceId")?,
+            structural_type: reader.id("StructuralTypeId")?,
+            multiplicity: match reader.u8()? {
+                1 => StructuralMultiplicity::Unrestricted,
+                2 => StructuralMultiplicity::Affine,
+                3 => StructuralMultiplicity::Linear,
+                tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
+            },
+            qualifications: decode_ids(reader, "StructuralDomainId")?,
+        }),
         tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
     };
     let count = reader.count()?;
@@ -3031,6 +3080,12 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         }
         5 => Terminator::ReturnUnit {
             edge: reader.id("EdgeId")?,
+            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
+        },
+        6 => Terminator::ReturnStructural {
+            edge: reader.id("EdgeId")?,
+            source: reader.id("PlaceId")?,
+            returned_claims: decode_counted(reader, |reader| reader.id("ClaimId"))?,
             trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
         },
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
