@@ -8588,17 +8588,11 @@ fn runtime_substring_search_exit_canary_runs() {
     // comparison, the index guarded against `.len` directly. "world" in "hello world"
     // rejects i=0..5 and matches at i=6 -> exit 70.
     let canary = pass_canary("text/runtime_substring_search_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-substring-search-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("substring search canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("substring search canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("substring search canary should run");
     assert_eq!(
@@ -8608,26 +8602,19 @@ fn runtime_substring_search_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_string_palindrome_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_palindrome_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-string-palindrome-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("string palindrome canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("string palindrome canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("string palindrome canary should run");
 
@@ -8639,7 +8626,7 @@ fn runtime_string_palindrome_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
