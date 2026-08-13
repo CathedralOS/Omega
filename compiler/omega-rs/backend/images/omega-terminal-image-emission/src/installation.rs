@@ -1452,6 +1452,27 @@ fn validate_record_shape(
                                             if edge == cleanup.psi_edge)
                             })
                             .collect::<Vec<_>>();
+                        let ordered_executable_spans = executable
+                            .iter()
+                            .map(|ordinal| {
+                                let action_ordinal = u32::try_from(*ordinal).ok()?;
+                                let call = caller_cleanup_calls.iter().find(|call| {
+                                    call.custody.owner
+                                        == TerminalCallSiteOwner::CleanupAction {
+                                            edge: cleanup.psi_edge,
+                                            action_ordinal,
+                                        }
+                                        && call.custody.target
+                                            == [first, second][*ordinal].cleanup_machine
+                                })?;
+                                Some((
+                                    call.custody.code_offset,
+                                    call.custody
+                                        .code_offset
+                                        .checked_add(call.custody.byte_count)?,
+                                ))
+                            })
+                            .collect::<Option<Vec<_>>>();
                         !cleanup.locals.is_empty()
                             || !discards.is_empty()
                             || function.unit_parameter_homes.len() != 2
@@ -1473,25 +1494,36 @@ fn validate_record_shape(
                                             != Some(&Some(nominal.structural_type))
                                 })
                             || bodies.iter().any(Option::is_none)
-                            || executable.len() > 1
                             || caller_cleanup_calls.len() != executable.len()
+                            || ordered_executable_spans.is_none_or(|spans| {
+                                spans
+                                    .windows(2)
+                                    .any(|pair| pair[0].0 >= pair[1].0 || pair[0].1 > pair[1].0)
+                            })
                             || executable.iter().any(|ordinal| {
                                 let action_ordinal = u32::try_from(*ordinal).ok();
                                 action_ordinal.is_none_or(|action_ordinal| {
-                                    caller_cleanup_calls[0].custody.owner
-                                        != TerminalCallSiteOwner::CleanupAction {
-                                            edge: cleanup.psi_edge,
-                                            action_ordinal,
-                                        }
-                                        || caller_cleanup_calls[0].custody.target
-                                            != [first, second][*ordinal].cleanup_machine
-                                        || !caller_cleanup_calls[0].custody.arguments.is_empty()
-                                        || !caller_cleanup_calls[0]
-                                            .custody
-                                            .claim_transfers
-                                            .is_empty()
-                                        || caller_cleanup_calls[0].custody.code_offset
-                                            != cleanup.code_offset
+                                    caller_cleanup_calls
+                                        .iter()
+                                        .filter(|call| {
+                                            call.custody.owner
+                                                == TerminalCallSiteOwner::CleanupAction {
+                                                    edge: cleanup.psi_edge,
+                                                    action_ordinal,
+                                                }
+                                                && call.custody.target
+                                                    == [first, second][*ordinal].cleanup_machine
+                                                && call.custody.arguments.is_empty()
+                                                && call.custody.claim_transfers.is_empty()
+                                                && call.custody.code_offset >= cleanup.code_offset
+                                                && call
+                                                    .custody
+                                                    .code_offset
+                                                    .checked_add(call.custody.byte_count)
+                                                    .is_some_and(|call_end| call_end <= end)
+                                        })
+                                        .count()
+                                        != 1
                                 })
                             })
                     }
@@ -1723,7 +1755,7 @@ fn validate_record_shape(
                                     .is_some_and(|action| matches!(action,
                                         psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)
                                             if nominal.cleanup_machine == custody.target))
-                                && cleanup.code_offset == custody.code_offset
+                                && cleanup.code_offset <= custody.code_offset
                                 && custody
                                     .code_offset
                                     .checked_add(custody.byte_count)

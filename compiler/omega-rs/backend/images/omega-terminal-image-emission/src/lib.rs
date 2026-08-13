@@ -1048,9 +1048,31 @@ fn validate_unit_affine_cleanup(
                     )
                 })
                 .collect::<Vec<_>>();
+            let ordered_executable_spans = executable_ordinals
+                .iter()
+                .map(|ordinal| {
+                    let action_ordinal = u32::try_from(*ordinal).ok()?;
+                    let call = cleanup_calls.iter().find(|call| {
+                        call.owner
+                            == TerminalCallSiteOwner::CleanupAction {
+                                edge: cleanup.psi_edge,
+                                action_ordinal,
+                            }
+                            && call.target == nominal[*ordinal].cleanup_machine
+                    })?;
+                    Some((
+                        call.code_offset,
+                        call.code_offset.checked_add(call.byte_count)?,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>();
             targets.iter().any(|(_, body_exact)| !body_exact)
-                || (nominal.len() == 2 && executable_ordinals.len() > 1)
                 || cleanup_calls.len() != executable_ordinals.len()
+                || ordered_executable_spans.is_none_or(|spans| {
+                    spans
+                        .windows(2)
+                        .any(|pair| pair[0].0 >= pair[1].0 || pair[0].1 > pair[1].0)
+                })
                 || executable_ordinals.iter().any(|ordinal| {
                     let Ok(action_ordinal) = u32::try_from(*ordinal) else {
                         return true;
@@ -1066,7 +1088,11 @@ fn validate_unit_affine_cleanup(
                                 && call.target == nominal[*ordinal].cleanup_machine
                                 && call.arguments.is_empty()
                                 && call.claim_transfers.is_empty()
-                                && call.code_offset == cleanup.code_offset
+                                && call.code_offset >= cleanup.code_offset
+                                && call
+                                    .code_offset
+                                    .checked_add(call.byte_count)
+                                    .is_some_and(|call_end| call_end <= end)
                         })
                         .count()
                         != 1
@@ -1409,7 +1435,7 @@ fn validate_internal_unit_call_custody(
                 provenance.edges.contains(&edge)
                     && cleanup.psi_edge == edge
                     && nominal.cleanup_machine == custody.target
-                    && cleanup.code_offset == custody.code_offset
+                    && cleanup.code_offset <= custody.code_offset
                     && end <= cleanup_end
                     && fuel
                         .iter()

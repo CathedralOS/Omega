@@ -105,6 +105,26 @@ const SECOND_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
     machine Root::enter(first: First, second: Second) {}
 "#;
 
+const TWO_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data First { value: u32; }
+    machine First::drop(&mut self) { Helper::touch(); }
+    data Second { value: u64; }
+    machine Second::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::enter(first: First, second: Second) {}
+"#;
+
+const SHARED_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token { value: u32; }
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::enter(first: Token, second: Token) {}
+"#;
+
 fn verified_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -801,6 +821,151 @@ fn one_executable_nominal_cleanup_action_retains_its_exact_ordinal_on_all_target
             forged_ordinal[ordinal_offset..ordinal_offset + 4]
                 .copy_from_slice(&(1 - executable_action_ordinal).to_le_bytes());
             assert!(decode_terminal_installation_record(&forged_ordinal).is_err());
+            assert_eq!(
+                decode_terminal_installation_record(&bytes),
+                Ok(installation)
+            );
+        }
+    }
+}
+
+#[test]
+fn two_executable_nominal_cleanup_actions_retain_order_and_custody_on_all_targets() {
+    for (source, shared_target) in [
+        (TWO_EXECUTABLE_NOMINAL_AFFINE_SOURCE, false),
+        (SHARED_EXECUTABLE_NOMINAL_AFFINE_SOURCE, true),
+    ] {
+        let plan = two_nominal_one_executable_plan(source);
+        let caller_machine = plan.entry;
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("entry caller remains present");
+        let cleanup_actions = caller
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                    cleanup_actions,
+                    ..
+                } => Some(cleanup_actions.clone()),
+                _ => None,
+            })
+            .expect("entry return retains cleanup actions");
+        let [
+            TerminalAffineCleanupAction::InvokeNominal(first),
+            TerminalAffineCleanupAction::InvokeNominal(second),
+        ] = cleanup_actions.as_slice()
+        else {
+            panic!("entry return invokes two nominal cleanups")
+        };
+        assert_eq!(first.place, caller.structural_parameters[1].place);
+        assert_eq!(second.place, caller.structural_parameters[0].place);
+        assert_eq!(
+            first.cleanup_machine == second.cleanup_machine,
+            shared_target
+        );
+        assert_eq!(plan.functions.len(), if shared_target { 3 } else { 4 });
+
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let target_plan = lower_to_target_operations(&plan, target).unwrap();
+            let assigned = assign_registers(&target_plan).unwrap();
+            let machine = emit_machine_code(&assigned).unwrap();
+            let emitted = machine
+                .functions
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap();
+            let emitted_cleanup = emitted.unit_affine_cleanup.as_ref().unwrap();
+            assert_eq!(emitted_cleanup.actions, cleanup_actions);
+            assert_eq!(emitted.internal_unit_calls.len(), 2);
+            assert_eq!(emitted.internal_calls.len(), 2);
+            for (ordinal, (call, cleanup)) in emitted
+                .internal_unit_calls
+                .iter()
+                .zip([first, second])
+                .enumerate()
+            {
+                let expected_owner = TerminalCallSiteOwner::CleanupAction {
+                    edge: emitted_cleanup.psi_edge,
+                    action_ordinal: u32::try_from(ordinal).unwrap(),
+                };
+                assert_eq!(call.owner, expected_owner);
+                assert_eq!(call.target, cleanup.cleanup_machine);
+                assert!(call.arguments.is_empty());
+                assert!(call.claim_transfers.is_empty());
+                assert_eq!(emitted.internal_calls[ordinal].owner, expected_owner);
+                assert_eq!(
+                    emitted.internal_calls[ordinal].target,
+                    cleanup.cleanup_machine
+                );
+            }
+            assert!(
+                emitted.internal_unit_calls[0].code_offset
+                    + emitted.internal_unit_calls[0].byte_count
+                    <= emitted.internal_unit_calls[1].code_offset
+            );
+
+            let mut swapped_owners = machine.clone();
+            let forged_caller = swapped_owners
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == caller_machine)
+                .unwrap();
+            forged_caller.internal_calls[0].owner = TerminalCallSiteOwner::CleanupAction {
+                edge: emitted_cleanup.psi_edge,
+                action_ordinal: 1,
+            };
+            forged_caller.internal_calls[1].owner = TerminalCallSiteOwner::CleanupAction {
+                edge: emitted_cleanup.psi_edge,
+                action_ordinal: 0,
+            };
+            forged_caller.internal_unit_calls[0].owner = TerminalCallSiteOwner::CleanupAction {
+                edge: emitted_cleanup.psi_edge,
+                action_ordinal: 1,
+            };
+            forged_caller.internal_unit_calls[1].owner = TerminalCallSiteOwner::CleanupAction {
+                edge: emitted_cleanup.psi_edge,
+                action_ordinal: 0,
+            };
+            assert!(build_terminal_object_artifact(&swapped_owners).is_err());
+
+            let object = build_terminal_object_artifact(&machine).unwrap();
+            let image = emit_terminal_executable_image(&object, 3).unwrap();
+            let installation =
+                build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
+                    .unwrap();
+            let installed_calls = installation
+                .internal_unit_calls()
+                .iter()
+                .filter(|call| call.machine == caller_machine)
+                .collect::<Vec<_>>();
+            assert_eq!(installed_calls.len(), 2);
+            for (ordinal, (call, cleanup)) in
+                installed_calls.iter().zip([first, second]).enumerate()
+            {
+                assert_eq!(
+                    call.custody.owner,
+                    TerminalCallSiteOwner::CleanupAction {
+                        edge: emitted_cleanup.psi_edge,
+                        action_ordinal: u32::try_from(ordinal).unwrap(),
+                    }
+                );
+                assert_eq!(call.custody.target, cleanup.cleanup_machine);
+            }
+            assert_eq!(
+                installation.internal_unit_calls().len(),
+                if shared_target { 3 } else { 4 }
+            );
+            validate_terminal_installation_record(&installation, &image).unwrap();
+            let bytes = encode_terminal_installation_record(&installation).unwrap();
             assert_eq!(
                 decode_terminal_installation_record(&bytes),
                 Ok(installation)
