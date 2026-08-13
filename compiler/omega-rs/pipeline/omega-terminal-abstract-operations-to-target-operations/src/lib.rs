@@ -1741,91 +1741,25 @@ fn lower_unit_function(
                                     ))?;
                                 (element, element_shape, offset, Some(length), Some(stride))
                             }
-                            [StructuralPathSegment::Field(identity)] => {
-                                let declaration = structural_types
-                                    .get(&source.structural_type)
-                                    .copied()
-                                    .ok_or(LoweringError::UnknownStructuralType(
+                            path @ [StructuralPathSegment::Field(_), ..]
+                                if path.iter().all(|segment| {
+                                    matches!(segment, StructuralPathSegment::Field(_))
+                                }) =>
+                            {
+                                let (field_type, field_shape, offset) =
+                                    resolve_structural_field_path(
                                         source.structural_type,
-                                    ))?;
-                                let StructuralTypeShape::Record { fields } = &declaration.shape
-                                else {
-                                    return Err(
+                                        path,
+                                        structural_types,
+                                        &mut shape_cache,
+                                        &mut active,
+                                    )
+                                    .map_err(|_| {
                                         LoweringError::StructuralCallArgumentTypeMismatch {
                                             callee: *callee,
                                             place: argument.place,
-                                        },
-                                    );
-                                };
-                                let mut offset = 0_u32;
-                                let mut selected = None;
-                                for field in
-                                    fields.iter().filter(|field| !field.relevance.is_erased())
-                                {
-                                    let field_shape = match field.field_type {
-                                        StructuralFieldType::Scalar(ScalarType::Boolean) => {
-                                            ValueShape::integer(1, 1)
                                         }
-                                        StructuralFieldType::Scalar(ScalarType::Integer(
-                                            integer,
-                                        )) => {
-                                            let size = integer.bits().div_ceil(8);
-                                            ValueShape::integer(
-                                                size,
-                                                size.next_power_of_two().min(16),
-                                            )
-                                        }
-                                        StructuralFieldType::Structural(nested) => {
-                                            structural_shape(
-                                                nested,
-                                                structural_types,
-                                                &mut shape_cache,
-                                                &mut active,
-                                            )?
-                                        }
-                                        StructuralFieldType::Erased { .. } => {
-                                            return Err(
-                                                LoweringError::RelevantOpaqueStructuralField(
-                                                    source.structural_type,
-                                                ),
-                                            );
-                                        }
-                                    };
-                                    offset = checked_align_up_u32(
-                                        offset,
-                                        u32::from(field_shape.alignment),
-                                    )
-                                    .ok_or(
-                                        LoweringError::StructuralTypeTooLarge(
-                                            source.structural_type,
-                                        ),
-                                    )?;
-                                    if field.identity == *identity {
-                                        let StructuralFieldType::Structural(field_type) =
-                                            field.field_type
-                                        else {
-                                            return Err(
-                                                LoweringError::StructuralCallArgumentTypeMismatch {
-                                                    callee: *callee,
-                                                    place: argument.place,
-                                                },
-                                            );
-                                        };
-                                        selected = Some((field_type, field_shape, offset));
-                                        break;
-                                    }
-                                    offset = offset
-                                        .checked_add(u32::from(field_shape.byte_size))
-                                        .ok_or(LoweringError::StructuralTypeTooLarge(
-                                        source.structural_type,
-                                    ))?;
-                                }
-                                let (field_type, field_shape, offset) = selected.ok_or(
-                                    LoweringError::StructuralCallArgumentTypeMismatch {
-                                        callee: *callee,
-                                        place: argument.place,
-                                    },
-                                )?;
+                                    })?;
                                 (field_type, field_shape, offset, None, None)
                             }
                             _ => {
@@ -2009,16 +1943,6 @@ fn lower_unit_function(
                             function.machine,
                         ));
                     };
-                    let Some(declaration) = structural_types.get(&parameter.structural_type) else {
-                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                            function.machine,
-                        ));
-                    };
-                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                            function.machine,
-                        ));
-                    };
                     let moved_arguments = operations
                         .iter()
                         .filter_map(|operation| match operation {
@@ -2028,58 +1952,39 @@ fn lower_unit_function(
                         .flatten()
                         .filter(|argument| argument.place == residual_root)
                         .collect::<Vec<_>>();
-                    let mut moved_fields = std::collections::BTreeMap::new();
+                    let mut moved_subtrees = Vec::with_capacity(moved_arguments.len());
                     if moved_arguments.is_empty()
                         || moved_arguments.iter().any(|argument| {
-                            let [StructuralPathSegment::Field(identity)] = argument.path.as_slice()
-                            else {
-                                return true;
-                            };
                             argument.root_structural_type != parameter.structural_type
-                                || moved_fields
-                                    .insert(identity.as_str(), argument.structural_type)
-                                    .is_some()
+                                || argument.path.is_empty()
+                                || argument.path.iter().any(|segment| {
+                                    !matches!(segment, StructuralPathSegment::Field(identity)
+                                        if !identity.is_empty())
+                                })
+                                || moved_subtrees
+                                    .iter()
+                                    .any(|(path, _)| path == &argument.path)
+                                || {
+                                    moved_subtrees
+                                        .push((argument.path.clone(), argument.structural_type));
+                                    false
+                                }
                         })
                     {
                         return Err(LoweringError::UnsupportedOperationInUnitFunction(
                             function.machine,
                         ));
                     }
-                    let moved_fields_are_exact =
-                        moved_fields.iter().all(|(identity, structural_type)| {
-                            fields.iter().any(|field| {
-                                !field.relevance.is_erased()
-                                    && field.identity == *identity
-                                    && matches!(
-                                        field.field_type,
-                                        StructuralFieldType::Structural(field_type)
-                                            if field_type == *structural_type
-                                    )
-                            })
-                        });
-                    let expected_residuals = fields
-                        .iter()
-                        .rev()
-                        .filter(|field| {
-                            !field.relevance.is_erased()
-                                && !moved_fields.contains_key(field.identity.as_str())
-                        })
-                        .filter_map(|field| match field.field_type {
-                            StructuralFieldType::Structural(structural_type) => {
-                                Some((field.identity.as_str(), structural_type))
-                            }
-                            StructuralFieldType::Scalar(_) | StructuralFieldType::Erased { .. } => {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
+                    let Some(expected_residuals) = expected_maximal_residual_subtrees(
+                        parameter.structural_type,
+                        &moved_subtrees,
+                        structural_types,
+                    ) else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
                     if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
-                        || !moved_fields_are_exact
-                        || fields.iter().any(|field| {
-                            field.relevance.is_erased()
-                                || !matches!(field.field_type, StructuralFieldType::Structural(_))
-                        })
-                        || moved_fields.len() + expected_residuals.len() != fields.len()
                         || root_discards != local_places.iter().rev().copied().collect::<Vec<_>>()
                         || expected_roots.get(local_places.len()..) != Some(&[residual_root][..])
                         || expected_residuals.len() != residual_discards.len()
@@ -2092,12 +1997,11 @@ fn lower_unit_function(
                         })
                         || cleanup_actions.get(root_discards.len()..).is_none_or(|suffix| {
                             suffix.iter().zip(&expected_residuals).any(
-                                |(action, (identity, structural_type))| {
+                                |(action, (path, structural_type))| {
                                     !matches!(action,
                                         psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard)
                                             if discard.place == residual_root
-                                                && discard.path.as_slice()
-                                                    == [StructuralPathSegment::Field((*identity).into())]
+                                                && discard.path == *path
                                                 && discard.structural_type == *structural_type)
                                 },
                             )
@@ -2401,6 +2305,153 @@ fn structural_shape(
     let shape = result?;
     cache.insert(structural_type, shape);
     Ok(shape)
+}
+
+fn resolve_structural_field_path(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    let root_type = structural_type;
+    let mut total_offset = 0_u32;
+    let mut selected_shape = None;
+    for segment in path {
+        let StructuralPathSegment::Field(identity) = segment else {
+            return Err(LoweringError::UnknownStructuralType(structural_type));
+        };
+        let declaration = declarations
+            .get(&structural_type)
+            .copied()
+            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return Err(LoweringError::UnknownStructuralType(structural_type));
+        };
+        let mut local_offset = 0_u32;
+        let mut selected = None;
+        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            let field_shape = match field.field_type {
+                StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
+                StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                    let size = integer.bits().div_ceil(8);
+                    ValueShape::integer(size, size.next_power_of_two().min(16))
+                }
+                StructuralFieldType::Structural(nested) => {
+                    structural_shape(nested, declarations, cache, active)?
+                }
+                StructuralFieldType::Erased { .. } => {
+                    return Err(LoweringError::RelevantOpaqueStructuralField(
+                        structural_type,
+                    ));
+                }
+            };
+            local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
+                .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+            if field.identity == *identity {
+                let StructuralFieldType::Structural(field_type) = field.field_type else {
+                    return Err(LoweringError::UnknownStructuralType(structural_type));
+                };
+                selected = Some((field_type, field_shape, local_offset));
+                break;
+            }
+            local_offset = local_offset
+                .checked_add(u32::from(field_shape.byte_size))
+                .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+        }
+        let (field_type, field_shape, field_offset) =
+            selected.ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+        total_offset = total_offset
+            .checked_add(field_offset)
+            .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+        structural_type = field_type;
+        selected_shape = Some(field_shape);
+    }
+    selected_shape
+        .map(|shape| (structural_type, shape, total_offset))
+        .ok_or(LoweringError::UnknownStructuralType(root_type))
+}
+
+fn expected_maximal_residual_subtrees(
+    root_type: StructuralTypeId,
+    moved: &[(Vec<StructuralPathSegment>, StructuralTypeId)],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+    if moved.is_empty() {
+        return None;
+    }
+    let borrowed = moved
+        .iter()
+        .map(|(path, structural_type)| (path.as_slice(), *structural_type))
+        .collect::<Vec<_>>();
+    let mut residuals = Vec::new();
+    append_maximal_residual_subtrees(root_type, &[], &borrowed, declarations, &mut residuals)?;
+    (!residuals.is_empty()).then_some(residuals)
+}
+
+fn append_maximal_residual_subtrees(
+    structural_type: StructuralTypeId,
+    prefix: &[StructuralPathSegment],
+    moved: &[(&[StructuralPathSegment], StructuralTypeId)],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+) -> Option<()> {
+    let declaration = declarations.get(&structural_type).copied()?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    if fields.is_empty()
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+        })
+        || moved
+            .iter()
+            .any(|(path, _)| !matches!(path.first(), Some(StructuralPathSegment::Field(_))))
+    {
+        return None;
+    }
+    for field in fields.iter().rev() {
+        let StructuralFieldType::Structural(field_type) = field.field_type else {
+            return None;
+        };
+        let matching = moved
+            .iter()
+            .filter(|(path, _)| {
+                matches!(path.first(), Some(StructuralPathSegment::Field(identity))
+                    if identity == &field.identity)
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        let mut field_path = prefix.to_vec();
+        field_path.push(StructuralPathSegment::Field(field.identity.clone()));
+        if matching.is_empty() {
+            residuals.push((field_path, field_type));
+            continue;
+        }
+        let whole_moves = matching
+            .iter()
+            .filter(|(path, _)| path.len() == 1)
+            .collect::<Vec<_>>();
+        if !whole_moves.is_empty() {
+            if whole_moves.len() != 1 || matching.len() != 1 || whole_moves[0].1 != field_type {
+                return None;
+            }
+            continue;
+        }
+        let nested = matching
+            .iter()
+            .map(|(path, leaf_type)| (&path[1..], *leaf_type))
+            .collect::<Vec<_>>();
+        append_maximal_residual_subtrees(
+            field_type,
+            &field_path,
+            &nested,
+            declarations,
+            residuals,
+        )?;
+    }
+    Some(())
 }
 
 fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {

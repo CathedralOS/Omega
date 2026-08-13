@@ -97,6 +97,22 @@ const MULTIPLE_MOVE_PARTIAL_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_PARTIAL_AFFINE_SOURCE: &str = r#"
+    data FirstToken { value: u32; }
+    data LeftToken { value: u16; }
+    data MiddleToken { value: u64; }
+    data RightToken { value: u32; }
+    data LastToken { value: u64; }
+    data Inner { left: LeftToken; middle: MiddleToken; right: RightToken; }
+    data Outer { first: FirstToken; inner: Inner; last: LastToken; }
+    data Helper {}
+    machine Helper::take(token: MiddleToken) {}
+    data Root {}
+    machine Root::enter(outer: Outer) {
+        Helper::take(outer.inner.middle);
+    }
+"#;
+
 const NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
     data FirstCleanupHelper {}
@@ -284,6 +300,24 @@ fn multiple_move_partial_affine_plan()
         .expect("encode multiple-move partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified multiple-move partial affine artifact enters Omega")
+}
+
+fn nested_partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan
+{
+    let tokens = Lexer::new(NESTED_PARTIAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize nested partial affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nested partial affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve nested partial affine source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type nested partial affine source");
+    let checked = lower_typed_trees(typed).expect("check nested partial affine source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower nested partial affine Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode nested partial affine Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode nested partial affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nested partial affine artifact enters Omega")
 }
 
 fn nominal_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
@@ -886,6 +920,159 @@ fn multiple_direct_moves_preserve_exact_residual_complement_on_all_targets() {
         assert_eq!(
             &emitted.bytes, root_cleanup_bytes,
             "multiple residual actions add no runtime instruction bytes"
+        );
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
+fn nested_move_preserves_maximal_residual_subtrees_on_all_targets() {
+    let plan = nested_partial_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("nested partial caller remains present");
+    let root_type = caller.structural_parameters[0].structural_type;
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .expect("nested partial return retains cleanup actions");
+    let [
+        TerminalAffineCleanupAction::DiscardResidual(last),
+        TerminalAffineCleanupAction::DiscardResidual(right),
+        TerminalAffineCleanupAction::DiscardResidual(left),
+        TerminalAffineCleanupAction::DiscardResidual(first),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("nested cleanup retains four maximal sibling subtrees")
+    };
+    assert_eq!(last.path, [StructuralPathSegment::Field("last".into())]);
+    assert_eq!(
+        right.path,
+        [
+            StructuralPathSegment::Field("inner".into()),
+            StructuralPathSegment::Field("right".into()),
+        ]
+    );
+    assert_eq!(
+        left.path,
+        [
+            StructuralPathSegment::Field("inner".into()),
+            StructuralPathSegment::Field("left".into()),
+        ]
+    );
+    assert_eq!(first.path, [StructuralPathSegment::Field("first".into())]);
+    assert!(cleanup_actions.iter().all(|action| matches!(action,
+        TerminalAffineCleanupAction::DiscardResidual(residual) if residual.place == last.place)));
+
+    let mut reordered = plan.clone();
+    let reordered_caller = reordered
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+        cleanup_actions: reordered_actions,
+        ..
+    } = reordered_caller.operations.last_mut().unwrap()
+    else {
+        panic!("nested caller ends in a Unit return")
+    };
+    reordered_actions.swap(1, 2);
+    assert!(lower_to_target_operations(&reordered, NativeTarget::linux_x64()).is_err());
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("nested partial caller machine code exists");
+        let [call] = emitted.internal_unit_calls.as_slice() else {
+            panic!("nested partial caller retains one projected call")
+        };
+        let [argument] = call.arguments.as_slice() else {
+            panic!("nested call retains one projection")
+        };
+        assert_eq!(argument.root_structural_type, root_type);
+        assert_eq!(
+            argument.path,
+            [
+                StructuralPathSegment::Field("inner".into()),
+                StructuralPathSegment::Field("middle".into()),
+            ]
+        );
+        assert_eq!(argument.source_byte_offset, 16);
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+
+        let mut root_cleanup_assigned = assigned.clone();
+        let root_cleanup_caller = root_cleanup_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
+            &mut root_cleanup_caller.operation
+        else {
+            panic!("nested caller remains a Unit body")
+        };
+        let omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
+            cleanup_actions: root_actions,
+            ..
+        } = body.operations.last_mut().unwrap()
+        else {
+            panic!("nested caller ends in a Unit return")
+        };
+        *root_actions = vec![TerminalAffineCleanupAction::DiscardRoot(last.place)];
+        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
+        let root_cleanup_bytes = &root_cleanup_machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .bytes;
+        assert_eq!(
+            &emitted.bytes, root_cleanup_bytes,
+            "nested residual cleanup adds no runtime instruction bytes"
         );
 
         let object = build_terminal_object_artifact(&machine).unwrap();
