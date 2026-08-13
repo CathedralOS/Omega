@@ -498,6 +498,47 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_fixed_array_materializes_through_the_typed_bridge() {
+    let main_path = write_program(
+        "source-owned-fixed-array",
+        r#"
+use omega::language::core::layout;
+
+data ArrayLayout { entries: [FieldEntry; 64]; }
+machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 12, size_is_dynamic: false, align: 2 }
+}
+data Samples { values: [u16; 3]; }
+machine make_samples() -> Samples {
+    Samples { values: [258, 772, 1286] }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("owned array producer should check");
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+        .expect("owned array should have one whole-field placement");
+    let mut bytes = [0xa5; 12];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("source-owned fixed array should evaluate and materialize atomically");
+    assert_eq!(&bytes[4..10], &[2, 1, 4, 3, 6, 5]);
+    assert!(bytes[..4].iter().chain(&bytes[10..]).all(|byte| *byte == 0));
+}
+
+#[test]
 fn fixed_primitive_arrays_reject_scalar_bit_placement() {
     let main_path = write_program(
         "fixed-array-bits",
