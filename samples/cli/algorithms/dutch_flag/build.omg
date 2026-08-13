@@ -1,4 +1,4 @@
-// insertion_sort is deployable on every hosted target.
+// dutch_flag is deployable on every hosted target.
 
 target windows_x64 {
 }

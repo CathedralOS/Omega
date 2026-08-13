@@ -1,4 +1,4 @@
-// insertion_sort is deployable on every hosted target.
+// maze_flood is deployable on every hosted target.
 
 target windows_x64 {
 }

@@ -1,4 +1,4 @@
-// insertion_sort is deployable on every hosted target.
+// horner_eval is deployable on every hosted target.
 
 target windows_x64 {
 }

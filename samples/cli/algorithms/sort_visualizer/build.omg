@@ -1,4 +1,4 @@
-// insertion_sort is deployable on every hosted target.
+// sort_visualizer is deployable on every hosted target.
 
 target windows_x64 {
 }
