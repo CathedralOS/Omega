@@ -51,6 +51,76 @@ fn two_nominal_affine_roots_validate_in_reverse_order_and_may_share_a_target() {
 }
 
 #[test]
+fn two_nominal_affine_roots_allow_exactly_one_executable_cleanup_body() {
+    let module = two_root_one_executable_nominal_affine_module();
+    validate_module(&module).expect("one executable cleanup action should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("one executable cleanup action requires no proof evidence");
+
+    let mut two_executable = module.clone();
+    let mut second_helper = two_executable.machines[3].clone();
+    second_helper.id = machine_id(5);
+    second_helper.entry = block_id(5);
+    second_helper.blocks[0].id = block_id(5);
+    second_helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(5),
+        trivial_affine_discards: Vec::new(),
+    };
+    second_helper.contract.id = contract_id(5);
+    two_executable.machines[2].blocks[0]
+        .operations
+        .push(Operation {
+            id: operation_id(2),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: second_helper.id,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    two_executable.machines.push(second_helper);
+    assert!(matches!(
+        validate_module(&two_executable),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut shared_executable = two_root_nominal_affine_module();
+    let mut helper = shared_executable.machines[1].clone();
+    helper.id = machine_id(3);
+    helper.entry = block_id(3);
+    helper.blocks[0].id = block_id(3);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(3);
+    shared_executable.machines[1].blocks[0]
+        .operations
+        .push(Operation {
+            id: operation_id(1),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: helper.id,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    shared_executable.machines.push(helper);
+    assert!(matches!(
+        validate_module(&shared_executable),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
 fn exact_one_call_nominal_affine_cleanup_validates_and_verifies() {
     let module = executable_nominal_affine_module();
     validate_module(&module).expect("exact one-call nominal cleanup should validate");
@@ -2326,6 +2396,48 @@ fn two_root_nominal_affine_module() -> TerminalModule {
             cleanup_machine: machine_id(2),
         },
     );
+    module
+}
+
+fn two_root_one_executable_nominal_affine_module() -> TerminalModule {
+    let mut module = two_root_nominal_affine_module();
+    let mut second_cleanup = module.machines[1].clone();
+    second_cleanup.id = machine_id(3);
+    second_cleanup.entry = block_id(3);
+    second_cleanup.blocks[0].id = block_id(3);
+    second_cleanup.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    second_cleanup.contract.id = contract_id(3);
+    let mut helper = module.machines[1].clone();
+    helper.id = machine_id(4);
+    helper.entry = block_id(4);
+    helper.blocks[0].id = block_id(4);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(4),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(4);
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_machine = second_cleanup.id;
+    module.machines.push(second_cleanup);
+    module.machines.push(helper);
     module
 }
 

@@ -35,6 +35,24 @@ const TWO_ROOT_SOURCE: &str = r#"
     machine Root::enter(first: Token, second: Token) {}
 "#;
 
+const TWO_ROOT_ONE_EXECUTABLE_SOURCE: &str = r#"
+    data FirstHelper {}
+    machine FirstHelper::touch() {}
+    data SecondHelper {}
+    machine SecondHelper::touch() {}
+
+    data First {}
+    machine First::drop(&mut self) {
+        FirstHelper::touch();
+        SecondHelper::touch();
+    }
+    data Second {}
+    machine Second::drop(&mut self) {}
+
+    data Root {}
+    machine Root::enter(first: First, second: Second) {}
+"#;
+
 const EXECUTABLE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -252,6 +270,85 @@ fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target()
         &AdmissionProfile::default(),
     )
     .expect("verifier accepts ordered two-root nominal cleanup");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(
+        decode_module(&bytes).expect("semantic module decodes"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
+    let tokens = Lexer::new(TWO_ROOT_ONE_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("one executable cleanup in a two-root list lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 5);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("two source roots remain structural parameters")
+    };
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("expected ordered nominal cleanup return")
+    };
+    let [second_cleanup, first_cleanup] = cleanups.as_slice() else {
+        panic!("both roots require nominal cleanup")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(first_cleanup.place, first.place);
+    let second_target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == second_cleanup.cleanup_machine)
+        .expect("second cleanup target");
+    let first_target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == first_cleanup.cleanup_machine)
+        .expect("first cleanup target");
+    assert!(second_target.blocks[0].operations.is_empty());
+    let [first_helper_call, second_helper_call] = first_target.blocks[0].operations.as_slice()
+    else {
+        panic!("exactly one cleanup body retains both ordered helper calls")
+    };
+    let helper_callees = [first_helper_call, second_helper_call].map(|operation| {
+        let OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } = &operation.kind
+        else {
+            panic!("cleanup helper operation remains an ordinary Unit call")
+        };
+        assert!(structural_arguments.is_empty());
+        assert!(claim_transfers.is_empty());
+        assert!(requirement_obligations.is_empty());
+        assert!(crash_continuations.is_empty());
+        *callee
+    });
+    assert_ne!(helper_callees[0], helper_callees[1]);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts one executable cleanup in an ordered list");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(
         decode_module(&bytes).expect("semantic module decodes"),

@@ -3885,6 +3885,8 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     }
 
     let mut roots = Vec::new();
+    let mut cleanup_helpers = Vec::new();
+    let mut executable_cleanup_count = 0_usize;
     for cleanup in &nominal.cleanups {
         let target = unique_unit_machine(
             &checked.facts.flow.terminal_unit_effects,
@@ -3897,6 +3899,65 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             .ok_or(LoweringError::Unsupported(
                 "ordered nominal cleanup target contract is absent",
             ))?;
+        let (target_return, target_calls) =
+            target
+                .operations
+                .split_last()
+                .ok_or(LoweringError::Unsupported(
+                    "ordered nominal cleanup target operations are empty",
+                ))?;
+        let CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index,
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+        } = target_return
+        else {
+            return unsupported("ordered nominal cleanup target does not end in Unit return");
+        };
+        if !target_calls.is_empty() {
+            executable_cleanup_count += 1;
+        }
+        if executable_cleanup_count > 1
+            || target_calls.len() > 2
+            || usize::try_from(*statement_index).ok() != Some(target_calls.len())
+            || !trivial_affine_local_discard_ordinals.is_empty()
+            || !trivial_affine_discards.is_empty()
+        {
+            return unsupported("ordered nominal cleanup target operation sequence drifted");
+        }
+        for (statement_index, operation) in target_calls.iter().enumerate() {
+            let CheckedUnitEffectOperationPlan::CallUnit {
+                coordinate,
+                target_machine,
+                target_state,
+                target_contract_fingerprint,
+                service_reach,
+                structural_arguments,
+                claim_transfers,
+            } = operation
+            else {
+                return unsupported("ordered nominal cleanup target operation sequence drifted");
+            };
+            if usize::try_from(coordinate.statement_index).ok() != Some(statement_index)
+                || coordinate.call_ordinal != 0
+                || *target_machine == plan.machine
+                || *target_machine == cleanup.cleanup_machine
+                || cleanup_helpers
+                    .iter()
+                    .any(|(_, helper, _, _)| helper == target_machine)
+                || !service_summary_is_empty(*service_reach)
+                || !structural_arguments.is_empty()
+                || !claim_transfers.is_empty()
+            {
+                return unsupported("ordered nominal cleanup helper call is not exact");
+            }
+            cleanup_helpers.push((
+                cleanup.cleanup_machine,
+                *target_machine,
+                *target_state,
+                *target_contract_fingerprint,
+            ));
+        }
         if target.state != cleanup.cleanup_state
             || target.contract_fingerprint != cleanup.cleanup_contract_fingerprint
             || contract.fingerprint != cleanup.cleanup_contract_fingerprint
@@ -3907,12 +3968,61 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             || !target.body_qualifications.is_empty()
             || !service_summary_is_empty(target.service_reach)
             || !service_plan_is_empty(target.contract_service_reach)
-            || !matches!(target.operations.as_slice(), [CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty())
         {
-            return unsupported("ordered nominal cleanup target is not exact and empty");
+            return unsupported("ordered nominal cleanup target is not exact and bounded");
         }
         if !roots.contains(&cleanup.cleanup_machine) {
             roots.push(cleanup.cleanup_machine);
+        }
+    }
+    for &(_, helper_machine, helper_state, helper_fingerprint) in &cleanup_helpers {
+        if roots.contains(&helper_machine) {
+            return unsupported("ordered nominal cleanup helper overlaps a cleanup target");
+        }
+        let helper =
+            unique_unit_machine(&checked.facts.flow.terminal_unit_effects, helper_machine)?;
+        let helper_contract = checked
+            .facts
+            .contract_plans
+            .for_machine(helper_machine)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup helper contract is absent",
+            ))?;
+        let helper_shape = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .chain(nominal_types)
+            .find(|candidate| candidate.identity == helper.attachment_type_identity)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup helper attachment shape is absent",
+            ))?;
+        if helper.state != helper_state
+            || helper.contract_fingerprint != helper_fingerprint
+            || helper_contract.fingerprint != helper_fingerprint
+            || !matches!(
+                &helper_shape.shape,
+                CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+            )
+            || !helper.structural_parameters.is_empty()
+            || !helper.trivial_affine_locals.is_empty()
+            || !helper.entry_claims.is_empty()
+            || !helper.body_qualifications.is_empty()
+            || !service_summary_is_empty(helper.service_reach)
+            || !service_plan_is_empty(helper.contract_service_reach)
+            || !matches!(
+                helper.operations.as_slice(),
+                [CheckedUnitEffectOperationPlan::ReturnUnit {
+                    statement_index: 0,
+                    trivial_affine_local_discard_ordinals,
+                    trivial_affine_discards,
+                }] if trivial_affine_local_discard_ordinals.is_empty()
+                    && trivial_affine_discards.is_empty()
+            )
+        {
+            return unsupported("ordered nominal cleanup helper is not exact and empty");
         }
     }
 
@@ -3947,6 +4057,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     let closure = checked_unit_call_closure_including(&staged, plan.machine, &roots)?;
     let mut expected = vec![plan.machine];
     expected.extend(&roots);
+    expected.extend(cleanup_helpers.iter().map(|(_, helper, _, _)| *helper));
     if closure != expected {
         return unsupported("ordered nominal cleanup closure is not exact");
     }
@@ -3989,7 +4100,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         .ok_or(LoweringError::Unsupported(
             "ordered nominal cleanup identities could not be lowered",
         ))?;
-    for cleanup in &terminal_cleanups {
+    for (cleanup, checked_cleanup) in terminal_cleanups.iter().zip(&nominal.cleanups) {
         let target = lowered
             .semantic_module
             .machines
@@ -4001,6 +4112,41 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         let [target_block] = target.blocks.as_slice() else {
             return unsupported("ordered nominal cleanup target terminal control drifted");
         };
+        let expected_helpers = cleanup_helpers
+            .iter()
+            .filter(|(owner, _, _, _)| *owner == checked_cleanup.cleanup_machine)
+            .map(|(_, helper, _, _)| {
+                closure
+                    .iter()
+                    .position(|candidate| candidate == helper)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordered nominal cleanup helper was not retained",
+                    ))
+                    .and_then(dense_identity)
+                    .map(machine_id)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let target_operations_are_exact =
+            target_block.operations.len() == expected_helpers.len()
+                && target_block.operations.iter().zip(&expected_helpers).all(
+                    |(operation, helper)| {
+                        operation.result == psi_terminal::OperationResult::Unit
+                            && matches!(
+                                &operation.kind,
+                                OperationKind::CallUnit {
+                                    callee,
+                                    structural_arguments,
+                                    claim_transfers,
+                                    requirement_obligations,
+                                    crash_continuations,
+                                } if callee == helper
+                                    && structural_arguments.is_empty()
+                                    && claim_transfers.is_empty()
+                                    && requirement_obligations.is_empty()
+                                    && crash_continuations.is_empty()
+                            )
+                    },
+                );
         if target.attachment != Some(cleanup.structural_type)
             || !target.parameters.is_empty()
             || !target.structural_parameters.is_empty()
@@ -4013,7 +4159,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             || !target.content_partition_compositions.is_empty()
             || target_block.id != target.entry
             || !target_block.parameters.is_empty()
-            || !target_block.operations.is_empty()
+            || !target_operations_are_exact
             || !matches!(
                 &target_block.terminator,
                 Terminator::ReturnUnit {
@@ -4026,6 +4172,65 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             || !target.contract.ensures.is_empty()
         {
             return unsupported("ordered nominal cleanup target terminal machine is not exact");
+        }
+    }
+    for &(_, helper_symbol, _, _) in &cleanup_helpers {
+        let helper_index = closure
+            .iter()
+            .position(|candidate| *candidate == helper_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup helper was not retained",
+            ))?;
+        let helper_id = machine_id(dense_identity(helper_index)?);
+        let helper = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == helper_id)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup helper terminal machine is absent",
+            ))?;
+        let [helper_block] = helper.blocks.as_slice() else {
+            return unsupported("ordered nominal cleanup helper terminal control drifted");
+        };
+        let helper_attachment_is_empty = helper.attachment.is_some_and(|attachment| {
+            lowered
+                .semantic_module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == attachment)
+                .is_some_and(|declaration| {
+                    matches!(
+                        &declaration.shape,
+                        StructuralTypeShape::Record { fields } if fields.is_empty()
+                    )
+                })
+        });
+        if !helper_attachment_is_empty
+            || !helper.parameters.is_empty()
+            || !helper.structural_parameters.is_empty()
+            || helper.result != TerminalMachineResult::Unit
+            || !helper.structural_places.is_empty()
+            || !helper.entry_claims.is_empty()
+            || !helper.published_service_ceiling.is_empty()
+            || !helper.content_entry_claims.is_empty()
+            || !helper.content_identity_reshuffles.is_empty()
+            || !helper.content_partition_compositions.is_empty()
+            || helper_block.id != helper.entry
+            || !helper_block.parameters.is_empty()
+            || !helper_block.operations.is_empty()
+            || !matches!(
+                &helper_block.terminator,
+                Terminator::ReturnUnit {
+                    trivial_affine_discards,
+                    ..
+                } if trivial_affine_discards.is_empty()
+            )
+            || !helper.contract.crash_routes.is_empty()
+            || !helper.contract.requires.is_empty()
+            || !helper.contract.ensures.is_empty()
+        {
+            return unsupported("ordered nominal cleanup helper terminal machine is not exact");
         }
     }
     let entry = &mut lowered.semantic_module.machines[entry_index];
@@ -10415,6 +10620,24 @@ mod tests {
         lower_typed_trees(typed).expect("check")
     }
 
+    fn ordered_one_executable_nominal_affine_checked_fixture() -> CheckedTrees {
+        let source = r#"
+            data Helper {}
+            machine Helper::touch() {}
+            data First {}
+            machine First::drop(&mut self) { Helper::touch(); }
+            data Second {}
+            machine Second::drop(&mut self) {}
+            data Root {}
+            machine Root::enter(first: First, second: Second) {}
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        lower_typed_trees(typed).expect("check")
+    }
+
     #[test]
     fn nominal_affine_unit_cleanup_lowers_exact_target_into_terminal_closure() {
         let checked = nominal_affine_unit_checked_fixture();
@@ -10674,6 +10897,54 @@ mod tests {
             lower_nominal_affine_unit_cleanup_machine(&stale_checked, &original),
             Err(LoweringError::Unsupported(
                 "nominal affine Unit machine is also published in the trivial lane"
+            ))
+        ));
+    }
+
+    #[test]
+    fn ordered_nominal_cleanup_lowering_rejects_a_second_executable_action() {
+        let mut checked = ordered_one_executable_nominal_affine_checked_fixture();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines[0]
+            .clone();
+        let [empty_cleanup, executable_cleanup] = plan.cleanups.as_slice() else {
+            panic!("fixture has two ordered cleanup actions")
+        };
+        let executable_operation = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(executable_cleanup.cleanup_machine)
+            .expect("executable cleanup target")
+            .operations[0]
+            .clone();
+        let empty_target = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|target| target.machine == empty_cleanup.cleanup_machine)
+            .expect("empty cleanup target");
+        empty_target.operations.insert(0, executable_operation);
+        let CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index, ..
+        } = empty_target
+            .operations
+            .last_mut()
+            .expect("cleanup target return")
+        else {
+            panic!("cleanup target ends in Unit return")
+        };
+        *statement_index = 1;
+
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&checked, &plan),
+            Err(LoweringError::Unsupported(
+                "ordered nominal cleanup target operation sequence drifted"
             ))
         ));
     }

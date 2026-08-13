@@ -324,6 +324,82 @@ fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discar
 }
 
 #[test]
+fn retains_exactly_one_executable_drop_in_a_two_root_nominal_cleanup_list() {
+    let checked = checked(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data First {}
+        machine First::drop(&mut self) { Helper::touch(); }
+        data Second {}
+        machine Second::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(first: First, second: Second) {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("one executable and one empty cleanup are retained");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0]
+    );
+    let operation_counts = plan
+        .cleanups
+        .iter()
+        .map(|cleanup| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(cleanup.cleanup_machine)
+                .expect("cleanup has an exact Unit plan")
+                .operations
+                .len()
+                - 1
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(operation_counts, vec![0, 1]);
+}
+
+#[test]
+fn fences_two_executable_drop_bodies_in_one_nominal_cleanup_list() {
+    let checked = checked(
+        r#"
+        data FirstHelper {}
+        machine FirstHelper::touch() {}
+        data SecondHelper {}
+        machine SecondHelper::touch() {}
+
+        data First {}
+        machine First::drop(&mut self) { FirstHelper::touch(); }
+        data Second {}
+        machine Second::drop(&mut self) { SecondHelper::touch(); }
+
+        data Root {}
+        machine Root::enter(first: First, second: Second) {}
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "two executable cleanup actions remain outside the bounded list slice"
+    );
+}
+
+#[test]
 fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
     let checked = checked(
         r#"

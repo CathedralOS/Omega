@@ -199,6 +199,26 @@ fn ordered_nominal_affine_cleanups_count_the_same_target_twice() {
 }
 
 #[test]
+fn ordered_nominal_affine_cleanups_include_one_executable_body_in_the_exact_bound() {
+    let module = ordered_one_executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("one executable ordered cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("one executable ordered cleanup has an exact fixed bound");
+
+    assert_eq!(
+        certificate.ceiling_units(),
+        5,
+        "root edge + helper call/edge + executable drop edge + empty drop edge"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
     let module = executable_nominal_affine_fixture();
     let verified = verify_module(
@@ -1115,6 +1135,39 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
             contract_id(902),
         ));
     }
+    module
+}
+
+fn ordered_one_executable_nominal_affine_fixture() -> TerminalModule {
+    let mut module = ordered_empty_nominal_affine_fixture(false);
+    let helper_type = structural_type_id(902);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: helper_type,
+        identity: "test::Helper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut helper = module.machines[1].clone();
+    helper.id = machine_id(903);
+    helper.attachment = Some(helper_type);
+    helper.entry = block_id(903);
+    helper.blocks[0].id = block_id(903);
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(903),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.contract.id = contract_id(903);
+    module.machines[2].blocks[0].operations.push(Operation {
+        id: operation_id(903),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(helper);
     module
 }
 

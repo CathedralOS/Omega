@@ -2146,6 +2146,7 @@ fn validate_nominal_affine_cleanup_shape(
         .collect::<Vec<_>>();
     let mut target_ids = BTreeSet::new();
     let mut helper_ids = BTreeSet::new();
+    let mut executable_cleanup_count = 0_usize;
     for (cleanup, parameter) in cleanups.iter().zip(expected_parameters) {
         if parameter.place != cleanup.place
             || parameter.structural_type != cleanup.structural_type
@@ -2172,6 +2173,9 @@ fn validate_nominal_affine_cleanup_shape(
         let [target_block] = target.blocks.as_slice() else {
             return Err(invalid(block.id));
         };
+        if !target_block.operations.is_empty() {
+            executable_cleanup_count += 1;
+        }
         if target.id == machine.id
             || target.attachment != Some(cleanup.structural_type)
             || target.result != TerminalMachineResult::Unit
@@ -2189,7 +2193,8 @@ fn validate_nominal_affine_cleanup_shape(
             || !target.contract.crash_routes.is_empty()
             || !target.contract.requires.is_empty()
             || !target.contract.ensures.is_empty()
-            || (cleanups.len() == 2 && !target_block.operations.is_empty())
+            || target_block.operations.len() > 2
+            || executable_cleanup_count > 1
         {
             return Err(invalid(block.id));
         }
