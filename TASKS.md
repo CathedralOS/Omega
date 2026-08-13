@@ -226,10 +226,10 @@ Remaining:
   structural parameters. One entry state may also select two ordered ordinary
   successors from one retained Boolean input; each arm independently binds its
   whole-parameter transfer and reverse-order cleanup frontier before the leaf
-  performs its final cleanup. Direct primitive scalar inputs may be forwarded
-  into typed successor block parameters and are materialized before edge
-  cleanup. Joins, cycles, reordered custody, computed guards or successor
-  values, wider conditional topology, locals, projections, claims, and
+  performs its final cleanup. Unconditional jumps and conditional arms may
+  forward direct primitive scalar inputs into typed successor block parameters,
+  materialized before edge cleanup. Joins, cycles, reordered custody, computed
+  guards or successor values, wider conditional topology, locals, projections, claims, and
   incomplete evidence still fail closed.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
@@ -479,9 +479,9 @@ reach or trust, and private proof improvements do not change public identity.
   converge through typed continuations and defer cleanup to the final return.
   A first structural Unit conditional path now branches on one retained Boolean
   input and reconstructs independent transfer/cleanup partitions for two
-  ordered successors; direct primitive inputs may be forwarded into typed
-  successor parameters before cleanup. These slices are not yet the complete
-  `EdgeCleanupPlan`, wider conditional-control path, repeated-cycle composition,
+  ordered successors; both jumps and conditional arms may forward direct
+  primitive inputs into typed successor parameters before cleanup. These slices
+  are not yet the complete `EdgeCleanupPlan`, wider conditional-control path, repeated-cycle composition,
   or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
