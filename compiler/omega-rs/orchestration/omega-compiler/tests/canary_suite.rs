@@ -13298,16 +13298,11 @@ fn runtime_newton_sqrt_exit_canary_runs() {
     // over f64, six iterations from 1.0 on S=2.0 -> sqrt(2) ~= 1.41421; checks
     // 1.414 < x < 1.415 -> exit 70.
     let canary = pass_canary("arithmetic/runtime_newton_sqrt_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-newton-sqrt-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("newton sqrt canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-newton-sqrt-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("newton sqrt canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("newton sqrt canary should run");
     assert_eq!(
@@ -13317,7 +13312,7 @@ fn runtime_newton_sqrt_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13326,17 +13321,11 @@ fn runtime_monte_carlo_pi_exit_canary_runs() {
     // those inside the quarter circle (px*px+py*py < 100*100). Deterministic from seed 1:
     // 53 inside, scaled estimate 400*53/64 = 331 (pi ~= 3.31) -> exit 70.
     let canary = pass_canary("arithmetic/runtime_monte_carlo_pi_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("monte carlo pi canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("monte carlo pi canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("monte carlo pi canary should run");
     assert_eq!(
@@ -13346,7 +13335,7 @@ fn runtime_monte_carlo_pi_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
