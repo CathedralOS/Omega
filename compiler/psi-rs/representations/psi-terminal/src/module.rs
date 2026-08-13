@@ -798,13 +798,14 @@ pub enum Terminator {
         when_true: SuccessorEdge,
         when_false: SuccessorEdge,
     },
-    /// Bind a scalar result, then perform exact no-code affine disposal before
-    /// returning to the caller.
+    /// Bind a scalar result, then perform the exact ordered affine cleanup
+    /// actions before returning to the caller.
     Return {
         edge: EdgeId,
         value: ValueId,
-        /// Structural places in reverse declaration order.
-        trivial_affine_discards: Vec<PlaceId>,
+        /// Semantic execution order. Consumers must preserve this list rather
+        /// than regrouping actions by cleanup kind.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     /// Finish normally without producing or binding a runtime value.
     ReturnUnit {

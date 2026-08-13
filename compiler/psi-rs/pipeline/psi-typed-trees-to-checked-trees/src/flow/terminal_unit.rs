@@ -644,6 +644,7 @@ pub(crate) fn build_checked_structural_unit_control_plans(
 pub(crate) fn build_checked_structural_scalar_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
+    unit_effects: &CheckedUnitEffectPlans,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
     let machines = program
@@ -651,7 +652,13 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            build_structural_scalar_return_machine(program, facts, &mut shapes, machine)
+            build_structural_scalar_return_machine(
+                program,
+                facts,
+                unit_effects,
+                &mut shapes,
+                machine,
+            )
         })
         .collect::<Vec<_>>();
     let retained = machines
@@ -675,6 +682,7 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
 fn build_structural_scalar_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
+    unit_effects: &CheckedUnitEffectPlans,
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Option<CheckedStructuralScalarReturnMachinePlan> {
@@ -780,8 +788,97 @@ fn build_structural_scalar_return_machine(
     ) {
         return None;
     }
-    let trivial_affine_discard_parameter_positions =
-        checked_no_code_affine_discard_positions(program, facts, machine.symbol, state)?;
+    let whole_discards = super::terminal_cleanup::checked_whole_affine_discard_parameters(
+        program,
+        facts,
+        machine.symbol,
+        state,
+    )?;
+    let source_state_parameters = program.state_parameters(state);
+    let nominal_positions = whole_discards
+        .iter()
+        .filter(|(_, position)| {
+            source_state_parameters
+                .get(*position as usize)
+                .is_some_and(|parameter| {
+                    type_graph_requires_nominal_drop(program, parameter.type_reference)
+                })
+        })
+        .collect::<Vec<_>>();
+    let (trivial_affine_discard_parameter_positions, nominal_cleanup) =
+        if nominal_positions.is_empty() {
+            (
+                whole_discards
+                    .into_iter()
+                    .map(|(_, position)| position)
+                    .collect(),
+                None,
+            )
+        } else {
+            let [(_, position)] = nominal_positions.as_slice() else {
+                return None;
+            };
+            if structural_parameters.len() != 1
+                || !scalar_parameters.is_empty()
+                || !bindings.is_empty()
+                || *position != 0
+                || !program.state_contracts(state).is_empty()
+            {
+                return None;
+            }
+            let source_parameter = source_state_parameters.get(*position as usize)?;
+            let TypeReferenceNode::Named {
+                symbol: parameter_data_symbol,
+                ..
+            } = program
+                .type_reference_table
+                .type_reference(source_parameter.type_reference)
+            else {
+                return None;
+            };
+            let parameter_data = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == *parameter_data_symbol)?;
+            let cleanup_machines = program
+                .machines()
+                .iter()
+                .filter(|candidate| {
+                    candidate.supply_mode == MachineSupplyMode::CheckedBody
+                        && candidate.name.as_str().ends_with("::drop")
+                        && candidate
+                            .attached_data
+                            .as_ref()
+                            .is_some_and(|attached| attached == &parameter_data.name)
+                })
+                .collect::<Vec<_>>();
+            let [cleanup_machine] = cleanup_machines.as_slice() else {
+                return None;
+            };
+            let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
+            if !checked_requires_expressions(
+                program,
+                facts,
+                cleanup_machine.symbol,
+                cleanup_target.state,
+            )?
+            .is_empty()
+                || cleanup_target.attachment_type_identity != structural_parameters[0].type_identity
+            {
+                return None;
+            }
+            (
+                Vec::new(),
+                Some(CheckedUnitNominalAffineCleanupPlan {
+                    source_parameter_index: 0,
+                    type_identity: structural_parameters[0].type_identity.clone(),
+                    cleanup_machine: cleanup_machine.symbol,
+                    cleanup_state: cleanup_target.state,
+                    cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
+                    requirements: Vec::new(),
+                }),
+            )
+        };
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -792,6 +889,7 @@ fn build_structural_scalar_return_machine(
         result_type,
         return_statement_ordinal,
         trivial_affine_discard_parameter_positions,
+        nominal_cleanup,
     })
 }
 

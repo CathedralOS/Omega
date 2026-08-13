@@ -41,7 +41,7 @@ fn unit_machine_is_a_value_less_normal_return() {
 fn verifier_rejects_mismatched_unit_and_scalar_return_shapes() {
     let mut scalar_return = unit_module();
     scalar_return.machines[0].blocks[0].terminator = Terminator::Return {
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
         edge: EdgeId::new(900).unwrap(),
         value: ValueId::new(900).unwrap(),
     };
@@ -195,7 +195,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
                     kind: OperationKind::BooleanConstant { value: true },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(10).expect("edge"),
                     value: constant,
                 },
@@ -288,7 +288,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
                     kind: OperationKind::BooleanNot { operand: parameter },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(20).expect("edge"),
                     value: negated,
                 },
@@ -418,7 +418,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                     kind: OperationKind::BooleanEqual { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(30).expect("edge"),
                     value: compared,
                 },
@@ -551,7 +551,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
                     kind: OperationKind::IntegerEqual { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(40).expect("edge"),
                     value: compared,
                 },
@@ -706,7 +706,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                         kind: operation,
                     }],
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: EdgeId::new(50).expect("edge"),
                         value: compared,
                     },
@@ -850,7 +850,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                         kind: operation,
                     }],
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: EdgeId::new(60).expect("edge"),
                         value: computed,
                     },
@@ -967,7 +967,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                     kind: OperationKind::IntegerBitwiseNot { operand },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(65).expect("edge"),
                     value: computed,
                 },
@@ -1070,7 +1070,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                     kind: OperationKind::IntegerWiden { operand },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(68).expect("edge"),
                     value: computed,
                 },
@@ -1194,7 +1194,7 @@ fn preserves_address_carrier_identity() {
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(168).expect("edge"),
                     value: parameter,
                 },
@@ -1264,7 +1264,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(170).expect("edge"),
                     value: computed,
                 },
@@ -1363,7 +1363,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(180).expect("edge"),
                     value: computed,
                 },
@@ -1445,7 +1445,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(190).expect("edge"),
                     value: computed,
                 },
@@ -1511,7 +1511,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(194).expect("edge"),
                     value: computed,
                 },
@@ -1577,7 +1577,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(198).expect("edge"),
                     value: computed,
                 },
@@ -1643,7 +1643,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(202).expect("edge"),
                     value: computed,
                 },
@@ -1709,7 +1709,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(212).expect("edge"),
                     value: computed,
                 },
@@ -1775,7 +1775,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(222).expect("edge"),
                     value: computed,
                 },
@@ -1840,7 +1840,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(232).expect("edge"),
                     value: computed,
                 },
@@ -1905,7 +1905,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(242).expect("edge"),
                     value: computed,
                 },
@@ -1970,7 +1970,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(252).expect("edge"),
                     value: computed,
                 },
@@ -2035,7 +2035,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
                     },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(256).expect("edge"),
                     value: computed,
                 },
@@ -2140,7 +2140,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                         kind: operation,
                     }],
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: EdgeId::new(70).expect("edge"),
                         value: computed,
                     },
@@ -3258,7 +3258,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(80).expect("edge"),
                 value: parameter,
             },
@@ -3670,7 +3670,7 @@ fn initial_control_vocabulary_rejects_unreachable_semantic_axioms() {
         parameters: Vec::new(),
         operations: Vec::new(),
         terminator: Terminator::Return {
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
             edge: EdgeId::new(3).expect("unreachable edge"),
             value: fixture.constant,
         },
@@ -3751,7 +3751,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: OperationKind::WrappingIntegerAdd { left, right },
             }],
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(20).expect("return edge"),
                 value: sum,
             },
@@ -3833,7 +3833,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: OperationKind::SaturatingIntegerAdd { left, right },
             }],
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(30).expect("return edge"),
                 value: sum,
             },
@@ -3915,7 +3915,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: OperationKind::WrappingIntegerSubtract { left, right },
             }],
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(40).expect("return edge"),
                 value: difference,
             },
@@ -3997,7 +3997,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: OperationKind::SaturatingIntegerSubtract { left, right },
             }],
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(50).expect("return edge"),
                 value: difference,
             },
@@ -4079,7 +4079,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: OperationKind::WrappingIntegerMultiply { left, right },
             }],
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(60).expect("return edge"),
                 value: product,
             },
@@ -4161,7 +4161,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: OperationKind::SaturatingIntegerMultiply { left, right },
             }],
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(70).expect("return edge"),
                 value: product,
             },
@@ -4300,7 +4300,7 @@ impl Fixture {
                     }],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: EdgeId::new(2).expect("return edge"),
                         value: forwarded,
                     },

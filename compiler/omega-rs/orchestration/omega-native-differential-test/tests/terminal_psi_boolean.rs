@@ -115,7 +115,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
                     kind: OperationKind::BooleanConstant { value: true },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: constant,
                 },
@@ -292,7 +292,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
                     },
                 ],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: sum,
                 },
@@ -475,7 +475,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
                     },
                 ],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: sum,
                 },
@@ -643,7 +643,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
                     kind: OperationKind::SaturatingIntegerSubtract { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: difference,
                 },
@@ -788,7 +788,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
                     kind: OperationKind::WrappingIntegerSubtract { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: difference,
                 },
@@ -940,7 +940,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
                     kind: OperationKind::WrappingIntegerMultiply { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: product,
                 },
@@ -1092,7 +1092,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
                     kind: OperationKind::SaturatingIntegerMultiply { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: product,
                 },
@@ -1254,7 +1254,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                     },
                 ],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: saturated,
                 },
@@ -1387,7 +1387,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
                     kind: OperationKind::SaturatingIntegerAdd { left, right },
                 }],
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: sum,
                 },
@@ -1498,7 +1498,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value: returned,
                 },

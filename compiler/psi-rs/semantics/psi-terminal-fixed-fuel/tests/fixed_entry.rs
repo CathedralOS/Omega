@@ -11,8 +11,8 @@ use psi_terminal::{
     StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -305,6 +305,46 @@ fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
         4,
         "root edge + drop call + helper edge + drop edge"
     );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
+fn scalar_return_composes_every_nominal_cleanup_bound() {
+    let mut module = ordered_empty_nominal_affine_fixture(true);
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(900),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(901),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(999),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(900),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("scalar return cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
+    assert_eq!(certificate.ceiling_units(), 3);
     validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }
 
@@ -965,7 +1005,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: edge_id(4),
                 value: value_id(4),
             },
@@ -1786,7 +1826,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     }],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: edge_id(2),
                         value: value_id(2),
                     },
@@ -1868,7 +1908,7 @@ fn call_fixture() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: edge_id(1),
                         value: value_id(2),
                     },
@@ -1893,7 +1933,7 @@ fn call_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: edge_id(2),
                         value: value_id(4),
                     },

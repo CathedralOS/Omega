@@ -338,6 +338,9 @@ pub enum TerminalAbstractOperation {
         result: ValueId,
         value: ValueId,
         scalar_type: ScalarType,
+        /// Exact cleanup execution order retained from verified Psi. The
+        /// scalar result is materialized before these actions execute.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     ReturnUnit {
         psi_edge: EdgeId,

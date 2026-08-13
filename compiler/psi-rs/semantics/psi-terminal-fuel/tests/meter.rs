@@ -2,7 +2,9 @@ use psi_core::{
     BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, ServiceId, ValueId,
 };
-use psi_terminal::{CrashCause, Operation, OperationKind, Terminator, ValueDeclaration};
+use psi_terminal::{
+    CrashCause, Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
+};
 use psi_terminal_fuel::{
     FuelChargeSite, FuelExhaustion, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter,
     TerminalFuelSchedule,
@@ -113,7 +115,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     let return_edge = Terminator::Return {
         edge: edge_id(2),
         value: value_id(1),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let unit_return_edge = Terminator::ReturnUnit {
         edge: edge_id(4),
@@ -122,7 +124,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     let scalar_cleanup_edge = Terminator::Return {
         edge: edge_id(5),
         value: value_id(1),
-        trivial_affine_discards: vec![place_id(1)],
+        cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(1))],
     };
     let structural_return_edge = Terminator::ReturnStructural {
         edge: edge_id(6),

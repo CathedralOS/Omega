@@ -447,6 +447,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
                         value: IntegerValue::Signed(7),
                     },
                     TerminalAbstractOperation::Return {
+                        cleanup_actions: Vec::new(),
                         psi_edge: EdgeId::new(2).expect("return edge"),
                         result: ValueId::new(4).expect("machine result"),
                         value: ValueId::new(3).expect("return constant"),

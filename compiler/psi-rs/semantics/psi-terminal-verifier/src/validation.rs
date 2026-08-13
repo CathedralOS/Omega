@@ -12,8 +12,9 @@ use psi_terminal::{
     CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, OperationKind,
     OperationResult, PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence,
     StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator,
 };
 
 use crate::verification::{substitute_proposition_places, substitute_proposition_values};
@@ -66,16 +67,28 @@ fn nominal_cleanup_contract_receiver(
         .machines
         .iter()
         .flat_map(|candidate| &candidate.blocks)
-        .filter_map(|block| match &block.terminator {
-            Terminator::ReturnUnitNominalAffine { cleanups, .. } => Some(cleanups),
-            _ => None,
-        })
-        .flatten()
+        .flat_map(|block| nominal_cleanups(&block.terminator))
         .find_map(|cleanup| {
             (cleanup.cleanup_machine == cleanup_machine)
                 .then_some(cleanup.cleanup_receiver)
                 .flatten()
         })
+}
+
+fn nominal_cleanups(
+    terminator: &Terminator,
+) -> Box<dyn Iterator<Item = &psi_terminal::NominalAffineCleanup> + '_> {
+    match terminator {
+        Terminator::ReturnUnitNominalAffine { cleanups, .. } => Box::new(cleanups.iter()),
+        Terminator::Return {
+            cleanup_actions, ..
+        } => Box::new(cleanup_actions.iter().filter_map(|action| match action {
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
+            TerminalAffineCleanupAction::DiscardRoot(_)
+            | TerminalAffineCleanupAction::DiscardResidual(_) => None,
+        })),
+        _ => Box::new(std::iter::empty()),
+    }
 }
 
 pub fn validate_module(
@@ -1718,15 +1731,13 @@ fn validate_machine(
         for edge in block.terminator.edges() {
             insert_unique(&mut registry.edges, edge, ModuleError::DuplicateEdge)?;
         }
-        if let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator {
-            for cleanup in cleanups {
-                for obligation in &cleanup.requirement_obligations {
-                    insert_unique(
-                        &mut registry.obligations,
-                        *obligation,
-                        ModuleError::DuplicateObligation,
-                    )?;
-                }
+        for cleanup in nominal_cleanups(&block.terminator) {
+            for obligation in &cleanup.requirement_obligations {
+                insert_unique(
+                    &mut registry.obligations,
+                    *obligation,
+                    ModuleError::DuplicateObligation,
+                )?;
             }
         }
     }
@@ -2418,14 +2429,10 @@ fn valid_nominal_cleanup_requirements(
             .any(|place| place.id == receiver)
         || module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
-                matches!(
-                    &block.terminator,
-                    Terminator::ReturnUnitNominalAffine { cleanups, .. }
-                        if cleanups.iter().any(|candidate| {
-                            candidate.cleanup_machine != target.id
-                                && candidate.cleanup_receiver == Some(receiver)
-                        })
-                )
+                nominal_cleanups(&block.terminator).any(|candidate| {
+                    candidate.cleanup_machine != target.id
+                        && candidate.cleanup_receiver == Some(receiver)
+                })
             })
         })
     {
@@ -4318,16 +4325,8 @@ fn validate_structural_frontier(
                 }
             }
             Terminator::Return {
-                trivial_affine_discards,
-                ..
+                cleanup_actions, ..
             } => {
-                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
-                if *trivial_affine_discards != expected_affine_discards {
-                    return Err(ModuleError::ScalarReturnAffineDiscardsMismatch {
-                        machine: machine.id,
-                        block: block.id,
-                    });
-                }
                 if let Some((claim, _)) = frontier
                     .claims
                     .iter()
@@ -4339,6 +4338,14 @@ fn validate_structural_frontier(
                         claim: *claim,
                     });
                 }
+                validate_scalar_cleanup_actions(
+                    module,
+                    machine,
+                    machines,
+                    block.id,
+                    &frontier,
+                    cleanup_actions,
+                )?;
             }
             Terminator::ReturnStructural {
                 source,
@@ -4420,6 +4427,134 @@ fn validate_structural_frontier(
         }
     }
     Ok(())
+}
+
+fn validate_scalar_cleanup_actions(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    block: BlockId,
+    frontier: &StructuralOwnershipFrontier,
+    actions: &[TerminalAffineCleanupAction],
+) -> Result<(), ModuleError> {
+    let mismatch = || ModuleError::ScalarReturnAffineDiscardsMismatch {
+        machine: machine.id,
+        block,
+    };
+    let mut frontier = frontier.clone();
+    let mut actions = actions.iter();
+
+    let mut locals = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                ..
+            } if frontier.owned_places.contains_key(&place.id) => {
+                Some((declaration_ordinal, place.id))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    for (_, place) in locals {
+        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
+            return Err(mismatch());
+        }
+        frontier.owned_places.remove(&place);
+    }
+
+    for parameter in machine.structural_parameters.iter().rev() {
+        if !frontier.owned_places.contains_key(&parameter.place) {
+            continue;
+        }
+        if parameter.multiplicity != StructuralMultiplicity::Affine
+            || frontier
+                .claims
+                .values()
+                .any(|claim| claim.input == Some(parameter.place))
+            || machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == parameter.place)
+        {
+            return Err(mismatch());
+        }
+        if let Some(moved) = frontier.moved_field_paths.remove(&parameter.place) {
+            let Some(residuals) =
+                partial_affine_residuals(module, parameter.structural_type, &moved)
+            else {
+                return Err(mismatch());
+            };
+            if moved.is_empty() || residuals.is_empty() {
+                return Err(mismatch());
+            }
+            for (path, structural_type) in residuals {
+                let expected = TerminalAffineCleanupAction::DiscardResidual(
+                    psi_terminal::StructuralAffineDiscard {
+                        place: parameter.place,
+                        path,
+                        structural_type,
+                    },
+                );
+                if actions.next() != Some(&expected) {
+                    return Err(mismatch());
+                }
+            }
+        } else {
+            let Some(action) = actions.next() else {
+                return Err(mismatch());
+            };
+            match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) if *place == parameter.place => {}
+                TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                    if cleanup.place == parameter.place
+                        && cleanup.structural_type == parameter.structural_type
+                        && valid_scalar_nominal_cleanup(module, machine, machines, cleanup) => {}
+                _ => return Err(mismatch()),
+            }
+        }
+        frontier.owned_places.remove(&parameter.place);
+    }
+
+    if actions.next().is_some()
+        || !frontier.owned_places.is_empty()
+        || !frontier.moved_field_paths.is_empty()
+    {
+        return Err(mismatch());
+    }
+    Ok(())
+}
+
+fn valid_scalar_nominal_cleanup(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    cleanup: &psi_terminal::NominalAffineCleanup,
+) -> bool {
+    let Some(source) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == cleanup.structural_type)
+    else {
+        return false;
+    };
+    let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
+        return false;
+    };
+    cleanup.cleanup_machine != caller.id
+        && bounded_nominal_cleanup_receiver_shape(&source.shape)
+        && target.attachment == Some(cleanup.structural_type)
+        && target.result == TerminalMachineResult::Unit
+        && target.parameters.is_empty()
+        && target.structural_parameters.is_empty()
+        && target.entry_claims.is_empty()
+        && target.content_entry_claims.is_empty()
+        && target.contract.ensures.is_empty()
+        && target.contract.crash_routes.is_empty()
+        && cleanup.requirement_obligations.len() == target.contract.requires.len()
+        && valid_nominal_cleanup_requirements(module, target, cleanup)
 }
 
 fn expected_trivial_affine_discards(

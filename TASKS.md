@@ -226,6 +226,15 @@ Remaining:
   claims, qualifications, other contract forms, and non-root edges remain
   fenced.
 
+  Scalar return edges now use the same ordered cleanup-action vocabulary. The
+  first source-produced nominal branch accepts one direct, claim-free affine
+  parameter, no scalar inputs or locals, an immediate closed scalar result, and
+  the same empty or bounded zero-argument helper-call `drop` body. Result
+  materialization precedes cleanup in verification, interpretation, fixed fuel,
+  and all five Omega object/image/install paths. Mixed trivial/nominal roots,
+  contextual scalar cleanup, nested nominal ownership, and wider scalar bodies
+  remain to be added as complete vertical slices.
+
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
   parameter tail and a finite consecutive prefix of established empty-record
@@ -448,7 +457,8 @@ reach or trust, and private proof improvements do not change public identity.
   affine parameter whose record is
   empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native
-  artifact paths. The cleanup may be empty or make a finite source-ordered
+  artifact paths on Unit return and on the bounded closed scalar-return branch.
+  The cleanup may be empty or make a finite source-ordered
   zero-argument calls to mutually distinct exact-empty helpers; native
   artifacts retain the cleanup edge and helper operations as distinct call
   owners. Finite nominal cleanup lists run in reverse parameter order through
