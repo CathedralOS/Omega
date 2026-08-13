@@ -15425,20 +15425,13 @@ fn arithmetic_domain_trapping_mul_overflow_aborts() {
     // reaches the transition. (No `_canary_runs` suffix so the differential drift
     // guard skips it.)
     let canary = pass_canary("expressions/arithmetic_domain_trapping_mul_overflow");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-trap-mul-of-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_trapping_mul_overflow canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_trapping_mul_overflow canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_mul_overflow canary should run");
     assert!(
@@ -15449,7 +15442,7 @@ fn arithmetic_domain_trapping_mul_overflow_aborts() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15584,22 +15577,13 @@ fn arithmetic_domain_trapping_overflow_aborts() {
     // `_canary_runs` suffix so the differential drift guard does not treat it as a
     // clean-exit run canary.)
     let canary = pass_canary("expressions/arithmetic_domain_trapping_overflow");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-trapping-of-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_trapping_overflow canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_trapping_overflow canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_overflow canary should run");
 
@@ -15622,7 +15606,7 @@ fn arithmetic_domain_trapping_overflow_aborts() {
         "expected u8 in Trapping overflow to terminate abnormally, but it exited successfully"
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15634,20 +15618,11 @@ fn arithmetic_domain_trapping_let_overflow_aborts() {
     // overflow. (No `_canary_runs` suffix -- a trap aborts, not a clean exit, so
     // the differential drift guard must not treat it as a run canary.)
     let canary = pass_canary("expressions/arithmetic_domain_trapping_let_overflow");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-trapping-let-of-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_trapping_let_overflow canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_trapping_let_overflow canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_let_overflow canary should run");
 
@@ -15663,7 +15638,7 @@ fn arithmetic_domain_trapping_let_overflow_aborts() {
         "expected a Trapping `let` overflow to terminate abnormally, but it exited successfully"
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15700,21 +15675,13 @@ fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
     // Before the fix it silently wrapped to 16 and exited 70. Named without
     // `_canary_runs` so the differential drift guard treats it as non-clean-exit.
     let canary = pass_canary("expressions/arithmetic_domain_trapping_const_fold_overflow");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-trapping-const-of-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("trapping const-fold overflow canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("trapping const-fold overflow canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("trapping const-fold overflow canary should run");
 
@@ -15730,7 +15697,7 @@ fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
         "expected const Trapping overflow to terminate abnormally, but it exited successfully"
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15738,21 +15705,13 @@ fn constant_trapping_shift_value_overflow_aborts() {
     // The landed folder must not turn `u8 in Trapping` 200 << 1 into the
     // wrapped value 144. Native lowering must retain the overflow trap.
     let canary = pass_canary("arithmetic/constant_trapping_shift_value_overflow_traps");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-constant-trapping-shift-value-overflow-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("constant trapping shift-overflow canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("constant trapping shift-overflow canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("constant trapping shift-overflow canary should run");
     let code = output.status.code();
@@ -15762,11 +15721,11 @@ fn constant_trapping_shift_value_overflow_aborts() {
         "constant Trapping shift overflow silently wrapped instead of trapping"
     );
     assert!(
-        code.is_none() || code.is_some_and(|code| code < 0),
+        !output.status.success(),
         "expected a crash status from the Trapping overflow, got {code:?}"
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15778,19 +15737,11 @@ fn dead_trapping_let_traps_aborts() {
     // trapped. Named without `_canary_runs` (non-clean-exit; outside the
     // RUN-list drift guard, like the const-fold overflow twin above).
     let canary = pass_canary("expressions/dead_trapping_let_traps");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-dead-trapping-let-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dead trapping let canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("dead trapping let canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("dead trapping let canary should run");
 
@@ -15806,7 +15757,7 @@ fn dead_trapping_let_traps_aborts() {
         "expected the dead trapping computation to terminate abnormally, but it exited successfully"
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
