@@ -218,10 +218,12 @@ Remaining:
   all five object/image/install paths. Empty drops add no call; each accepted
   executable form emits a call owned by its exact edge/action ordinal before
   return teardown and retains source-ordered operation-owned helper custody.
-  One-root empty bodies additionally admit the finite direct-Boolean
-  contextual contract subset described under CML4. Nested/erased receivers,
-  wider body shapes, locals, claims, qualifications, other contract forms,
-  contextual multi-root cleanup, and non-root edges remain fenced.
+  Empty bodies additionally admit the finite direct-Boolean contextual
+  contract subset described under CML4 across one or more cleanup roots.
+  Shared targets reuse one proof receiver while each root receives distinct
+  edge obligations. Nested/erased receivers, wider body shapes, locals,
+  claims, qualifications, other contract forms, and non-root edges remain
+  fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
@@ -452,16 +454,18 @@ reach or trust, and private proof improvements do not change public identity.
   interpretation, fuel, and every native artifact path. They may share a
   target, and every action may use the bounded executable body, including a
   shared cleanup target or helper; native calls retain exact edge/action
-  ordinals. One root-only contextual subset additionally accepts a finite
+  ordinals. One contextual subset additionally accepts a finite
   canonical set of direct relevant Boolean receiver-field `requires` clauses
-  when the caller's canonical Boolean fact set proves every one at the Unit
-  return edge; unrelated supported caller facts remain available. Terminal Psi
-  retains each proof-only receiver substitution and positional obligation,
+  across a finite cleanup-root list when the caller's canonical Boolean fact
+  set proves every one at the Unit return edge; unrelated supported caller
+  facts remain available. Shared cleanup targets retain one target-local proof
+  receiver while each action gets distinct positional obligations. Terminal Psi
+  retains every proof-only receiver substitution and positional obligation,
   independently verifies the
   source-produced semantic/proof artifact, and removes proof metadata before
   all five Omega runtime carriers. Missing premises reject with an edge- and
   cleanup-specific diagnostic. Extend contextual cleanup beyond this
-  direct-Boolean, empty-body, one-root subset; add wider structural partial-value cleanup,
+  direct-Boolean, empty-body subset; add wider structural partial-value cleanup,
   repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.

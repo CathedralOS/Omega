@@ -161,6 +161,23 @@ const CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
     {}
 "#;
 
+const ORDERED_CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Shared { ready: bool; audited: bool; padding: u16; }
+    machine Shared::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Distinct { ready: bool; padding: u8; }
+    machine Distinct::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Root {}
+    machine Root::enter(first: Shared, second: Distinct, third: Shared)
+    requires third.ready, first.audited, second.ready, first.ready
+    {}
+"#;
+
 const TWO_EMPTY_NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token {}
     machine Token::drop(&mut self) {}
@@ -420,6 +437,77 @@ fn contextual_nominal_affine_plan()
         .expect("encode contextual nominal affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified contextual nominal artifact enters Omega")
+}
+
+fn ordered_contextual_nominal_affine_plan()
+-> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(ORDERED_CONTEXTUAL_NOMINAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize ordered contextual nominal affine source");
+    let syntax =
+        parse_syntax_trees(&tokens).expect("parse ordered contextual nominal affine source");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve ordered contextual nominal affine source");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type ordered contextual nominal affine source");
+    let checked = lower_typed_trees(typed).expect("check ordered contextual nominal affine source");
+    let terminal = lower_machine(&checked, "Root::enter")
+        .expect("lower ordered contextual nominal affine Psi");
+    let entry = terminal
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal.semantic_module.entry)
+        .expect("ordered contextual cleanup entry");
+    let [first, second, third] = entry.structural_parameters.as_slice() else {
+        panic!("ordered contextual caller has three roots")
+    };
+    assert_eq!(entry.contract.requires.len(), 4);
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("ordered contextual cleanup uses the nominal return carrier")
+    };
+    let [third_cleanup, second_cleanup, first_cleanup] = cleanups.as_slice() else {
+        panic!("ordered contextual cleanup has three actions")
+    };
+    assert_eq!(
+        [
+            third_cleanup.place,
+            second_cleanup.place,
+            first_cleanup.place
+        ],
+        [third.place, second.place, first.place]
+    );
+    assert_eq!(third_cleanup.cleanup_machine, first_cleanup.cleanup_machine);
+    assert_ne!(
+        third_cleanup.cleanup_machine,
+        second_cleanup.cleanup_machine
+    );
+    assert_eq!(
+        third_cleanup.cleanup_receiver,
+        first_cleanup.cleanup_receiver
+    );
+    assert_ne!(
+        third_cleanup.cleanup_receiver,
+        second_cleanup.cleanup_receiver
+    );
+    assert!(
+        cleanups
+            .iter()
+            .all(|cleanup| cleanup.cleanup_receiver.is_some())
+    );
+    assert!(
+        cleanups
+            .iter()
+            .all(|cleanup| cleanup.requirement_obligations.len() == 1)
+    );
+    assert_eq!(terminal.proof_bundle.evidence.len(), 3);
+
+    let semantics = encode_module(&terminal.semantic_module)
+        .expect("encode ordered contextual nominal affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode ordered contextual nominal affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified ordered contextual nominal artifact enters Omega")
 }
 
 fn two_empty_nominal_affine_plan()
@@ -1613,6 +1701,97 @@ fn contextual_nominal_cleanup_is_verified_then_projected_on_all_targets() {
         assert_eq!(
             installed.unit_affine_cleanup.as_ref().unwrap().actions,
             [TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
+fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_targets() {
+    let plan = ordered_contextual_nominal_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("ordered contextual cleanup caller remains present");
+    let parameter_places = caller
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .collect::<Vec<_>>();
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .expect("ordered contextual cleanup reaches Omega actions");
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(third),
+        TerminalAffineCleanupAction::InvokeNominal(second),
+        TerminalAffineCleanupAction::InvokeNominal(first),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("ordered contextual cleanup retains three nominal actions")
+    };
+    assert_eq!(
+        [third.place, second.place, first.place],
+        [
+            parameter_places[2],
+            parameter_places[1],
+            parameter_places[0]
+        ]
+    );
+    assert_eq!(third.cleanup_machine, first.cleanup_machine);
+    assert_ne!(third.cleanup_machine, second.cleanup_machine);
+    for cleanup in [third, second, first] {
+        assert!(cleanup.cleanup_receiver.is_none());
+        assert!(cleanup.requirement_obligations.is_empty());
+    }
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+        assert!(emitted.internal_unit_calls.is_empty());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
         );
         validate_terminal_installation_record(&installation, &image).unwrap();
         let bytes = encode_terminal_installation_record(&installation).unwrap();

@@ -729,6 +729,164 @@ fn canonicalizes_multiple_contextual_cleanup_requirements_independent_of_caller_
 }
 
 #[test]
+fn retains_contextual_multi_root_cleanups_with_distinct_targets() {
+    let checked = checked(
+        r#"
+        data First { armed: bool; }
+        machine First::drop(&mut self)
+        requires self.armed
+        {}
+
+        data Second { ready: bool; }
+        machine Second::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(first: First, second: Second)
+        requires
+            second.ready;
+            first.armed
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("distinct contextual cleanup targets are retained");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0],
+        "contextual roots retain reverse declaration cleanup order"
+    );
+    assert_ne!(
+        plan.cleanups[0].cleanup_machine, plan.cleanups[1].cleanup_machine,
+        "distinct nominal types retain distinct cleanup targets"
+    );
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| {
+                cleanup
+                    .requirements
+                    .iter()
+                    .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>(),
+        vec![vec![("ready", true)], vec![("armed", true)]],
+        "each reverse-ordered action retains its target-local requirement"
+    );
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(0, "armed", true), (1, "ready", true)],
+        "caller requirements remain canonical in source-root order"
+    );
+}
+
+#[test]
+fn retains_shared_contextual_target_for_each_reverse_ordered_root() {
+    let checked = checked(
+        r#"
+        data Token { first_only: bool; ready: bool; second_only: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires
+            second.second_only;
+            first.ready;
+            second.ready;
+            first.first_only
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("shared contextual cleanup target is retained for both roots");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0],
+        "shared-target actions retain reverse declaration order"
+    );
+    assert_eq!(
+        plan.cleanups[0].cleanup_machine, plan.cleanups[1].cleanup_machine,
+        "same-type roots share the exact contextual cleanup target"
+    );
+    assert!(plan.cleanups.iter().all(|cleanup| {
+        matches!(
+            cleanup.requirements.as_slice(),
+            [requirement] if requirement.field_identity == "ready" && requirement.expected
+        )
+    }));
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "first_only", true),
+            (0, "ready", true),
+            (1, "ready", true),
+            (1, "second_only", true),
+        ],
+        "root-specific caller facts remain attached to their source parameter"
+    );
+}
+
+#[test]
+fn rejects_shared_contextual_target_when_one_root_lacks_its_premise() {
+    let diagnostics = contextual_cleanup_diagnostics(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires first.ready
+        {}
+        "#,
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at Unit return edge")
+            && diagnostic.message.contains("missing second.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
 fn rejects_multiple_contextual_cleanup_requirements_when_one_is_missing() {
     let source = r#"
         data Token { armed: bool; ready: bool; }

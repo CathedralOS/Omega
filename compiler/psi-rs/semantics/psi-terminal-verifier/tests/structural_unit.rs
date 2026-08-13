@@ -335,45 +335,9 @@ fn contextual_nominal_affine_cleanup_rejects_forged_requirement_binding() {
 
 #[test]
 fn shared_contextual_cleanup_target_reconstructs_each_goal_per_owned_root() {
-    let mut module = two_requirement_contextual_nominal_affine_module();
+    let module = two_root_shared_contextual_nominal_affine_module();
     let first = psi_core::StructuralFieldId::new(1).expect("first field");
     let second = psi_core::StructuralFieldId::new(2).expect("second field");
-    let caller = &mut module.machines[0];
-    caller
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: place_id(2),
-            position: 1,
-            is_self: false,
-            structural_type: structural_type_id(1),
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
-        });
-    caller.structural_places.push(StructuralPlaceDeclaration {
-        id: place_id(2),
-        kind: StructuralPlaceKind::Parameter {
-            position: 1,
-            is_self: false,
-        },
-    });
-    caller
-        .contract
-        .requires
-        .extend([first, second].map(|field| {
-            Proposition::Equal(
-                ScalarTerm::boolean(true),
-                ScalarTerm::boolean_field(place_id(2), field),
-            )
-        }));
-    caller.contract.requires.sort();
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    let mut second_cleanup = cleanups[0].clone();
-    second_cleanup.place = place_id(2);
-    second_cleanup.requirement_obligations = vec![obligation_id(3), obligation_id(4)];
-    cleanups.insert(0, second_cleanup);
 
     validate_module(&module).expect("a shared contextual target retains place-specific custody");
     let obligations = reconstruct_operation_obligations(&module).expect("cleanup obligations");
@@ -406,6 +370,107 @@ fn shared_contextual_cleanup_target_reconstructs_each_goal_per_owned_root() {
         validate_module(&duplicate).unwrap_err(),
         ModuleError::DuplicateObligation(obligation_id(1))
     );
+}
+
+#[test]
+fn distinct_contextual_cleanup_targets_use_distinct_receivers_and_reconstruct_each_root() {
+    let module = two_root_distinct_contextual_nominal_affine_module();
+    validate_module(&module).expect("distinct contextual targets use independent proof receivers");
+
+    let first = psi_core::StructuralFieldId::new(1).expect("first field");
+    let second = psi_core::StructuralFieldId::new(2).expect("second field");
+    let obligations = reconstruct_operation_obligations(&module).expect("cleanup obligations");
+    let expected = [
+        (3, place_id(2), first),
+        (4, place_id(2), second),
+        (1, place_id(1), first),
+        (2, place_id(1), second),
+    ];
+    assert_eq!(obligations.len(), expected.len());
+    for (obligation, (identity, root, field)) in obligations.iter().zip(expected) {
+        assert_eq!(obligation.obligation.id, obligation_id(identity));
+        assert_eq!(
+            obligation.obligation.proposition,
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(root, field),
+            )
+        );
+    }
+
+    let bundle = ProofBundle {
+        evidence: obligations
+            .into_iter()
+            .enumerate()
+            .map(|(index, reconstructed)| ObligationEvidence {
+                obligation: reconstructed.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(index as u64 + 1).expect("certificate"),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: reconstructed.obligation.proposition.clone(),
+                        rule: ProofRule::Assumption {
+                            index: module.machines[0]
+                                .contract
+                                .requires
+                                .iter()
+                                .position(|requirement| {
+                                    requirement == &reconstructed.obligation.proposition
+                                })
+                                .expect("reconstructed requirement is a caller premise"),
+                        },
+                    },
+                }),
+            })
+            .collect(),
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("root-specific caller premises discharge both contextual targets");
+}
+
+#[test]
+fn distinct_contextual_cleanup_targets_reject_reused_receiver() {
+    let mut module = two_root_distinct_contextual_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    let reused_receiver = cleanups[1].cleanup_receiver.expect("first target receiver");
+    let second_target = cleanups[0].cleanup_machine;
+    cleanups[0].cleanup_receiver = Some(reused_receiver);
+    let target = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == second_target)
+        .expect("second cleanup target");
+    for requirement in &mut target.contract.requires {
+        let Proposition::Equal(_, ScalarTerm::BooleanField { root, .. }) = requirement else {
+            unreachable!()
+        };
+        *root = reused_receiver;
+    }
+
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
+fn shared_contextual_cleanup_target_rejects_one_action_changing_receiver() {
+    let mut module = two_root_shared_contextual_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(place_id(98));
+
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
 }
 
 #[test]
@@ -3471,6 +3536,89 @@ fn two_requirement_contextual_nominal_affine_module() -> TerminalModule {
     };
     cleanups[0].cleanup_receiver = Some(receiver);
     cleanups[0].requirement_obligations = vec![obligation_id(1), obligation_id(2)];
+    module
+}
+
+fn two_root_shared_contextual_nominal_affine_module() -> TerminalModule {
+    let mut module = two_requirement_contextual_nominal_affine_module();
+    let first = psi_core::StructuralFieldId::new(1).expect("first field");
+    let second = psi_core::StructuralFieldId::new(2).expect("second field");
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 1,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(2),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    caller
+        .contract
+        .requires
+        .extend([first, second].map(|field| {
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(place_id(2), field),
+            )
+        }));
+    caller.contract.requires.sort();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    let mut second_cleanup = cleanups[0].clone();
+    second_cleanup.place = place_id(2);
+    second_cleanup.requirement_obligations = vec![obligation_id(3), obligation_id(4)];
+    cleanups.insert(0, second_cleanup);
+    module
+}
+
+fn two_root_distinct_contextual_nominal_affine_module() -> TerminalModule {
+    let mut module = two_root_shared_contextual_nominal_affine_module();
+    let second_type = structural_type_id(2);
+    let mut type_declaration = module.structural_types[0].clone();
+    type_declaration.id = second_type;
+    type_declaration.identity = "SecondToken".into();
+    module.structural_types.push(type_declaration);
+
+    let second_target_id = machine_id(3);
+    let second_receiver = place_id(100);
+    let mut second_target = module.machines[1].clone();
+    second_target.id = second_target_id;
+    second_target.attachment = Some(second_type);
+    second_target.entry = block_id(3);
+    second_target.blocks[0].id = block_id(3);
+    second_target.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    second_target.contract.id = contract_id(3);
+    for requirement in &mut second_target.contract.requires {
+        let Proposition::Equal(_, ScalarTerm::BooleanField { root, .. }) = requirement else {
+            unreachable!()
+        };
+        *root = second_receiver;
+    }
+    module.machines.push(second_target);
+
+    let caller = &mut module.machines[0];
+    caller.structural_parameters[1].structural_type = second_type;
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].structural_type = second_type;
+    cleanups[0].cleanup_machine = second_target_id;
+    cleanups[0].cleanup_receiver = Some(second_receiver);
     module
 }
 
