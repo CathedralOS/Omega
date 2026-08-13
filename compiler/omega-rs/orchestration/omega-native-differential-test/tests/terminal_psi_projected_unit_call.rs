@@ -75,6 +75,28 @@ const WIDE_PARTIAL_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const MULTIPLE_MOVE_PARTIAL_AFFINE_SOURCE: &str = r#"
+    data FirstToken { value: u32; }
+    data SecondToken { value: u64; }
+    data ThirdToken { value: u16; }
+    data FourthToken { value: u64; }
+    data Quartet {
+        first: FirstToken;
+        second: SecondToken;
+        third: ThirdToken;
+        fourth: FourthToken;
+    }
+    data FirstHelper {}
+    machine FirstHelper::take(token: SecondToken) {}
+    data SecondHelper {}
+    machine SecondHelper::take(token: FourthToken) {}
+    data Root {}
+    machine Root::enter(quartet: Quartet) {
+        FirstHelper::take(quartet.second);
+        SecondHelper::take(quartet.fourth);
+    }
+"#;
+
 const NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
     data FirstCleanupHelper {}
@@ -241,6 +263,27 @@ fn wide_partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbs
         encode_proof_bundle(&terminal.proof_bundle).expect("encode wide partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified wide partial affine artifact enters Omega")
+}
+
+fn multiple_move_partial_affine_plan()
+-> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(MULTIPLE_MOVE_PARTIAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize multiple-move partial affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse multiple-move partial affine source");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve multiple-move partial affine source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type multiple-move partial affine source");
+    let checked = lower_typed_trees(typed).expect("check multiple-move partial affine source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower multiple-move partial affine Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode multiple-move partial affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode multiple-move partial affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified multiple-move partial affine artifact enters Omega")
 }
 
 fn nominal_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
@@ -738,6 +781,126 @@ fn wide_partial_affine_cleanup_preserves_reverse_field_order_without_code() {
             .unwrap()
             .actions;
         assert_eq!(installed_actions, &cleanup_actions);
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
+fn multiple_direct_moves_preserve_exact_residual_complement_on_all_targets() {
+    let plan = multiple_move_partial_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("multiple-move caller remains present");
+    let root_type = caller.structural_parameters[0].structural_type;
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .expect("multiple-move return retains residual cleanup");
+    let [
+        TerminalAffineCleanupAction::DiscardResidual(third),
+        TerminalAffineCleanupAction::DiscardResidual(first),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("multiple-move cleanup retains the reverse residual complement")
+    };
+    assert_eq!(third.path, [StructuralPathSegment::Field("third".into())]);
+    assert_eq!(first.path, [StructuralPathSegment::Field("first".into())]);
+    assert_eq!(third.place, first.place);
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("multiple-move caller machine code exists");
+        let [first_call, second_call] = emitted.internal_unit_calls.as_slice() else {
+            panic!("multiple-move caller retains two projected calls")
+        };
+        let [second] = first_call.arguments.as_slice() else {
+            panic!("first call retains the second-field projection")
+        };
+        let [fourth] = second_call.arguments.as_slice() else {
+            panic!("second call retains the fourth-field projection")
+        };
+        assert_eq!(second.root_structural_type, root_type);
+        assert_eq!(fourth.root_structural_type, root_type);
+        assert_eq!(second.path, [StructuralPathSegment::Field("second".into())]);
+        assert_eq!(fourth.path, [StructuralPathSegment::Field("fourth".into())]);
+        assert_eq!(second.source_byte_offset, 8);
+        assert_eq!(fourth.source_byte_offset, 24);
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+
+        let mut root_cleanup_assigned = assigned.clone();
+        let root_cleanup_caller = root_cleanup_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
+            &mut root_cleanup_caller.operation
+        else {
+            panic!("multiple-move caller remains a Unit body")
+        };
+        let omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
+            cleanup_actions: root_actions,
+            ..
+        } = body.operations.last_mut().unwrap()
+        else {
+            panic!("multiple-move caller ends in a Unit return")
+        };
+        *root_actions = vec![TerminalAffineCleanupAction::DiscardRoot(third.place)];
+        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
+        let root_cleanup_bytes = &root_cleanup_machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .bytes;
+        assert_eq!(
+            &emitted.bytes, root_cleanup_bytes,
+            "multiple residual actions add no runtime instruction bytes"
+        );
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
         validate_terminal_installation_record(&installation, &image).unwrap();
         let bytes = encode_terminal_installation_record(&installation).unwrap();
         assert_eq!(

@@ -1000,6 +1000,15 @@ fn validate_unit_affine_cleanup(
                 .find(|parameter| parameter.place == place)
                 .map(|parameter| parameter.structural_type)
         });
+        let moved_paths = internal_unit_calls
+            .iter()
+            .flat_map(|call| &call.arguments)
+            .filter(|argument| {
+                Some(argument.place) == residual_root
+                    && Some(argument.root_structural_type) == parameter_type
+            })
+            .map(|argument| argument.path.as_slice())
+            .collect::<Vec<_>>();
         cleanup.actions[..expected_local_actions.len()] != expected_local_actions
             || residuals.len() != residual_actions.len()
             || residuals.is_empty()
@@ -1018,16 +1027,20 @@ fn validate_unit_affine_cleanup(
                 .collect::<std::collections::BTreeSet<_>>()
                 .len()
                 != residuals.len()
-            || !internal_unit_calls.iter().any(|call| {
-                call.arguments.iter().any(|argument| {
-                    argument.place == residual_root.unwrap_or(argument.place)
-                        && Some(argument.root_structural_type) == parameter_type
-                        && argument.path.len() == 1
-                        && residuals
-                            .iter()
-                            .all(|residual| argument.path != residual.path)
-                })
+            || moved_paths.is_empty()
+            || moved_paths.iter().any(|path| {
+                !matches!(path, [psi_terminal::StructuralPathSegment::Field(identity)]
+                    if !identity.is_empty())
+                    || residuals
+                        .iter()
+                        .any(|residual| residual.path.as_slice() == *path)
             })
+            || moved_paths
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != moved_paths.len()
     } else {
         let nominal = cleanup
             .actions
