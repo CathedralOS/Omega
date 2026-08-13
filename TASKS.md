@@ -229,23 +229,29 @@ Remaining:
   Scalar return edges now use the same ordered cleanup-action vocabulary. The
   source-produced nominal branch accepts a finite nonempty list of direct,
   claim-free affine parameters that may freely mix no-code and nominal roots,
-  no scalar inputs, a finite source-ordered prefix of immutable branch-free
-  primitive locals, one branch-free scalar result over those locals, and the
-  same empty or bounded zero-argument helper-call `drop` body for each nominal
-  root. Local and result operations materialize in source order before every
-  cleanup action. Every action then runs in reverse authored parameter order
-  through verification, interpretation, fixed fuel, and all five Omega
+  a finite set of direct primitive scalar inputs interleaved at authored
+  parameter positions, a finite source-ordered prefix of immutable branch-free
+  primitive locals, one branch-free scalar result over the inputs and locals,
+  and the same empty or bounded zero-argument helper-call `drop` body for each nominal
+  root. Checked plans retain the complete authored parameter partition while
+  terminal Psi gives scalar values and structural places independent dense
+  namespaces. Local and result operations materialize in source order before
+  every cleanup action. Every action then runs in reverse authored structural
+  root order through verification, interpretation, fixed fuel, and all five Omega
   object/image/install paths; nominal targets may be distinct or shared and
   no-code actions retain their exact positions without emitting instructions.
+  Native lowering preserves the computed ABI result and, where required, the
+  return link across executable cleanup calls with byte-validated stack
+  evidence.
   The finite mixed list additionally admits the same direct-
   Boolean contextual requirements as Unit cleanup: checked production retains
   root-specific caller premises (including supported premises on no-code
   roots), terminal Psi reconstructs and verifies every nominal action
   obligation, and Omega projects proof-only receivers/obligation identities
   after verification while preserving the complete runtime action order
-  through all five targets. Scalar inputs, short-circuit/control bodies, calls,
-  effects, nested nominal ownership, and wider scalar bodies remain to be added
-  as complete vertical slices.
+  through all five targets. Short-circuit/control bodies, calls, effects,
+  nested nominal ownership, and wider scalar bodies remain to be added as
+  complete vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine

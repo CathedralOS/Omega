@@ -2648,7 +2648,6 @@ fn lower_nominal_structural_scalar_return_machine(
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     if plan.structural_parameters.is_empty()
         || plan.cleanup_actions.len() != plan.structural_parameters.len()
-        || !plan.scalar_parameters.is_empty()
     {
         return unsupported("nominal scalar return exceeds its first bounded slice");
     }
@@ -2658,16 +2657,61 @@ fn lower_nominal_structural_scalar_return_machine(
     if plan.return_statement_ordinal != expected_return_ordinal {
         return unsupported("nominal scalar return coordinates are not a contiguous prefix");
     }
-    let parameter_count = plan.structural_parameters.len();
-    for (position, parameter) in plan.structural_parameters.iter().enumerate() {
-        let cleanup = &plan.cleanup_actions[parameter_count - position - 1];
-        if usize::try_from(parameter.position).ok() != Some(position)
-            || parameter.is_self
+    let mut positions = BTreeSet::new();
+    for parameter in &plan.structural_parameters {
+        if parameter.is_self
             || parameter.multiplicity != Multiplicity::Affine
             || !parameter.qualifications.is_empty()
+            || !positions.insert(parameter.position)
         {
             return unsupported("nominal scalar return cleanup frontier drifted");
         }
+    }
+    if plan
+        .structural_parameters
+        .windows(2)
+        .any(|pair| pair[0].position >= pair[1].position)
+    {
+        return unsupported("nominal scalar return structural parameters are not in source order");
+    }
+    for parameter in &plan.scalar_parameters {
+        if !positions.insert(parameter.source_position) {
+            return unsupported(
+                "nominal scalar return parameter maps overlap or repeat a source position",
+            );
+        }
+        terminal_scalar_type(parameter.primitive_type)?;
+    }
+    if plan
+        .scalar_parameters
+        .windows(2)
+        .any(|pair| pair[0].source_position >= pair[1].source_position)
+    {
+        return unsupported("nominal scalar return scalar parameters are not in source order");
+    }
+    let parameter_count = plan
+        .structural_parameters
+        .len()
+        .checked_add(plan.scalar_parameters.len())
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return parameter count exceeds usize",
+        ))?;
+    if positions.len() != parameter_count
+        || positions
+            .iter()
+            .copied()
+            .enumerate()
+            .any(|(index, position)| u32::try_from(index).ok() != Some(position))
+    {
+        return unsupported(
+            "nominal scalar return parameter maps do not partition source positions",
+        );
+    }
+    for (parameter, cleanup) in plan
+        .structural_parameters
+        .iter()
+        .zip(plan.cleanup_actions.iter().rev())
+    {
         match cleanup {
             CheckedStructuralScalarReturnCleanupAction::DiscardRoot(cleanup_position)
                 if *cleanup_position == parameter.position => {}
@@ -2847,6 +2891,12 @@ fn lower_nominal_structural_scalar_return_machine(
     let mut next_place = 1_u64;
     let structural_parameters =
         lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
+    let structural_parameter_indexes = plan
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| (parameter.position, index))
+        .collect::<BTreeMap<_, _>>();
     let entry_index = lowered
         .semantic_module
         .machines
@@ -2896,9 +2946,9 @@ fn lower_nominal_structural_scalar_return_machine(
             .ok_or(LoweringError::Unsupported(
                 "nominal scalar return compact root is absent",
             ))?;
-        let full = structural_parameters
-            .iter()
-            .find(|parameter| parameter.position == source_position)
+        let full = structural_parameter_indexes
+            .get(&source_position)
+            .and_then(|index| structural_parameters.get(*index))
             .ok_or(LoweringError::Unsupported(
                 "nominal scalar return full root is absent",
             ))?;
@@ -2957,9 +3007,9 @@ fn lower_nominal_structural_scalar_return_machine(
         .caller_requirements
         .iter()
         .map(|requirement| {
-            let parameter = structural_parameters
-                .iter()
-                .find(|parameter| parameter.position == requirement.source_parameter_index)
+            let parameter = structural_parameter_indexes
+                .get(&requirement.source_parameter_index)
+                .and_then(|index| structural_parameters.get(*index))
                 .ok_or(LoweringError::Unsupported(
                     "contextual nominal scalar full caller root is absent",
                 ))?;
@@ -3098,9 +3148,9 @@ fn lower_nominal_structural_scalar_return_machine(
                     cleanup.source_parameter_index
                 }
             };
-            let place = structural_parameters
-                .iter()
-                .find(|parameter| parameter.position == source_position)
+            let place = structural_parameter_indexes
+                .get(&source_position)
+                .and_then(|index| structural_parameters.get(*index))
                 .map(|parameter| parameter.place)
                 .ok_or(LoweringError::Unsupported(
                     "nominal scalar return cleanup terminal root is absent",
@@ -3124,8 +3174,26 @@ fn lower_nominal_structural_scalar_return_machine(
         return unsupported("nominal scalar return synthetic cleanup stream is long");
     }
     let mut next_value = 1_u64;
+    let scalar_parameters = plan
+        .scalar_parameters
+        .iter()
+        .map(|parameter| {
+            Ok(ValueDeclaration {
+                id: value_id(allocate_dense(&mut next_value)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let scalar_parameter_count = scalar_parameters.len();
     let mut operations = OperationBuffer::new(operation_identity_base);
-    let mut scalar_values = Vec::with_capacity(plan.bindings.len());
+    let mut scalar_values = Vec::with_capacity(
+        scalar_parameter_count
+            .checked_add(plan.bindings.len())
+            .ok_or(LoweringError::Unsupported(
+                "nominal scalar value namespace exceeds usize",
+            ))?,
+    );
+    scalar_values.extend_from_slice(&scalar_parameters);
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
         let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
             LoweringError::Unsupported("nominal scalar return binding index exceeds u32")
@@ -3146,7 +3214,11 @@ fn lower_nominal_structural_scalar_return_machine(
                 binding_ordinal: statement_ordinal,
             },
         )?;
-        if !is_branch_free_structural_scalar_expression(&expression, 0, binding_index) {
+        if !is_branch_free_structural_scalar_expression(
+            &expression,
+            scalar_parameter_count,
+            binding_index,
+        ) {
             return unsupported("nominal scalar binding is not one branch-free local expression");
         }
         if expression.scalar_type() != scalar_type {
@@ -3175,7 +3247,11 @@ fn lower_nominal_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    if !is_branch_free_structural_scalar_expression(&expression, 0, plan.bindings.len()) {
+    if !is_branch_free_structural_scalar_expression(
+        &expression,
+        scalar_parameter_count,
+        plan.bindings.len(),
+    ) {
         return unsupported("nominal scalar return expression is not branch-free");
     }
     if expression.scalar_type() != result_type {
@@ -3204,6 +3280,7 @@ fn lower_nominal_structural_scalar_return_machine(
         value,
         cleanup_actions,
     };
+    entry.parameters = scalar_parameters;
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
         id: value_id(next_value),
         scalar_type: result_type,

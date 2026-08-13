@@ -18,7 +18,10 @@ use omega_terminal_image_emission::{
 use omega_terminal_machine_code::TerminalNativeFuelSite;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
-use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalTargetOperation};
+use omega_terminal_target_operations::{
+    TerminalCallSiteOwner, TerminalScalarParameterLocation, TerminalTargetIntegerExpression,
+    TerminalTargetOperation,
+};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::lower_machine;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, ProfileDecisionId, StructuralPlaceKind};
@@ -56,6 +59,7 @@ struct TargetCase {
     target: NativeTarget,
     policy: CallingPolicy,
     parameter: MachineRegister,
+    second_parameter: MachineRegister,
     result: MachineRegister,
     bytes: &'static [u8],
 }
@@ -70,6 +74,7 @@ fn target_cases() -> [TargetCase; 5] {
             target: NativeTarget::linux_x64(),
             policy: CallingPolicy::SystemVAMD64,
             parameter: MachineRegister::X86Rdi,
+            second_parameter: MachineRegister::X86Rsi,
             result: MachineRegister::X86Rax,
             bytes: SYSV_RETURN,
         },
@@ -77,6 +82,7 @@ fn target_cases() -> [TargetCase; 5] {
             target: NativeTarget::windows_x64(),
             policy: CallingPolicy::MicrosoftX64,
             parameter: MachineRegister::X86Rcx,
+            second_parameter: MachineRegister::X86Rdx,
             result: MachineRegister::X86Rax,
             bytes: MICROSOFT_RETURN,
         },
@@ -84,6 +90,7 @@ fn target_cases() -> [TargetCase; 5] {
             target: NativeTarget::uefi_x64(),
             policy: CallingPolicy::MicrosoftX64,
             parameter: MachineRegister::X86Rcx,
+            second_parameter: MachineRegister::X86Rdx,
             result: MachineRegister::X86Rax,
             bytes: MICROSOFT_RETURN,
         },
@@ -91,6 +98,7 @@ fn target_cases() -> [TargetCase; 5] {
             target: NativeTarget::linux_arm64(),
             policy: CallingPolicy::Aapcs64,
             parameter: MachineRegister::Aarch64X(0),
+            second_parameter: MachineRegister::Aarch64X(1),
             result: MachineRegister::Aarch64X(0),
             bytes: AAPCS64_RETURN,
         },
@@ -98,6 +106,7 @@ fn target_cases() -> [TargetCase; 5] {
             target: NativeTarget::macos_arm64(),
             policy: CallingPolicy::Aapcs64,
             parameter: MachineRegister::Aarch64X(0),
+            second_parameter: MachineRegister::Aarch64X(1),
             result: MachineRegister::Aarch64X(0),
             bytes: AAPCS64_RETURN,
         },
@@ -294,11 +303,17 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         data Plain { observed: bool; }
 
         data Root {}
-        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64 in Wrapping
+        machine Root::measure(
+            first: Token,
+            offset: u64 in Wrapping,
+            plain: Plain,
+            factor: u64 in Wrapping,
+            second: Token
+        ) -> u64 in Wrapping
         requires first.ready, plain.observed, second.ready
         {
-            let seed: u64 in Wrapping = 7u64;
-            let result: u64 in Wrapping = seed + 1u64;
+            let seed: u64 in Wrapping = offset + 1u64;
+            let result: u64 in Wrapping = seed * factor;
             result
         }
     "#;
@@ -321,6 +336,8 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         .iter()
         .find(|machine| machine.id == entry_machine)
         .expect("contextual scalar entry");
+    assert_eq!(entry.parameters.len(), 2);
+    assert_eq!(entry.structural_parameters.len(), 3);
     assert_eq!(entry.contract.requires.len(), 3);
     let Terminator::Return {
         cleanup_actions, ..
@@ -355,7 +372,16 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         &semantic_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
-        &[],
+        &[
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 integer type"),
+                value: IntegerValue::Unsigned(6),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 integer type"),
+                value: IntegerValue::Unsigned(7),
+            },
+        ],
         &structural_arguments,
     )
     .expect("contextual scalar-local cleanup artifact starts");
@@ -366,7 +392,7 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 integer type"),
-                value: IntegerValue::Unsigned(8),
+                value: IntegerValue::Unsigned(49),
             }
         ))
     );
@@ -381,21 +407,25 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         .iter()
         .find(|function| function.machine == entry_machine)
         .expect("abstract contextual scalar entry");
+    let [offset_parameter, factor_parameter] = abstract_entry.parameters.as_slice() else {
+        panic!("abstract contextual scalar entry retains both scalar parameters")
+    };
     let [
-        TerminalAbstractOperation::IntegerConstant {
-            result: seed_value,
-            value: IntegerValue::Unsigned(7),
-            ..
-        },
         TerminalAbstractOperation::IntegerConstant {
             result: increment_value,
             value: IntegerValue::Unsigned(1),
             ..
         },
         TerminalAbstractOperation::WrappingIntegerAdd {
+            result: seed_value,
+            left: add_left,
+            right: add_right,
+            ..
+        },
+        TerminalAbstractOperation::WrappingIntegerMultiply {
             result: computed_value,
-            left,
-            right,
+            left: multiply_left,
+            right: multiply_right,
             ..
         },
         TerminalAbstractOperation::Return {
@@ -407,7 +437,14 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
     else {
         panic!("contextual scalar result precedes its cleanup")
     };
-    assert_eq!((*left, *right), (*seed_value, *increment_value));
+    assert_eq!(
+        (*add_left, *add_right),
+        (offset_parameter.value, *increment_value)
+    );
+    assert_eq!(
+        (*multiply_left, *multiply_right),
+        (*seed_value, factor_parameter.value)
+    );
     assert_eq!(*returned_value, *computed_value);
     assert!(matches!(
         cleanup_actions.as_slice(),
@@ -429,16 +466,57 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
             .iter()
             .find(|function| function.machine == entry_machine)
             .expect("target contextual scalar entry");
+        let TerminalTargetOperation::ScalarReturnWithCleanup {
+            scalar,
+            call_plan,
+            structural_parameters,
+            ..
+        } = &target_entry.operation
+        else {
+            panic!("runtime scalar expression remains wrapped by structural cleanup")
+        };
+        assert_eq!(call_plan.parameters.len(), 5);
+        assert_direct_register_placement(&call_plan.parameters[0], case.parameter);
+        assert_direct_register_placement(&call_plan.parameters[1], case.second_parameter);
+        for (placement, parameter) in call_plan.parameters[2..].iter().zip(structural_parameters) {
+            assert_eq!(placement, &parameter.placement);
+        }
+        let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } = scalar.as_ref()
+        else {
+            panic!("scalar cleanup retains a runtime input-derived integer expression")
+        };
+        let TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. } = expression
+        else {
+            panic!("runtime result retains the final wrapping multiply")
+        };
         assert!(matches!(
-            &target_entry.operation,
-            TerminalTargetOperation::ScalarReturnWithCleanup { scalar, .. }
-                if matches!(
-                    scalar.as_ref(),
-                    TerminalTargetOperation::ReturnIntegerImmediate {
-                        value: IntegerValue::Unsigned(8),
-                        ..
-                    }
-                )
+            left.as_ref(),
+            TerminalTargetIntegerExpression::WrappingAdd {
+                left: add_left,
+                right: add_right,
+                ..
+            } if matches!(
+                add_left.as_ref(),
+                TerminalTargetIntegerExpression::Parameter {
+                    parameter_index: 0,
+                    location: TerminalScalarParameterLocation::Register(register),
+                    ..
+                } if *register == case.parameter
+            ) && matches!(
+                add_right.as_ref(),
+                TerminalTargetIntegerExpression::Immediate {
+                    value: IntegerValue::Unsigned(1),
+                    ..
+                }
+            )
+        ));
+        assert!(matches!(
+            right.as_ref(),
+            TerminalTargetIntegerExpression::Parameter {
+                parameter_index: 1,
+                location: TerminalScalarParameterLocation::Register(register),
+                ..
+            } if *register == case.second_parameter
         ));
         let assigned = assign_registers(&target_plan)
             .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
@@ -460,6 +538,15 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
 
         let object = build_terminal_object_artifact(&machine_code)
             .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let object_entry = object
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("object contextual scalar entry");
+        assert_eq!(
+            object_entry.scalar_structural_parameter_homes,
+            emitted_entry.scalar_structural_parameter_homes
+        );
         let image = emit_terminal_executable_image(&object, 3)
             .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
         let installation = build_terminal_installation_record(
@@ -475,6 +562,10 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         assert_eq!(
             installed_entry.scalar_affine_cleanup.as_ref(),
             Some(cleanup)
+        );
+        assert_eq!(
+            installed_entry.scalar_structural_parameter_homes,
+            emitted_entry.scalar_structural_parameter_homes
         );
         let installation_bytes = encode_terminal_installation_record(&installation)
             .expect("canonical contextual scalar installation");

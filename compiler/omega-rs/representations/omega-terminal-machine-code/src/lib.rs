@@ -342,6 +342,22 @@ pub struct TerminalScalarStackEvidence {
     pub mutations: Vec<TerminalScalarStackMutation>,
     pub control_flow: TerminalScalarControlFlowEvidence,
     pub stack_alignment: u32,
+    /// Exact ABI-result preservation around an appended scalar-return cleanup
+    /// suffix. Ordinary scalar functions have no such suffix and retain
+    /// `None`; object construction validates every named access independently
+    /// from the generic mutation trace.
+    pub cleanup_preservation: Option<TerminalScalarCleanupPreservationEvidence>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalScalarCleanupPreservationEvidence {
+    pub frame: TerminalStackAdjustmentPair,
+    pub result_byte_offset: u32,
+    pub result_store_offset: usize,
+    pub result_load_offset: usize,
+    /// AArch64 additionally preserves the caller's link register in the same
+    /// lifetime frame. X86-64 uses its implicit stack link and retains `None`.
+    pub aarch64_return_link: Option<TerminalAarch64ReturnLinkEvidence>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

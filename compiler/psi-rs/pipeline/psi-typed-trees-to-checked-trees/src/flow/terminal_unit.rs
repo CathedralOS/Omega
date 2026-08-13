@@ -719,9 +719,27 @@ fn build_structural_scalar_return_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         structural_scalar_signature(program, shapes, machine, state, &binders)?;
+    let source_state_parameters = program.state_parameters(state);
+    let authored_parameter_positions = structural_parameters
+        .iter()
+        .map(|parameter| parameter.position)
+        .chain(
+            scalar_parameters
+                .iter()
+                .map(|parameter| parameter.source_position),
+        )
+        .collect::<BTreeSet<_>>();
     if structural_parameters.is_empty()
-        || structural_parameters.len() + scalar_parameters.len()
-            != program.state_parameters(state).len()
+        || structural_parameters.len() + scalar_parameters.len() != source_state_parameters.len()
+        || authored_parameter_positions.len() != source_state_parameters.len()
+        || authored_parameter_positions
+            .iter()
+            .copied()
+            .enumerate()
+            .any(|(position, authored)| u32::try_from(position).ok() != Some(authored))
+        || scalar_parameters
+            .windows(2)
+            .any(|pair| pair[0].source_position >= pair[1].source_position)
         || structural_parameters.iter().any(|parameter| {
             parameter.is_self
                 || parameter.multiplicity != Multiplicity::Affine
@@ -809,7 +827,6 @@ fn build_structural_scalar_return_machine(
         machine.symbol,
         state,
     )?;
-    let source_state_parameters = program.state_parameters(state);
     let has_nominal_cleanup = whole_discards.iter().any(|(_, position)| {
         source_state_parameters
             .get(*position as usize)
@@ -818,9 +835,7 @@ fn build_structural_scalar_return_machine(
             })
     });
     if has_nominal_cleanup
-        && (structural_parameters.len() != source_state_parameters.len()
-            || structural_parameters.len() != whole_discards.len()
-            || !scalar_parameters.is_empty()
+        && (structural_parameters.len() != whole_discards.len()
             || !bindings_are_branch_free
             || !return_is_branch_free)
     {
