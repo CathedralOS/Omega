@@ -6048,6 +6048,50 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         result
     }
 
+    machine return_after_slice_view_repeated_index_statement<
+        'bucket, 'result, 'first, 'second
+    >(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut return_grid_bucket(bucket).rows.as_mut_slice()[
+                identity_index(write_index(first))
+            ][identity_index(write_index(second))]
+        );
+        result
+    }
+
+    machine return_after_deep_slice_view_repeated_index_statement<
+        'bucket, 'result
+    >(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut return_grid_bucket(bucket).rows.as_mut_slice()[
+                identity_index(identity_index(make_index()))
+            ][make_index()]
+        );
+        result
+    }
+
+    machine return_after_recursive_slice_view_repeated_index_statement<
+        'bucket, 'result
+    >(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut recursive_grid_bucket(bucket).rows.as_mut_slice()[
+                make_index()
+            ][make_index()]
+        );
+        result
+    }
+
     machine return_after_deep_repeated_index_statement<'bucket, 'result, 'first>(
         bucket: &'bucket mut GridBucket,
         result: &'result mut u64,
@@ -6365,6 +6409,32 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         alias = 3;
     }
 
+    machine Main::slice_view_repeated_index_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_slice_view_repeated_index_statement(
+            &mut self.grid_bucket,
+            &mut self.result,
+            &mut self.index_write,
+            &mut self.second_index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::deep_slice_view_repeated_index_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_slice_view_repeated_index_statement(
+            &mut self.grid_bucket,
+            &mut self.result
+        );
+        alias = 3;
+    }
+
+    machine Main::recursive_slice_view_repeated_index_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_slice_view_repeated_index_statement(
+            &mut self.grid_bucket,
+            &mut self.result
+        );
+        alias = 3;
+    }
+
     machine Main::deep_repeated_index_statement_result(&mut self) {
         let alias: &mut u64 = return_after_deep_repeated_index_statement(
             &mut self.grid_bucket,
@@ -6507,6 +6577,15 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
                 "self.second_index_write",
             ],
         ),
+        (
+            "Main::slice_view_repeated_index_statement_result",
+            vec![
+                "self.grid_bucket.rows",
+                "self.index_write",
+                "self.result",
+                "self.second_index_write",
+            ],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -6554,6 +6633,8 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         "Main::recursive_slice_view_member_after_index_statement_result",
         "Main::recursive_member_after_index_statement_result",
         "Main::deep_repeated_index_statement_result",
+        "Main::deep_slice_view_repeated_index_statement_result",
+        "Main::recursive_slice_view_repeated_index_statement_result",
     ] {
         let machine = typed
             .machines()
