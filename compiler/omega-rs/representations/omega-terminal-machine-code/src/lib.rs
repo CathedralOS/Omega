@@ -13,9 +13,10 @@ use psi_core::{
     ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, StructuralAffineDiscard, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, NominalAffineCleanup, StructuralAffineDiscard,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +30,7 @@ pub struct TerminalMachineCodePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachineCodeFunction {
     pub machine: MachineId,
+    pub attachment: Option<StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
     /// Target-emitter-owned stack facts for the currently supported Unit-body
@@ -83,6 +85,7 @@ pub struct TerminalUnitAffineCleanupRecord {
     pub discards: Vec<PlaceId>,
     /// Exact path/type identity for residual fields disposed without code.
     pub residual_discards: Vec<StructuralAffineDiscard>,
+    pub nominal_cleanup: Option<NominalAffineCleanup>,
     pub code_offset: usize,
     pub byte_count: usize,
 }

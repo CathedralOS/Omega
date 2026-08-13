@@ -14,10 +14,10 @@ use psi_core::{
     ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralAffineDiscard,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, NominalAffineCleanup,
+    StructuralAffineDiscard, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +31,7 @@ pub struct TerminalAssignedOperationPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAssignedFunction {
     pub machine: MachineId,
+    pub attachment: Option<StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub operation: TerminalAssignedOperation,
 }
@@ -188,6 +189,7 @@ pub enum TerminalAssignedUnitOperation {
         psi_edge: EdgeId,
         trivial_affine_discards: Vec<PlaceId>,
         residual_affine_discards: Vec<StructuralAffineDiscard>,
+        nominal_affine_cleanup: Option<NominalAffineCleanup>,
     },
 }
 

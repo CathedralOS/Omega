@@ -396,6 +396,7 @@ fn emit_function(
     }
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance: function.provenance.clone(),
         bytes,
         unit_stack,
@@ -723,6 +724,7 @@ fn emit_unit_body(
                 psi_edge,
                 trivial_affine_discards,
                 residual_affine_discards,
+                nominal_affine_cleanup,
             } => {
                 let expected_local_prefix = established_affine_locals
                     .iter()
@@ -744,8 +746,24 @@ fn emit_unit_body(
                     )
                     .collect::<Vec<_>>();
                 let partial_cleanup_valid = match residual_affine_discards.as_slice() {
-                    [] => trivial_affine_discards == &expected_discards,
+                    [] if nominal_affine_cleanup.is_none() => {
+                        trivial_affine_discards == &expected_discards
+                    }
+                    [] => {
+                        let Some(cleanup) = nominal_affine_cleanup else {
+                            unreachable!()
+                        };
+                        expected_local_prefix.is_empty()
+                            && trivial_affine_discards.is_empty()
+                            && matches!(body.parameters.as_slice(), [parameter]
+                                if parameter.place == cleanup.place
+                                    && parameter.structural_type == cleanup.structural_type
+                                    && parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine)
+                    }
                     [residual] => {
+                        if nominal_affine_cleanup.is_some() {
+                            return Err(EmissionError::UnsupportedAggregatePlacement);
+                        }
                         trivial_affine_discards == &expected_local_prefix
                             && residual.path.len() == 1
                             && body.parameters.iter().any(|parameter| {
@@ -805,6 +823,7 @@ fn emit_unit_body(
                         locals: established_affine_locals.clone(),
                         discards: trivial_affine_discards.clone(),
                         residual_discards: residual_affine_discards.clone(),
+                        nominal_cleanup: *nominal_affine_cleanup,
                         code_offset,
                         byte_count: bytes.len() - code_offset,
                     },
@@ -5487,6 +5506,7 @@ mod tests {
             functions: vec![
                 TerminalTargetFunction {
                     machine: MachineId::new(1).expect("root"),
+                    attachment: None,
                     provenance: TerminalPsiProvenance {
                         operations: vec![call_operation],
                         edges: vec![root_return],
@@ -5505,12 +5525,14 @@ mod tests {
                                 psi_edge: root_return,
                                 trivial_affine_discards: Vec::new(),
                                 residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
                             },
                         ],
                     }),
                 },
                 TerminalTargetFunction {
                     machine: MachineId::new(2).expect("leaf"),
+                    attachment: None,
                     provenance: TerminalPsiProvenance {
                         operations: vec![port_operation, settlement_operation],
                         edges: vec![leaf_return],
@@ -5537,6 +5559,7 @@ mod tests {
                                 psi_edge: leaf_return,
                                 trivial_affine_discards: Vec::new(),
                                 residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
                             },
                         ],
                     }),
@@ -5635,6 +5658,7 @@ mod tests {
             entry: MachineId::new(1).unwrap(),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).unwrap(),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                     call_plan,
@@ -5650,6 +5674,7 @@ mod tests {
                             psi_edge: EdgeId::new(1).unwrap(),
                             trivial_affine_discards: Vec::new(),
                             residual_affine_discards: Vec::new(),
+                            nominal_affine_cleanup: None,
                         },
                     ],
                 }),
@@ -5707,6 +5732,7 @@ mod tests {
                 functions: vec![
                     TerminalTargetFunction {
                         machine: MachineId::new(1).unwrap(),
+                        attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                             call_plan: call_plan.clone(),
@@ -5722,12 +5748,14 @@ mod tests {
                                     psi_edge: EdgeId::new(1).unwrap(),
                                     trivial_affine_discards: Vec::new(),
                                     residual_affine_discards: Vec::new(),
+                                    nominal_affine_cleanup: None,
                                 },
                             ],
                         }),
                     },
                     TerminalTargetFunction {
                         machine: MachineId::new(2).unwrap(),
+                        attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                             call_plan,
@@ -5736,6 +5764,7 @@ mod tests {
                                 psi_edge: EdgeId::new(2).unwrap(),
                                 trivial_affine_discards: Vec::new(),
                                 residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
                             }],
                         }),
                     },
@@ -5792,6 +5821,7 @@ mod tests {
             functions: vec![
                 TerminalTargetFunction {
                     machine: MachineId::new(1).unwrap(),
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                         call_plan: call_plan.clone(),
@@ -5813,12 +5843,14 @@ mod tests {
                                 psi_edge: EdgeId::new(1).unwrap(),
                                 trivial_affine_discards: Vec::new(),
                                 residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
                             },
                         ],
                     }),
                 },
                 TerminalTargetFunction {
                     machine: MachineId::new(2).unwrap(),
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                         call_plan: call_plan.clone(),
@@ -5827,6 +5859,7 @@ mod tests {
                             psi_edge: EdgeId::new(2).unwrap(),
                             trivial_affine_discards: Vec::new(),
                             residual_affine_discards: Vec::new(),
+                            nominal_affine_cleanup: None,
                         }],
                     }),
                 },
@@ -5889,6 +5922,7 @@ mod tests {
             functions: vec![
                 TerminalTargetFunction {
                     machine: MachineId::new(1).unwrap(),
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                         call_plan: call_plan.clone(),
@@ -5904,12 +5938,14 @@ mod tests {
                                 psi_edge: EdgeId::new(1).unwrap(),
                                 trivial_affine_discards: Vec::new(),
                                 residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
                             },
                         ],
                     }),
                 },
                 TerminalTargetFunction {
                     machine: MachineId::new(2).unwrap(),
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                         call_plan: call_plan.clone(),
@@ -5918,6 +5954,7 @@ mod tests {
                             psi_edge: EdgeId::new(2).unwrap(),
                             trivial_affine_discards: Vec::new(),
                             residual_affine_discards: Vec::new(),
+                            nominal_affine_cleanup: None,
                         }],
                     }),
                 },
@@ -6018,6 +6055,7 @@ mod tests {
                 functions: vec![
                     TerminalTargetFunction {
                         machine: MachineId::new(1).unwrap(),
+                        attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                             call_plan: call_plan.clone(),
@@ -6033,12 +6071,14 @@ mod tests {
                                     psi_edge: EdgeId::new(1).unwrap(),
                                     trivial_affine_discards: Vec::new(),
                                     residual_affine_discards: Vec::new(),
+                                    nominal_affine_cleanup: None,
                                 },
                             ],
                         }),
                     },
                     TerminalTargetFunction {
                         machine: MachineId::new(2).unwrap(),
+                        attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                             call_plan,
@@ -6047,6 +6087,7 @@ mod tests {
                                 psi_edge: EdgeId::new(2).unwrap(),
                                 trivial_affine_discards: Vec::new(),
                                 residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
                             }],
                         }),
                     },
@@ -6115,6 +6156,7 @@ mod tests {
                     functions: vec![
                         TerminalTargetFunction {
                             machine: MachineId::new(1).unwrap(),
+                            attachment: None,
                             provenance: TerminalPsiProvenance::default(),
                             operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                                 call_plan: call_plan.clone(),
@@ -6130,12 +6172,14 @@ mod tests {
                                         psi_edge: EdgeId::new(1).unwrap(),
                                         trivial_affine_discards: Vec::new(),
                                         residual_affine_discards: Vec::new(),
+                                        nominal_affine_cleanup: None,
                                     },
                                 ],
                             }),
                         },
                         TerminalTargetFunction {
                             machine: MachineId::new(2).unwrap(),
+                            attachment: None,
                             provenance: TerminalPsiProvenance::default(),
                             operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
                                 call_plan,
@@ -6144,6 +6188,7 @@ mod tests {
                                     psi_edge: EdgeId::new(2).unwrap(),
                                     trivial_affine_discards: Vec::new(),
                                     residual_affine_discards: Vec::new(),
+                                    nominal_affine_cleanup: None,
                                 }],
                             }),
                         },
@@ -6164,6 +6209,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnIntegerImmediate {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -6208,6 +6254,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnIntegerConditionalControl {
                     condition_source: ValueId::new(1).expect("condition"),
@@ -6244,6 +6291,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnBooleanImmediate {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -7745,6 +7793,7 @@ mod tests {
                 functions: vec![
                     TerminalTargetFunction {
                         machine: caller,
+                        attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::ReturnIntegerExpression {
                             psi_edge: EdgeId::new(1).expect("return edge"),
@@ -7798,6 +7847,7 @@ mod tests {
                     },
                     TerminalTargetFunction {
                         machine: callee,
+                        attachment: None,
                         provenance: TerminalPsiProvenance::default(),
                         operation: TerminalTargetOperation::ReturnIntegerParameter {
                             psi_edge: EdgeId::new(2).expect("callee return edge"),
@@ -7941,6 +7991,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnIntegerParameter {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -7964,6 +8015,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnIntegerExpression {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -7986,6 +8038,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnBooleanExpression {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -8020,6 +8073,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnBooleanExpression {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -8081,6 +8135,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnBooleanExpression {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -8110,6 +8165,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnBooleanExpressionConditionalControl {
                     condition_source: ValueId::new(3).expect("condition"),
@@ -8171,6 +8227,7 @@ mod tests {
             functions: vec![
                 TerminalTargetFunction {
                     machine: caller,
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::ReturnBooleanExpressionConditionalControl {
                         condition_source: ValueId::new(10).unwrap(),
@@ -8181,6 +8238,7 @@ mod tests {
                 },
                 TerminalTargetFunction {
                     machine: callee,
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::ReturnBooleanParameter {
                         psi_edge: EdgeId::new(5).unwrap(),
@@ -8219,6 +8277,7 @@ mod tests {
             functions: vec![
                 TerminalTargetFunction {
                     machine: caller,
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
                         condition_source: ValueId::new(2).unwrap(),
@@ -8249,6 +8308,7 @@ mod tests {
                 },
                 TerminalTargetFunction {
                     machine: callee,
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::ReturnBooleanParameter {
                         psi_edge: EdgeId::new(5).unwrap(),
@@ -8318,6 +8378,7 @@ mod tests {
             functions: vec![
                 TerminalTargetFunction {
                     machine: caller,
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::ReturnIntegerConditionalControl {
                         condition_source: parameter,
@@ -8332,6 +8393,7 @@ mod tests {
                 },
                 TerminalTargetFunction {
                     machine: callee,
+                    attachment: None,
                     provenance: TerminalPsiProvenance::default(),
                     operation: TerminalTargetOperation::ReturnIntegerParameter {
                         psi_edge: EdgeId::new(5).unwrap(),

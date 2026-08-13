@@ -2,7 +2,7 @@ use omega_calling_conventions::ValueShape;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
-    build_terminal_installation_record, build_terminal_object_artifact,
+    TerminalInstallationError, build_terminal_installation_record, build_terminal_object_artifact,
     decode_terminal_installation_record, emit_terminal_executable_image,
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
@@ -57,6 +57,13 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Token {}
+    machine Token::drop(&mut self) {}
+    data Root {}
+    machine Root::enter(token: Token) {}
+"#;
+
 fn verified_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -102,6 +109,21 @@ fn partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstract
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine artifact enters Omega")
+}
+
+fn nominal_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(NOMINAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize nominal affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nominal affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve nominal affine source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type nominal affine source");
+    let checked = lower_typed_trees(typed).expect("check nominal affine source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower nominal affine Psi");
+    let semantics = encode_module(&terminal.semantic_module).expect("encode nominal affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode nominal affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nominal affine artifact enters Omega")
 }
 
 #[test]
@@ -245,7 +267,7 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         let installed_argument = installation.internal_unit_calls()[1].custody.arguments[0].clone();
         assert_eq!(
             decode_terminal_installation_record(&bytes),
-            Ok(installation)
+            Ok(installation.clone())
         );
         let mut projection = Vec::new();
         projection.extend_from_slice(&installed_argument.place.get().to_le_bytes());
@@ -405,7 +427,221 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
         let bytes = encode_terminal_installation_record(&installation).unwrap();
         assert_eq!(
             decode_terminal_installation_record(&bytes),
-            Ok(installation)
+            Ok(installation.clone())
         );
+    }
+}
+
+#[test]
+fn empty_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
+    let plan = nominal_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let cleanup = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                trivial_affine_discards,
+                residual_affine_discards,
+                nominal_affine_cleanup,
+                ..
+            } => {
+                assert!(trivial_affine_discards.is_empty());
+                assert!(residual_affine_discards.is_empty());
+                *nominal_affine_cleanup
+            }
+            _ => None,
+        })
+        .expect("entry return retains exact nominal cleanup");
+    assert_eq!(caller.structural_parameters.len(), 1);
+    assert_eq!(cleanup.place, caller.structural_parameters[0].place);
+    assert_eq!(
+        cleanup.structural_type,
+        caller.structural_parameters[0].structural_type
+    );
+    let cleanup_function = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == cleanup.cleanup_machine)
+        .expect("cleanup closure remains in the Omega plan");
+    assert_eq!(cleanup_function.attachment, Some(cleanup.structural_type));
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let target_caller = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let TerminalTargetOperation::UnitBody(target_body) = &target_caller.operation else {
+            panic!("caller remains Unit")
+        };
+        assert_eq!(target_body.parameters[0].shape, ValueShape::integer(0, 1));
+        assert!(target_body.parameters[0].placement.locations.is_empty());
+        let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
+            trivial_affine_discards,
+            residual_affine_discards,
+            nominal_affine_cleanup,
+            ..
+        } = target_body.operations.last().unwrap()
+        else {
+            panic!("caller ends in a Unit return")
+        };
+        assert!(trivial_affine_discards.is_empty());
+        assert!(residual_affine_discards.is_empty());
+        assert_eq!(*nominal_affine_cleanup, Some(cleanup));
+
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let emitted_cleanup = emitted.unit_affine_cleanup.as_ref().unwrap();
+        assert!(emitted_cleanup.locals.is_empty());
+        assert!(emitted_cleanup.discards.is_empty());
+        assert!(emitted_cleanup.residual_discards.is_empty());
+        assert_eq!(emitted_cleanup.nominal_cleanup, Some(cleanup));
+        assert_eq!(
+            machine
+                .functions
+                .iter()
+                .find(|function| function.machine == cleanup.cleanup_machine)
+                .unwrap()
+                .attachment,
+            Some(cleanup.structural_type)
+        );
+
+        let mut trivial_assigned = assigned.clone();
+        let trivial_caller = trivial_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
+            &mut trivial_caller.operation
+        else {
+            panic!("caller remains Unit")
+        };
+        let omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
+            trivial_affine_discards,
+            nominal_affine_cleanup,
+            ..
+        } = body.operations.last_mut().unwrap()
+        else {
+            panic!("caller ends in Unit return")
+        };
+        *trivial_affine_discards = vec![cleanup.place];
+        *nominal_affine_cleanup = None;
+        let trivial_machine = emit_machine_code(&trivial_assigned).unwrap();
+        assert_eq!(
+            emitted.bytes,
+            trivial_machine
+                .functions
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap()
+                .bytes,
+            "empty nominal cleanup adds no native instruction bytes"
+        );
+
+        let mut forged_place = machine.clone();
+        forged_place
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .nominal_cleanup
+            .as_mut()
+            .unwrap()
+            .place = psi_core::PlaceId::new(cleanup.place.get() + 1).unwrap();
+        assert!(build_terminal_object_artifact(&forged_place).is_err());
+        let mut forged_target = machine.clone();
+        forged_target
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == cleanup.cleanup_machine)
+            .unwrap()
+            .attachment = None;
+        assert!(build_terminal_object_artifact(&forged_target).is_err());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .nominal_cleanup,
+            Some(cleanup)
+        );
+        assert_eq!(
+            installation
+                .functions()
+                .iter()
+                .find(|function| function.machine == cleanup.cleanup_machine)
+                .unwrap()
+                .attachment,
+            Some(cleanup.structural_type)
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation.clone())
+        );
+        if target == NativeTarget::linux_x64() {
+            let native_cleanup = installed.unit_affine_cleanup.as_ref().unwrap();
+            let mut encoded_cleanup = vec![1];
+            encoded_cleanup.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            encoded_cleanup.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
+            encoded_cleanup.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
+            encoded_cleanup.extend_from_slice(&(native_cleanup.code_offset as u64).to_le_bytes());
+            encoded_cleanup.extend_from_slice(&(native_cleanup.byte_count as u64).to_le_bytes());
+            let matches = bytes
+                .windows(encoded_cleanup.len())
+                .enumerate()
+                .filter(|(_, window)| *window == encoded_cleanup)
+                .map(|(offset, _)| offset)
+                .collect::<Vec<_>>();
+            assert_eq!(matches.len(), 1, "nominal cleanup encoding is unique");
+            let offset = matches[0];
+            let mut invalid_presence = bytes.clone();
+            invalid_presence[offset] = 2;
+            assert_eq!(
+                decode_terminal_installation_record(&invalid_presence),
+                Err(TerminalInstallationError::InvalidPresenceFlag(2))
+            );
+            let mut zero_place = bytes.clone();
+            zero_place[offset + 1..offset + 9].fill(0);
+            assert_eq!(
+                decode_terminal_installation_record(&zero_place),
+                Err(TerminalInstallationError::ZeroStructuralReturnIdentity(
+                    "nominal Unit cleanup place"
+                ))
+            );
+        }
     }
 }

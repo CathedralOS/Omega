@@ -1129,6 +1129,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             entry: machine,
             functions: vec![TerminalMachineCodeFunction {
                 machine,
+                attachment: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation_id(1)],
                     edges: vec![edge_id(1)],
@@ -1216,7 +1217,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "4337fa1e1618104816ed2b8734792da6ee0e025fdf0fa4f7adc0abb9e5430842"
+        "98f867f259100d9f14708b078f75347f046afa7bbaca63b39674e3782ab9863b"
     );
 
     let mut changed_plan = plan;
@@ -1239,10 +1240,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&13_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&14_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(13))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(14))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -1296,6 +1297,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         entry: machine_id(1),
         functions: vec![TerminalMachineCodeFunction {
             machine: machine_id(1),
+            attachment: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![port_operation, settlement_operation],
                 edges: vec![edge_id(1)],
@@ -1415,6 +1417,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
         functions: vec![
             TerminalMachineCodeFunction {
                 machine: machine_id(1),
+                attachment: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation_id(1)],
                     edges: vec![edge_id(1)],
@@ -1434,6 +1437,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
+                attachment: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation_id(2)],
                     edges: vec![edge_id(2)],
@@ -1471,6 +1475,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
         functions: vec![
             TerminalMachineCodeFunction {
                 machine: machine_id(1),
+                attachment: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation_id(1)],
                     edges: vec![edge_id(1)],
@@ -1490,6 +1495,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
+                attachment: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation_id(2)],
                     edges: vec![edge_id(2)],
@@ -2231,6 +2237,7 @@ fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {
         locals: Vec::new(),
         discards: Vec::new(),
         residual_discards: Vec::new(),
+        nominal_cleanup: None,
         code_offset,
         byte_count,
     });
