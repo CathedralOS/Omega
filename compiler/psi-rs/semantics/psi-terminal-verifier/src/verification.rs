@@ -1125,9 +1125,37 @@ fn reconstruct_machine_semantics(
                 ));
                 exits.push(axioms);
             }
-            Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. } => exits.push(axioms),
+            Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
+                for cleanup in cleanups {
+                    let target = machines
+                        .get(&cleanup.cleanup_machine)
+                        .copied()
+                        .expect("validated nominal cleanup target exists");
+                    let receiver = cleanup
+                        .cleanup_receiver
+                        .map(|receiver| BTreeMap::from([(receiver, cleanup.place)]))
+                        .unwrap_or_default();
+                    for (required, obligation) in target
+                        .contract
+                        .requires
+                        .iter()
+                        .zip(&cleanup.requirement_obligations)
+                    {
+                        operation_obligations.push(ReconstructedOperationObligation {
+                            obligation: Obligation {
+                                id: *obligation,
+                                proposition: substitute_proposition_places(required, &receiver),
+                                class: ObligationClass::Derivable,
+                            },
+                            semantic_axioms: axioms.clone(),
+                        });
+                    }
+                }
+                exits.push(axioms);
+            }
+            Terminator::ReturnUnit { .. } | Terminator::ReturnUnitPartialAffine { .. } => {
+                exits.push(axioms)
+            }
             Terminator::ReturnStructural {
                 returned_claims, ..
             } => {

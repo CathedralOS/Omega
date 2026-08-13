@@ -450,8 +450,15 @@ reach or trust, and private proof improvements do not change public identity.
   interpretation, fuel, and every native artifact path. They may share a
   target, and every action may use the bounded executable body, including a
   shared cleanup target or helper; native calls retain exact edge/action
-  ordinals. Add contextual cleanup-contract checking, wider structural
-  partial-value cleanup, repeated-cycle resource composition, and
+  ordinals. One root-only contextual subset additionally accepts one direct
+  relevant Boolean receiver-field `requires` clause when the exact caller
+  requirement proves it at the Unit return edge. Terminal Psi retains the
+  proof-only receiver substitution and obligation, independently verifies the
+  source-produced semantic/proof artifact, and removes proof metadata before
+  all five Omega runtime carriers. Missing premises reject with an edge- and
+  cleanup-specific diagnostic. Extend contextual cleanup contracts beyond this
+  Boolean/empty-body subset; add wider structural partial-value cleanup,
+  repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`

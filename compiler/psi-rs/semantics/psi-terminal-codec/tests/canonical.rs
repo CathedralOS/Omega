@@ -68,6 +68,47 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
 }
 
 #[test]
+fn contextual_nominal_affine_cleanup_round_trips_receiver_and_obligation() {
+    let mut module = nominal_affine_fixture();
+    let receiver = place_id(99);
+    let field = StructuralFieldId::new(1).expect("field");
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            id: field,
+            identity: "ready".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+        }],
+    };
+    module.machines[1].contract.requires = vec![Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field(receiver, field),
+    )];
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(receiver);
+    cleanups[0].requirement_obligations = vec![obligation_id(1)];
+
+    let bytes = encode_module(&module).expect("contextual nominal cleanup should encode");
+    let decoded = decode_module(&bytes).expect("contextual nominal cleanup should decode");
+    assert_eq!(decoded, module);
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &decoded.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(cleanups[0].cleanup_receiver, Some(receiver));
+    assert_eq!(cleanups[0].requirement_obligations, vec![obligation_id(1)]);
+
+    let mut truncated = bytes;
+    truncated.pop();
+    assert_eq!(decode_module(&truncated), Err(CodecError::UnexpectedEnd));
+}
+
+#[test]
 fn nominal_affine_unit_return_round_trips_two_roots_in_reverse_parameter_order() {
     let module = two_nominal_affine_fixture();
     let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
@@ -1685,6 +1726,8 @@ fn two_nominal_affine_fixture() -> TerminalModule {
             place: place_id(2),
             structural_type: structural_type_id(1),
             cleanup_machine: machine_id(2),
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         },
     );
     module
@@ -1723,6 +1766,8 @@ fn five_nominal_affine_fixture() -> TerminalModule {
                 place,
                 structural_type: structural_type_id(1),
                 cleanup_machine: machine_id(2),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
         );
     }
@@ -1790,6 +1835,8 @@ fn nominal_affine_fixture() -> TerminalModule {
                             place: source_place,
                             structural_type: resource_type,
                             cleanup_machine: machine_id(2),
+                            cleanup_receiver: None,
+                            requirement_obligations: Vec::new(),
                         }],
                     },
                 }],

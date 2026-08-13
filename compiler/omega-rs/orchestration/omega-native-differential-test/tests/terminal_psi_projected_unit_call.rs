@@ -20,7 +20,7 @@ use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
+    TerminalAffineCleanupAction, Terminator,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
@@ -147,6 +147,18 @@ const NOMINAL_AFFINE_SOURCE: &str = r#"
     }
     data Root {}
     machine Root::enter(token: Token) {}
+"#;
+
+const CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Root {}
+    machine Root::enter(token: Token)
+    requires token.ready
+    {}
 "#;
 
 const TWO_EMPTY_NOMINAL_AFFINE_SOURCE: &str = r#"
@@ -372,6 +384,42 @@ fn nominal_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstract
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode nominal affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified nominal affine artifact enters Omega")
+}
+
+fn contextual_nominal_affine_plan()
+-> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(CONTEXTUAL_NOMINAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize contextual nominal affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse contextual nominal affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual nominal affine source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type contextual nominal affine source");
+    let checked = lower_typed_trees(typed).expect("check contextual nominal affine source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower contextual nominal affine Psi");
+    let entry = terminal
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal.semantic_module.entry)
+        .expect("contextual cleanup entry");
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("contextual cleanup must use the nominal return carrier")
+    };
+    let [cleanup] = cleanups.as_slice() else {
+        panic!("one contextual cleanup action")
+    };
+    assert!(cleanup.cleanup_receiver.is_some());
+    assert_eq!(cleanup.requirement_obligations.len(), 1);
+    assert_eq!(terminal.proof_bundle.evidence.len(), 1);
+
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode contextual nominal affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode contextual nominal affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified contextual nominal artifact enters Omega")
 }
 
 fn two_empty_nominal_affine_plan()
@@ -1444,6 +1492,117 @@ fn two_empty_nominal_cleanups_are_reverse_ordered_and_call_free_on_all_targets()
 }
 
 #[test]
+fn contextual_nominal_cleanup_is_verified_then_projected_on_all_targets() {
+    let plan = contextual_nominal_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("contextual cleanup caller remains present");
+    let cleanup = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => match cleanup_actions.as_slice() {
+                [TerminalAffineCleanupAction::InvokeNominal(cleanup)] => Some(cleanup.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("verified contextual cleanup reaches the Omega action stream");
+    assert!(cleanup.cleanup_receiver.is_none());
+    assert!(cleanup.requirement_obligations.is_empty());
+
+    let mut forged = plan.clone();
+    let forged_caller = forged
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+        cleanup_actions,
+        ..
+    } = forged_caller.operations.last_mut().unwrap()
+    else {
+        panic!("contextual caller ends at Unit return")
+    };
+    let TerminalAffineCleanupAction::InvokeNominal(forged_cleanup) = &mut cleanup_actions[0] else {
+        unreachable!()
+    };
+    forged_cleanup.cleanup_receiver = Some(PlaceId::new(99).unwrap());
+    assert!(lower_to_target_operations(&forged, NativeTarget::linux_x64()).is_err());
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let target_caller = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let TerminalTargetOperation::UnitBody(target_body) = &target_caller.operation else {
+            panic!("contextual caller remains Unit")
+        };
+        let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
+            cleanup_actions,
+            ..
+        } = target_body.operations.last().unwrap()
+        else {
+            panic!("contextual caller retains its return cleanup")
+        };
+        assert_eq!(
+            cleanup_actions,
+            &[TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
+        );
+
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            [TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
+        );
+        assert!(
+            emitted.internal_unit_calls.is_empty(),
+            "the contextual premise remains proof-only and the empty drop emits no call for {target:?}"
+        );
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed.unit_affine_cleanup.as_ref().unwrap().actions,
+            [TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
 fn one_executable_nominal_cleanup_action_retains_its_exact_ordinal_on_all_targets() {
     for (source, executable_action_ordinal) in [
         (SECOND_EXECUTABLE_NOMINAL_AFFINE_SOURCE, 0_u32),
@@ -1469,7 +1628,7 @@ fn one_executable_nominal_cleanup_action_retains_its_exact_ordinal_on_all_target
             .expect("entry return retains cleanup actions");
         assert_eq!(cleanup_actions.len(), 2);
         let TerminalAffineCleanupAction::InvokeNominal(executable_cleanup) =
-            cleanup_actions[usize::try_from(executable_action_ordinal).unwrap()]
+            &cleanup_actions[usize::try_from(executable_action_ordinal).unwrap()]
         else {
             unreachable!("both ordered actions remain nominal")
         };
@@ -1817,7 +1976,7 @@ fn finite_cleanup_lists_and_helper_bodies_retain_exact_order_on_all_targets() {
         })
         .unwrap();
     assert_eq!(cleanup_actions.len(), 5);
-    let TerminalAffineCleanupAction::InvokeNominal(first_cleanup) = cleanup_actions[0] else {
+    let TerminalAffineCleanupAction::InvokeNominal(first_cleanup) = &cleanup_actions[0] else {
         unreachable!()
     };
     let cleanup_function = plan
@@ -1901,7 +2060,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
                 cleanup_actions,
                 ..
             } => match cleanup_actions.as_slice() {
-                [TerminalAffineCleanupAction::InvokeNominal(cleanup)] => Some(*cleanup),
+                [TerminalAffineCleanupAction::InvokeNominal(cleanup)] => Some(cleanup.clone()),
                 _ => None,
             },
             _ => None,
@@ -1969,7 +2128,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         };
         assert_eq!(
             cleanup_actions,
-            &[TerminalAffineCleanupAction::InvokeNominal(cleanup)]
+            &[TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
         );
 
         let assigned = assign_registers(&target_plan).unwrap();
@@ -1983,7 +2142,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         assert!(emitted_cleanup.locals.is_empty());
         assert_eq!(
             emitted_cleanup.actions,
-            [TerminalAffineCleanupAction::InvokeNominal(cleanup)]
+            [TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
         );
         let cleanup_call = emitted
             .internal_unit_calls
@@ -2075,7 +2234,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
             .actions[0] =
             TerminalAffineCleanupAction::InvokeNominal(psi_terminal::NominalAffineCleanup {
                 place: psi_core::PlaceId::new(cleanup.place.get() + 1).unwrap(),
-                ..cleanup
+                ..cleanup.clone()
             });
         assert!(build_terminal_object_artifact(&forged_place).is_err());
         let mut forged_target = machine.clone();
@@ -2115,7 +2274,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
             .unwrap();
         assert_eq!(
             installed.unit_affine_cleanup.as_ref().unwrap().actions,
-            [TerminalAffineCleanupAction::InvokeNominal(cleanup)]
+            [TerminalAffineCleanupAction::InvokeNominal(cleanup.clone())]
         );
         assert_eq!(
             installation

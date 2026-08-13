@@ -761,8 +761,15 @@ fn lower_machine(
                     psi_edge: *edge,
                     cleanup_actions: cleanups
                         .iter()
-                        .copied()
-                        .map(TerminalAffineCleanupAction::InvokeNominal)
+                        .cloned()
+                        .map(|mut cleanup| {
+                            // Psi has already verified these proof-site identities. They
+                            // carry no native realization meaning and must not become a
+                            // second semantic authority in Omega artifacts.
+                            cleanup.cleanup_receiver = None;
+                            cleanup.requirement_obligations.clear();
+                            TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        })
                         .collect(),
                 });
             }

@@ -215,8 +215,16 @@ cleanup kinds in one ordered action stream through abstract, target, assigned,
 machine, object, image, and installation artifacts. Empty drops emit no native
 call; an executable body emits a call owned by the exact edge/action ordinal
 before teardown, with source-ordered operation-owned helper calls.
-Wider body shapes, nested/erased receivers, claims, qualifications, locals, and non-root edges
-remain fenced.
+For one empty cleanup body, a direct `requires self.boolean_field` clause is
+accepted when the caller has the corresponding checked requirement on the
+owned root. Terminal Psi retains a target-local proof-only receiver and one
+edge obligation, substitutes that receiver with the owned cleanup place during
+independent verification, and keeps the cleanup target operationally
+zero-argument. The verified Psi-to-Omega boundary removes those proof-site
+identities; every downstream Omega validator rejects their reintroduction.
+Missing caller evidence rejects during checked production. Wider predicates,
+multiple requirements, body-changing facts, nested/erased receivers, claims,
+qualifications, locals, and non-root edges remain fenced.
 
 An unconditional jump and each ordered conditional successor may carry an
 independent canonical reverse-declaration subset of the same eligible

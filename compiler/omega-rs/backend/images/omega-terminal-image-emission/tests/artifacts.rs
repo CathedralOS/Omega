@@ -2574,6 +2574,8 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                             place,
                             structural_type,
                             cleanup_machine: machine_id(1),
+                            cleanup_receiver: None,
+                            requirement_obligations: Vec::new(),
                         },
                     )],
                     code_offset: 0,

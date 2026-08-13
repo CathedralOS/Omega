@@ -1996,6 +1996,8 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(cleanup.place);
                 writer.id(cleanup.structural_type);
                 writer.id(cleanup.cleanup_machine);
+                encode_optional_id(writer, cleanup.cleanup_receiver);
+                encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
             }
         }
         Terminator::ReturnStructural {
@@ -3374,6 +3376,8 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                     place: reader.id("PlaceId")?,
                     structural_type: reader.id("StructuralTypeId")?,
                     cleanup_machine: reader.id("MachineId")?,
+                    cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
+                    requirement_obligations: decode_ids(reader, "ObligationId")?,
                 })
             })?,
         },

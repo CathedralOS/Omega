@@ -14,13 +14,15 @@ use psi_checked_trees::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitBoundaryMachinePlan,
     CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
+use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, SemanticDomainId,
@@ -183,6 +185,7 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedNominalAffineUnitCleanupPlans {
     let mut shapes = ShapeCollector::new(program);
     let machines = program
@@ -196,6 +199,7 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
                 unit_effects,
                 &mut shapes,
                 machine,
+                diagnostics,
             )
         })
         .collect::<Vec<_>>();
@@ -1596,6 +1600,7 @@ fn build_nominal_affine_unit_cleanup_machine(
     unit_effects: &CheckedUnitEffectPlans,
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<CheckedNominalAffineUnitCleanupMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -1608,9 +1613,7 @@ fn build_nominal_affine_unit_cleanup_machine(
         || !program.machine_invokes(machine).is_empty()
         || machine.suspends
         || machine.blocks
-        || !program.machine_contracts(machine).is_empty()
         || !is_unit(program, state.return_type)
-        || !program.state_contracts(state).is_empty()
         || !program
             .statement_table
             .statements(state.statement_nodes)
@@ -1754,10 +1757,39 @@ fn build_nominal_affine_unit_cleanup_machine(
             || !program.machine_invokes(cleanup_machine).is_empty()
             || cleanup_machine.suspends
             || cleanup_machine.blocks
-            || !program.machine_contracts(cleanup_machine).is_empty()
             || !is_unit(program, cleanup_state.return_type)
-            || !program.state_contracts(cleanup_state).is_empty()
         {
+            return None;
+        }
+        let cleanup_requirements = nominal_cleanup_boolean_requirements(
+            program,
+            facts,
+            cleanup_machine,
+            cleanup_state,
+            cleanup_receiver,
+        )?;
+        if cleanup_requirements.len() > 1 {
+            return None;
+        }
+        if !nominal_cleanup_requirements_proved_by_caller(
+            program,
+            facts,
+            machine,
+            state,
+            source_parameter,
+            &cleanup_requirements,
+        ) {
+            if let [requirement] = cleanup_requirements.as_slice() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove automatic cleanup requires at Unit return edge from {} state {} after statement 0: {}.{} == {} required by {}",
+                    crate::labels::machine_name(program, machine.symbol),
+                    crate::labels::symbol_name(program, state.symbol),
+                    source_parameter.name.as_str(),
+                    requirement.field_identity,
+                    requirement.expected,
+                    crate::labels::machine_name(program, cleanup_machine.symbol),
+                )));
+            }
             return None;
         }
         let cleanup_statements = program
@@ -1846,6 +1878,7 @@ fn build_nominal_affine_unit_cleanup_machine(
             cleanup_machine: cleanup_machine.symbol,
             cleanup_state: cleanup_state.symbol,
             cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
+            requirements: cleanup_requirements,
         });
     }
 
@@ -1868,6 +1901,126 @@ fn build_nominal_affine_unit_cleanup_machine(
             }],
         },
         cleanups,
+    })
+}
+
+fn nominal_cleanup_boolean_requirements(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    cleanup_machine: &psi_typed_trees::machine::Machine,
+    cleanup_state: &psi_typed_trees::state::State,
+    cleanup_receiver: &StateParameter,
+) -> Option<Vec<CheckedUnitNominalAffineCleanupRequirementPlan>> {
+    let checked_requires =
+        checked_requires_expressions(program, facts, cleanup_machine.symbol, cleanup_state.symbol)?;
+    checked_requires
+        .into_iter()
+        .map(|expression| {
+            direct_true_boolean_field_requirement(
+                program,
+                cleanup_state.symbol,
+                cleanup_receiver,
+                expression,
+            )
+        })
+        .collect()
+}
+
+fn nominal_cleanup_requirements_proved_by_caller(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_machine: &psi_typed_trees::machine::Machine,
+    caller_state: &psi_typed_trees::state::State,
+    source_parameter: &StateParameter,
+    required: &[CheckedUnitNominalAffineCleanupRequirementPlan],
+) -> bool {
+    // This producer is fenced to an empty one-state body, so the checked entry
+    // requirement is preserved unchanged at its sole Unit return edge. Wider
+    // bodies must instead consult the path-specific exit contexts.
+    let Some(caller_requires) =
+        checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)
+    else {
+        return false;
+    };
+    caller_requires.len() == required.len()
+        && caller_requires
+            .iter()
+            .zip(required)
+            .all(|(&expression, requirement)| {
+                direct_true_boolean_field_requirement(
+                    program,
+                    caller_state.symbol,
+                    source_parameter,
+                    expression,
+                )
+                .is_some_and(|caller| caller == *requirement)
+            })
+}
+
+fn checked_requires_expressions(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+) -> Option<Vec<psi_typed_trees::expression::ExpressionHandle>> {
+    let mut expressions = Vec::new();
+    for (_, checked) in facts.proof.contract_facts.iter().filter(|(_, checked)| {
+        matches!(checked.owner, ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == machine)
+            || matches!(checked.owner, ContractProofFactOwner::MachineState { machine_symbol, state_symbol } if machine_symbol == machine && state_symbol == state)
+    }) {
+        if checked.kind != ContractProofFactKind::Requires {
+            return None;
+        }
+        let ProofFact::Expression(expression) = program.proof_facts.get(checked.fact) else {
+            return None;
+        };
+        expressions.push(*expression);
+    }
+    Some(expressions)
+}
+
+fn direct_true_boolean_field_requirement(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    root_parameter: &StateParameter,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitNominalAffineCleanupRequirementPlan> {
+    let field_expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Member(_) => expression,
+        ExpressionNode::Binary(binary)
+            if binary.operator == psi_typed_trees::expression::BinaryOperator::Equal =>
+        {
+            match (
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+            ) {
+                (ExpressionNode::Boolean(true), ExpressionNode::Member(_)) => binary.right,
+                (ExpressionNode::Member(_), ExpressionNode::Boolean(true)) => binary.left,
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    let place =
+        crate::flow::canonical_place_from_expression_in_state(program, state, 0, field_expression)?;
+    let [psi_facts::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
+        return None;
+    };
+    if place.root != psi_facts::PlaceRoot::Symbol(root_parameter.symbol)
+        || !program.data_definitions().iter().any(|data| {
+            program.data_members(data).iter().any(|member| {
+                matches!(member, DataMember::Field(field)
+                    if field.symbol == *symbol
+                        && program.primitive_type_reference(field.type_reference)
+                            == Some(PrimitiveType::Bool))
+            })
+        })
+    {
+        return None;
+    }
+    Some(CheckedUnitNominalAffineCleanupRequirementPlan {
+        field_identity: terminal_field_identity(program, *symbol)?,
+        expected: true,
     })
 }
 

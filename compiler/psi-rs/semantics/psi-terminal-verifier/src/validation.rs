@@ -41,10 +41,41 @@ impl<'module> ValidatedTerminalModule<'module> {
             machine
                 .structural_places
                 .iter()
-                .map(|place| (place.id, place.kind)),
+                .map(|place| (place.id, place.kind))
+                .chain(
+                    nominal_cleanup_contract_receiver(self.module, machine.id).map(|receiver| {
+                        (
+                            receiver,
+                            StructuralPlaceKind::Parameter {
+                                position: 0,
+                                is_self: true,
+                            },
+                        )
+                    }),
+                ),
         )
         .map_err(ModuleError::MalformedProposition)
     }
+}
+
+fn nominal_cleanup_contract_receiver(
+    module: &TerminalModule,
+    cleanup_machine: MachineId,
+) -> Option<PlaceId> {
+    module
+        .machines
+        .iter()
+        .flat_map(|candidate| &candidate.blocks)
+        .filter_map(|block| match &block.terminator {
+            Terminator::ReturnUnitNominalAffine { cleanups, .. } => Some(cleanups),
+            _ => None,
+        })
+        .flatten()
+        .find_map(|cleanup| {
+            (cleanup.cleanup_machine == cleanup_machine)
+                .then_some(cleanup.cleanup_receiver)
+                .flatten()
+        })
 }
 
 pub fn validate_module(
@@ -1143,6 +1174,7 @@ fn validate_machine(
         return Err(ModuleError::MachineHasNoBlocks(machine.id));
     }
 
+    let contract_receiver = nominal_cleanup_contract_receiver(module, machine.id);
     let mut blocks = BTreeMap::new();
     let mut value_types = BTreeMap::new();
     let mut structural_roots = BTreeSet::new();
@@ -1686,6 +1718,17 @@ fn validate_machine(
         for edge in block.terminator.edges() {
             insert_unique(&mut registry.edges, edge, ModuleError::DuplicateEdge)?;
         }
+        if let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator {
+            for cleanup in cleanups {
+                for obligation in &cleanup.requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+            }
+        }
     }
 
     let Some(entry) = blocks.get(&machine.entry) else {
@@ -1703,7 +1746,16 @@ fn validate_machine(
         machine
             .structural_places
             .iter()
-            .map(|place| (place.id, place.kind)),
+            .map(|place| (place.id, place.kind))
+            .chain(contract_receiver.map(|receiver| {
+                (
+                    receiver,
+                    StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: true,
+                    },
+                )
+            })),
     )
     .map_err(ModuleError::MalformedProposition)?;
     validate_content_entry_claims(machine, registry, &structural_place_kinds, &context)?;
@@ -2191,7 +2243,6 @@ fn validate_nominal_affine_cleanup_shape(
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
         || !machine.contract.crash_routes.is_empty()
-        || !machine.contract.requires.is_empty()
         || !machine.contract.ensures.is_empty()
     {
         return Err(invalid(block.id));
@@ -2230,6 +2281,7 @@ fn validate_nominal_affine_cleanup_shape(
             return Err(invalid(block.id));
         };
         if target.id == machine.id
+            || cleanup.requirement_obligations.len() != target.contract.requires.len()
             || target.attachment != Some(cleanup.structural_type)
             || target.result != TerminalMachineResult::Unit
             || !target.parameters.is_empty()
@@ -2244,8 +2296,8 @@ fn validate_nominal_affine_cleanup_shape(
             || !target_block.parameters.is_empty()
             || !matches!(target_block.terminator, Terminator::ReturnUnit { ref trivial_affine_discards, .. } if trivial_affine_discards.is_empty())
             || !target.contract.crash_routes.is_empty()
-            || !target.contract.requires.is_empty()
             || !target.contract.ensures.is_empty()
+            || !valid_nominal_cleanup_requirements(module, target, cleanup)
         {
             return Err(invalid(block.id));
         }
@@ -2344,6 +2396,60 @@ fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
                 StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => false,
             }
     })
+}
+
+fn valid_nominal_cleanup_requirements(
+    module: &TerminalModule,
+    target: &TerminalMachine,
+    cleanup: &psi_terminal::NominalAffineCleanup,
+) -> bool {
+    match target.contract.requires.as_slice() {
+        [] => cleanup.cleanup_receiver.is_none() && cleanup.requirement_obligations.is_empty(),
+        [
+            Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::BooleanField { root, field }),
+        ] => {
+            let Some(receiver) = cleanup.cleanup_receiver else {
+                return false;
+            };
+            if receiver != *root
+                || cleanup.requirement_obligations.len() != 1
+                || module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| &machine.structural_places)
+                    .any(|place| place.id == receiver)
+                || module.machines.iter().any(|machine| {
+                    machine.blocks.iter().any(|block| {
+                        matches!(
+                            &block.terminator,
+                            Terminator::ReturnUnitNominalAffine { cleanups, .. }
+                                if cleanups.iter().any(|candidate| {
+                                    candidate.cleanup_machine != target.id
+                                        && candidate.cleanup_receiver == Some(receiver)
+                                })
+                        )
+                    })
+                })
+            {
+                return false;
+            }
+            module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == cleanup.structural_type)
+                .and_then(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => {
+                        fields.iter().find(|candidate| candidate.id == *field)
+                    }
+                    StructuralTypeShape::FixedArray { .. } => None,
+                })
+                .is_some_and(|field| {
+                    !field.relevance.is_erased()
+                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                })
+        }
+        _ => false,
+    }
 }
 
 fn validate_unit_call_contract_places(

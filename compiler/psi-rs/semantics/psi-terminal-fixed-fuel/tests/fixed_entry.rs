@@ -111,6 +111,8 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
             place: source,
             structural_type,
             cleanup_machine,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         }],
     };
     module.machines.push(TerminalMachine {
@@ -1199,11 +1201,15 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
                 place: second_place,
                 structural_type: second_type,
                 cleanup_machine: second_cleanup,
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
             NominalAffineCleanup {
                 place: first_place,
                 structural_type: first_type,
                 cleanup_machine: first_cleanup,
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
         ],
     };
@@ -1355,6 +1361,8 @@ fn three_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
             place: place_id(902),
             structural_type: structural_type_id(900),
             cleanup_machine: machine_id(901),
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         },
     );
     module
@@ -1392,6 +1400,8 @@ fn five_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
                 place,
                 structural_type: structural_type_id(900),
                 cleanup_machine: machine_id(901),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
         );
     }
@@ -1452,6 +1462,8 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
             place: source,
             structural_type: token_type,
             cleanup_machine: machine_id(901),
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         }],
     };
     module.machines.push(TerminalMachine {

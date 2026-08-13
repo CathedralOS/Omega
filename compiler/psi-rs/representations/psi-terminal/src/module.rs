@@ -514,11 +514,17 @@ pub struct StructuralAffineDiscard {
 /// One whole claim-free affine structural parameter disposed by its exact
 /// nominal cleanup machine. Unlike a trivial affine discard, this action is
 /// executable edge work and therefore retains the selected machine identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NominalAffineCleanup {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub cleanup_machine: MachineId,
+    /// Target-contract-local proof root for the borrowed cleanup receiver.
+    /// This is not an executable structural parameter or ABI argument.
+    pub cleanup_receiver: Option<PlaceId>,
+    /// Obligation identities aligned positionally with the selected cleanup
+    /// machine's contextual `requires` clauses.
+    pub requirement_obligations: Vec<ObligationId>,
 }
 
 /// One exact affine cleanup action committed by a terminal ownership edge.
