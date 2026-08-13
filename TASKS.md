@@ -199,16 +199,17 @@ Remaining:
   primitive-only source producer emits the empty list. The first nonempty
   scalar-return source path now handles an attached one-state machine with only
   an exact partition of primitive scalar inputs and claim-free affine structural
-  parameters, plus an ordered prefix of immutable primitive locals and one
+  parameters, plus an ordered sequence of immutable primitive locals and one
   scalar return. Landed integer operations, Boolean
   constants/negation/equality/comparisons, and references to scalar inputs or
   already materialized locals emit—with exact-operation proofs reconstructed
   where required—before exact reverse-declaration cleanup. Final short-circuit
   Boolean returns preserve the frontier across decisions and repeat cleanup on
-  every terminal leaf. One sole short-circuit Boolean local may instead converge
-  without cleanup into a typed continuation whose branch-free return performs
-  cleanup. Calls, mutable or non-scalar locals, later/multiple short-circuit
-  local initializers, contracts, claims, effects, and multi-state control remain
+  every terminal leaf. Any finite sequence of short-circuit Boolean locals may
+  instead converge stage by stage without cleanup through typed Boolean
+  continuations; branch-free scalar work may surround and separate those stages,
+  and the final branch-free return alone performs cleanup. Calls, mutable or
+  non-scalar locals, contracts, claims, effects, and multi-state control remain
   fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
@@ -465,12 +466,13 @@ reach or trust, and private proof improvements do not change public identity.
   conservation/backend-ledger reporting. The first narrow checked-to-terminal
   path now composes exact ordinary-edge cleanup with source-handle-free state
   signatures and whole-parameter transfers for acyclic, single-predecessor Unit
-  machines. A separate one-state scalar-return path materializes an immutable
-  primitive-local prefix and scalar return, then reconstructs any exact-operation
-  proofs before exact cleanup of its complete affine structural frontier; final
-  short-circuit returns repeat the same cleanup on every value leaf. Neither is
-  yet the complete `EdgeCleanupPlan`, short-circuit-local or conditional-control
-  path, repeated-cycle composition, or conservation witness.
+  machines. A separate one-state scalar-return path materializes immutable
+  primitive locals and a scalar return, reconstructs exact-operation proofs, and
+  cleans its complete affine structural frontier. Final short-circuit returns
+  repeat cleanup on every value leaf; repeated short-circuit Boolean locals
+  converge through typed continuations and defer cleanup to the final return.
+  Neither is yet the complete `EdgeCleanupPlan`, conditional-control path,
+  repeated-cycle composition, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
