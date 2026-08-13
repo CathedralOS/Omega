@@ -10631,17 +10631,10 @@ fn runtime_linear_search_early_exit_canary_runs() {
     // Linear search with EARLY loop exit: scan for `target`, leave the loop the instant it's found
     // (each element read into a field first, then compared). arr=[3,7,12,18,5], target=12 -> index 2.
     let canary = pass_canary("control_flow/runtime_linear_search_early_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("linear search early exit canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("linear search early exit canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("linear search early exit canary should run");
     assert_eq!(
@@ -10651,7 +10644,7 @@ fn runtime_linear_search_early_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -10887,19 +10880,12 @@ fn runtime_loop_patterns_exit_canary_runs() {
     // iterative (no stack growth) and nested loops re-initialize the inner counter.
     // Guards the state-recursion lowering that serious apps lean on.
     let canary = pass_canary("control_flow/runtime_loop_patterns_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-loop-patterns-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-loop-patterns-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("loop-patterns canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("loop-patterns canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("loop-patterns canary should run");
 
@@ -10911,7 +10897,7 @@ fn runtime_loop_patterns_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -10921,21 +10907,15 @@ fn runtime_composite_initializer_local_arg_exit_canary_runs() {
     // must recurse into the composite to resolve the inner local; missing Cast/Binary/
     // Unary arms re-materialized it in the target frame (no slot) and read 0.
     let canary = pass_canary("control_flow/runtime_composite_initializer_local_arg_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-composite-initializer-arg-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("composite-initializer-local-arg canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("composite-initializer-local-arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("composite-initializer-local-arg canary should run");
 
@@ -10947,28 +10927,21 @@ fn runtime_composite_initializer_local_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_captured_local_remutated_field_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_captured_local_remutated_field_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-captured-local-remutated-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("captured-local-remutated-field canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("captured-local-remutated-field canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("captured-local-remutated-field canary should run");
 
@@ -10981,7 +10954,7 @@ fn runtime_captured_local_remutated_field_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 carrier compare through a POINTEE in a VALUE-CALL guard: the value-call
