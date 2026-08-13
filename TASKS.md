@@ -222,10 +222,13 @@ Remaining:
   checked transfers, then a composed checked plan binds those rows to exact
   source-handle-free state signatures and whole-parameter transfer maps.
   Terminal production resolves the positions to places and emits verified
-  jumps or Unit returns for attached, acyclic, single-predecessor machines with
-  claim-free affine structural parameters. Joins, cycles, reordered custody,
-  conditional control, scalar work, locals, projections, claims, and incomplete
-  evidence still fail closed.
+  jumps or Unit returns for attached, acyclic machines with claim-free affine
+  structural parameters. One entry state may also select two ordered ordinary
+  successors from one retained Boolean input; each arm independently binds its
+  whole-parameter transfer and reverse-order cleanup frontier before the leaf
+  performs its final cleanup. Joins, cycles, reordered custody, computed guards,
+  scalar successor arguments, wider conditional topology, locals, projections,
+  claims, and incomplete evidence still fail closed.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned
@@ -472,8 +475,11 @@ reach or trust, and private proof improvements do not change public identity.
   cleans its complete affine structural frontier. Final short-circuit returns
   repeat cleanup on every value leaf; repeated short-circuit Boolean locals
   converge through typed continuations and defer cleanup to the final return.
-  Neither is yet the complete `EdgeCleanupPlan`, conditional-control path,
-  repeated-cycle composition, or conservation witness.
+  A first structural Unit conditional path now branches on one retained Boolean
+  input and reconstructs independent transfer/cleanup partitions for two
+  ordered successors. These slices are not yet the complete `EdgeCleanupPlan`,
+  wider conditional-control path, repeated-cycle composition, or conservation
+  witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
