@@ -107,11 +107,11 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
     }];
     caller.blocks[0].terminator = Terminator::ReturnUnitNominalAffine {
         edge: edge_id(900),
-        cleanup: NominalAffineCleanup {
+        cleanups: vec![NominalAffineCleanup {
             place: source,
             structural_type,
             cleanup_machine,
-        },
+        }],
     };
     module.machines.push(TerminalMachine {
         id: cleanup_machine,
@@ -156,6 +156,46 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         2,
         "the caller edge and cleanup-machine edge are both charged"
     );
+}
+
+#[test]
+fn ordered_empty_nominal_affine_cleanups_have_exact_three_unit_bound() {
+    let module = ordered_empty_nominal_affine_fixture(false);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("ordered nominal cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("ordered nominal cleanups have an exact fixed bound");
+
+    assert_eq!(
+        certificate.ceiling_units(),
+        3,
+        "one root edge plus two cleanup-machine return edges"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
+fn ordered_nominal_affine_cleanups_count_the_same_target_twice() {
+    let module = ordered_empty_nominal_affine_fixture(true);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("same-target nominal cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("same-target nominal cleanups have an exact fixed bound");
+
+    assert_eq!(
+        certificate.ceiling_units(),
+        3,
+        "memoization must not collapse two invocations of one cleanup machine"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }
 
 #[test]
@@ -943,6 +983,141 @@ fn unit_fixture() -> TerminalModule {
     }
 }
 
+fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
+    let first_type = structural_type_id(900);
+    let second_type = if same_target {
+        first_type
+    } else {
+        structural_type_id(901)
+    };
+    let first_place = place_id(900);
+    let second_place = place_id(901);
+    let first_cleanup = machine_id(901);
+    let second_cleanup = if same_target {
+        first_cleanup
+    } else {
+        machine_id(902)
+    };
+    let primitive_record = |id, identity: &str, field| StructuralTypeDeclaration {
+        id,
+        identity: identity.into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                identity: "payload".into(),
+                id: psi_core::StructuralFieldId::new(field).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                )),
+                relevance: psi_terminal::BindingRelevance::Relevant,
+            }],
+        },
+    };
+    let cleanup_machine = |id, attachment, block, edge, contract| TerminalMachine {
+        id,
+        attachment: Some(attachment),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block,
+        blocks: vec![Block {
+            id: block,
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge,
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract,
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+
+    let mut module = unit_fixture();
+    module.structural_types = vec![primitive_record(first_type, "test::First", 900)];
+    if !same_target {
+        module
+            .structural_types
+            .push(primitive_record(second_type, "test::Second", 901));
+    }
+    let caller = &mut module.machines[0];
+    caller.structural_parameters = vec![
+        StructuralParameterDeclaration {
+            place: first_place,
+            position: 0,
+            is_self: false,
+            structural_type: first_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+        StructuralParameterDeclaration {
+            place: second_place,
+            position: 1,
+            is_self: false,
+            structural_type: second_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+    ];
+    caller.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: first_place,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: second_place,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        },
+    ];
+    caller.blocks[0].terminator = Terminator::ReturnUnitNominalAffine {
+        edge: edge_id(900),
+        cleanups: vec![
+            NominalAffineCleanup {
+                place: second_place,
+                structural_type: second_type,
+                cleanup_machine: second_cleanup,
+            },
+            NominalAffineCleanup {
+                place: first_place,
+                structural_type: first_type,
+                cleanup_machine: first_cleanup,
+            },
+        ],
+    };
+    module.machines.push(cleanup_machine(
+        first_cleanup,
+        first_type,
+        block_id(901),
+        edge_id(901),
+        contract_id(901),
+    ));
+    if !same_target {
+        module.machines.push(cleanup_machine(
+            second_cleanup,
+            second_type,
+            block_id(902),
+            edge_id(902),
+            contract_id(902),
+        ));
+    }
+    module
+}
+
 fn executable_nominal_affine_fixture() -> TerminalModule {
     let empty_contract = |raw| MachineContract {
         id: contract_id(raw),
@@ -993,11 +1168,11 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
     }];
     caller.blocks[0].terminator = Terminator::ReturnUnitNominalAffine {
         edge: edge_id(900),
-        cleanup: NominalAffineCleanup {
+        cleanups: vec![NominalAffineCleanup {
             place: source,
             structural_type: token_type,
             cleanup_machine: machine_id(901),
-        },
+        }],
     };
     module.machines.push(TerminalMachine {
         id: machine_id(901),

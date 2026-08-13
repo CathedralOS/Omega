@@ -295,14 +295,14 @@ fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discar
         }] if trivial_affine_local_discard_ordinals.is_empty()
             && trivial_affine_discards.is_empty()
     ));
-    assert_eq!(plan.cleanup.source_parameter_index, 0);
+    assert_eq!(plan.cleanups[0].source_parameter_index, 0);
     assert_eq!(
-        plan.cleanup.type_identity,
+        plan.cleanups[0].type_identity,
         plan.machine.structural_parameters[0].type_identity
     );
-    assert_eq!(plan.cleanup.cleanup_machine, drop);
+    assert_eq!(plan.cleanups[0].cleanup_machine, drop);
     assert_eq!(
-        plan.cleanup.cleanup_state,
+        plan.cleanups[0].cleanup_state,
         checked.machine_states(
             checked
                 .machines()
@@ -318,7 +318,7 @@ fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discar
         .terminal_nominal_affine_unit_cleanups
         .structural_types
         .iter()
-        .find(|shape| shape.identity == plan.cleanup.type_identity)
+        .find(|shape| shape.identity == plan.cleanups[0].type_identity)
         .expect("cleanup type shape");
     assert!(record_fields(token_shape).is_empty());
 }
@@ -347,7 +347,7 @@ fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
         .terminal_nominal_affine_unit_cleanups
         .structural_types
         .iter()
-        .find(|shape| shape.identity == plan.cleanup.type_identity)
+        .find(|shape| shape.identity == plan.cleanups[0].type_identity)
         .expect("cleanup type shape");
     let [field] = record_fields(token_shape) else {
         panic!("bounded nominal cleanup retains exactly one field")
@@ -394,7 +394,7 @@ fn retains_wide_flat_mixed_primitive_record_for_whole_root_nominal_cleanup() {
         .terminal_nominal_affine_unit_cleanups
         .structural_types
         .iter()
-        .find(|shape| shape.identity == plan.cleanup.type_identity)
+        .find(|shape| shape.identity == plan.cleanups[0].type_identity)
         .expect("cleanup type shape");
     let [flag, tag, delta, payload, address] = record_fields(token_shape) else {
         panic!("bounded nominal cleanup retains every flat primitive field")
@@ -485,8 +485,23 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
             .for_machine(machine_named(&checked, "exact"))
             .is_some()
     );
+    let ordered = plans
+        .for_machine(machine_named(&checked, "two"))
+        .expect("two whole affine roots have an ordered cleanup plan");
+    assert_eq!(
+        ordered
+            .cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        [1, 0],
+        "independent roots clean in reverse declaration order"
+    );
+    assert_eq!(
+        ordered.cleanups[0].cleanup_machine, ordered.cleanups[1].cleanup_machine,
+        "same-type roots may share their exact cleanup target"
+    );
     for machine in [
-        "two",
         "with_local",
         "with_call",
         "with_contract",
@@ -510,7 +525,7 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_s
     }
     assert_eq!(
         plans.machines.len(),
-        1,
+        2,
         "rejected candidates must not leave partial cleanup plans"
     );
 }

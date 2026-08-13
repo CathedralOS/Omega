@@ -577,32 +577,53 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             validate_operation_foundation(module, machine, operation)?;
         }
         for block in &machine.blocks {
-            if let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &block.terminator {
+            if let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator {
                 if !matches!(machine.result, TerminalMachineResult::Unit) {
                     return malformed("nominal affine cleanup requires a Unit result");
                 }
-                let Some(parameter) = machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == cleanup.place)
-                else {
-                    return malformed("nominal affine cleanup root is not a structural parameter");
-                };
-                if parameter.multiplicity != StructuralMultiplicity::Affine
-                    || !parameter.qualifications.is_empty()
-                    || machine
-                        .entry_claims
-                        .iter()
-                        .any(|claim| claim.input == cleanup.place)
-                {
+                if cleanups.is_empty() || cleanups.len() > 2 {
+                    return malformed("nominal affine cleanup list is empty or wider than two");
+                }
+                if cleanups.len() != machine.structural_parameters.len() {
                     return malformed(
-                        "nominal affine cleanup is not a claim-free qualified-free affine root",
+                        "nominal affine cleanup list does not cover every structural parameter",
                     );
                 }
-                if parameter.structural_type != cleanup.structural_type {
-                    return malformed(
-                        "nominal affine cleanup type does not match its structural parameter",
-                    );
+                if cleanups.iter().any(|cleanup| {
+                    !machine
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == cleanup.place)
+                }) {
+                    return malformed("nominal affine cleanup root is not a structural parameter");
+                }
+                let mut places = BTreeSet::new();
+                for (cleanup, parameter) in cleanups
+                    .iter()
+                    .zip(machine.structural_parameters.iter().rev())
+                {
+                    if cleanup.place != parameter.place {
+                        return malformed(
+                            "nominal affine cleanup list is not in reverse parameter order",
+                        );
+                    }
+                    if !places.insert(cleanup.place)
+                        || parameter.multiplicity != StructuralMultiplicity::Affine
+                        || !parameter.qualifications.is_empty()
+                        || machine
+                            .entry_claims
+                            .iter()
+                            .any(|claim| claim.input == cleanup.place)
+                    {
+                        return malformed(
+                            "nominal affine cleanup is duplicated or not a claim-free qualified-free affine root",
+                        );
+                    }
+                    if parameter.structural_type != cleanup.structural_type {
+                        return malformed(
+                            "nominal affine cleanup type does not match its structural parameter",
+                        );
+                    }
                 }
             }
             let Terminator::ReturnUnitPartialAffine {
@@ -1967,12 +1988,15 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(discard.structural_type);
             }
         }
-        Terminator::ReturnUnitNominalAffine { edge, cleanup } => {
+        Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
             writer.u8(8);
             writer.id(*edge);
-            writer.id(cleanup.place);
-            writer.id(cleanup.structural_type);
-            writer.id(cleanup.cleanup_machine);
+            writer.len("nominal affine cleanups", cleanups.len())?;
+            for cleanup in cleanups {
+                writer.id(cleanup.place);
+                writer.id(cleanup.structural_type);
+                writer.id(cleanup.cleanup_machine);
+            }
         }
         Terminator::ReturnStructural {
             edge,
@@ -3341,11 +3365,13 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         },
         8 => Terminator::ReturnUnitNominalAffine {
             edge: reader.id("EdgeId")?,
-            cleanup: NominalAffineCleanup {
-                place: reader.id("PlaceId")?,
-                structural_type: reader.id("StructuralTypeId")?,
-                cleanup_machine: reader.id("MachineId")?,
-            },
+            cleanups: decode_counted(reader, |reader| {
+                Ok(NominalAffineCleanup {
+                    place: reader.id("PlaceId")?,
+                    structural_type: reader.id("StructuralTypeId")?,
+                    cleanup_machine: reader.id("MachineId")?,
+                })
+            })?,
         },
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     };

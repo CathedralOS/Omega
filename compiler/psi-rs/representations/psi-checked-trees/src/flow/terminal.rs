@@ -567,9 +567,10 @@ impl CheckedNominalAffineUnitCleanupPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNominalAffineUnitCleanupMachinePlan {
     /// Exact ordinary Unit signature and return edge. Both trivial-discard
-    /// lists are empty; `cleanup` is the sole disposal committed by the edge.
+    /// lists are empty; `cleanups` is the complete reverse-parameter-order
+    /// disposal list committed by the edge.
     pub machine: CheckedUnitEffectMachinePlan,
-    pub cleanup: CheckedUnitNominalAffineCleanupPlan,
+    pub cleanups: Vec<CheckedUnitNominalAffineCleanupPlan>,
 }
 
 /// One whole affine parameter disposed by its exact checked empty nominal

@@ -463,19 +463,35 @@ fn outcome_bounds_from(
             ),
             crashed: None,
         },
-        (Terminator::ReturnUnitNominalAffine { cleanup, .. }, Some(prefix)) => {
-            maximum_machine_outcomes(
-                cleanup.cleanup_machine,
-                machines,
-                schedule,
-                memoized_machines,
-                active_machines,
-            )?
-            .with_prefix(
-                prefix
-                    .checked_add(terminator_units)
-                    .ok_or(FixedFuelError::BoundOverflow)?,
-            )?
+        (Terminator::ReturnUnitNominalAffine { cleanups, .. }, Some(prefix)) => {
+            let mut bounds = OutcomeBounds {
+                returned: Some(
+                    prefix
+                        .checked_add(terminator_units)
+                        .ok_or(FixedFuelError::BoundOverflow)?,
+                ),
+                crashed: None,
+            };
+            for cleanup in cleanups {
+                let Some(cleanup_prefix) = bounds.returned else {
+                    break;
+                };
+                let cleanup_bounds = maximum_machine_outcomes(
+                    cleanup.cleanup_machine,
+                    machines,
+                    schedule,
+                    memoized_machines,
+                    active_machines,
+                )?;
+                bounds = OutcomeBounds {
+                    returned: checked_optional_add(cleanup_bounds.returned, cleanup_prefix)?,
+                    crashed: maximum_optional(
+                        bounds.crashed,
+                        checked_optional_add(cleanup_bounds.crashed, cleanup_prefix)?,
+                    ),
+                };
+            }
+            bounds
         }
         (Terminator::Crash { .. }, Some(prefix)) => OutcomeBounds {
             returned: None,

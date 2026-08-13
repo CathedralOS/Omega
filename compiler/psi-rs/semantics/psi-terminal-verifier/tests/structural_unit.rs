@@ -27,6 +27,30 @@ fn exact_empty_nominal_affine_cleanup_validates() {
 }
 
 #[test]
+fn two_nominal_affine_roots_validate_in_reverse_order_and_may_share_a_target() {
+    let module = two_root_nominal_affine_module();
+    validate_module(&module).expect("two ordered nominal cleanup roots should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("two ordered nominal cleanup roots require no proof evidence");
+
+    let mut reordered = module;
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups.reverse();
+    assert!(matches!(
+        validate_module(&reordered),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
 fn exact_one_call_nominal_affine_cleanup_validates_and_verifies() {
     let module = executable_nominal_affine_module();
     validate_module(&module).expect("exact one-call nominal cleanup should validate");
@@ -2224,11 +2248,11 @@ fn nominal_affine_module() -> TerminalModule {
             operations: Vec::new(),
             terminator: Terminator::ReturnUnitNominalAffine {
                 edge: edge_id(1),
-                cleanup: NominalAffineCleanup {
+                cleanups: vec![NominalAffineCleanup {
                     place: place_id(1),
                     structural_type: token.id,
                     cleanup_machine: machine_id(2),
-                },
+                }],
             },
         }],
         contract: empty_contract(contract_id(1)),
@@ -2268,6 +2292,41 @@ fn nominal_affine_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         machines: vec![caller, cleanup],
     }
+}
+
+fn two_root_nominal_affine_module() -> TerminalModule {
+    let mut module = nominal_affine_module();
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 1,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(2),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups.insert(
+        0,
+        NominalAffineCleanup {
+            place: place_id(2),
+            structural_type: structural_type_id(1),
+            cleanup_machine: machine_id(2),
+        },
+    );
+    module
 }
 
 fn executable_nominal_affine_module() -> TerminalModule {
