@@ -186,11 +186,12 @@ Current ownership is:
   sibling branches are admitted independently and all nested-call writes remain
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
-  relational handling. Targets include exact transparent
-  call-produced places. An indexed target may contain one or more indexes whose
-  non-rebinding direct-call trees are independently complete through depth two;
-  the first index fixes the collection-coarse write, later indexes are
-  absorbing, and every index-call write remains published. Deeper,
+  relational handling. Targets may project through a stable helper-local
+  mutable alias or an exact transparent call-produced place. An indexed target
+  may contain one or more indexes whose non-rebinding direct-call trees are
+  independently complete through depth two; the first index fixes the
+  collection-coarse write, later indexes are absorbing, and every index-call
+  write remains published. Deeper,
   binding-reborrow, recursive, or opaque indexed targets remain fences. The
   bounded indexed target and bounded non-reference value tree may coexist on
   one assignment; their frames compose independently, while either side
