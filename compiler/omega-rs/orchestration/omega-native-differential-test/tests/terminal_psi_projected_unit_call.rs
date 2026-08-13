@@ -172,12 +172,12 @@ const ORDERED_CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
 
     data Distinct { ready: bool; padding: u8; }
     machine Distinct::drop(&mut self)
-    requires self.ready
+    requires self.ready == false
     { Helper::touch(); }
 
     data Root {}
     machine Root::enter(first: Shared, second: Distinct, third: Shared)
-    requires third.ready, first.audited, second.ready, first.ready
+    requires third.ready, first.audited, second.ready == false, first.ready
     {}
 "#;
 

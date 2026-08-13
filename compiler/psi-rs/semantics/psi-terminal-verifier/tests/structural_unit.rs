@@ -93,6 +93,116 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
 }
 
 #[test]
+fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_false_receiver_requirement() {
+    let mut module = contextual_nominal_affine_module();
+    let field = psi_core::StructuralFieldId::new(1).expect("field");
+    let caller_requirement = Proposition::Equal(
+        ScalarTerm::boolean(false),
+        ScalarTerm::boolean_field(place_id(1), field),
+    );
+    let target_requirement = Proposition::Equal(
+        ScalarTerm::boolean(false),
+        ScalarTerm::boolean_field(place_id(99), field),
+    );
+    module.machines[0].contract.requires = vec![caller_requirement.clone()];
+    module.machines[1].contract.requires = vec![target_requirement];
+
+    validate_module(&module).expect("a false-polarity cleanup requirement should validate");
+    let obligations = reconstruct_operation_obligations(&module).expect("cleanup obligation");
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(obligations[0].obligation.id, obligation_id(1));
+    assert_eq!(obligations[0].obligation.proposition, caller_requirement);
+
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(1).expect("certificate"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: caller_requirement,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("the matching false caller fact discharges the cleanup premise");
+}
+
+#[test]
+fn contextual_nominal_affine_cleanup_orders_mixed_polarities_before_field_bytes() {
+    let mut module = two_requirement_contextual_nominal_affine_module();
+    let first = psi_core::StructuralFieldId::new(1).expect("first field");
+    let second = psi_core::StructuralFieldId::new(2).expect("second field");
+    let caller_requirements = [
+        Proposition::Equal(
+            ScalarTerm::boolean(false),
+            ScalarTerm::boolean_field(place_id(1), second),
+        ),
+        Proposition::Equal(
+            ScalarTerm::boolean(true),
+            ScalarTerm::boolean_field(place_id(1), first),
+        ),
+    ];
+    let target_requirements = [
+        Proposition::Equal(
+            ScalarTerm::boolean(false),
+            ScalarTerm::boolean_field(place_id(99), second),
+        ),
+        Proposition::Equal(
+            ScalarTerm::boolean(true),
+            ScalarTerm::boolean_field(place_id(99), first),
+        ),
+    ];
+    module.machines[0].contract.requires = caller_requirements.to_vec();
+    module.machines[1].contract.requires = target_requirements.to_vec();
+
+    validate_module(&module)
+        .expect("encoded false polarity sorts before true independently of field identity");
+    let obligations = reconstruct_operation_obligations(&module).expect("cleanup obligations");
+    assert_eq!(obligations.len(), 2);
+    for (index, expected) in caller_requirements.into_iter().enumerate() {
+        assert_eq!(obligations[index].obligation.proposition, expected);
+    }
+
+    let bundle = ProofBundle {
+        evidence: obligations
+            .into_iter()
+            .enumerate()
+            .map(|(index, reconstructed)| ObligationEvidence {
+                obligation: reconstructed.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(index as u64 + 1).expect("certificate"),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: reconstructed.obligation.proposition,
+                        rule: ProofRule::Assumption { index },
+                    },
+                }),
+            })
+            .collect(),
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("mixed-polarity caller facts discharge in canonical order");
+
+    let mut reversed = module.clone();
+    reversed.machines[1].contract.requires.reverse();
+    assert!(matches!(
+        validate_module(&reversed),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut duplicate_key = module;
+    duplicate_key.machines[1].contract.requires[1] =
+        duplicate_key.machines[1].contract.requires[0].clone();
+    assert!(matches!(
+        validate_module(&duplicate_key),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
 fn contextual_nominal_affine_cleanup_reconstructs_finite_ordered_requirements() {
     let module = two_requirement_contextual_nominal_affine_module();
     validate_module(&module).expect("two contextual cleanup requirements should validate");
@@ -305,15 +415,17 @@ fn contextual_nominal_affine_cleanup_rejects_forged_requirement_binding() {
         expected_invalid(&reversed)
     );
 
-    let mut false_requirement = contextual_nominal_affine_module();
-    let Proposition::Equal(left, _) = &mut false_requirement.machines[1].contract.requires[0]
+    let mut malformed_expected_term = contextual_nominal_affine_module();
+    let Proposition::Equal(left, _) = &mut malformed_expected_term.machines[1].contract.requires[0]
     else {
         unreachable!()
     };
-    *left = ScalarTerm::boolean(false);
+    *left = ScalarTerm::BooleanNot {
+        operand: Box::new(ScalarTerm::boolean(false)),
+    };
     assert_eq!(
-        validate_module(&false_requirement).unwrap_err(),
-        expected_invalid(&false_requirement)
+        validate_module(&malformed_expected_term).unwrap_err(),
+        expected_invalid(&malformed_expected_term)
     );
 
     let mut extra_requirement = contextual_nominal_affine_module();
