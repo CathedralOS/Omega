@@ -14000,22 +14000,13 @@ fn runtime_fixed_array_field_value_exit_canary_runs() {
     // writes three distinct elements, reads the middle-high one into a field, and
     // guards it; a dropped index exits 71 instead of 70.
     let canary = pass_canary("expressions/runtime_fixed_array_field_value_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-fixed-array-field-value-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("fixed-array field value canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("fixed-array field value canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("fixed-array field value canary should run");
 
@@ -14027,7 +14018,7 @@ fn runtime_fixed_array_field_value_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14037,22 +14028,13 @@ fn fixed_array_element_guard_canary_runs() {
     // (which the encoder rejected). Promoted from pending once the guard-operand
     // layout applied the constant index; exits 0 when the guard reads cells[2].
     let canary = pass_canary("control_flow/fixed_array_element_guard");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-fixed-array-elem-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("fixed-array element guard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("fixed-array element guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("fixed-array element guard canary should run");
 
@@ -14064,7 +14046,7 @@ fn fixed_array_element_guard_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14074,22 +14056,13 @@ fn runtime_float_local_arithmetic_exit_canary_runs() {
     // binary write used to emit an integer op; the canary guards the exact result
     // (6.5) and exits 70 only when correct (71 otherwise).
     let canary = pass_canary("expressions/runtime_float_local_arithmetic_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-float-local-arith-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float local arithmetic canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float local arithmetic canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float local arithmetic canary should run");
 
@@ -14101,7 +14074,7 @@ fn runtime_float_local_arithmetic_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14113,22 +14086,13 @@ fn float_array_binary_op_zero_exit_canary_runs() {
     // so `binary_value_operands_are_float` returned false.  Fixed to apply the
     // element index from the root-field member_index when the suffix is empty.
     let canary = pass_canary("expressions/float_array_binary_op_zero");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-float-array-binary-op-zero-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float_array_binary_op_zero canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float_array_binary_op_zero canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float_array_binary_op_zero canary should run");
 
@@ -14140,7 +14104,7 @@ fn float_array_binary_op_zero_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14149,22 +14113,13 @@ fn f32_array_binary_op_zero_exit_canary_runs() {
     // Both operands `self.vals[0]` and `self.vals[1]` are f32; their sum
     // 3.0f32 + 4.0f32 = 7.0f32 must use addss and exit 70.
     let canary = pass_canary("expressions/f32_array_binary_op_zero");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-f32-array-binary-op-zero-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32_array_binary_op_zero canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32_array_binary_op_zero canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32_array_binary_op_zero canary should run");
 
@@ -14176,29 +14131,20 @@ fn f32_array_binary_op_zero_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn arithmetic_domain_wrapping_exit_canary_runs() {
     // Decision 17 S1a: `u8 in Wrapping` parses and wraps (200+100 -> 44).
     let canary = pass_canary("expressions/arithmetic_domain_wrapping_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-wrapping-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_wrapping canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_wrapping canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_wrapping canary should run");
 
@@ -14210,7 +14156,7 @@ fn arithmetic_domain_wrapping_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14218,22 +14164,13 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
     // Decision 17 S1b: `u8 in Saturating` clamps on overflow (200+100 -> 255),
     // NOT wraps to 44. Native emits a width-correct add + carry-flag cmov.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-saturating-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_saturating canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_saturating canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating canary should run");
 
@@ -14245,7 +14182,7 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14256,22 +14193,13 @@ fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
     // it is a genuine runtime value (defeats const-folding), exercising the native
     // divisor==-1 guard + cmovo saturation.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_div_mod_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-sat-div-mod-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_saturating_div_mod canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_saturating_div_mod canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_div_mod canary should run");
 
@@ -14283,7 +14211,7 @@ fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14294,22 +14222,13 @@ fn runtime_guard_divide_modulo_exit_canary_runs() {
     // took the true arm. Every arm here is reached only on a correct guard, so the
     // regression would exit 71-74 instead of 70.
     let canary = pass_canary("expressions/runtime_guard_divide_modulo_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-guard-div-mod-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime_guard_divide_modulo canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime_guard_divide_modulo canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime_guard_divide_modulo canary should run");
 
@@ -14321,7 +14240,7 @@ fn runtime_guard_divide_modulo_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14332,22 +14251,13 @@ fn runtime_guard_negative_arithmetic_exit_canary_runs() {
     // the non-immediate operand so the compare runs at the i32 width. Every arm is
     // reached only on a correct guard, so a regression exits 71-74.
     let canary = pass_canary("expressions/runtime_guard_negative_arithmetic_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-guard-neg-arith-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime_guard_negative_arithmetic canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime_guard_negative_arithmetic canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime_guard_negative_arithmetic canary should run");
 
@@ -14359,7 +14269,7 @@ fn runtime_guard_negative_arithmetic_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14369,22 +14279,13 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
     // the operand width (32-bit) -- signed idiv for i32, Divide->DivideUnsigned for
     // u32 so a large u32 is not misread as negative. A regression exits 71-74.
     let canary = pass_canary("expressions/runtime_guard_divide_modulo_signedness_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-guard-divmod-sign-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime_guard_divide_modulo_signedness canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime_guard_divide_modulo_signedness canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime_guard_divide_modulo_signedness canary should run");
 
@@ -14396,7 +14297,7 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14405,17 +14306,11 @@ fn runtime_nested_loop_grid_sum_exit_canary_runs() {
     // i*3+j over a 3x3 grid -> 36. Exercises nested control flow + per-outer inner-counter reset.
     // Exit 70 iff sum == 36.
     let canary = pass_canary("control_flow/runtime_nested_loop_grid_sum_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-loop-grid-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested loop grid canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested loop grid canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested loop grid canary should run");
     assert_eq!(
@@ -14425,7 +14320,7 @@ fn runtime_nested_loop_grid_sum_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14434,17 +14329,11 @@ fn runtime_multi_field_payload_arith_exit_canary_runs() {
     // a computed transition arg (w * h + 58), discriminating arm selection AND both field binds
     // (Circle computes r * 7). Rect{3,4} -> 70.
     let canary = pass_canary("control_flow/runtime_multi_field_payload_arith_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-multi-field-payload-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("multi-field payload canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("multi-field payload canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("multi-field payload canary should run");
     assert_eq!(
@@ -14454,7 +14343,7 @@ fn runtime_multi_field_payload_arith_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14462,20 +14351,13 @@ fn case_payload_shared_field_name_exit_canary_runs() {
     // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).
     let canary = pass_canary("control_flow/case_payload_shared_field_name_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-case-payload-collision-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("case_payload_shared_field_name canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("case_payload_shared_field_name canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("case_payload_shared_field_name canary should run");
     assert_eq!(
@@ -14487,7 +14369,7 @@ stderr:
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14509,17 +14391,11 @@ fn sum_field_storage_roundtrip_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-sum-field-roundtrip-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sum field-storage canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("sum field-storage canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("sum field-storage canary should run");
     assert_eq!(
@@ -14529,7 +14405,7 @@ fn sum_field_storage_roundtrip_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14551,17 +14427,11 @@ fn sum_mixed_width_payload_layout_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-sum-mixed-width-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sum mixed-width payload canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("sum mixed-width payload canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("sum mixed-width payload canary should run");
     assert_eq!(
@@ -14571,7 +14441,7 @@ fn sum_mixed_width_payload_layout_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14579,20 +14449,11 @@ fn arithmetic_domain_saturating_mul_exit_canary_runs() {
     // Decision 17: `u8 in Saturating` multiply clamps 100*100=10000 to 255 (a
     // 64-bit imul gives the exact product, then range-compare + cmov to the max).
     let canary = pass_canary("expressions/arithmetic_domain_saturating_mul_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-sat-mul-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_saturating_mul canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_saturating_mul canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_mul canary should run");
 
@@ -14604,7 +14465,7 @@ fn arithmetic_domain_saturating_mul_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14612,20 +14473,13 @@ fn arithmetic_domain_saturating_mul_signed_exit_canary_runs() {
     // Decision 17: signed saturating multiply clamps both ways (2500->127 cmovg,
     // -2500->-128 cmovl).
     let canary = pass_canary("expressions/arithmetic_domain_saturating_mul_signed_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-sat-mul-signed-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_saturating_mul_signed canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_saturating_mul_signed canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_mul_signed canary should run");
     assert_eq!(
@@ -14635,7 +14489,7 @@ fn arithmetic_domain_saturating_mul_signed_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14643,20 +14497,13 @@ fn arithmetic_domain_trapping_div_exit_canary_runs() {
     // Decision 17: Trapping divide routes to the normal idiv (which traps on
     // overflow / div-by-zero); in range 140/2 = 70.
     let canary = pass_canary("expressions/arithmetic_domain_trapping_div_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-trap-div-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_trapping_div canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_trapping_div canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_div canary should run");
     assert_eq!(
@@ -14668,27 +14515,20 @@ stderr:
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn arithmetic_domain_trapping_mul_exit_canary_runs() {
     // Decision 17: in-range Trapping multiply (10*10=100) does not trap.
     let canary = pass_canary("expressions/arithmetic_domain_trapping_mul_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-arith-domain-trap-mul-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arithmetic_domain_trapping_mul canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("arithmetic_domain_trapping_mul canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_mul canary should run");
     assert_eq!(
@@ -14698,7 +14538,7 @@ fn arithmetic_domain_trapping_mul_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 transition-arg enforcement + dominating-guard narrowing: the
@@ -14708,17 +14548,11 @@ fn arithmetic_domain_trapping_mul_exit_canary_runs() {
 #[test]
 fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_arg_guard_narrowing_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-transition-arg-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded transition-arg decrement should compile (guard narrows n-1 to Exact)");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guarded transition-arg decrement should compile (guard narrows n-1 to Exact)");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("transition-arg guard narrowing canary should run");
     assert_eq!(
@@ -14728,7 +14562,7 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 + S4 requires-seeding precision: a ONE-sided `requires x < 100`
@@ -14739,17 +14573,11 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_requires_one_sided_bound_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_requires_one_sided_bound_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-requires-one-sided-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("one-sided requires x<100 should prove x+1 Exact (env interval ∩ type range)");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("one-sided requires x<100 should prove x+1 Exact (env interval ∩ type range)");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("requires one-sided bound canary should run");
     assert_eq!(
@@ -14759,7 +14587,7 @@ fn runtime_requires_one_sided_bound_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 transition-VALUE return + dominating-guard narrowing: `n > 0`
@@ -14769,19 +14597,13 @@ fn runtime_requires_one_sided_bound_exit_canary_runs() {
 #[test]
 fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_value_guard_narrowing_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-transition-value-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded transition-value decrement should compile (guard narrows n-1 to Exact)");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guarded transition-value decrement should compile (guard narrows n-1 to Exact)");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("transition-value guard narrowing canary should run");
     assert_eq!(
@@ -14791,7 +14613,7 @@ fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 transition-arg narrowing on the FALSE arm: the arm fires when
@@ -14799,21 +14621,14 @@ fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_arg_false_arm_narrowing_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-transition-arg-false-arm-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect(
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()).expect(
         "false-arm transition-arg increment should compile (negated guard narrows n+1 to Exact)",
     );
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("transition-arg false-arm narrowing canary should run");
     assert_eq!(
@@ -14823,7 +14638,7 @@ fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 transition-arg enforcement respects domains: a Saturating-domain
@@ -14832,19 +14647,13 @@ fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_transition_arg_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_arg_saturating_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-transition-arg-saturating-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("Saturating transition-arg accumulator should compile (no exact-arith obligation)");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("Saturating transition-arg accumulator should compile (no exact-arith obligation)");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("transition-arg saturating canary should run");
     assert_eq!(
@@ -14854,7 +14663,7 @@ fn runtime_transition_arg_saturating_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Regression for the #59 native miscompile: a domain-cast of a slice ELEMENT in
@@ -14864,17 +14673,11 @@ fn runtime_transition_arg_saturating_exit_canary_runs() {
 #[test]
 fn runtime_cast_element_accumulator_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_cast_element_accumulator_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-cast-element-accum-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cast-of-element accumulator should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cast-of-element accumulator should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cast-element accumulator canary should run");
     assert_eq!(
@@ -14884,23 +14687,17 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_domain_boundaries_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_domain_boundaries_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-domain-boundaries-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("domain-boundaries canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("domain-boundaries canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("domain-boundaries canary should run");
     assert_eq!(
@@ -14910,7 +14707,7 @@ fn runtime_domain_boundaries_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14920,19 +14717,13 @@ fn runtime_comparison_signedness_exit_canary_runs() {
     // boundary. The canary self-checks u32/u8/u16 unsigned cases and i32/i64 signed
     // cases; the wrong arm exits 71.
     let canary = pass_canary("arithmetic/runtime_comparison_signedness_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-comparison-signedness-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("comparison-signedness canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("comparison-signedness canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("comparison-signedness canary should run");
     assert_eq!(
@@ -14942,7 +14733,7 @@ fn runtime_comparison_signedness_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14951,17 +14742,11 @@ fn runtime_shift_signedness_exit_canary_runs() {
     // one logical (shr). The canary builds the shift value at runtime (a loop) and
     // self-checks a negative arithmetic >>, a high-bit unsigned >>, and a <<.
     let canary = pass_canary("arithmetic/runtime_shift_signedness_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-shift-signedness-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shift-signedness canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("shift-signedness canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("shift-signedness canary should run");
     assert_eq!(
@@ -14971,7 +14756,7 @@ fn runtime_shift_signedness_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -14982,17 +14767,10 @@ fn runtime_shift_in_guard_exit_canary_runs() {
     // shifts run in codegen. Was rejected by the dispatch-guard blocker until the
     // guard value-operand path learned to thread shift signedness.
     let canary = pass_canary("arithmetic/runtime_shift_in_guard_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-shift-in-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shift-in-guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-shift-in-guard-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("shift-in-guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("shift-in-guard canary should run");
     assert_eq!(
@@ -15002,7 +14780,7 @@ fn runtime_shift_in_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15014,17 +14792,10 @@ fn runtime_cast_in_guard_exit_canary_runs() {
     // built at runtime so the casts run in codegen. Was rejected by the dispatch-guard
     // blocker until the guard resolver learned to resolve a Cast operand.
     let canary = pass_canary("arithmetic/runtime_cast_in_guard_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-cast-in-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cast-in-guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-cast-in-guard-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cast-in-guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cast-in-guard canary should run");
     assert_eq!(
@@ -15034,7 +14805,7 @@ fn runtime_cast_in_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15044,16 +14815,10 @@ fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
     // with no top-level comma through the general expression parser. Values built
     // at runtime; all guards must hold -> exit 70.
     let canary = pass_canary("arithmetic/runtime_parenthesized_guard_subjects_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("parenthesized-guard-subjects canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("parenthesized-guard-subjects canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("parenthesized-guard-subjects canary should run");
     assert_eq!(
@@ -15063,7 +14828,7 @@ fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15073,16 +14838,10 @@ fn runtime_and_of_or_guard_exit_canary_runs() {
     // (which already handles a full DNF) takes it. The canary discriminates true
     // and false arms via different operands; all must be correct -> exit 70.
     let canary = pass_canary("arithmetic/runtime_and_of_or_guard_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("and-of-or-guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("and-of-or-guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("and-of-or-guard canary should run");
     assert_eq!(
@@ -15092,7 +14851,7 @@ fn runtime_and_of_or_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15102,17 +14861,10 @@ fn runtime_negated_boolean_nesting_guard_exit_canary_runs() {
     // lowered. Complements the positive And-of-Or canary. Values built at runtime;
     // discriminates both arms -> exit 70.
     let canary = pass_canary("arithmetic/runtime_negated_boolean_nesting_guard_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-neg-bool-nest-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("negated-boolean-nesting canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-neg-bool-nest-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("negated-boolean-nesting canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("negated-boolean-nesting canary should run");
     assert_eq!(
@@ -15122,7 +14874,7 @@ fn runtime_negated_boolean_nesting_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15132,17 +14884,10 @@ fn runtime_guard_feature_composition_exit_canary_runs() {
     // together. Locks the integration of the guard-subject features (each canaried
     // alone). Values built at runtime; discriminates -> exit 70.
     let canary = pass_canary("arithmetic/runtime_guard_feature_composition_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-guard-compose-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guard-feature-composition canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-guard-compose-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guard-feature-composition canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("guard-feature-composition canary should run");
     assert_eq!(
@@ -15152,7 +14897,7 @@ fn runtime_guard_feature_composition_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15162,17 +14907,10 @@ fn runtime_saturating_narrow_add_sub_exit_canary_runs() {
     // to max, sub underflow clamps to min, unsigned underflow clamps to 0, in-range
     // stays exact. Differential-checked native==interp.
     let canary = pass_canary("arithmetic/runtime_saturating_narrow_add_sub_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-sat-narrow-as-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating narrow add/sub canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-sat-narrow-as-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating narrow add/sub canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating narrow add/sub canary should run");
     assert_eq!(
@@ -15182,7 +14920,7 @@ fn runtime_saturating_narrow_add_sub_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15192,16 +14930,10 @@ fn runtime_unsigned_high_bit_u32_ops_exit_canary_runs() {
     // compare is the sharpest check (signed `3e9 > 2e9` would be false). Differential
     // native==interp.
     let canary = pass_canary("arithmetic/runtime_unsigned_high_bit_u32_ops_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-u32-highbit-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned high-bit u32 ops canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-u32-highbit-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("unsigned high-bit u32 ops canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("unsigned high-bit u32 ops canary should run");
     assert_eq!(
@@ -15211,7 +14943,7 @@ fn runtime_unsigned_high_bit_u32_ops_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15220,16 +14952,10 @@ fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
     // i16 analogues), both ends, in-Wrapping. Complements the saturating narrow canaries.
     // All four corners must hold -> exit 70.
     let canary = pass_canary("arithmetic/runtime_narrow_signed_wrap_boundaries_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-narrow-wrap-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("narrow signed wrap canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-narrow-wrap-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("narrow signed wrap canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("narrow signed wrap canary should run");
     assert_eq!(
@@ -15239,7 +14965,7 @@ fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15247,19 +14973,13 @@ fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
     // Narrow (i8) signed compare/sub/mul with negative values as guard subjects -- the
     // working siblings of the narrow-signed-divide-guard fix; guards the area.
     let canary = pass_canary("arithmetic/runtime_narrow_signed_guard_ops_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-narrow-signed-guard-ops-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("narrow-signed-guard-ops canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("narrow-signed-guard-ops canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("narrow-signed-guard-ops canary should run");
     assert_eq!(
@@ -15269,7 +14989,7 @@ fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15278,19 +14998,13 @@ fn runtime_narrow_signed_divide_guard_exit_canary_runs() {
     // result. Guard-subject operands arrive zero-extended, so the 32-bit idiv divided
     // i8 -20 as 236 -- the divide core now sign-extends narrow signed operands.
     let canary = pass_canary("arithmetic/runtime_narrow_signed_divide_guard_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-narrow-signed-divide-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("narrow-signed-divide-guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("narrow-signed-divide-guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("narrow-signed-divide-guard canary should run");
     assert_eq!(
@@ -15300,7 +15014,7 @@ fn runtime_narrow_signed_divide_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15309,19 +15023,13 @@ fn runtime_saturating_narrow_divide_exit_canary_runs() {
     // normal divide, and the TYPE_MIN/-1 overflow clamped to TYPE_MAX (i8 127, i16
     // 32767). The narrow path clamps -a > TYPE_MAX instead of using neg's overflow flag.
     let canary = pass_canary("arithmetic/runtime_saturating_narrow_divide_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-saturating-narrow-divide-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating-narrow-divide canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating-narrow-divide canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating-narrow-divide canary should run");
     assert_eq!(
@@ -15331,7 +15039,7 @@ fn runtime_saturating_narrow_divide_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15340,17 +15048,11 @@ fn runtime_mixed_width_sign_exit_canary_runs() {
     // operand correctly: sign-extension (i32(-5)+i64), zero-extension (u8+i32),
     // narrower-signed (i16(-3)+i32), and a mixed-sign add (i32+u32).
     let canary = pass_canary("arithmetic/runtime_mixed_width_sign_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-mixed-width-sign-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mixed-width-sign canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("mixed-width-sign canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("mixed-width-sign canary should run");
     assert_eq!(
@@ -15360,7 +15062,7 @@ fn runtime_mixed_width_sign_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15371,17 +15073,10 @@ fn runtime_integer_casts_exit_canary_runs() {
     // whose initializer is a cast (or binary) reading a prior local was re-materialized
     // in the target state -- where the source local has no slot -- and read 0.
     let canary = pass_canary("arithmetic/runtime_integer_casts_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-integer-casts-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("integer-casts canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-integer-casts-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("integer-casts canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("integer-casts canary should run");
     assert_eq!(
@@ -15391,7 +15086,7 @@ fn runtime_integer_casts_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15400,16 +15095,10 @@ fn runtime_i64_divide_modulo_exit_canary_runs() {
     // byte-size resolver must fall back to the i64 target width, not 4, or the encoder
     // emits a 32-bit idiv (width mismatch + a truncated 64-bit dividend).
     let canary = pass_canary("arithmetic/runtime_i64_divide_modulo_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("i64 divide/modulo canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("i64 divide/modulo canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("i64 divide/modulo canary should run");
     assert_eq!(
@@ -15419,7 +15108,7 @@ fn runtime_i64_divide_modulo_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15428,17 +15117,10 @@ fn runtime_float_compare_cast_exit_canary_runs() {
     // f64/f32 arithmetic, int<->float and f32<->f64 casts, and nested-field float
     // arithmetic (a dot product). Self-checks to exit 70.
     let canary = pass_canary("arithmetic/runtime_float_compare_cast_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-float-breadth-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float compare/cast canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-float-breadth-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float compare/cast canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float compare/cast canary should run");
     assert_eq!(
@@ -15448,22 +15130,16 @@ fn runtime_float_compare_cast_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_float_operations_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_operations_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-float-ops-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float-arithmetic canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-float-ops-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float-arithmetic canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float-arithmetic canary should run");
     assert_eq!(
@@ -15473,7 +15149,7 @@ fn runtime_float_operations_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// ch15 stage 2 -- multi-path return-range inference: a callee returning via two
@@ -15482,17 +15158,11 @@ fn runtime_float_operations_exit_canary_runs() {
 #[test]
 fn runtime_inferred_multipath_return_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_inferred_multipath_return_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-inferred-multipath-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("multi-path inferred return range should let the caller prove Exact");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("multi-path inferred return range should let the caller prove Exact");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("multi-path inferred return canary should run");
     assert_eq!(
@@ -15502,7 +15172,7 @@ fn runtime_inferred_multipath_return_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// ch15 stage 2 (modular return-range inference): a callee with NO declared
