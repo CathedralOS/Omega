@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    ContentConservation, ContentStructuralPlace, ContentTerm, IntegerSign, IntegerValue,
-    ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralFieldId, ValueId,
+    CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
+    IntegerSign, IntegerValue, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
@@ -2438,7 +2438,7 @@ pub(crate) fn substitute_proposition_places(
 
 pub(crate) fn substitute_proposition_structural_places(
     proposition: &Proposition,
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Proposition {
     match proposition {
         Proposition::Truth => Proposition::Truth,
@@ -2487,12 +2487,12 @@ pub(crate) fn substitute_proposition_structural_places(
 
 fn substitute_scalar_term_places(
     term: &ScalarTerm,
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> ScalarTerm {
     let mut term = term.clone();
     fn substitute(
         term: &mut ScalarTerm,
-        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) {
         match term {
             ScalarTerm::BooleanField { root, path } => {
@@ -2551,7 +2551,7 @@ fn substitute_scalar_term_places(
 
 fn substitute_content_term_places(
     term: &ContentTerm,
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> ContentTerm {
     match term {
         ContentTerm::Projection {
