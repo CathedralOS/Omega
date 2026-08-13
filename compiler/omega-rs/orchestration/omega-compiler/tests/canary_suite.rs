@@ -8500,16 +8500,10 @@ fn runtime_crc32_exit_canary_runs() {
     // with shifts + XOR (reflected poly 0xEDB88320, init/final 0xFFFFFFFF). CRC-32("abc")
     // is 891568578, verified against zlib -> exit 70.
     let canary = pass_canary("text/runtime_crc32_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-crc32-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("crc32 canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-crc32-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("crc32 canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("crc32 canary should run");
     assert_eq!(
@@ -8519,7 +8513,7 @@ fn runtime_crc32_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -8528,16 +8522,10 @@ fn runtime_base64_encode_exit_canary_runs() {
     // OR), each indexing the 64-char alphabet. "Man" -> "TWFu", all four bytes checked ->
     // exit 70.
     let canary = pass_canary("text/runtime_base64_encode_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-base64-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("base64 encode canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-base64-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("base64 encode canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("base64 encode canary should run");
     assert_eq!(
@@ -8547,7 +8535,7 @@ fn runtime_base64_encode_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
