@@ -346,6 +346,110 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
 }
 
 #[test]
+fn structural_unit_conditional_may_follow_an_unconditional_prefix() {
+    let supported = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(first: Token, second: Token, choose_first: bool, value: i32)
+        {
+            transition { _ -> decide(first, second, choose_first, value) }
+            state decide(first: Token, second: Token, choose_first: bool, value: i32) {
+                transition choose_first {
+                    true -> keep_first(first, value)
+                    _ -> keep_second(second, value)
+                }
+            }
+            state keep_first(first: Token, value: i32) {}
+            state keep_second(second: Token, value: i32) {}
+        }
+        "#,
+    );
+    let machine = supported
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    let plan = supported
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("one nonentry structural Unit conditional should compose");
+    assert_eq!(plan.states.len(), 4);
+    assert!(matches!(
+        &plan.states[0].terminator,
+        psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+            transfers,
+            scalar_arguments,
+            trivial_affine_discard_parameter_positions,
+            ..
+        } if transfers.len() == 2
+            && scalar_arguments.len() == 2
+            && trivial_affine_discard_parameter_positions.is_empty()
+    ));
+    assert!(matches!(
+        &plan.states[1].terminator,
+        psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+            guard_scalar_parameter_index: 0,
+            ..
+        }
+    ));
+
+    let rejected = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(
+            first: Token,
+            second: Token,
+            third: Token,
+            choose_first: bool,
+            choose_second: bool,
+            value: i32
+        ) {
+            transition choose_first {
+                true -> keep_first(first, value)
+                _ -> decide_second(second, third, choose_second, value)
+            }
+            state decide_second(
+                second: Token,
+                third: Token,
+                choose_second: bool,
+                value: i32
+            ) {
+                transition choose_second {
+                    true -> keep_second(second, value)
+                    _ -> keep_third(third, value)
+                }
+            }
+            state keep_first(first: Token, value: i32) {}
+            state keep_second(second: Token, value: i32) {}
+            state keep_third(third: Token, value: i32) {}
+        }
+        "#,
+    );
+    let machine = rejected
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    assert!(
+        rejected
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .for_machine(machine)
+            .is_none(),
+        "multiple conditional states remain outside the bounded topology slice"
+    );
+}
+
+#[test]
 fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
     let checked = checked(
         r#"

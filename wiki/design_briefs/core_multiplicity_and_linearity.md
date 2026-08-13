@@ -189,7 +189,9 @@ requires transfers plus reverse-order cleanup to partition every source
 frontier; stale types, positions, cleanup, joins, cycles, and reordered custody
 reject. One narrow conditional producer now selects two ordered successors from
 a retained Boolean scalar input and independently reconstructs each arm's
-whole-parameter transfer/cleanup partition. Unconditional jumps and conditional
+whole-parameter transfer/cleanup partition. The one decision state may follow
+an unconditional prefix; multiple or nested decisions remain fenced.
+Unconditional jumps and conditional
 arms may forward direct scalar inputs into typed successor parameters; terminal
 edge semantics materialize those arguments before cleanup. Computed guards or
 successor values and wider conditional graphs remain fenced. The complete
