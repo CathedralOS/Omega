@@ -13,12 +13,12 @@ use psi_terminal::{
     OperationKind, OperationResult, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -30,7 +30,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 1_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 2_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -38,11 +38,69 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "bd696afc4109e7ad0ae68fcb0c5990f3c00d934b4b34734c22c05a841d8f6195"
+        "2f38ef1d9260cda869d3f5643ea165c56fae169dd9f45f18a25938f0d732b315"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
+    let module = partial_affine_fixture();
+    let bytes = encode_module(&module).expect("partial affine return should encode");
+    assert_eq!(&bytes[8..10], 2_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 7_u16.to_le_bytes());
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn partial_affine_unit_return_rejects_corrupt_path_type_and_duplicate_action() {
+    let mut wrong_type = partial_affine_fixture();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut wrong_type.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards[0].structural_type = structural_type_id(1);
+    assert_eq!(
+        encode_module(&wrong_type),
+        Err(CodecError::MalformedStructuralFoundation(
+            "partial affine cleanup leaf type does not match its path"
+        ))
+    );
+
+    let mut duplicate = partial_affine_fixture();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut duplicate.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.push(residual_affine_discards[0].clone());
+    assert_eq!(
+        encode_module(&duplicate),
+        Err(CodecError::NonCanonicalOrder(
+            "partial affine residual discards are unique"
+        ))
+    );
+
+    let mut corrupt_bytes = encode_module(&partial_affine_fixture()).unwrap();
+    let field = corrupt_bytes
+        .windows(4)
+        .rposition(|window| window == b"left")
+        .expect("encoded residual field identity");
+    corrupt_bytes[field..field + 4].copy_from_slice(b"gone");
+    assert_eq!(
+        decode_module(&corrupt_bytes),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural path has an unknown structural field"
+        ))
     );
 }
 
@@ -346,7 +404,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 6_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 7_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1166,10 +1224,17 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&3_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(2))
+        Err(CodecError::UnsupportedFormatMarker(3))
+    );
+
+    let mut stale_format = bytes.clone();
+    stale_format[8..10].copy_from_slice(&1_u16.to_le_bytes());
+    assert_eq!(
+        decode_module(&stale_format),
+        Err(CodecError::UnsupportedFormatMarker(1))
     );
 
     assert_eq!(
@@ -1273,6 +1338,165 @@ fn scalar_term_nesting_has_a_total_bound() {
         encode_module(&module),
         Err(CodecError::ScalarTermNestingTooDeep)
     );
+}
+
+fn partial_affine_fixture() -> TerminalModule {
+    let pair_type = structural_type_id(1);
+    let token_type = structural_type_id(2);
+    let root_type = structural_type_id(3);
+    let sink_type = structural_type_id(4);
+    let pair_place = place_id(1);
+    let token_place = place_id(2);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: pair_type,
+                identity: "example::Pair".to_owned(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(1),
+                            identity: "left".to_owned(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(token_type),
+                        },
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(2),
+                            identity: "right".to_owned(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(token_type),
+                        },
+                    ],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: token_type,
+                identity: "example::Token".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: root_type,
+                identity: "example::Root".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: sink_type,
+                identity: "example::Sink".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                attachment: Some(root_type),
+                parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: pair_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: pair_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                }],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: pair_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: operation_id(1),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::CallUnit {
+                            callee: machine_id(2),
+                            structural_arguments: vec![StructuralArgument {
+                                place: pair_place,
+                                path: vec![StructuralPathSegment::Field("right".to_owned())],
+                            }],
+                            claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnUnitPartialAffine {
+                        edge: edge_id(1),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: vec![StructuralAffineDiscard {
+                            place: pair_place,
+                            path: vec![StructuralPathSegment::Field("left".to_owned())],
+                            structural_type: token_type,
+                        }],
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                attachment: Some(sink_type),
+                parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: token_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: token_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                }],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: token_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(2),
+                        trivial_affine_discards: vec![token_place],
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(2),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+        ],
+    }
 }
 
 fn structural_effect_fixture() -> TerminalModule {

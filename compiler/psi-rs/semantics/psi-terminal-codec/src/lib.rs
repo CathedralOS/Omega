@@ -39,19 +39,20 @@ use psi_terminal::{
     CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 1;
+const FORMAT_MARKER: u16 = 2;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -277,6 +278,20 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             if let Terminator::Crash { site_guard, .. } = &block.terminator {
                 for predicate in site_guard {
                     validate_canonical_proposition(predicate.proposition(), 0)?;
+                }
+            }
+            if let Terminator::ReturnUnitPartialAffine {
+                residual_affine_discards,
+                ..
+            } = &block.terminator
+            {
+                let mut places_and_paths = BTreeSet::new();
+                if residual_affine_discards.iter().any(|discard| {
+                    !places_and_paths.insert((discard.place, discard.path.as_slice()))
+                }) {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "partial affine residual discards are unique",
+                    ));
                 }
             }
         }
@@ -560,6 +575,49 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             validate_operation_foundation(module, machine, operation)?;
+        }
+        for block in &machine.blocks {
+            let Terminator::ReturnUnitPartialAffine {
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            } = &block.terminator
+            else {
+                continue;
+            };
+            if !matches!(machine.result, TerminalMachineResult::Unit)
+                || residual_affine_discards.is_empty()
+            {
+                return malformed(
+                    "partial affine cleanup requires a Unit result and a residual action",
+                );
+            }
+            for discard in residual_affine_discards {
+                let Some(parameter) = machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == discard.place)
+                else {
+                    return malformed("partial affine cleanup root is not a structural parameter");
+                };
+                if parameter.multiplicity != StructuralMultiplicity::Affine
+                    || discard.path.is_empty()
+                    || trivial_affine_discards.contains(&discard.place)
+                    || machine
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == discard.place)
+                {
+                    return malformed(
+                        "partial affine cleanup is not a distinct claim-free affine path",
+                    );
+                }
+                if validate_structural_path(module, parameter.structural_type, &discard.path)?
+                    != discard.structural_type
+                {
+                    return malformed("partial affine cleanup leaf type does not match its path");
+                }
+            }
         }
     }
     Ok(())
@@ -1857,10 +1915,29 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(*place);
             }
         }
-        Terminator::ReturnUnitPartialAffine { .. } => {
-            return Err(CodecError::UnsupportedSemanticVariant(
-                "ReturnUnitPartialAffine",
-            ));
+        Terminator::ReturnUnitPartialAffine {
+            edge,
+            trivial_affine_discards,
+            residual_affine_discards,
+        } => {
+            writer.u8(7);
+            writer.id(*edge);
+            writer.len(
+                "partial Unit return trivial affine discards",
+                trivial_affine_discards.len(),
+            )?;
+            for place in trivial_affine_discards {
+                writer.id(*place);
+            }
+            writer.len(
+                "partial Unit return residual affine discards",
+                residual_affine_discards.len(),
+            )?;
+            for discard in residual_affine_discards {
+                writer.id(discard.place);
+                encode_structural_path(writer, "partial affine discard path", &discard.path)?;
+                writer.id(discard.structural_type);
+            }
         }
         Terminator::ReturnStructural {
             edge,
@@ -3216,6 +3293,17 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             returned_claims: decode_counted(reader, |reader| reader.id("ClaimId"))?,
             trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
         },
+        7 => Terminator::ReturnUnitPartialAffine {
+            edge: reader.id("EdgeId")?,
+            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
+            residual_affine_discards: decode_counted(reader, |reader| {
+                Ok(StructuralAffineDiscard {
+                    place: reader.id("PlaceId")?,
+                    path: decode_structural_path(reader)?,
+                    structural_type: reader.id("StructuralTypeId")?,
+                })
+            })?,
+        },
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     };
     Ok(Block {
@@ -3823,7 +3911,6 @@ impl<'bytes> Reader<'bytes> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodecError {
-    UnsupportedSemanticVariant(&'static str),
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),

@@ -13,9 +13,9 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    OperationKind, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult,
-    Terminator,
+    OperationKind, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachineResult, Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -204,6 +204,10 @@ pub struct TerminalExecution {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    /// Exact claim-free affine ownership frontier. Opaque structural storage is
+    /// root-addressed, so projected moves must be represented here rather than
+    /// by unsoundly deleting their containing root.
+    live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
     current_machine: MachineId,
     current: BlockId,
@@ -230,6 +234,7 @@ struct SuspendedCall {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
     current_machine: MachineId,
     current: BlockId,
@@ -332,6 +337,8 @@ impl TerminalExecution {
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
+        let live_affine_frontier =
+            bind_affine_frontier(&machine.structural_parameters, &structural_values)?;
         let live_claims = bind_entry_claims(
             &machine.entry_claims,
             &machine.content_entry_claims,
@@ -347,6 +354,7 @@ impl TerminalExecution {
             blocks,
             values,
             structural_values,
+            live_affine_frontier,
             live_claims,
             current_machine: module.entry,
             current,
@@ -372,6 +380,12 @@ impl TerminalExecution {
 
     pub fn live_claim_frontier(&self) -> impl Iterator<Item = ClaimId> + '_ {
         self.live_claims.keys().copied()
+    }
+
+    /// Exact live affine structural paths, ordered canonically. This is
+    /// semantic ownership state, not a runtime object-layout bitmap.
+    pub fn live_affine_frontier(&self) -> impl Iterator<Item = &StructuralAffineDiscard> + '_ {
+        self.live_affine_frontier.iter()
     }
 
     pub fn resume_with_effect_handler(
@@ -431,6 +445,11 @@ impl TerminalExecution {
                                 path: Vec::new(),
                             },
                         );
+                        self.live_affine_frontier.insert(StructuralAffineDiscard {
+                            place: destination,
+                            path: Vec::new(),
+                            structural_type: *structural_type,
+                        });
                     }
                     OperationKind::CallUnit {
                         callee,
@@ -458,6 +477,10 @@ impl TerminalExecution {
                         )?;
                         let structural_values =
                             bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+                        let callee_affine_frontier = bind_affine_frontier(
+                            &callee.structural_parameters,
+                            &structural_values,
+                        )?;
                         let (remaining_claims, live_claims) = transfer_claims(
                             &self.live_claims,
                             &self.structural_values,
@@ -470,24 +493,26 @@ impl TerminalExecution {
                         )?;
                         self.next_operation += 1;
                         self.live_claims = remaining_claims;
-                        let mut caller_structural_values =
-                            std::mem::take(&mut self.structural_values);
-                        for argument in structural_arguments
+                        let mut caller_affine_frontier =
+                            std::mem::take(&mut self.live_affine_frontier);
+                        for (argument, parameter) in structural_arguments
                             .iter()
-                            .filter(|argument| !argument.path.is_empty())
+                            .zip(&callee.structural_parameters)
                         {
-                            if !self
-                                .live_claims
-                                .values()
-                                .any(|claim| claim.place == Some(argument.place))
-                            {
-                                caller_structural_values.remove(&argument.place);
+                            if parameter.multiplicity == StructuralMultiplicity::Affine {
+                                consume_affine_projection(
+                                    &self.structural_types,
+                                    &self.structural_values,
+                                    &mut caller_affine_frontier,
+                                    argument,
+                                )?;
                             }
                         }
                         self.call_stack.push(SuspendedCall {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
-                            structural_values: caller_structural_values,
+                            structural_values: std::mem::take(&mut self.structural_values),
+                            live_affine_frontier: caller_affine_frontier,
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
                             current: self.current,
@@ -497,6 +522,7 @@ impl TerminalExecution {
                         self.blocks = callee.blocks;
                         self.values = BTreeMap::new();
                         self.structural_values = structural_values;
+                        self.live_affine_frontier = callee_affine_frontier;
                         self.live_claims = live_claims;
                         self.current_machine = callee_id;
                         self.current = callee.entry;
@@ -598,6 +624,7 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
+                            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
                             current: self.current,
@@ -609,6 +636,7 @@ impl TerminalExecution {
                         self.blocks = callee.blocks;
                         self.values = values;
                         self.structural_values = BTreeMap::new();
+                        self.live_affine_frontier = BTreeSet::new();
                         self.live_claims = BTreeMap::new();
                         self.current_machine = callee_id;
                         self.current = callee.entry;
@@ -1165,10 +1193,96 @@ impl TerminalExecution {
                 .terminator
                 .clone();
             match &terminator {
-                Terminator::ReturnUnitPartialAffine { .. } => {
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "ReturnUnitPartialAffine",
-                    ));
+                Terminator::ReturnUnitPartialAffine {
+                    trivial_affine_discards,
+                    residual_affine_discards,
+                    ..
+                } => {
+                    let machine = self.machines.get(&self.current_machine).ok_or(
+                        TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                    )?;
+                    if machine.result != TerminalMachineResult::Unit
+                        || has_live_linear_claims(&self.live_claims)
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+
+                    // Validate the entire cleanup transaction before charging or
+                    // mutating state. In particular, a projected cleanup may not
+                    // be approximated by deleting its root-addressed carrier.
+                    let mut expected_frontier = BTreeSet::new();
+                    for place in trivial_affine_discards {
+                        let value = self.structural_values.get(place).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(*place),
+                        )?;
+                        if !expected_frontier.insert(StructuralAffineDiscard {
+                            place: *place,
+                            path: Vec::new(),
+                            structural_type: value.structural_type,
+                        }) {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                    }
+                    for discard in residual_affine_discards {
+                        let root = self.structural_values.get(&discard.place).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
+                        )?;
+                        let actual_type = resolve_structural_path_type(
+                            &self.structural_types,
+                            root.structural_type,
+                            &discard.path,
+                        )?;
+                        if actual_type != discard.structural_type
+                            || discard.path.is_empty()
+                            || !expected_frontier.insert(discard.clone())
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                    }
+                    if expected_frontier != self.live_affine_frontier {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                    if let Err(error) = meter.charge_terminator(&terminator) {
+                        return meter_status(error);
+                    }
+
+                    // The edge is now committed. Root cleanup may release its
+                    // root-addressed carrier; projected cleanup removes only the
+                    // exact semantic paths and leaves the opaque root untouched.
+                    for place in trivial_affine_discards {
+                        self.structural_values.remove(place);
+                        self.live_affine_frontier.remove(&StructuralAffineDiscard {
+                            place: *place,
+                            path: Vec::new(),
+                            structural_type: expected_frontier
+                                .iter()
+                                .find(|entry| entry.place == *place && entry.path.is_empty())
+                                .expect("validated root affine cleanup")
+                                .structural_type,
+                        });
+                    }
+                    for discard in residual_affine_discards {
+                        self.live_affine_frontier.remove(discard);
+                    }
+                    debug_assert!(self.live_affine_frontier.is_empty());
+
+                    if let Some(caller) = self.call_stack.pop() {
+                        if !matches!(caller.result, SuspendedCallResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.blocks = caller.blocks;
+                        self.values = caller.values;
+                        self.structural_values = caller.structural_values;
+                        self.live_affine_frontier = caller.live_affine_frontier;
+                        self.live_claims = caller.live_claims;
+                        self.current_machine = caller.current_machine;
+                        self.current = caller.current;
+                        self.next_operation = caller.next_operation;
+                        continue;
+                    }
+                    let result = TerminalExecutionResult::Unit;
+                    self.result = Some(result.clone());
+                    return Ok(TerminalExecutionStatus::Complete(result));
                 }
                 Terminator::Jump {
                     target,
@@ -1198,6 +1312,7 @@ impl TerminalExecution {
                                 *place,
                             ));
                         }
+                        remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     for (parameter, value) in target_block.parameters.iter().zip(transferred) {
                         self.values.insert(parameter.id, value);
@@ -1242,6 +1357,7 @@ impl TerminalExecution {
                                 *place,
                             ));
                         }
+                        remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     for (parameter, value) in target_block.parameters.iter().zip(transferred) {
                         self.values.insert(parameter.id, value);
@@ -1276,6 +1392,7 @@ impl TerminalExecution {
                                 *place,
                             ));
                         }
+                        remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     if let Some(caller) = self.call_stack.pop() {
                         let SuspendedCallResult::Scalar(result_value) = caller.result else {
@@ -1285,6 +1402,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.values.insert(result_value, result);
                         self.structural_values = caller.structural_values;
+                        self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.current_machine = caller.current_machine;
                         self.current = caller.current;
@@ -1316,6 +1434,7 @@ impl TerminalExecution {
                                 *place,
                             ));
                         }
+                        remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     if let Some(caller) = self.call_stack.pop() {
                         if !matches!(caller.result, SuspendedCallResult::Unit) {
@@ -1324,6 +1443,7 @@ impl TerminalExecution {
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
+                        self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.current_machine = caller.current_machine;
                         self.current = caller.current;
@@ -1381,11 +1501,13 @@ impl TerminalExecution {
                     }
                     // Commit only after fuel and every structural/claim check succeeds.
                     self.structural_values.remove(source);
+                    remove_affine_root(&mut self.live_affine_frontier, *source);
                     for claim in returned_claims {
                         self.live_claims.remove(claim);
                     }
                     for place in trivial_affine_discards {
                         self.structural_values.remove(place);
+                        remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     let result = TerminalExecutionResult::Structural(TerminalStructuralResult {
                         value,
@@ -1503,6 +1625,142 @@ fn bind_structural_arguments(
         }
     }
     Ok(values)
+}
+
+fn bind_affine_frontier(
+    parameters: &[StructuralParameterDeclaration],
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
+    let mut frontier = BTreeSet::new();
+    for parameter in parameters
+        .iter()
+        .filter(|parameter| parameter.multiplicity == StructuralMultiplicity::Affine)
+    {
+        let value = values.get(&parameter.place).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
+        )?;
+        if value.structural_type != parameter.structural_type
+            || !frontier.insert(StructuralAffineDiscard {
+                place: parameter.place,
+                path: Vec::new(),
+                structural_type: parameter.structural_type,
+            })
+        {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+    }
+    Ok(frontier)
+}
+
+fn remove_affine_root(frontier: &mut BTreeSet<StructuralAffineDiscard>, place: PlaceId) -> bool {
+    let Some(root) = frontier
+        .iter()
+        .find(|entry| entry.place == place && entry.path.is_empty())
+        .cloned()
+    else {
+        return false;
+    };
+    frontier.remove(&root)
+}
+
+fn consume_affine_projection(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    argument: &StructuralArgument,
+) -> Result<(), TerminalInterpretError> {
+    let root = values.get(&argument.place).ok_or(
+        TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+    )?;
+    let Some(containing) = frontier
+        .iter()
+        .find(|entry| {
+            entry.place == argument.place && argument.path.starts_with(entry.path.as_slice())
+        })
+        .cloned()
+    else {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    };
+    if containing.path.is_empty() && containing.structural_type != root.structural_type {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    frontier.remove(&containing);
+    split_affine_frontier_at_projection(structural_types, frontier, containing, &argument.path)
+}
+
+fn split_affine_frontier_at_projection(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    current: StructuralAffineDiscard,
+    projected_path: &[StructuralPathSegment],
+) -> Result<(), TerminalInterpretError> {
+    if current.path == projected_path {
+        return Ok(());
+    }
+    let Some(next_segment) = projected_path.get(current.path.len()) else {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    };
+    let declaration = structural_types
+        .get(&current.structural_type)
+        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        // The current producer/verifier slice admits direct transparent-record
+        // fields only. Refuse to approximate arrays or a future projection kind.
+        return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+    };
+
+    let mut selected = None;
+    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type else {
+            continue;
+        };
+        let segment = StructuralPathSegment::Field(field.identity.clone());
+        let mut path = current.path.clone();
+        path.push(segment.clone());
+        let child = StructuralAffineDiscard {
+            place: current.place,
+            path,
+            structural_type: field_type,
+        };
+        if &segment == next_segment {
+            selected = Some(child);
+        } else if !frontier.insert(child) {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+    }
+    let selected = selected.ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
+    split_affine_frontier_at_projection(structural_types, frontier, selected, projected_path)
+}
+
+fn resolve_structural_path_type(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Result<StructuralTypeId, TerminalInterpretError> {
+    let mut structural_type = root;
+    for segment in path {
+        let declaration = structural_types
+            .get(&structural_type)
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        structural_type = match (segment, &declaration.shape) {
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())
+                    .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
+                let psi_terminal::StructuralFieldType::Structural(next) = field.field_type else {
+                    return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+                };
+                next
+            }
+            _ => return Err(TerminalInterpretError::AffineProjectionNotRepresentable),
+        };
+    }
+    Ok(structural_type)
 }
 
 fn bind_entry_claims(
@@ -1855,6 +2113,12 @@ impl MeasuredTerminalExecution {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
     UnsupportedSemanticVariant(&'static str),
+    /// The artifact's exact affine cleanup transaction does not match the
+    /// interpreter's live ownership paths.
+    AffineFrontierMismatch,
+    /// A projection cannot be represented exactly by the interpreter's current
+    /// path-aware structural model, so execution fails closed.
+    AffineProjectionNotRepresentable,
     ArgumentCount {
         expected: usize,
         actual: usize,

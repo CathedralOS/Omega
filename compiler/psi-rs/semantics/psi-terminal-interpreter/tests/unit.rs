@@ -6,11 +6,12 @@ use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
     EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -236,6 +237,59 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
         execution.resume(&mut meter).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
+}
+
+#[test]
+fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
+    let module = partial_affine_field_module();
+    let semantic = encode_module(&module).expect("partial affine module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 50,
+        structural_type: structural_type_id(2),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("verified partial affine cleanup should start");
+    // Call operation + callee return consume the first two units. The caller's
+    // partial return then suspends before touching its residual path.
+    let mut meter = TerminalFuelMeter::with_allowance(2);
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(edge_id(1)),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    assert_eq!(
+        execution
+            .live_affine_frontier()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![StructuralAffineDiscard {
+            place: place_id(1),
+            path: vec![StructuralPathSegment::Field("left".into())],
+            structural_type: structural_type_id(1),
+        }]
+    );
+
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert_eq!(meter.usage().total_units(), 3);
 }
 
 #[test]
@@ -1044,6 +1098,137 @@ fn unit_module() -> TerminalModule {
                 ensures: Vec::new(),
             },
         }],
+    }
+}
+
+fn partial_affine_field_module() -> TerminalModule {
+    let token = StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    let pair = StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "Pair".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![
+                StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(1).unwrap(),
+                    identity: "left".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(token.id),
+                },
+                StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(2).unwrap(),
+                    identity: "right".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(token.id),
+                },
+            ],
+        },
+    };
+    let caller = TerminalMachine {
+        id: machine_id(1),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: place_id(1),
+            position: 0,
+            is_self: false,
+            structural_type: pair.id,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        }],
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: place_id(1),
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(1),
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: machine_id(2),
+                    structural_arguments: vec![StructuralArgument {
+                        place: place_id(1),
+                        path: vec![StructuralPathSegment::Field("right".into())],
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnitPartialAffine {
+                edge: edge_id(1),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: vec![StructuralAffineDiscard {
+                    place: place_id(1),
+                    path: vec![StructuralPathSegment::Field("left".into())],
+                    structural_type: token.id,
+                }],
+            },
+        }],
+        contract: empty_contract(contract_id(1)),
+    };
+    let callee = TerminalMachine {
+        id: machine_id(2),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 0,
+            is_self: false,
+            structural_type: token.id,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        }],
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: place_id(2),
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(2),
+        blocks: vec![Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(2),
+                trivial_affine_discards: vec![place_id(2)],
+            },
+        }],
+        contract: empty_contract(contract_id(2)),
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: caller.id,
+        structural_types: vec![token, pair],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![caller, callee],
     }
 }
 
