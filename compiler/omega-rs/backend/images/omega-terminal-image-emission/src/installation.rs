@@ -1407,38 +1407,52 @@ fn validate_record_shape(
                                 != usize::from(cleanup_is_executable == Some(true))
                     }
                     ([], []) => parameter_discards != expected_parameter_discards,
-                    ([], [residual]) => {
+                    ([], residuals @ [_, ..]) => {
+                        let residual_root = residuals[0].place;
                         let parameter_type = function
                             .unit_parameters
                             .iter()
-                            .find(|parameter| parameter.place == residual.place)
+                            .find(|parameter| parameter.place == residual_root)
                             .map(|parameter| parameter.structural_type);
-                        !matches!(cleanup.actions.split_last(),
-                        Some((
-                            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(last),
-                            prefix,
-                        )) if last == *residual
-                            && prefix.len() == discards.len()
-                            && prefix.iter().zip(&discards).all(|(action, place)| {
+                        cleanup.actions.get(..discards.len()).is_none_or(|prefix| {
+                            !prefix.iter().zip(&discards).all(|(action, place)| {
                                 matches!(action,
                                     psi_terminal::TerminalAffineCleanupAction::DiscardRoot(actual)
                                         if actual == place)
-                            }))
+                            })
+                        })
+                            || cleanup.actions.get(discards.len()..).is_none_or(|suffix| {
+                                suffix.iter().zip(residuals).any(|(action, residual)| {
+                                    !matches!(action,
+                                        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(actual)
+                                            if actual == *residual)
+                                })
+                            })
                             || !parameter_discards.is_empty()
-                            || expected_parameter_discards.as_slice() != [residual.place]
-                            || !matches!(
-                                residual.path.as_slice(),
-                                [StructuralPathSegment::Field(identity)] if !identity.is_empty()
-                            )
+                            || expected_parameter_discards.as_slice() != [residual_root]
+                            || residuals.iter().any(|residual| {
+                                residual.place != residual_root
+                                    || !matches!(residual.path.as_slice(),
+                                        [StructuralPathSegment::Field(identity)]
+                                            if !identity.is_empty())
+                                    || parameter_type == Some(residual.structural_type)
+                            })
+                            || residuals
+                                .iter()
+                                .map(|residual| residual.path.as_slice())
+                                .collect::<std::collections::BTreeSet<_>>()
+                                .len()
+                                != residuals.len()
                             || parameter_type.is_none()
-                            || parameter_type == Some(residual.structural_type)
                             || !record.internal_unit_calls.iter().any(|call| {
                                 call.machine == function.machine
                                     && call.custody.arguments.iter().any(|argument| {
-                                        argument.place == residual.place
+                                        argument.place == residual_root
                                             && Some(argument.root_structural_type) == parameter_type
                                             && argument.path.len() == 1
-                                            && argument.path != residual.path
+                                            && residuals.iter().all(|residual| {
+                                                argument.path != residual.path
+                                            })
                                     })
                             })
                     }
@@ -1862,18 +1876,18 @@ fn validate_record_shape(
                 let Some(argument) = custody.arguments.get(*index) else {
                     return true;
                 };
-                !matches!(
-                    function
-                        .unit_affine_cleanup
-                        .as_ref()
-                        .and_then(|cleanup| cleanup.actions.last()),
-                    Some(psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual))
-                        if argument.path.len() == 1
-                            && residual.place == argument.place
-                            && residual.path.len() == 1
-                            && residual.path != argument.path
-                            && residual.structural_type != argument.root_structural_type
-                )
+                argument.path.len() != 1
+                    || function.unit_affine_cleanup.as_ref().is_none_or(|cleanup| {
+                        !cleanup.actions.iter().any(|action| {
+                            matches!(action,
+                                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
+                                    if residual.place == argument.place
+                                        && residual.path.len() == 1
+                                        && residual.path != argument.path
+                                        && residual.structural_type
+                                            != argument.root_structural_type)
+                        })
+                    })
             })
             || custody.claim_transfers.iter().any(|transfer| {
                 usize::try_from(transfer.argument_index)

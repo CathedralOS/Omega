@@ -1995,39 +1995,85 @@ fn lower_unit_function(
                     ));
                 }
                 if !residual_discards.is_empty() {
-                    let [residual] = residual_discards.as_slice() else {
-                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                            function.machine,
-                        ));
+                    let Some(residual_root) =
+                        residual_discards.first().map(|discard| discard.place)
+                    else {
+                        unreachable!("nonempty residual cleanup has a root")
                     };
                     let Some(parameter) = function
                         .structural_parameters
                         .iter()
-                        .find(|parameter| parameter.place == residual.place)
+                        .find(|parameter| parameter.place == residual_root)
                     else {
                         return Err(LoweringError::UnsupportedOperationInUnitFunction(
                             function.machine,
                         ));
                     };
+                    let Some(declaration) = structural_types.get(&parameter.structural_type) else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    let moved_fields = operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            TerminalTargetUnitOperation::Call { arguments, .. } => Some(arguments),
+                            _ => None,
+                        })
+                        .flatten()
+                        .filter_map(|argument| {
+                            (argument.place == residual_root).then_some(argument.path.as_slice())
+                        })
+                        .collect::<Vec<_>>();
+                    let [[StructuralPathSegment::Field(moved_field)]] = moved_fields.as_slice()
+                    else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    let expected_residuals = fields
+                        .iter()
+                        .rev()
+                        .filter(|field| {
+                            !field.relevance.is_erased() && field.identity != *moved_field
+                        })
+                        .filter_map(|field| match field.field_type {
+                            StructuralFieldType::Structural(structural_type) => {
+                                Some((field.identity.as_str(), structural_type))
+                            }
+                            StructuralFieldType::Scalar(_) | StructuralFieldType::Erased { .. } => {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
                     if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
-                        || residual.path.len() != 1
                         || root_discards != local_places.iter().rev().copied().collect::<Vec<_>>()
-                        || !matches!(cleanup_actions.split_last(),
-                        Some((
-                            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(last),
-                            prefix,
-                        )) if last == *residual
-                            && prefix.len() == root_discards.len()
-                            && prefix.iter().zip(&root_discards).all(|(action, place)| {
+                        || expected_roots.get(local_places.len()..) != Some(&[residual_root][..])
+                        || expected_residuals.len() != residual_discards.len()
+                        || cleanup_actions.get(..root_discards.len()).is_none_or(|prefix| {
+                            !prefix.iter().zip(&root_discards).all(|(action, place)| {
                                 matches!(action,
                                     psi_terminal::TerminalAffineCleanupAction::DiscardRoot(actual)
                                         if actual == place)
-                            }))
-                        || resolve_direct_structural_field_type(
-                            parameter.structural_type,
-                            residual.path.as_slice(),
-                            structural_types,
-                        ) != Some(residual.structural_type)
+                            })
+                        })
+                        || cleanup_actions.get(root_discards.len()..).is_none_or(|suffix| {
+                            suffix.iter().zip(&expected_residuals).any(
+                                |(action, (identity, structural_type))| {
+                                    !matches!(action,
+                                        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard)
+                                            if discard.place == residual_root
+                                                && discard.path.as_slice()
+                                                    == [StructuralPathSegment::Field((*identity).into())]
+                                                && discard.structural_type == *structural_type)
+                                },
+                            )
+                        })
                     {
                         return Err(LoweringError::UnsupportedOperationInUnitFunction(
                             function.machine,
@@ -2336,27 +2382,6 @@ fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
     } else {
         value.checked_add(alignment - remainder)
     }
-}
-
-fn resolve_direct_structural_field_type(
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Option<StructuralTypeId> {
-    let [StructuralPathSegment::Field(identity)] = path else {
-        return None;
-    };
-    let declaration = declarations.get(&root)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
-    };
-    fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())
-        .and_then(|field| match field.field_type {
-            StructuralFieldType::Structural(structural_type) => Some(structural_type),
-            StructuralFieldType::Scalar(_) | StructuralFieldType::Erased { .. } => None,
-        })
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -977,29 +977,55 @@ fn validate_unit_affine_cleanup(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != cleanup.actions.len()
-    } else if let Some((
-        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual),
-        prefix,
-    )) = cleanup.actions.split_last()
-    {
-        let parameter_type = parameter_homes
+    } else if matches!(
+        cleanup.actions.get(expected_local_actions.len()),
+        Some(psi_terminal::TerminalAffineCleanupAction::DiscardResidual(
+            _
+        ))
+    ) {
+        let residual_actions = &cleanup.actions[expected_local_actions.len()..];
+        let residuals = residual_actions
             .iter()
-            .find(|parameter| parameter.place == residual.place)
-            .map(|parameter| parameter.structural_type);
-        prefix != expected_local_actions.as_slice()
-            || expected_parameter_suffix.as_slice() != [residual.place]
-            || !matches!(
-                residual.path.as_slice(),
-                [psi_terminal::StructuralPathSegment::Field(identity)] if !identity.is_empty()
-            )
+            .filter_map(|action| match action {
+                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual) => {
+                    Some(residual)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let residual_root = residuals.first().map(|residual| residual.place);
+        let parameter_type = residual_root.and_then(|place| {
+            parameter_homes
+                .iter()
+                .find(|parameter| parameter.place == place)
+                .map(|parameter| parameter.structural_type)
+        });
+        cleanup.actions[..expected_local_actions.len()] != expected_local_actions
+            || residuals.len() != residual_actions.len()
+            || residuals.is_empty()
+            || residual_root.is_none_or(|root| expected_parameter_suffix.as_slice() != [root])
             || parameter_type.is_none()
-            || parameter_type == Some(residual.structural_type)
+            || residuals.iter().any(|residual| {
+                Some(residual.place) != residual_root
+                    || !matches!(residual.path.as_slice(),
+                        [psi_terminal::StructuralPathSegment::Field(identity)]
+                            if !identity.is_empty())
+                    || parameter_type == Some(residual.structural_type)
+            })
+            || residuals
+                .iter()
+                .map(|residual| residual.path.as_slice())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != residuals.len()
             || !internal_unit_calls.iter().any(|call| {
                 call.arguments.iter().any(|argument| {
-                    argument.place == residual.place
+                    argument.place == residual_root.unwrap_or(argument.place)
                         && Some(argument.root_structural_type) == parameter_type
                         && argument.path.len() == 1
-                        && argument.path != residual.path
+                        && residuals
+                            .iter()
+                            .all(|residual| argument.path != residual.path)
                 })
             })
     } else {
@@ -1636,15 +1662,18 @@ fn validate_internal_unit_call_custody(
             let Some(argument) = custody.arguments.get(*index) else {
                 return true;
             };
-            !matches!(
-                affine_cleanup.and_then(|cleanup| cleanup.actions.last()),
-                Some(psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual))
-                    if argument.path.len() == 1
-                        && residual.place == argument.place
-                        && residual.path.len() == 1
-                        && residual.path != argument.path
-                        && residual.structural_type != argument.root_structural_type
-            )
+            argument.path.len() != 1
+                || affine_cleanup.is_none_or(|cleanup| {
+                    !cleanup.actions.iter().any(|action| {
+                        matches!(action,
+                            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
+                                if residual.place == argument.place
+                                    && residual.path.len() == 1
+                                    && residual.path != argument.path
+                                    && residual.structural_type
+                                        != argument.root_structural_type)
+                    })
+                })
         })
         || custody.claim_transfers.iter().any(|transfer| {
             usize::try_from(transfer.argument_index)
