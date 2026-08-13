@@ -8902,19 +8902,12 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
 #[test]
 fn runtime_guarded_copy_narrowing_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_copy_narrowing_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-guarded-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-guarded-copy-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded copy narrowing canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("guarded copy narrowing canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("guarded copy narrowing canary should run");
 
@@ -8927,7 +8920,7 @@ fn runtime_guarded_copy_narrowing_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The proof-side range fold folds DIVISION and MODULO through a chain:
@@ -8936,20 +8929,12 @@ fn runtime_guarded_copy_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_ranged_divide_modulo_chain_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-ranged-divmod-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-ranged-divmod-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("ranged divide/modulo chain canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("ranged divide/modulo chain canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("ranged divide/modulo chain canary should run");
 
@@ -8962,7 +8947,7 @@ fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The proof-side range fold folds BITWISE-AND over provably non-negative
