@@ -913,9 +913,11 @@ fn validate_unit_affine_cleanup(
                     || parameter_homes[0].structural_type != nominal.structural_type
                     || parameter_homes[0].multiplicity
                         != psi_terminal::StructuralMultiplicity::Affine
-                    || parameter_homes[0].shape
-                        != omega_calling_conventions::ValueShape::integer(0, 1)
-                    || !parameter_homes[0].source.locations.is_empty()
+                    || !bounded_nominal_receiver_shape(parameter_homes[0].shape)
+                    || (parameter_homes[0].shape.byte_size == 0
+                        && !parameter_homes[0].source.locations.is_empty())
+                    || (parameter_homes[0].shape.byte_size != 0
+                        && parameter_homes[0].source.locations.is_empty())
                     || attachments.get(&nominal.cleanup_machine)
                         != Some(&Some(nominal.structural_type))
             }
@@ -957,6 +959,14 @@ fn validate_unit_affine_cleanup(
         return Err(invalid());
     }
     Ok(())
+}
+
+fn bounded_nominal_receiver_shape(shape: omega_calling_conventions::ValueShape) -> bool {
+    shape == omega_calling_conventions::ValueShape::integer(0, 1)
+        || matches!(
+            (shape.byte_size, shape.alignment),
+            (1, 1) | (2, 2) | (4, 4) | (8, 8)
+        ) && shape.class == omega_calling_conventions::ValueClass::Integer
 }
 
 fn validate_structural_return_record(
