@@ -13626,16 +13626,11 @@ fn runtime_indexed_through_guard_chain_exit_canary_runs() {
     // a single unconditional predecessor, each guard split dropped the bound. Compiling
     // + reading arr[3]=70 -> exit 70 confirms the bound survives the chain.
     let canary = pass_canary("collections/runtime_indexed_through_guard_chain_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-through-guard-chain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed-through-guard-chain canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed-through-guard-chain canary should run");
     assert_eq!(
@@ -13645,7 +13640,7 @@ fn runtime_indexed_through_guard_chain_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13654,17 +13649,11 @@ fn runtime_binary_search_exit_canary_runs() {
     // (lo=mid+1 then hi=mid-1) and must find it at exactly index 4. Locks the computed
     // midpoint, the indexed read into a field, and both pointer updates. Exits 70.
     let canary = pass_canary("collections/runtime_binary_search_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("binary search canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("binary search canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("binary search canary should run");
     assert_eq!(
@@ -13674,7 +13663,7 @@ fn runtime_binary_search_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
