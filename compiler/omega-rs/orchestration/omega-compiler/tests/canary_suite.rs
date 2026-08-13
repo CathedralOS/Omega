@@ -18829,22 +18829,14 @@ fn executable_imported_domain_membership_union_guard_exit_canary_runs() {
 #[test]
 fn executable_domain_membership_intersection_guard_exit_canary_runs() {
     let canary = pass_canary("domains/executable_domain_membership_intersection_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-domain-membership-intersection-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("executable domain membership intersection canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("executable domain membership intersection canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("executable domain membership intersection canary should run");
 
@@ -18856,28 +18848,20 @@ fn executable_domain_membership_intersection_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn executable_domain_membership_union_guard_exit_canary_runs() {
     let canary = pass_canary("domains/executable_domain_membership_union_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-domain-membership-union-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("executable domain membership union canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("executable domain membership union canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("executable domain membership union canary should run");
 
@@ -18889,28 +18873,20 @@ fn executable_domain_membership_union_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn executable_domain_membership_union_value_exit_canary_runs() {
     let canary = pass_canary("domains/executable_domain_membership_union_value_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-domain-membership-union-value-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("executable domain membership union value canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("executable domain membership union value canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("executable domain membership union value canary should run");
 
@@ -18922,7 +18898,7 @@ fn executable_domain_membership_union_value_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
