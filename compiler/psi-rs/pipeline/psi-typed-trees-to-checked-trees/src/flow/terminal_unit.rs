@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
@@ -12,11 +13,12 @@ use psi_checked_trees::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitBoundaryMachinePlan,
     CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
 use psi_language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
@@ -115,6 +117,55 @@ pub(crate) fn build_checked_unit_effect_plans(
         },
         boundary_machines,
         machines: candidates,
+    }
+}
+
+/// Build the checked front of the first path-sensitive affine cleanup slice.
+///
+/// This plan is deliberately parallel to `CheckedUnitEffectPlans`: current
+/// terminal Psi still has a root-only affine frontier, so publishing the
+/// machine through that older lane would silently erase its live sibling.
+pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    unit_effects: &CheckedUnitEffectPlans,
+) -> CheckedPartialAffineUnitCleanupPlans {
+    let mut shapes = ShapeCollector::new(program);
+    let machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_partial_affine_unit_cleanup_machine(
+                program,
+                facts,
+                unit_effects,
+                &mut shapes,
+                machine,
+            )
+        })
+        .collect::<Vec<_>>();
+    let retained = machines
+        .iter()
+        .flat_map(|plan| {
+            std::iter::once(plan.machine.attachment_type_identity.as_str())
+                .chain(
+                    plan.machine
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+                .chain(
+                    plan.residual_affine_discards
+                        .iter()
+                        .map(|discard| discard.type_identity.as_str()),
+                )
+        })
+        .collect::<BTreeSet<_>>();
+    shapes.retain_transitive(&retained);
+    CheckedPartialAffineUnitCleanupPlans {
+        structural_types: shapes.types.into_values().collect(),
+        machines,
     }
 }
 
@@ -1440,6 +1491,7 @@ fn build_checked_machine(
             &structural_parameters,
             &entry_claims,
             call,
+            false,
         )?);
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -1482,6 +1534,296 @@ fn build_checked_machine(
         service_reach: state_flow.service_reach.clone(),
         operations,
     })
+}
+
+fn build_partial_affine_unit_cleanup_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    unit_effects: &CheckedUnitEffectPlans,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedPartialAffineUnitCleanupMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
+        return None;
+    };
+    if !is_unit(program, state.return_type)
+        || !program.machine_contracts(machine).is_empty()
+        || !program.state_contracts(state).is_empty()
+    {
+        return None;
+    }
+
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters) =
+        structural_signature(program, shapes, machine, state, &binders)?;
+    let [source_parameter] = program.state_parameters(state) else {
+        return None;
+    };
+    let [checked_parameter] = structural_parameters.as_slice() else {
+        return None;
+    };
+    if source_parameter.is_self
+        || checked_parameter.is_self
+        || checked_parameter.position != 0
+        || checked_parameter.multiplicity != Multiplicity::Affine
+        || !checked_parameter.qualifications.is_empty()
+        || type_graph_requires_nominal_drop(program, source_parameter.type_reference)
+    {
+        return None;
+    }
+    let entry_claims = entry_claims(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        &structural_parameters,
+        program.state_parameters(state),
+    )?;
+    if !entry_claims.is_empty() {
+        return None;
+    }
+    if facts
+        .qualifications
+        .for_machine(machine.symbol)
+        .is_some_and(|fact| !fact.body_committed.is_empty())
+        || machine_has_content_evidence(facts, machine.symbol, state.symbol)
+    {
+        return None;
+    }
+
+    let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let [call] = facts.flow.control.calls.span_or_empty(state_flow.calls) else {
+        return None;
+    };
+    if call.statement_index != 0
+        || call.call_ordinal != 0
+        || !service_reach_is_empty(facts, state_flow.service_reach)
+        || !service_reach_is_empty(facts, call.service_reach)
+    {
+        return None;
+    }
+    let operation = build_call_operation(
+        program,
+        facts,
+        machine,
+        state,
+        &structural_parameters,
+        &entry_claims,
+        call,
+        true,
+    )?;
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        target_machine,
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &operation
+    else {
+        return None;
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        return None;
+    };
+    let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice() else {
+        return None;
+    };
+    if argument.source_parameter_index != 0 || !claim_transfers.is_empty() {
+        return None;
+    }
+
+    let target = unit_effects.for_machine(*target_machine)?;
+    let [target_parameter] = target.structural_parameters.as_slice() else {
+        return None;
+    };
+    if target_parameter.is_self
+        || target_parameter.multiplicity != Multiplicity::Affine
+        || !target_parameter.qualifications.is_empty()
+        || !target.entry_claims.is_empty()
+        || !target.trivial_affine_locals.is_empty()
+        || !target.body_qualifications.is_empty()
+        || !service_reach_is_empty(facts, target.service_reach)
+        || !service_reach_plan_is_empty(facts, target.contract_service_reach)
+        || !matches!(
+            target.operations.as_slice(),
+            [CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+                ..
+            }] if trivial_affine_local_discard_ordinals.is_empty()
+                && trivial_affine_discards.as_slice() == [0]
+        )
+    {
+        return None;
+    }
+
+    let source_shape = shapes.types.get(&checked_parameter.type_identity)?;
+    let CheckedUnitStructuralTypeShape::Record { fields } = &source_shape.shape else {
+        return None;
+    };
+    let [first, second] = fields.as_slice() else {
+        return None;
+    };
+    if first.relevance.is_erased() || second.relevance.is_erased() {
+        return None;
+    }
+    let residual = match (
+        first.identity == *moved_field,
+        second.identity == *moved_field,
+    ) {
+        (true, false) => second,
+        (false, true) => first,
+        _ => return None,
+    };
+    if structural_field_type_identity(if first.identity == *moved_field {
+        first
+    } else {
+        second
+    })? != &argument.type_identity
+    {
+        return None;
+    }
+
+    let residual_path = vec![CheckedUnitStructuralPathSegment::Field(
+        residual.identity.clone(),
+    )];
+    if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
+        return None;
+    }
+    let contract = facts.contract_plans.for_machine(machine.symbol)?;
+    if !service_reach_plan_is_empty(facts, contract.service_reach) {
+        return None;
+    }
+    Some(CheckedPartialAffineUnitCleanupMachinePlan {
+        machine: CheckedUnitEffectMachinePlan {
+            machine: machine.symbol,
+            state: state.symbol,
+            attachment_type_identity,
+            structural_parameters,
+            trivial_affine_locals: Vec::new(),
+            entry_claims,
+            body_qualifications: Vec::new(),
+            contract_fingerprint: contract.fingerprint,
+            contract_service_reach: contract.service_reach.clone(),
+            service_reach: state_flow.service_reach.clone(),
+            operations: vec![
+                operation,
+                CheckedUnitEffectOperationPlan::ReturnUnit {
+                    statement_index: 1,
+                    trivial_affine_local_discard_ordinals: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            ],
+        },
+        residual_affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
+            source_parameter_index: 0,
+            path: residual_path,
+            type_identity: structural_field_type_identity(residual)?.clone(),
+        }],
+    })
+}
+
+fn structural_field_type_identity(field: &CheckedUnitStructuralFieldPlan) -> Option<&String> {
+    match &field.field_type {
+        CheckedUnitStructuralFieldType::Structural { type_identity } => Some(type_identity),
+        CheckedUnitStructuralFieldType::Scalar(_)
+        | CheckedUnitStructuralFieldType::Erased { .. } => None,
+    }
+}
+
+fn machine_has_content_evidence(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+) -> bool {
+    facts
+        .qualifications
+        .content
+        .identity_reshuffles
+        .iter()
+        .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+        || facts
+            .qualifications
+            .content
+            .partition_compositions
+            .iter()
+            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+}
+
+fn service_reach_is_empty(
+    facts: &CheckFacts,
+    summary: psi_language_semantics::ServiceReachSummary,
+) -> bool {
+    facts
+        .service_reaches
+        .rows
+        .services(summary.direct)
+        .is_empty()
+        && facts
+            .service_reaches
+            .rows
+            .services(summary.transitive)
+            .is_empty()
+}
+
+fn service_reach_plan_is_empty(
+    facts: &CheckFacts,
+    plan: psi_language_semantics::ServiceReachPlan,
+) -> bool {
+    let published_is_empty = match plan.interface {
+        psi_language_semantics::ServiceReachInterface::InternalInferred => true,
+        psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
+            facts.service_reaches.rows.services(row).is_empty()
+        }
+    };
+    published_is_empty
+        && facts
+            .service_reaches
+            .rows
+            .services(plan.checked_inferred)
+            .is_empty()
+}
+
+fn has_exact_root_affine_discard(
+    facts: &CheckFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    parameter: &StateParameter,
+) -> bool {
+    let matching = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+                && event.access == PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Affine
+                && event.claim_identity == PermissionClaimIdentity::Unknown
+                && event.provenance == psi_language_semantics::PermissionProvenance::Unknown
+                && !event.obligation_live
+                && event.root
+                    == psi_facts::PlaceRoot::Symbol(parameter_root_symbol(
+                        machine.symbol,
+                        parameter,
+                    ))
+        })
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    let [event] = matching.as_slice() else {
+        return false;
+    };
+    facts
+        .flow
+        .ownership
+        .segments
+        .span_or_empty(event.segments)
+        .is_empty()
 }
 
 fn build_unit_trivial_affine_locals(
@@ -1587,6 +1929,7 @@ fn build_call_operation(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
+    allow_direct_field_projection: bool,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -1661,6 +2004,7 @@ fn build_call_operation(
         call.receiver_symbol,
         call.statement_index,
         true,
+        allow_direct_field_projection,
     )?;
     if !boundary
         && !ordinary_projected_call_is_supported(
@@ -1672,6 +2016,7 @@ fn build_call_operation(
             target_machine,
             target_state,
             &structural_arguments,
+            allow_direct_field_projection,
         )
     {
         return None;
@@ -1723,6 +2068,7 @@ fn ordinary_projected_call_is_supported(
     target_machine: &psi_typed_trees::machine::Machine,
     target_state: &psi_typed_trees::state::State,
     arguments: &[CheckedUnitStructuralArgumentPlan],
+    allow_direct_field_projection: bool,
 ) -> bool {
     if arguments.iter().all(|argument| argument.path.is_empty()) {
         return true;
@@ -1735,7 +2081,19 @@ fn ordinary_projected_call_is_supported(
         || target_source_parameters.len() != 1
         || arguments.len() != 1
         || arguments[0].source_parameter_index != 0
-        || !matches!(
+    {
+        return false;
+    }
+
+    let direct_field = matches!(
+        arguments[0].path.as_slice(),
+        [CheckedUnitStructuralPathSegment::Field(_)]
+    );
+    if direct_field && !allow_direct_field_projection {
+        return false;
+    }
+    if !direct_field
+        && !matches!(
             arguments[0].path.as_slice(),
             [CheckedUnitStructuralPathSegment::FixedIndex(_)]
         )
@@ -1779,6 +2137,27 @@ fn ordinary_projected_call_is_supported(
         &target_source_parameters[0],
     ) {
         return false;
+    }
+
+    if direct_field {
+        let [caller_parameter] = caller_parameters else {
+            return false;
+        };
+        let [target_parameter] = target_parameters.as_slice() else {
+            return false;
+        };
+        return program.machine_states(caller_machine).len() == 1
+            && program.machine_states(target_machine).len() == 1
+            && caller_parameter.multiplicity == Multiplicity::Affine
+            && caller_parameter.qualifications.is_empty()
+            && !target_parameter.is_self
+            && crate::checks::type_multiplicity(program, target_parameter.type_reference)
+                == Multiplicity::Affine
+            && !type_graph_requires_nominal_drop(program, target_parameter.type_reference)
+            && program.machine_contracts(caller_machine).is_empty()
+            && program.state_contracts(caller_state).is_empty()
+            && program.machine_contracts(target_machine).is_empty()
+            && program.state_contracts(target_state).is_empty();
     }
 
     arguments
@@ -1935,6 +2314,7 @@ fn structural_call_arguments(
     receiver_symbol: SymbolHandle,
     statement_index: usize,
     allow_fixed_index_projection: bool,
+    allow_direct_field_projection: bool,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
@@ -2037,6 +2417,25 @@ fn structural_call_arguments(
                 }
                 vec![CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(*index).ok()?,
+                )]
+            }
+            [psi_facts::PlaceSegment::Field { symbol }]
+                if allow_direct_field_projection
+                    && caller_parameters
+                        .get(source_index)?
+                        .qualifications
+                        .is_empty() =>
+            {
+                let projected_type = crate::flow::project_type_reference_from_segments(
+                    program,
+                    source_parameter.type_reference,
+                    place.segments.as_slice(),
+                )?;
+                if base_type_identity(program, projected_type, &[])? != target_identity {
+                    return None;
+                }
+                vec![CheckedUnitStructuralPathSegment::Field(
+                    terminal_field_identity(program, *symbol)?,
                 )]
             }
             _ => return None,

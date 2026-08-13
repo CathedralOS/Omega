@@ -502,6 +502,47 @@ pub struct CheckedUnitStructuralArgumentPlan {
     pub type_identity: String,
 }
 
+/// One claim-free affine structural leaf that remains live after a projected
+/// transfer and is disposed on the enclosing Unit-return edge. The root is a
+/// dense structural-parameter coordinate; the path is canonical semantic
+/// identity rather than a retained source handle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitPartialAffineDiscardPlan {
+    pub source_parameter_index: u32,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub type_identity: String,
+}
+
+/// Checked-only carrier for the first direct-record-field partial cleanup
+/// slice. It remains separate from `CheckedUnitEffectPlans` until terminal Psi
+/// gains the matching path-sensitive frontier and cleanup vocabulary.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedPartialAffineUnitCleanupPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub machines: Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
+}
+
+impl CheckedPartialAffineUnitCleanupPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedPartialAffineUnitCleanupMachinePlan> {
+        self.machines
+            .iter()
+            .find(|plan| plan.machine.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPartialAffineUnitCleanupMachinePlan {
+    /// Complete ordinary Unit signature/call/return plan. This machine is not
+    /// published through `CheckedUnitEffectPlans` while its return cleanup is
+    /// still path-sensitive.
+    pub machine: CheckedUnitEffectMachinePlan,
+    /// Exact residual cleanup after the sole projected call commits.
+    pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitClaimTransferPlan {
     pub claim_identity: psi_language_semantics::PermissionClaimIdentity,
