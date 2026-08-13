@@ -581,8 +581,8 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                 if !matches!(machine.result, TerminalMachineResult::Unit) {
                     return malformed("nominal affine cleanup requires a Unit result");
                 }
-                if cleanups.is_empty() || cleanups.len() > 3 {
-                    return malformed("nominal affine cleanup list is empty or wider than three");
+                if cleanups.is_empty() {
+                    return malformed("nominal affine cleanup list is empty");
                 }
                 if cleanups.len() != machine.structural_parameters.len() {
                     return malformed(
@@ -2805,7 +2805,11 @@ fn decode_counted<T>(
     mut decode: impl FnMut(&mut Reader<'_>) -> Result<T, CodecError>,
 ) -> Result<Vec<T>, CodecError> {
     let count = reader.count()?;
-    let mut values = Vec::with_capacity(count as usize);
+    let count = usize::try_from(count).map_err(|_| CodecError::UnexpectedEnd)?;
+    if count > reader.remaining() {
+        return Err(CodecError::UnexpectedEnd);
+    }
+    let mut values = Vec::with_capacity(count);
     for _ in 0..count {
         values.push(decode(reader)?);
     }
@@ -4009,3 +4013,18 @@ impl std::fmt::Display for CodecError {
 }
 
 impl std::error::Error for CodecError {}
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+
+    #[test]
+    fn counted_decoder_rejects_impossible_capacity_before_allocation() {
+        let bytes = u32::MAX.to_le_bytes();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_counted::<u8>(&mut reader, |reader| reader.u8()),
+            Err(CodecError::UnexpectedEnd)
+        );
+    }
+}

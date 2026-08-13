@@ -51,8 +51,8 @@ fn two_nominal_affine_roots_validate_in_reverse_order_and_may_share_a_target() {
 }
 
 #[test]
-fn three_nominal_affine_roots_validate_in_reverse_order_and_reject_a_fourth() {
-    let module = three_root_nominal_affine_module();
+fn five_nominal_affine_roots_validate_in_reverse_order() {
+    let module = five_root_nominal_affine_module();
     let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
         &module.machines[0].blocks[0].terminator
     else {
@@ -63,51 +63,21 @@ fn three_nominal_affine_roots_validate_in_reverse_order_and_reject_a_fourth() {
             .iter()
             .map(|cleanup| cleanup.place)
             .collect::<Vec<_>>(),
-        vec![place_id(3), place_id(2), place_id(1)]
+        vec![
+            place_id(5),
+            place_id(4),
+            place_id(3),
+            place_id(2),
+            place_id(1)
+        ]
     );
-    validate_module(&module).expect("three ordered nominal cleanup roots should validate");
+    validate_module(&module).expect("five ordered nominal cleanup roots should validate");
     verify_module(
         &module,
         &ProofBundle::default(),
         &AdmissionProfile::default(),
     )
-    .expect("three shared cleanup targets require no proof evidence");
-
-    let mut too_wide = module;
-    let caller = &mut too_wide.machines[0];
-    caller
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: place_id(4),
-            position: 3,
-            is_self: false,
-            structural_type: structural_type_id(1),
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
-        });
-    caller.structural_places.push(StructuralPlaceDeclaration {
-        id: place_id(4),
-        kind: StructuralPlaceKind::Parameter {
-            position: 3,
-            is_self: false,
-        },
-    });
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    cleanups.insert(
-        0,
-        NominalAffineCleanup {
-            place: place_id(4),
-            structural_type: structural_type_id(1),
-            cleanup_machine: machine_id(2),
-        },
-    );
-    assert!(matches!(
-        validate_module(&too_wide),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    .expect("five shared cleanup targets require no proof evidence");
 }
 
 #[test]
@@ -252,6 +222,36 @@ fn exact_three_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
 }
 
 #[test]
+fn exact_five_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
+    let module = five_call_executable_nominal_affine_module();
+    let callees = module.machines[1].blocks[0]
+        .operations
+        .iter()
+        .map(|operation| match operation.kind {
+            OperationKind::CallUnit { callee, .. } => callee,
+            _ => panic!("cleanup operation is a Unit call"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        callees,
+        vec![
+            machine_id(3),
+            machine_id(4),
+            machine_id(5),
+            machine_id(6),
+            machine_id(7)
+        ]
+    );
+    validate_module(&module).expect("exact five-call nominal cleanup should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("exact five-call nominal cleanup requires no proof evidence");
+}
+
+#[test]
 fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
     let mut repeated = two_call_executable_nominal_affine_module();
     let first_callee = match repeated.machines[1].blocks[0].operations[0].kind {
@@ -302,35 +302,6 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
     });
     assert!(matches!(
         validate_module(&third_call),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
-
-    let mut fourth_call = three_call_executable_nominal_affine_module();
-    let mut fourth_helper = fourth_call.machines[2].clone();
-    fourth_helper.id = machine_id(6);
-    fourth_helper.entry = block_id(6);
-    fourth_helper.blocks[0].id = block_id(6);
-    fourth_helper.blocks[0].terminator = Terminator::ReturnUnit {
-        edge: edge_id(6),
-        trivial_affine_discards: Vec::new(),
-    };
-    fourth_helper.contract.id = contract_id(6);
-    fourth_call.machines[1].blocks[0]
-        .operations
-        .push(Operation {
-            id: operation_id(4),
-            result: OperationResult::Unit,
-            kind: OperationKind::CallUnit {
-                callee: fourth_helper.id,
-                structural_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        });
-    fourth_call.machines.push(fourth_helper);
-    assert!(matches!(
-        validate_module(&fourth_call),
         Err(ModuleError::InvalidNominalAffineCleanup { .. })
     ));
 
@@ -2514,38 +2485,41 @@ fn two_root_nominal_affine_module() -> TerminalModule {
     module
 }
 
-fn three_root_nominal_affine_module() -> TerminalModule {
+fn five_root_nominal_affine_module() -> TerminalModule {
     let mut module = two_root_nominal_affine_module();
     let caller = &mut module.machines[0];
-    caller
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: place_id(3),
-            position: 2,
-            is_self: false,
-            structural_type: structural_type_id(1),
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
+    for position in 2_u32..5 {
+        let place = place_id(u64::from(position + 1));
+        caller
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place,
+                position,
+                is_self: false,
+                structural_type: structural_type_id(1),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            });
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position,
+                is_self: false,
+            },
         });
-    caller.structural_places.push(StructuralPlaceDeclaration {
-        id: place_id(3),
-        kind: StructuralPlaceKind::Parameter {
-            position: 2,
-            is_self: false,
-        },
-    });
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    cleanups.insert(
-        0,
-        NominalAffineCleanup {
-            place: place_id(3),
-            structural_type: structural_type_id(1),
-            cleanup_machine: machine_id(2),
-        },
-    );
+        let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cleanups.insert(
+            0,
+            NominalAffineCleanup {
+                place,
+                structural_type: structural_type_id(1),
+                cleanup_machine: machine_id(2),
+            },
+        );
+    }
     module
 }
 
@@ -2700,6 +2674,34 @@ fn three_call_executable_nominal_affine_module() -> TerminalModule {
     };
     third_helper.contract.id = contract_id(5);
     module.machines.push(third_helper);
+    module
+}
+
+fn five_call_executable_nominal_affine_module() -> TerminalModule {
+    let mut module = three_call_executable_nominal_affine_module();
+    for raw in 6_u64..=7 {
+        let mut helper = module.machines[2].clone();
+        helper.id = machine_id(raw);
+        helper.entry = block_id(raw);
+        helper.blocks[0].id = block_id(raw);
+        helper.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: edge_id(raw),
+            trivial_affine_discards: Vec::new(),
+        };
+        helper.contract.id = contract_id(raw);
+        module.machines[1].blocks[0].operations.push(Operation {
+            id: operation_id(raw - 2),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: helper.id,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+        module.machines.push(helper);
+    }
     module
 }
 

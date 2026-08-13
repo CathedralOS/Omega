@@ -103,8 +103,8 @@ fn nominal_affine_unit_return_round_trips_two_roots_in_reverse_parameter_order()
 }
 
 #[test]
-fn nominal_affine_unit_return_round_trips_three_roots_and_rejects_a_fourth() {
-    let module = three_nominal_affine_fixture();
+fn nominal_affine_unit_return_round_trips_five_roots() {
+    let module = five_nominal_affine_fixture();
     let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
         &module.machines[0].blocks[0].terminator
     else {
@@ -115,48 +115,16 @@ fn nominal_affine_unit_return_round_trips_three_roots_and_rejects_a_fourth() {
             .iter()
             .map(|cleanup| cleanup.place)
             .collect::<Vec<_>>(),
-        vec![place_id(3), place_id(2), place_id(1)]
+        vec![
+            place_id(5),
+            place_id(4),
+            place_id(3),
+            place_id(2),
+            place_id(1)
+        ]
     );
-    let bytes = encode_module(&module).expect("three nominal affine roots should encode");
+    let bytes = encode_module(&module).expect("five nominal affine roots should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-
-    let mut too_wide = module;
-    let machine = &mut too_wide.machines[0];
-    machine
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: place_id(4),
-            position: 3,
-            is_self: false,
-            structural_type: structural_type_id(1),
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
-        });
-    machine.structural_places.push(StructuralPlaceDeclaration {
-        id: place_id(4),
-        kind: StructuralPlaceKind::Parameter {
-            position: 3,
-            is_self: false,
-        },
-    });
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut machine.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    cleanups.insert(
-        0,
-        NominalAffineCleanup {
-            place: place_id(4),
-            structural_type: structural_type_id(1),
-            cleanup_machine: machine_id(2),
-        },
-    );
-    assert_eq!(
-        encode_module(&too_wide),
-        Err(CodecError::MalformedStructuralFoundation(
-            "nominal affine cleanup list is empty or wider than three"
-        ))
-    );
 }
 
 #[test]
@@ -1722,38 +1690,42 @@ fn two_nominal_affine_fixture() -> TerminalModule {
     module
 }
 
-fn three_nominal_affine_fixture() -> TerminalModule {
+fn five_nominal_affine_fixture() -> TerminalModule {
     let mut module = two_nominal_affine_fixture();
     let machine = &mut module.machines[0];
-    machine
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: place_id(3),
-            position: 2,
-            is_self: false,
-            structural_type: structural_type_id(1),
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
+    for position in 2_u32..5 {
+        let place = place_id(u64::from(position + 1));
+        machine
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place,
+                position,
+                is_self: false,
+                structural_type: structural_type_id(1),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            });
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position,
+                is_self: false,
+            },
         });
-    machine.structural_places.push(StructuralPlaceDeclaration {
-        id: place_id(3),
-        kind: StructuralPlaceKind::Parameter {
-            position: 2,
-            is_self: false,
-        },
-    });
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut machine.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    cleanups.insert(
-        0,
-        NominalAffineCleanup {
-            place: place_id(3),
-            structural_type: structural_type_id(1),
-            cleanup_machine: machine_id(2),
-        },
-    );
+        let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+            &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cleanups.insert(
+            0,
+            NominalAffineCleanup {
+                place,
+                structural_type: structural_type_id(1),
+                cleanup_machine: machine_id(2),
+            },
+        );
+    }
     module
 }
 
