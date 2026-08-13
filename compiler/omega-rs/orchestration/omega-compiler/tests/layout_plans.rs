@@ -539,6 +539,85 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_fixed_array_materializes_through_element_at_tiling() {
+    let main_path = write_program(
+        "source-owned-fixed-array-element-tiling",
+        r#"
+use omega::language::core::layout;
+
+data ArrayLayout { entries: [FieldEntry; 64]; }
+machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 12 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    self.entries[2] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 3,
+           size_fixed: 16, size_is_dynamic: false, align: 2 }
+}
+data Samples { values: [u16; 3]; }
+machine make_samples() -> Samples {
+    Samples { values: [258, 772, 1286] }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("tiled fixed array should check");
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+        .expect("one element At per fixed-array element should validate");
+    assert_eq!(report.offsets, None);
+    assert_eq!(
+        report
+            .entries
+            .iter()
+            .map(|entry| match entry.placement {
+                LayoutPlacementReport::At { offset } => offset,
+                _ => panic!("fixed-array tiling should retain only At entries"),
+            })
+            .collect::<Vec<_>>(),
+        vec![4, 8, 12]
+    );
+
+    let mut little = [0xa5; 16];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("fixed-array elements should materialize at their canonical destinations");
+    assert_eq!(&little[4..14], &[2, 1, 0, 0, 4, 3, 0, 0, 6, 5]);
+    assert!(
+        little[..4]
+            .iter()
+            .chain(&little[14..])
+            .all(|byte| *byte == 0)
+    );
+
+    let mut big = [0xa5; 16];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("tiling should preserve Omega-selected target byte order");
+    assert_eq!(&big[4..14], &[1, 2, 0, 0, 3, 4, 0, 0, 5, 6]);
+}
+
+#[test]
 fn source_machine_owned_fixed_record_array_materializes_through_the_typed_bridge() {
     let main_path = write_program(
         "source-owned-fixed-record-array",
@@ -921,6 +1000,76 @@ machine Main::main(&mut self) { }
         big_endian[..4]
             .iter()
             .chain(&big_endian[20..])
+            .all(|byte| *byte == 0)
+    );
+}
+
+#[test]
+fn tiled_record_arrays_keep_erased_fields_semantic_and_storage_free() {
+    let main_path = write_program(
+        "source-owned-tiled-record-array-erased-fields",
+        r#"
+use omega::language::core::layout;
+
+data Tiled { entries: [FieldEntry; 64]; }
+machine Tiled::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 2,
+           size_fixed: 28, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data Certified {
+    left: u16;
+    proof [erased]: Evidence;
+    right: u32;
+}
+data Batch { items: [Certified; 2]; }
+machine make_batch() -> Batch {
+    let items: [Certified; 2];
+    items[0] = Certified {
+        left: 258,
+        proof: Evidence::Only,
+        right: 100992003,
+    };
+    items[1] = Certified {
+        left: 2055,
+        proof: Evidence::Only,
+        right: 202050057,
+    };
+    Batch { items: items }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("tiled record array with erased fields should check");
+    let report = compute_layout_plan(&checked.typed, "Tiled::plan", "Batch")
+        .expect("the repeated field should accept one At per physical element");
+    let mut bytes = [0xa5; 28];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_batch",
+        "Batch",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("erased fields should stay semantic while each element tiles physically");
+    assert_eq!(&bytes[4..12], &[2, 1, 0, 0, 3, 4, 5, 6]);
+    assert_eq!(&bytes[16..24], &[7, 8, 0, 0, 9, 10, 11, 12]);
+    assert!(
+        bytes[..4]
+            .iter()
+            .chain(&bytes[12..16])
+            .chain(&bytes[24..])
             .all(|byte| *byte == 0)
     );
 }
