@@ -394,14 +394,16 @@ routes with the exact terminal argument values; it never reverse-matches caller
 expressions, which would be ambiguous for equal or overlapping arguments. A
 nonempty path to a relevant Boolean field of a record parameter retains every
 canonical structural-field identity and rebases across structural Unit calls.
-For a field-projected structural argument, the caller's canonical argument path
-is prepended to the callee's parameter-relative Boolean path. The verifier
-independently traverses both exact declared record paths, requires structural
-intermediate fields and a Boolean leaf, and rejects absent, erased, truncated,
-mistyped, or redirected paths. Fixed-index argument prefixes, wider aggregate
-predicates, and imported crash capsules remain fail-closed. Structural/content
-contracts reject because custody effects require their own vertical slice rather
-than an ordinary scalar flag.
+For a field- or literal-fixed-index-projected structural argument, the caller's
+canonical argument path is prepended to the callee's parameter-relative Boolean
+path. Canonical predicate segments distinguish verifier-owned field identities
+from exact array indices. The verifier independently traverses both declared
+record and fixed-array paths, requires in-bounds indices, structural
+intermediates, and a Boolean leaf, and rejects absent, erased, truncated,
+mistyped, out-of-bounds, or redirected paths. Wider aggregate predicates and
+imported crash capsules remain fail-closed. Structural/content contracts reject
+because custody effects require their own vertical slice rather than an ordinary
+scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

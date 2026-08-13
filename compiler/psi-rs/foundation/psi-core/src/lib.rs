@@ -24,6 +24,6 @@ pub use identity::{
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub use proposition::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-    PropositionError, ScalarTerm, ScalarType,
+    CanonicalStructuralPathSegment, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
+    Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
 };

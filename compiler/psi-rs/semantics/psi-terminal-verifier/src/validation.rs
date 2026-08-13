@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
-    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId, content_conservation_fingerprint,
+    BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
+    ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
+    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    PropositionContext, PropositionError, PropositionId, ScalarTerm, ScalarType, ServiceId,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -2462,7 +2463,7 @@ fn valid_nominal_cleanup_requirements(
         else {
             return false;
         };
-        let [field] = path.as_slice() else {
+        let [CanonicalStructuralPathSegment::Field(field)] = path.as_slice() else {
             return false;
         };
         let key = (*expected, field.get().to_le_bytes());
@@ -2850,7 +2851,7 @@ fn validate_unit_call_crash_continuations(
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
-            let prefix = structural_argument_field_prefix(module, caller, argument);
+            let prefix = structural_argument_canonical_prefix(module, caller, argument);
             if prefix.is_none() && boolean_roots.contains(&parameter.place) {
                 return Err(
                     ModuleError::ProjectedUnitCallContractUsesStructuralParameter {
@@ -2894,7 +2895,7 @@ fn validate_unit_call_crash_continuations(
 
 fn substitute_crash_route_places(
     routes: &[CrashRouteBucket],
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Vec<CrashRouteBucket> {
     routes
         .iter()
@@ -2925,11 +2926,11 @@ fn substitute_crash_route_places(
         .collect()
 }
 
-fn structural_argument_field_prefix(
+fn structural_argument_canonical_prefix(
     module: &TerminalModule,
     caller: &TerminalMachine,
     argument: &StructuralArgument,
-) -> Option<Vec<StructuralFieldId>> {
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
     let mut structural_type = caller
         .structural_parameters
         .iter()
@@ -2937,24 +2938,39 @@ fn structural_argument_field_prefix(
         .structural_type;
     let mut prefix = Vec::with_capacity(argument.path.len());
     for segment in &argument.path {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return None;
-        };
-        let field = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Record { fields } => fields
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                let field = module
+                    .structural_types
                     .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased()),
-                StructuralTypeShape::FixedArray { .. } => None,
-            })?;
-        let StructuralFieldType::Structural(next) = field.field_type else {
-            return None;
-        };
-        prefix.push(field.id);
-        structural_type = next;
+                    .find(|declaration| declaration.id == structural_type)
+                    .and_then(|declaration| match &declaration.shape {
+                        StructuralTypeShape::Record { fields } => fields.iter().find(|field| {
+                            field.identity == *identity && !field.relevance.is_erased()
+                        }),
+                        StructuralTypeShape::FixedArray { .. } => None,
+                    })?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                prefix.push(CanonicalStructuralPathSegment::Field(field.id));
+                structural_type = next;
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                let element = module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)
+                    .and_then(|declaration| match declaration.shape {
+                        StructuralTypeShape::FixedArray { element, length } if *index < length => {
+                            Some(element)
+                        }
+                        _ => None,
+                    })?;
+                prefix.push(CanonicalStructuralPathSegment::FixedIndex(*index));
+                structural_type = element;
+            }
+        }
     }
     Some(prefix)
 }
@@ -3211,36 +3227,60 @@ fn validate_boolean_field_terms(
                     .find(|parameter| parameter.place == *root)
                     .map(|parameter| parameter.structural_type);
                 let mut valid = !path.is_empty();
-                for (index, field_id) in path.iter().enumerate() {
+                for (index, segment) in path.iter().enumerate() {
                     let Some(current_type) = structural_type else {
                         valid = false;
                         break;
                     };
-                    let field = module
-                        .structural_types
-                        .iter()
-                        .find(|declaration| declaration.id == current_type)
-                        .and_then(|declaration| match &declaration.shape {
-                            StructuralTypeShape::Record { fields } => {
-                                fields.iter().find(|candidate| candidate.id == *field_id)
-                            }
-                            StructuralTypeShape::FixedArray { .. } => None,
-                        });
-                    let Some(field) = field.filter(|field| !field.relevance.is_erased()) else {
-                        valid = false;
-                        break;
-                    };
                     let is_last = index + 1 == path.len();
-                    match (&field.field_type, is_last) {
-                        (StructuralFieldType::Structural(next), false) => {
-                            structural_type = Some(*next);
+                    match segment {
+                        CanonicalStructuralPathSegment::Field(field_id) => {
+                            let field = module
+                                .structural_types
+                                .iter()
+                                .find(|declaration| declaration.id == current_type)
+                                .and_then(|declaration| match &declaration.shape {
+                                    StructuralTypeShape::Record { fields } => {
+                                        fields.iter().find(|candidate| candidate.id == *field_id)
+                                    }
+                                    StructuralTypeShape::FixedArray { .. } => None,
+                                });
+                            let Some(field) = field.filter(|field| !field.relevance.is_erased())
+                            else {
+                                valid = false;
+                                break;
+                            };
+                            match (&field.field_type, is_last) {
+                                (StructuralFieldType::Structural(next), false) => {
+                                    structural_type = Some(*next);
+                                }
+                                (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {
+                                    structural_type = None;
+                                }
+                                _ => {
+                                    valid = false;
+                                    break;
+                                }
+                            }
                         }
-                        (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {
-                            structural_type = None;
-                        }
-                        _ => {
-                            valid = false;
-                            break;
+                        CanonicalStructuralPathSegment::FixedIndex(fixed_index) => {
+                            let element = module
+                                .structural_types
+                                .iter()
+                                .find(|declaration| declaration.id == current_type)
+                                .and_then(|declaration| match declaration.shape {
+                                    StructuralTypeShape::FixedArray { element, length }
+                                        if *fixed_index < length =>
+                                    {
+                                        Some(element)
+                                    }
+                                    _ => None,
+                                });
+                            let Some(element) = element.filter(|_| !is_last) else {
+                                valid = false;
+                                break;
+                            };
+                            structural_type = Some(element);
                         }
                     }
                 }
@@ -6090,7 +6130,7 @@ pub enum ModuleError {
     InvalidBooleanFieldTerm {
         machine: MachineId,
         root: PlaceId,
-        path: Vec<psi_core::StructuralFieldId>,
+        path: Vec<CanonicalStructuralPathSegment>,
     },
     NonCanonicalCrashRoutes(MachineId),
     EmptyCrashRouteBucket {

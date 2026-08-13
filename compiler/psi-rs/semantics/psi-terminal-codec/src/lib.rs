@@ -26,11 +26,11 @@ pub use proof_bundle::{
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 
 use psi_core::{
-    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId, Proposition,
-    PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType, ServiceId,
-    StructuralPlaceKind, StructuralTypeId,
+    CanonicalStructuralPathSegment, ClaimId, ContentAlgebra, ContentAlgebraKind,
+    ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IntegerCarrier, IntegerSign,
+    IntegerType, IntegerValue, ObligationId, Proposition, PropositionError, PropositionId,
+    PsiSemanticId, ScalarTerm, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -52,7 +52,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 5;
+const FORMAT_MARKER: u16 = 6;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -2345,8 +2345,17 @@ fn encode_scalar_term(
             writer.u8(34);
             writer.id(*root);
             writer.len("Boolean field path", path.len())?;
-            for field in path {
-                writer.id(*field);
+            for segment in path {
+                match segment {
+                    CanonicalStructuralPathSegment::Field(field) => {
+                        writer.u8(1);
+                        writer.id(*field);
+                    }
+                    CanonicalStructuralPathSegment::FixedIndex(index) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                }
             }
         }
         ScalarTerm::Boolean(value) => {
@@ -3885,7 +3894,16 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let count = reader.count()?;
             let mut path = Vec::new();
             for _ in 0..count {
-                path.push(reader.id("StructuralFieldId")?);
+                path.push(match reader.u8()? {
+                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
+                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    tag => {
+                        return Err(CodecError::InvalidTag(
+                            "CanonicalStructuralPathSegment",
+                            tag,
+                        ));
+                    }
+                });
             }
             ScalarTerm::boolean_field_path(root, path)
         }

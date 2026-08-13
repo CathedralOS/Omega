@@ -1,4 +1,4 @@
-use psi_core::{Proposition, ScalarTerm, StructuralFieldId};
+use psi_core::{CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -68,6 +68,32 @@ const PROJECTED_SOURCE: &str = r#"
         envelope.packet.state.should_abort
     {
         Helper::inspect(envelope.packet);
+    }
+"#;
+
+const FIXED_INDEX_SOURCE: &str = r#"
+    boundary trait PortIo {}
+    data Receipt [linear] { should_abort: bool; }
+
+    boundary machine Receipt::settle(self)
+    reaches PortIo
+    ensures true;
+
+    data Helper {}
+    machine Helper::inspect(receipt: Receipt)
+    reaches PortIo
+    crashes Abort
+        receipt.should_abort
+    {
+        Receipt::settle(receipt);
+    }
+
+    data Root {}
+    machine Root::enter(receipts: [Receipt; 1])
+    reaches PortIo
+    crashes Abort
+    {
+        Helper::inspect(receipts[0]);
     }
 "#;
 
@@ -228,7 +254,11 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
         panic!("nested member route retains a structural Boolean path")
     };
     assert_eq!(*route_root, root.structural_parameters[0].place);
-    let [outer_field, leaf_field] = path.as_slice() else {
+    let [
+        CanonicalStructuralPathSegment::Field(outer_field),
+        CanonicalStructuralPathSegment::Field(leaf_field),
+    ] = path.as_slice()
+    else {
         panic!("nested member route retains exactly two canonical field IDs")
     };
     let packet = lowered
@@ -369,7 +399,10 @@ fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end()
         panic!("caller route retains its structural field path")
     };
     assert_eq!(*route_root, root.structural_parameters[0].place);
-    assert_eq!(caller_path.first(), Some(&packet_field.id));
+    assert_eq!(
+        caller_path.first(),
+        Some(&CanonicalStructuralPathSegment::Field(packet_field.id))
+    );
 
     let [CrashRouteGuard::Predicate(helper_predicate)] =
         helper.contract.crash_routes[0].alternatives.as_slice()
@@ -435,6 +468,142 @@ fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end()
     .expect("projected member contract remains verified metadata at interpretation");
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), 3);
+}
+
+#[test]
+fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    let tokens = Lexer::new(FIXED_INDEX_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("fixed-index structural member crash route lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        [StructuralPathSegment::FixedIndex(0)]
+    );
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("callee member route survives the fixed-index call")
+    };
+    let Proposition::Equal(
+        _,
+        ScalarTerm::BooleanField {
+            root: continuation_root,
+            path: continuation_path,
+        },
+    ) = continuation.proposition()
+    else {
+        panic!("continuation is a canonical structural Boolean path")
+    };
+    assert_eq!(*continuation_root, root.structural_parameters[0].place);
+    let [
+        CanonicalStructuralPathSegment::FixedIndex(0),
+        CanonicalStructuralPathSegment::Field(leaf),
+    ] = continuation_path.as_slice()
+    else {
+        panic!("fixed index precedes the callee-relative Boolean field")
+    };
+    let [CrashRouteGuard::Predicate(helper_predicate)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one Boolean member route")
+    };
+    let Proposition::Equal(
+        _,
+        ScalarTerm::BooleanField {
+            path: helper_path, ..
+        },
+    ) = helper_predicate.proposition()
+    else {
+        panic!("callee route retains its member")
+    };
+    assert_eq!(helper_path, &[CanonicalStructuralPathSegment::Field(*leaf)]);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently composes the fixed index and callee member");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("fixed-index member route has an acyclic fixed-fuel certificate");
+    assert_eq!(fixed.ceiling_units(), 4);
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 13,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("fixed-index member contract remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut out_of_bounds = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut out_of_bounds.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let CrashRouteGuard::Predicate(predicate) = &mut crash_continuations[0].alternatives[0] else {
+        unreachable!()
+    };
+    let Proposition::Equal(_, ScalarTerm::BooleanField { root, path }) = predicate.proposition()
+    else {
+        unreachable!()
+    };
+    let root = *root;
+    let mut path = path.clone();
+    path[0] = CanonicalStructuralPathSegment::FixedIndex(1);
+    *predicate = CrashPredicateTerm::new(Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field_path(root, path),
+    ));
+    let invalid_result = psi_terminal_verifier::validate_module(&out_of_bounds);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected fixed-index validation result: {invalid_result:?}"
+    );
 }
 
 #[test]

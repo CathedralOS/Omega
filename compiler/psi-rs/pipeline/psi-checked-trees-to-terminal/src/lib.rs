@@ -27,12 +27,13 @@ use psi_checked_trees::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
-    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
-    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    PropositionContext, PropositionError, PropositionId, ScalarTerm, ScalarType, ServiceId,
-    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
+    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
+    ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentConservationEquation,
@@ -6716,7 +6717,7 @@ fn lower_attached_unit_closure_including(
                                 parameter.place,
                                 (
                                     argument.place,
-                                    structural_crash_route_argument_field_prefix(
+                                    structural_crash_route_argument_prefix(
                                         argument,
                                         parameters,
                                         &structural_types,
@@ -10190,7 +10191,7 @@ fn lower_structural_crash_route_buckets(
                                 .ok_or(LoweringError::Unsupported(
                                     "structural crash route path field is absent or erased",
                                 ))?;
-                            terminal_path.push(field.id);
+                            terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
                             let is_last = index + 1 == path.len();
                             match (&field.field_type, is_last) {
                                 (StructuralFieldType::Structural(next), false) => {
@@ -10226,20 +10227,15 @@ fn lower_structural_crash_route_buckets(
 
 fn substitute_structural_crash_route_roots(
     buckets: &mut [psi_terminal::CrashRouteBucket],
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Option<Vec<StructuralFieldId>>)>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Result<(), LoweringError> {
     fn substitute_term(
         term: &mut ScalarTerm,
-        substitutions: &BTreeMap<PlaceId, (PlaceId, Option<Vec<StructuralFieldId>>)>,
+        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) -> Result<(), LoweringError> {
         if let ScalarTerm::BooleanField { root, path } = term {
             let Some((replacement, prefix)) = substitutions.get(root) else {
                 return Ok(());
-            };
-            let Some(prefix) = prefix else {
-                return unsupported(
-                    "fixed-index projected structural calls cannot carry member crash predicates",
-                );
             };
             *root = *replacement;
             if !prefix.is_empty() {
@@ -10268,11 +10264,11 @@ fn substitute_structural_crash_route_roots(
     Ok(())
 }
 
-fn structural_crash_route_argument_field_prefix(
+fn structural_crash_route_argument_prefix(
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
-) -> Result<Option<Vec<StructuralFieldId>>, LoweringError> {
+) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
     let mut structural_type = parameters
         .iter()
         .find(|parameter| parameter.place == argument.place)
@@ -10282,32 +10278,49 @@ fn structural_crash_route_argument_field_prefix(
         ))?;
     let mut prefix = Vec::with_capacity(argument.path.len());
     for segment in &argument.path {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return Ok(None);
-        };
         let declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
             .ok_or(LoweringError::Unsupported(
                 "structural crash route argument path type is absent",
             ))?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return unsupported("structural crash route argument path receiver is not a record");
-        };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity)
-            .filter(|field| !field.relevance.is_erased())
-            .ok_or(LoweringError::Unsupported(
-                "structural crash route argument field is absent or erased",
-            ))?;
-        let StructuralFieldType::Structural(next) = field.field_type else {
-            return unsupported("structural crash route argument field is not structural");
-        };
-        prefix.push(field.id);
-        structural_type = next;
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                    return unsupported(
+                        "structural crash route argument path receiver is not a record",
+                    );
+                };
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity)
+                    .filter(|field| !field.relevance.is_erased())
+                    .ok_or(LoweringError::Unsupported(
+                        "structural crash route argument field is absent or erased",
+                    ))?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return unsupported("structural crash route argument field is not structural");
+                };
+                prefix.push(CanonicalStructuralPathSegment::Field(field.id));
+                structural_type = next;
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                    return unsupported(
+                        "structural crash route argument fixed index receiver is not an array",
+                    );
+                };
+                if *index >= length {
+                    return unsupported(
+                        "structural crash route argument fixed index is out of bounds",
+                    );
+                }
+                prefix.push(CanonicalStructuralPathSegment::FixedIndex(*index));
+                structural_type = element;
+            }
+        }
     }
-    Ok(Some(prefix))
+    Ok(prefix)
 }
 
 fn lower_checked_crash_predicates(

@@ -1653,7 +1653,8 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     else {
         panic!("target contextual requirement names its Boolean field")
     };
-    let [target_field] = target_path.as_slice() else {
+    let [psi_core::CanonicalStructuralPathSegment::Field(target_field)] = target_path.as_slice()
+    else {
         panic!("target contextual requirement names one direct Boolean field")
     };
     assert_eq!(*target_root, receiver);

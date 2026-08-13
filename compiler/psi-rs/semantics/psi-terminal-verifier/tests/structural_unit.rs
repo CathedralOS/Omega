@@ -1,9 +1,9 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, OperationId,
-    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
+    ContentAlgebraKind, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
+    EvidenceIdentity, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -517,7 +517,8 @@ fn contextual_nominal_affine_cleanup_rejects_forged_requirement_binding() {
     else {
         unreachable!()
     };
-    path[0] = psi_core::StructuralFieldId::new(2).expect("field");
+    path[0] =
+        CanonicalStructuralPathSegment::Field(psi_core::StructuralFieldId::new(2).expect("field"));
     assert_eq!(
         validate_module(&wrong_field).unwrap_err(),
         expected_invalid(&wrong_field)
@@ -1789,7 +1790,13 @@ fn projected_unit_call_crash_routes_prepend_the_canonical_argument_field_path() 
         alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
             Proposition::Equal(
                 ScalarTerm::boolean(true),
-                ScalarTerm::boolean_field_path(place_id(1), vec![right, flag]),
+                ScalarTerm::boolean_field_path(
+                    place_id(1),
+                    vec![
+                        CanonicalStructuralPathSegment::Field(right),
+                        CanonicalStructuralPathSegment::Field(flag),
+                    ],
+                ),
             ),
         ))],
     };
@@ -1817,7 +1824,13 @@ fn projected_unit_call_crash_routes_prepend_the_canonical_argument_field_path() 
         alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
             Proposition::Equal(
                 ScalarTerm::boolean(true),
-                ScalarTerm::boolean_field_path(place_id(1), vec![left, flag]),
+                ScalarTerm::boolean_field_path(
+                    place_id(1),
+                    vec![
+                        CanonicalStructuralPathSegment::Field(left),
+                        CanonicalStructuralPathSegment::Field(flag),
+                    ],
+                ),
             ),
         ))],
     };

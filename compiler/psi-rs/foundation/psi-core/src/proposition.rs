@@ -825,19 +825,28 @@ pub enum ScalarType {
     Integer(IntegerType),
 }
 
+/// One canonical step below a terminal structural root in a scalar
+/// proposition. Field steps use verifier-owned structural-field identities;
+/// fixed indices retain the exact literal array element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CanonicalStructuralPathSegment {
+    Field(StructuralFieldId),
+    FixedIndex(u64),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarTerm {
     Value {
         id: ValueId,
         scalar_type: ScalarType,
     },
-    /// One nonempty path to a relevant Boolean field below a terminal
-    /// structural root. The terminal verifier traverses every field against
-    /// the exact declared structural types and independently confirms that
-    /// the final field is Boolean.
+    /// One nonempty canonical structural path to a relevant Boolean field
+    /// below a terminal structural root. The terminal verifier traverses every
+    /// field and fixed index against the exact declared structural types and
+    /// independently confirms that the final field is Boolean.
     BooleanField {
         root: PlaceId,
-        path: Vec<StructuralFieldId>,
+        path: Vec<CanonicalStructuralPathSegment>,
     },
     Boolean(bool),
     BooleanNot {
@@ -1002,10 +1011,10 @@ impl ScalarTerm {
     }
 
     pub fn boolean_field(root: PlaceId, field: StructuralFieldId) -> Self {
-        Self::boolean_field_path(root, vec![field])
+        Self::boolean_field_path(root, vec![CanonicalStructuralPathSegment::Field(field)])
     }
 
-    pub fn boolean_field_path(root: PlaceId, path: Vec<StructuralFieldId>) -> Self {
+    pub fn boolean_field_path(root: PlaceId, path: Vec<CanonicalStructuralPathSegment>) -> Self {
         Self::BooleanField { root, path }
     }
 

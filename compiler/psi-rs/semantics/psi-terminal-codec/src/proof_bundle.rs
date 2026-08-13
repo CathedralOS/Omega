@@ -1,8 +1,8 @@
 use psi_core::{
-    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
-    PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
+    CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
+    Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 2;
+const FORMAT_MARKER: u16 = 3;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -549,8 +549,17 @@ fn encode_scalar_term(
             writer.u8(34);
             writer.id(*root);
             writer.len("Boolean field path", path.len())?;
-            for field in path {
-                writer.id(*field);
+            for segment in path {
+                match segment {
+                    CanonicalStructuralPathSegment::Field(field) => {
+                        writer.u8(1);
+                        writer.id(*field);
+                    }
+                    CanonicalStructuralPathSegment::FixedIndex(index) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                }
             }
         }
         ScalarTerm::Boolean(value) => {
@@ -1316,7 +1325,16 @@ fn decode_scalar_term(
             let count = reader.count()?;
             let mut path = Vec::new();
             for _ in 0..count {
-                path.push(reader.id("StructuralFieldId")?);
+                path.push(match reader.u8()? {
+                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
+                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    tag => {
+                        return Err(ProofCodecError::InvalidTag(
+                            "CanonicalStructuralPathSegment",
+                            tag,
+                        ));
+                    }
+                });
             }
             ScalarTerm::boolean_field_path(root, path)
         }
