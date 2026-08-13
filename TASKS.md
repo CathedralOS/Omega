@@ -166,56 +166,22 @@ Owners:
 
 Remaining:
 
-- **PSIIR.** Extend terminal Psi beyond general blocks, positional scalar direct
-  calls, guarded in-module call-crash continuations, and the accepted Unit
-  structural/content call slice. The current Unit slice carries canonical
-  relevant record-field claim paths (including numbered, disjoint sibling, and
-  nested fields) through checking, encoding, independent verification,
-  interpretation, direct transfer, and boundary settlement. It rejects erased,
-  unknown, noncanonical, overlapping, truncated, reordered, or call-mismatched
-  claim sets. Straight-line Unit return also carries verifier-reconstructed
-  reverse-declaration no-code cleanup for claim-free affine structural
-  parameters, performed only after return-edge fuel succeeds. Scalar return
-  carries the same exact cleanup list through canonical encoding, verification,
-  interpretation, metering, fixed-fuel derivation, and Omega consumption; its
-  primitive-only source producer emits the empty list. The first nonempty
-  scalar-return source path now handles an attached one-state machine with only
-  an exact partition of primitive scalar inputs and claim-free affine structural
-  parameters, plus an ordered sequence of immutable primitive locals and one
-  scalar return. Landed integer operations, Boolean
-  constants/negation/equality/comparisons, and references to scalar inputs or
-  already materialized locals emit—with exact-operation proofs reconstructed
-  where required—before exact reverse-declaration cleanup. Final short-circuit
-  Boolean returns preserve the frontier across decisions and repeat cleanup on
-  every terminal leaf. Any finite sequence of short-circuit Boolean locals may
-  instead converge stage by stage without cleanup through typed Boolean
-  continuations; branch-free scalar work may surround and separate those stages,
-  and the final branch-free return alone performs cleanup. Calls, mutable or
-  non-scalar locals, contracts, claims, effects, and multi-state control remain
-  fenced. Unconditional
-  jumps carry a verifier-checked reverse-declaration subset of the same
-  claim-free affine parameters, applied after fuel succeeds and outgoing scalar
-  arguments are materialized; each ordered conditional successor carries its
-  own independently selected subset under the same rule. Omega consumes both
-  forms without emitting an operation. Structural control-edge production now
-  has its first complete narrow path: exact source-state/statement/target rows
-  retain reverse-order whole-parameter affine discards after subtracting
-  checked transfers, then a composed checked plan binds those rows to exact
-  source-handle-free state signatures and whole-parameter transfer maps.
-  Terminal production resolves positions to places and emits verified jumps or
-  Unit returns for attached, acyclic machines with claim-free affine structural
-  parameters. Up to two states may select ordered successors from retained
-  Boolean inputs; each edge independently binds its whole-parameter transfer,
-  direct primitive scalar arguments, and reverse-order cleanup before control
-  moves. One exact two-predecessor diamond may reconverge when both paths
-  reconstruct the identical ordered custody frontier. Cycles, divergent or
-  wider joins, reordered custody, computed guards or successor values, wider
-  conditional topology, locals, projections, claims, and incomplete evidence
-  still fail closed.
+- **PSIIR.** Extend the accepted terminal vocabulary as complete vertical
+  slices. Current support covers scalar direct calls and guarded crash
+  continuations; canonical Unit structural/content calls; exact affine cleanup
+  on Unit/scalar returns and structural control edges; a bounded scalar/local
+  Boolean computation subset; and attached acyclic structural control with up
+  to two Boolean decision states plus one exact equal-frontier diamond. Codec,
+  independent verification, interpretation, fuel, and Omega consumption agree
+  on each accepted carrier. Unsupported claims, cleanup, calls, topology, or
+  computation fail closed rather than falling back to source trees.
 
-  Add indexed aggregate and result-bearing custody, affine locals, nominal and
-  partial-value cleanup, remaining edge kinds and conservation, returned
-  transfer, loops, suspension, and scoped ordering as complete vertical slices.
+  Add structural result-bearing custody first, then indexed aggregates, affine
+  locals, nominal/partial-value cleanup, remaining edge kinds and conservation,
+  returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
+  or wider joins, reordered custody, computed structural guards/successors,
+  projections, and incomplete evidence remain fenced until their entire slice
+  is verifier-owned.
   Ranked tail-recursive call graphs remain rejected until tail position and
   ranking evidence are terminal and verifier-owned. Retire checked/source-tree
   consumers with each slice; nothing below terminal Psi may depend on
@@ -260,42 +226,21 @@ Remaining:
   attribution rows, but is design-blocked on the sponsor counter, exhaustion
   transfer, and resumable continuation ABI in owner Q6. Keep WCET and wall-clock
   conversion separate.
-- **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
-  noninterference, erased-stripped layout, and obligation preservation. Explicit
-  relevance is retained in semantic/proof identity while supported record, sum,
-  wire, plan-laid, interpreter/native layout, recast, and fixed-record boundary
-  slices recursively omit erased storage, initialization work, topology, tags,
-  bytes, and ABI transfer. Runtime use of erased values rejects; ambiguous or
-  ineligible omitted evidence remains explicit-term-required. Direct and nested
-  SysV AMD64/AAPCS64 canaries pin the fixed-record boundary classification.
+- **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
+  noninterference, erased-stripped layout, and obligation preservation across
+  the remaining consumers. Explicit relevance remains in semantic/proof
+  identity while supported runtime carriers recursively omit erased storage,
+  initialization, topology, bytes, tags, and ABI transfer; runtime use rejects
+  and omitted evidence remains a required semantic term.
 
-  Target-neutral generic-instance discovery, syntax relabeling, contextual
-  literal elaboration, build-time admission, fixed-array evaluation, and the
-  checked zero-argument evaluator now live in Psi. Const-generic call
-  discovery, probing, evaluation, and substitution also form an
-  ownership-taking Psi pre-resolution entry, and machine-backed concrete
-  const-domain facts are discharged in the same Psi build-time service.
-  Programmable layout, access, and placement evaluation/normalization now also
-  live there over Psi typed trees and normalized plan carriers. Wire placement
-  derivation, authored codec-policy evaluation/agreement, and encode-obligation
-  recording now live in the same Psi service. Plan-laid type desugaring and
-  `Placed<P, T>` probe/evaluate/exact-accessor synthesis now form paired Psi
-  pre-resolution/post-typing services. Ownership-taking Psi pre-resolution and
-  pre-check conveyors now sequence the complete target-neutral build-time
-  phases; target-machine filtering and ABI/provider realization remain Omega.
-  The in-place generic syntax elaborator is private. Continue shrinking any
-  remaining target-neutral probe sequencing in `omega-compiler` before
-  expanding computed, chained, dynamic-receiver, unresolved generic,
-  non-checked-supply, or unresolved-machine-parameter contexts. This is an
-  engineering migration, not a language-design blocker: Omega must consume
-  terminal Psi rather than specialize language trees. Unsupported shapes keep
-  failing closed. `Placed<P,
-  T>` erased-evidence establishment is design-blocked
-  on owner Q8. Explicit relevance supersedes “recursive means proof-only”;
-  non-layoutable `Type` values remain erased-only, and relevance never implies a
-  carrier-relation role. Case-bearing values and unresolved generic aggregates
-  retain their existing public ABI-shape limits; this work does not manufacture
-  an ABI outside the calling-policy vocabulary.
+  Continue moving any remaining target-neutral generic/build-time probe
+  sequencing out of `omega-compiler`; Psi owns those services and normalized
+  plan carriers, while Omega owns target filtering and ABI/provider realization.
+  This is engineering, not a language-design blocker. Unsupported computed,
+  chained, dynamic-receiver, unresolved-generic, non-checked-supply, and
+  unresolved-machine-parameter shapes keep failing closed. `Placed<P, T>`
+  erased-evidence establishment is design-blocked on owner Q8. Relevance does
+  not invent a runtime carrier or public ABI for otherwise non-layoutable types.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the
