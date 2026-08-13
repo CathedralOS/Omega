@@ -1910,7 +1910,7 @@ fn lower_unit_function(
                     .iter()
                     .filter_map(|action| match action {
                         psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                            Some(*cleanup)
+                            Some(cleanup.clone())
                         }
                         _ => None,
                     })
@@ -2150,6 +2150,12 @@ fn validate_bounded_nominal_cleanup_body(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(caller);
+    if cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty() {
+        // Contextual cleanup premises are verified terminal-Psi evidence. The
+        // verified Psi-to-Omega boundary projects them away; accepting them in
+        // an Omega plan would create a second, unverified proof authority.
+        return Err(invalid());
+    }
     let Some((cleanup_return, helper_calls)) = cleanup_function.operations.split_last() else {
         return Err(invalid());
     };
@@ -4867,6 +4873,8 @@ mod tests {
             place,
             structural_type: receiver_type,
             cleanup_machine,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         };
         let caller_parameters = [first_place, second_place]
             .into_iter()

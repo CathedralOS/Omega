@@ -1267,6 +1267,10 @@ fn validate_record_shape(
                 })
                 .collect::<Vec<_>>();
             let exact_nominal_body = |nominal: &psi_terminal::NominalAffineCleanup| {
+                if nominal.cleanup_receiver.is_some() || !nominal.requirement_obligations.is_empty()
+                {
+                    return None;
+                }
                 let target = record
                     .functions
                     .iter()
@@ -3004,6 +3008,8 @@ fn decode_unit_affine_cleanup(
                             "nominal Unit cleanup machine",
                         ),
                     )?,
+                    cleanup_receiver: None,
+                    requirement_obligations: Vec::new(),
                 },
             ),
             tag => return Err(TerminalInstallationError::InvalidCleanupActionTag(tag)),

@@ -1,10 +1,13 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContentTerm, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, OperationId,
+    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_kernel::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+};
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
@@ -17,13 +20,241 @@ use psi_terminal::{
     Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
-    validate_module, verify_module,
+    ModuleError, ObligationEvidence, ProofBundle, ServiceCeilingOwner,
+    reconstruct_operation_obligations, validate_module, verify_module,
 };
 
 #[test]
 fn exact_empty_nominal_affine_cleanup_validates() {
     validate_module(&nominal_affine_module()).expect("exact empty nominal cleanup should validate");
+}
+
+#[test]
+fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requirement() {
+    let module = contextual_nominal_affine_module();
+    validate_module(&module).expect("contextual nominal cleanup shape should validate");
+    let expected = Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field(
+            place_id(1),
+            psi_core::StructuralFieldId::new(1).expect("field"),
+        ),
+    );
+    let obligations = reconstruct_operation_obligations(&module).expect("cleanup obligation");
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(obligations[0].obligation.id, obligation_id(1));
+    assert_eq!(obligations[0].obligation.proposition, expected);
+
+    assert!(matches!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == obligation_id(1)
+    ));
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(1).expect("certificate"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: expected,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("caller requirement discharges contextual cleanup premise");
+
+    let wrong_bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(2).expect("certificate"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: Proposition::Falsehood,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+    };
+    assert!(matches!(
+        verify_module(&module, &wrong_bundle, &AdmissionProfile::default()),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == obligation_id(1)
+    ));
+}
+
+#[test]
+fn contextual_nominal_affine_cleanup_rejects_forged_requirement_binding() {
+    let expected_invalid = |module: &TerminalModule| ModuleError::InvalidNominalAffineCleanup {
+        machine: module.machines[0].id,
+        block: module.machines[0].blocks[0].id,
+    };
+    let mut missing_obligation = contextual_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut missing_obligation.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].requirement_obligations.clear();
+    assert_eq!(
+        validate_module(&missing_obligation).unwrap_err(),
+        expected_invalid(&missing_obligation)
+    );
+
+    let mut wrong_receiver = contextual_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut wrong_receiver.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(place_id(98));
+    assert_eq!(
+        validate_module(&wrong_receiver).unwrap_err(),
+        expected_invalid(&wrong_receiver)
+    );
+
+    let mut wrong_field = contextual_nominal_affine_module();
+    let Proposition::Equal(_, ScalarTerm::BooleanField { field, .. }) =
+        &mut wrong_field.machines[1].contract.requires[0]
+    else {
+        unreachable!()
+    };
+    *field = psi_core::StructuralFieldId::new(2).expect("field");
+    assert_eq!(
+        validate_module(&wrong_field).unwrap_err(),
+        expected_invalid(&wrong_field)
+    );
+
+    let mut executable_receiver = contextual_nominal_affine_module();
+    executable_receiver.machines[1].contract.requires[0] = Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field(
+            place_id(1),
+            psi_core::StructuralFieldId::new(1).expect("field"),
+        ),
+    );
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut executable_receiver.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(place_id(1));
+    assert!(validate_module(&executable_receiver).is_err());
+
+    let mut reversed = contextual_nominal_affine_module();
+    let Proposition::Equal(left, right) = &mut reversed.machines[1].contract.requires[0] else {
+        unreachable!()
+    };
+    std::mem::swap(left, right);
+    assert_eq!(
+        validate_module(&reversed).unwrap_err(),
+        expected_invalid(&reversed)
+    );
+
+    let mut false_requirement = contextual_nominal_affine_module();
+    let Proposition::Equal(left, _) = &mut false_requirement.machines[1].contract.requires[0]
+    else {
+        unreachable!()
+    };
+    *left = ScalarTerm::boolean(false);
+    assert_eq!(
+        validate_module(&false_requirement).unwrap_err(),
+        expected_invalid(&false_requirement)
+    );
+
+    let mut extra_requirement = contextual_nominal_affine_module();
+    extra_requirement.machines[1]
+        .contract
+        .requires
+        .push(Proposition::Truth);
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut extra_requirement.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].requirement_obligations.push(obligation_id(2));
+    assert_eq!(
+        validate_module(&extra_requirement).unwrap_err(),
+        expected_invalid(&extra_requirement)
+    );
+}
+
+#[test]
+fn shared_contextual_cleanup_target_reconstructs_one_goal_per_owned_root() {
+    let mut module = contextual_nominal_affine_module();
+    let field = psi_core::StructuralFieldId::new(1).expect("field");
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 1,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(2),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    caller.contract.requires.push(Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field(place_id(2), field),
+    ));
+    caller.contract.requires.sort();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    let mut second = cleanups[0].clone();
+    second.place = place_id(2);
+    second.requirement_obligations = vec![obligation_id(2)];
+    cleanups.insert(0, second);
+
+    validate_module(&module).expect("a shared contextual target retains place-specific custody");
+    let obligations = reconstruct_operation_obligations(&module).expect("cleanup obligations");
+    assert_eq!(obligations.len(), 2);
+    assert_eq!(obligations[0].obligation.id, obligation_id(2));
+    assert_eq!(obligations[1].obligation.id, obligation_id(1));
+    assert_eq!(
+        obligations[0].obligation.proposition,
+        Proposition::Equal(
+            ScalarTerm::boolean(true),
+            ScalarTerm::boolean_field(place_id(2), field),
+        )
+    );
+    assert_eq!(
+        obligations[1].obligation.proposition,
+        Proposition::Equal(
+            ScalarTerm::boolean(true),
+            ScalarTerm::boolean_field(place_id(1), field),
+        )
+    );
+
+    let mut duplicate = module;
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut duplicate.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].requirement_obligations = vec![obligation_id(1)];
+    assert_eq!(
+        validate_module(&duplicate).unwrap_err(),
+        ModuleError::DuplicateObligation(obligation_id(1))
+    );
 }
 
 #[test]
@@ -2969,6 +3200,8 @@ fn nominal_affine_module() -> TerminalModule {
                     place: place_id(1),
                     structural_type: token.id,
                     cleanup_machine: machine_id(2),
+                    cleanup_receiver: None,
+                    requirement_obligations: Vec::new(),
                 }],
             },
         }],
@@ -3011,6 +3244,43 @@ fn nominal_affine_module() -> TerminalModule {
     }
 }
 
+fn contextual_nominal_affine_module() -> TerminalModule {
+    let mut module = nominal_affine_module();
+    let field = psi_core::StructuralFieldId::new(1).expect("field");
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            id: field,
+            identity: "ready".into(),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+        }],
+    };
+    let caller_requirement = Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field(place_id(1), field),
+    );
+    module.machines[0]
+        .contract
+        .requires
+        .push(caller_requirement);
+    let receiver = place_id(99);
+    module.machines[1]
+        .contract
+        .requires
+        .push(Proposition::Equal(
+            ScalarTerm::boolean(true),
+            ScalarTerm::boolean_field(receiver, field),
+        ));
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(receiver);
+    cleanups[0].requirement_obligations = vec![obligation_id(1)];
+    module
+}
+
 fn two_root_nominal_affine_module() -> TerminalModule {
     let mut module = nominal_affine_module();
     let caller = &mut module.machines[0];
@@ -3041,6 +3311,8 @@ fn two_root_nominal_affine_module() -> TerminalModule {
             place: place_id(2),
             structural_type: structural_type_id(1),
             cleanup_machine: machine_id(2),
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         },
     );
     module
@@ -3078,6 +3350,8 @@ fn five_root_nominal_affine_module() -> TerminalModule {
                 place,
                 structural_type: structural_type_id(1),
                 cleanup_machine: machine_id(2),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
         );
     }

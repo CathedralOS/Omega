@@ -912,6 +912,9 @@ fn validate_unit_affine_cleanup(
         .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
         .collect::<Vec<_>>();
     let exact_nominal_target = |nominal: &psi_terminal::NominalAffineCleanup| {
+        if nominal.cleanup_receiver.is_some() || !nominal.requirement_obligations.is_empty() {
+            return (None, false);
+        }
         let cleanup_function = functions.get(&nominal.cleanup_machine).copied();
         let cleanup_body_is_exact = cleanup_function.is_some_and(|function| {
             let calls = &function.internal_unit_calls;

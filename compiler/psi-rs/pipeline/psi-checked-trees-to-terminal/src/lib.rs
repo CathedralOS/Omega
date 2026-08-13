@@ -3382,6 +3382,31 @@ fn lower_nominal_affine_unit_cleanup_machine(
     if !is_bounded_nominal_cleanup_record(&parameter_shape.shape) {
         return unsupported("nominal affine Unit parameter is outside the bounded record shape");
     }
+    let contextual_requirement = match cleanup.requirements.as_slice() {
+        [] => None,
+        [requirement] if requirement.expected => {
+            let CheckedUnitStructuralTypeShape::Record { fields } = &parameter_shape.shape else {
+                unreachable!("bounded nominal cleanup receiver is a record")
+            };
+            let field = fields
+                .iter()
+                .find(|field| field.identity == requirement.field_identity)
+                .filter(|field| {
+                    !field.relevance.is_erased()
+                        && field.field_type
+                            == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Bool)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup requirement field is absent, erased, or non-Boolean",
+                ))?;
+            Some(field.identity.clone())
+        }
+        _ => {
+            return unsupported(
+                "nominal affine Unit cleanup admits at most one true Boolean-field requirement",
+            );
+        }
+    };
 
     let cleanup_target = unique_unit_machine(
         &checked.facts.flow.terminal_unit_effects,
@@ -3592,14 +3617,104 @@ fn lower_nominal_affine_unit_cleanup_machine(
         .collect::<Vec<_>>();
     let cleanup_type = lookup_type_id(&type_ids, &cleanup.type_identity)?;
 
+    let (cleanup_receiver, requirement_obligations, target_requires, caller_requires, evidence) =
+        match contextual_requirement.as_deref() {
+            None => (None, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+            Some(field_identity) => {
+                if !lowered.proof_bundle.evidence.is_empty()
+                    || lowered.semantic_module.machines.iter().any(|machine| {
+                        !machine.contract.requires.is_empty()
+                            || !machine.contract.ensures.is_empty()
+                    })
+                {
+                    return unsupported(
+                        "contextual nominal cleanup obligation namespace is not isolated",
+                    );
+                }
+                let receiver = place_id(
+                    lowered
+                        .semantic_module
+                        .machines
+                        .iter()
+                        .flat_map(|machine| machine.structural_places.iter())
+                        .map(|place| place.id.get())
+                        .max()
+                        .unwrap_or(0)
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "contextual nominal cleanup proof-root identity space is exhausted",
+                        ))?,
+                );
+                let field = lowered
+                    .semantic_module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == cleanup_type)
+                    .and_then(|declaration| match &declaration.shape {
+                        StructuralTypeShape::Record { fields } => {
+                            fields.iter().find(|field| field.identity == field_identity)
+                        }
+                        StructuralTypeShape::FixedArray { .. } => None,
+                    })
+                    .filter(|field| {
+                        !field.relevance.is_erased()
+                            && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "contextual nominal cleanup terminal field identity drifted",
+                    ))?;
+                let target_requirement = Proposition::Equal(
+                    ScalarTerm::boolean(true),
+                    ScalarTerm::boolean_field(receiver, field.id),
+                );
+                let caller_requirement = Proposition::Equal(
+                    ScalarTerm::boolean(true),
+                    ScalarTerm::boolean_field(
+                        lowered
+                            .semantic_module
+                            .machines
+                            .iter()
+                            .find(|machine| machine.id == lowered.semantic_module.entry)
+                            .and_then(|machine| machine.structural_parameters.first())
+                            .ok_or(LoweringError::Unsupported(
+                                "contextual nominal cleanup caller parameter is absent",
+                            ))?
+                            .place,
+                        field.id,
+                    ),
+                );
+                let obligation = obligation_id(1);
+                let evidence = ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                        identity: EvidenceIdentity::new(obligation.get())
+                            .expect("terminal obligation identity is nonzero"),
+                        proof_system_marker: ProofSystemMarker::CURRENT,
+                        proof: ProofNode {
+                            conclusion: caller_requirement.clone(),
+                            rule: ProofRule::Assumption { index: 0 },
+                        },
+                    }),
+                };
+                (
+                    Some(receiver),
+                    vec![obligation],
+                    vec![target_requirement],
+                    vec![caller_requirement],
+                    vec![evidence],
+                )
+            }
+        };
+
     let cleanup_terminal = lowered
         .semantic_module
         .machines
-        .iter()
+        .iter_mut()
         .find(|machine| machine.id == cleanup_terminal_id)
         .ok_or(LoweringError::Unsupported(
             "nominal cleanup target was not retained in the terminal closure",
         ))?;
+    cleanup_terminal.contract.requires = target_requires.clone();
     let [cleanup_block] = cleanup_terminal.blocks.as_slice() else {
         return unsupported("nominal cleanup target terminal control drifted");
     };
@@ -3644,7 +3759,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
             } if trivial_affine_discards.is_empty()
         )
         || !cleanup_terminal.contract.crash_routes.is_empty()
-        || !cleanup_terminal.contract.requires.is_empty()
+        || cleanup_terminal.contract.requires != target_requires
         || !cleanup_terminal.contract.ensures.is_empty()
     {
         return unsupported("nominal cleanup target terminal machine is not exact and bounded");
@@ -3715,6 +3830,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
     let [terminal_parameter] = entry.structural_parameters.as_slice() else {
         return unsupported("nominal affine Unit terminal parameter drifted");
     };
+    entry.contract.requires = caller_requires.clone();
     if entry.attachment != Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?)
         || !entry.parameters.is_empty()
         || entry.result != TerminalMachineResult::Unit
@@ -3725,7 +3841,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
         || !entry.content_identity_reshuffles.is_empty()
         || !entry.content_partition_compositions.is_empty()
         || !entry.contract.crash_routes.is_empty()
-        || !entry.contract.requires.is_empty()
+        || entry.contract.requires != caller_requires
         || !entry.contract.ensures.is_empty()
         || terminal_parameter.structural_type != cleanup_type
         || terminal_parameter.multiplicity != StructuralMultiplicity::Affine
@@ -3755,8 +3871,11 @@ fn lower_nominal_affine_unit_cleanup_machine(
             place: terminal_parameter.place,
             structural_type: cleanup_type,
             cleanup_machine: cleanup_terminal_id,
+            cleanup_receiver,
+            requirement_obligations,
         }],
     };
+    lowered.proof_bundle.evidence = evidence;
     Ok(lowered)
 }
 
@@ -3835,6 +3954,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             || cleanup.type_identity != parameter.type_identity
             || cleanup.cleanup_machine == plan.machine
             || cleanup.cleanup_contract_fingerprint == 0
+            || !cleanup.requirements.is_empty()
         {
             return unsupported("ordered nominal cleanup parameter join drifted");
         }
@@ -4095,6 +4215,8 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 place: terminal_parameter.place,
                 structural_type: lookup_type_id(&type_ids, &cleanup.type_identity).ok()?,
                 cleanup_machine: machine_id(dense_identity(machine_index).ok()?),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             })
         })
         .collect::<Option<Vec<_>>>()

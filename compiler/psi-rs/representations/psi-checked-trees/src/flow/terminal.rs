@@ -586,6 +586,18 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
     pub cleanup_contract_fingerprint: u64,
+    /// Source-independent preconditions proved at this exact implicit cleanup
+    /// edge. The first contextual slice admits at most one direct relevant
+    /// Boolean field of the cleanup receiver.
+    pub requirements: Vec<CheckedUnitNominalAffineCleanupRequirementPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitNominalAffineCleanupRequirementPlan {
+    /// Normalized declaration identity, using the same `#identity`/name
+    /// convention as [`CheckedUnitStructuralFieldPlan::identity`].
+    pub field_identity: String,
+    pub expected: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

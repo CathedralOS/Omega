@@ -1204,6 +1204,9 @@ fn executable_nominal_cleanup(
     functions: &[TerminalAssignedFunction],
 ) -> Result<bool, EmissionError> {
     let invalid = || EmissionError::InvalidNominalCleanupTarget(cleanup.cleanup_machine);
+    if cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty() {
+        return Err(invalid());
+    }
     let cleanup_function = functions
         .iter()
         .find(|function| function.machine == cleanup.cleanup_machine)
@@ -5900,6 +5903,8 @@ mod tests {
             place: receiver_place,
             structural_type: receiver_type,
             cleanup_machine,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         };
         let root_parameter = TerminalTargetStructuralParameter {
             place: receiver_place,
@@ -6072,6 +6077,8 @@ mod tests {
             place,
             structural_type: receiver_type,
             cleanup_machine,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         };
         let actions = match executable_action_ordinal {
             0 => vec![

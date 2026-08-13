@@ -642,6 +642,64 @@ fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
 }
 
 #[test]
+fn retains_contextual_nominal_cleanup_boolean_requirement_at_the_return_edge() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires token.ready
+        {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("contextually proved nominal cleanup plan");
+    let [cleanup] = plan.cleanups.as_slice() else {
+        panic!("one cleanup action")
+    };
+    let [requirement] = cleanup.requirements.as_slice() else {
+        panic!("one contextual cleanup requirement")
+    };
+    assert_eq!(requirement.field_identity, "ready");
+    assert!(requirement.expected);
+}
+
+#[test]
+fn rejects_contextual_nominal_cleanup_when_the_return_edge_lacks_its_boolean_premise() {
+    let source = r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready == true
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("implicit cleanup must prove the drop precondition at its return edge");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at Unit return edge")
+            && diagnostic.message.contains("token.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
 fn retains_wide_flat_mixed_primitive_record_for_whole_root_nominal_cleanup() {
     let checked = checked(
         r#"

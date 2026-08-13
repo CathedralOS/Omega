@@ -1766,6 +1766,8 @@ fn nominal_affine_module() -> TerminalModule {
                             place: place_id(1),
                             structural_type: token.id,
                             cleanup_machine: machine_id(2),
+                            cleanup_receiver: None,
+                            requirement_obligations: Vec::new(),
                         }],
                     },
                 }],
@@ -1873,11 +1875,15 @@ fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {
                 place: place_id(2),
                 structural_type: second_type,
                 cleanup_machine: second_cleanup_machine,
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
             NominalAffineCleanup {
                 place: place_id(1),
                 structural_type: first_type,
                 cleanup_machine: machine_id(2),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
             },
         ],
     };
@@ -1983,6 +1989,8 @@ fn three_ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModul
             place: place_id(3),
             structural_type: third_type,
             cleanup_machine: third_cleanup_machine,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         },
     );
     module
@@ -2084,6 +2092,8 @@ fn three_ordered_shared_executable_nominal_affine_module() -> TerminalModule {
             place: place_id(3),
             structural_type: structural_type_id(1),
             cleanup_machine: machine_id(2),
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
         },
     );
     module
