@@ -18,16 +18,20 @@ machine encode(
 ) satisfies Encode<ExamplePolicy, Message>::encode {
 }
 
-machine strict_decode(bytes: &[u8]) -> DecodeResult<Message>
-satisfies StrictDecode<ExamplePolicy, Message>::decode_strict
+ExampleStrict:
+    satisfies StrictDecode<ExamplePolicy, Message>
 {
-    DecodeResult::Invalid
+    machine decode_strict(bytes: &[u8]) -> DecodeResult<Message> {
+        DecodeResult::Invalid
+    }
 }
 
-machine projecting_decode(bytes: &[u8]) -> DecodeResult<Message>
-satisfies ProjectingDecode<ExamplePolicy, Message>::decode_projecting
+ExampleProjecting:
+    satisfies ProjectingDecode<ExamplePolicy, Message>
 {
-    DecodeResult::Invalid
+    machine decode_projecting(bytes: &[u8]) -> DecodeResult<Message> {
+        DecodeResult::Invalid
+    }
 }
 
 machine preserving_decode(

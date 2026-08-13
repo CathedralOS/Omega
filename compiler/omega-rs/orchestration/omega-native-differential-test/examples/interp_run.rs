@@ -1,5 +1,6 @@
 //! Ad-hoc interpreter runner for divergence hunts: `interp_run <root.omg>` reads stdin,
-//! interprets the program, forwards its stdout/stderr, and exits with its exit code.
+//! selects the host target's authored `ProgramEntry`, interprets it, forwards its
+//! stdout/stderr, and exits with its exit code.
 
 use std::io::{Read, Write};
 use std::path::Path;
@@ -16,12 +17,14 @@ fn main() {
         .read_to_end(&mut stdin)
         .expect("read stdin");
 
-    let checked = compile_to_checked(Path::new(&path), None).unwrap_or_else(|diagnostics| {
-        for diagnostic in &diagnostics {
-            eprintln!("{diagnostic}");
-        }
-        std::process::exit(102);
-    });
+    let target = omega_target::TargetProfile::host().target_name();
+    let checked =
+        compile_to_checked(Path::new(&path), Some(target)).unwrap_or_else(|diagnostics| {
+            for diagnostic in &diagnostics {
+                eprintln!("{diagnostic}");
+            }
+            std::process::exit(102);
+        });
 
     let entry = checked.selected_program_entry_machine().unwrap_or_else(|| {
         eprintln!("build has no exact target-owned ProgramEntry binding");

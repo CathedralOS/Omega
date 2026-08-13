@@ -1,0 +1,14 @@
+// Generic member requirements must be expressed by a named trait and an
+// explicit conformance binder. Anonymous one-off requirements are rejected.
+
+data Main {
+}
+
+machine Main::tick<T>(subject: &mut T)
+where
+    machine T::increment(&mut self)
+{
+}
+
+machine Main::main(&mut self) {
+}

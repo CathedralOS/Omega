@@ -430,6 +430,44 @@ fn checked_program_from_source(source: &str) -> psi_checked_trees::CheckedTrees 
     lower_typed_trees(typed).expect("checked lowering")
 }
 
+#[test]
+fn aggregate_parameter_field_spelling_retains_float_operator_fact() {
+    let source = r#"
+        boundary operator Float::add(left: f64, right: f64) -> f64 spelling +;
+
+        data Pair {
+            first: f64;
+            second: f64;
+        }
+
+        data Main { observed: f64; }
+
+        boundary machine Main::main(&mut self, pair: Pair) -> i32 {
+            self.observed = pair.first + pair.second;
+            transition { _ -> (0) }
+        }
+    "#;
+
+    let checked = checked_program_from_source(source);
+    let add = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .find(|operator_use| {
+            operator_use.spelling == OperatorSpelling::Add
+                && checked
+                    .expression_table
+                    .display_name(operator_use.expression)
+                    == "pair.first + pair.second"
+        })
+        .expect("aggregate parameter field arithmetic must retain checked operator evidence");
+
+    assert_eq!(
+        add.policy_adapter,
+        psi_checked_trees::CheckedArithmeticPolicyAdapter::None
+    );
+}
+
 fn has_selected_domain_add(checked: &psi_checked_trees::CheckedTrees) -> bool {
     checked.facts.operators.resolved_uses().any(|operator_use| {
         operator_use.spelling == OperatorSpelling::Add

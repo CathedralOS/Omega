@@ -76,7 +76,10 @@ fn main() {
     eprintln!("native exit: {native_code}");
 
     if both {
-        match compile_to_checked(&main_path, None) {
+        let selected_target = target_name
+            .as_deref()
+            .unwrap_or_else(|| omega_target::TargetProfile::host().target_name());
+        match compile_to_checked(&main_path, Some(selected_target)) {
             Ok(checked) => {
                 let Some(entry) = checked.selected_program_entry_machine() else {
                     eprintln!(

@@ -59,7 +59,9 @@ fn expression_type_reference_in_state(
             statement_index,
             member.receiver,
         )
-        .and_then(|receiver| field_type_reference(program, receiver, member.member_symbol))
+        .and_then(|receiver| {
+            field_type_reference(program, receiver, member.member_symbol, &member.member)
+        })
         .or_else(|| self_field_type_reference(program, state_symbol, member)),
         ExpressionNode::Indexed(indexed) => expression_type_reference_in_state(
             program,
@@ -195,12 +197,13 @@ fn field_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     field_symbol: SymbolHandle,
+    field_name: &psi_typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
-        } => field_type_reference(program, *referee, field_symbol),
+        } => field_type_reference(program, *referee, field_symbol, field_name),
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
@@ -215,7 +218,7 @@ fn field_type_reference(
             .find(|data| {
                 (base_symbol.is_valid() && data.symbol == *base_symbol) || data.name == *base_name
             })
-            .and_then(|data| data_field_type_reference(program, data, field_symbol)),
+            .and_then(|data| data_field_type_reference(program, data, field_symbol, field_name)),
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
@@ -228,15 +231,17 @@ fn data_field_type_reference(
     program: &TypedTrees,
     data: &psi_typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
+    field_name: &psi_typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
-    if !field_symbol.is_valid() {
-        return None;
-    }
     program.data_members(data).iter().find_map(|member| {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
             return None;
         };
-        (field.symbol == field_symbol).then_some(field.type_reference)
+        if field_symbol.is_valid() {
+            (field.symbol == field_symbol).then_some(field.type_reference)
+        } else {
+            (field.name == *field_name).then_some(field.type_reference)
+        }
     })
 }
 
