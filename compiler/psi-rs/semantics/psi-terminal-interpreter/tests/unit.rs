@@ -296,14 +296,22 @@ fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
 fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
     let mut module = nominal_affine_module();
     module.structural_types[0].shape = StructuralTypeShape::Record {
-        fields: vec![StructuralFieldDeclaration {
-            identity: "payload".into(),
-            id: psi_core::StructuralFieldId::new(1).unwrap(),
-            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap(),
-            )),
-            relevance: BindingRelevance::Relevant,
-        }],
+        fields: vec![
+            StructuralFieldDeclaration {
+                identity: "tag".into(),
+                id: psi_core::StructuralFieldId::new(1).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                relevance: BindingRelevance::Relevant,
+            },
+            StructuralFieldDeclaration {
+                identity: "payload".into(),
+                id: psi_core::StructuralFieldId::new(2).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                    psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                )),
+                relevance: BindingRelevance::Relevant,
+            },
+        ],
     };
     let semantic = encode_module(&module).expect("nominal cleanup encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");

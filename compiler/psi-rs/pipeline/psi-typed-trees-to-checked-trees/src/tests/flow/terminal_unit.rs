@@ -371,6 +371,59 @@ fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
 }
 
 #[test]
+fn retains_two_mixed_width_primitive_scalars_for_whole_root_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { tag: u8; payload: i64; }
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("two-scalar-field nominal-cleanup plan");
+    let token_shape = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == plan.cleanup.type_identity)
+        .expect("cleanup type shape");
+    let [tag, payload] = record_fields(token_shape) else {
+        panic!("bounded nominal cleanup retains exactly two fields")
+    };
+    assert_eq!(tag.identity, "tag");
+    assert_eq!(tag.relevance, BindingRelevance::Relevant);
+    assert!(matches!(
+        tag.field_type,
+        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U8)
+    ));
+    assert_eq!(payload.identity, "payload");
+    assert_eq!(payload.relevance, BindingRelevance::Relevant);
+    assert!(matches!(
+        payload.field_type,
+        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::I64)
+    ));
+    assert!(plan.machine.entry_claims.is_empty());
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+            ..
+        }] if trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
 fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() {
     let checked = checked(
         r#"
@@ -378,7 +431,7 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes(
         data Token {}
         machine Token::drop(&mut self) {}
         machine Token::self_cleanup(self) {}
-        data Wide { first: u64; second: u64; }
+        data Wide { first: u8; second: u32; third: i64; }
         machine Wide::drop(&mut self) {}
         data Leaf {}
         data Structural { value: Leaf; }
