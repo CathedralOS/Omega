@@ -113,13 +113,17 @@ The same normalized geometry may feed different compiler-owned consumers:
   plus x86-64/AArch64 compile rails);
 - placed-view projection over an authorized external extent; or
 - ordinary scalar materialization into fixed dictated structures. The
-  normalized foundation also admits atomic whole-field aggregate
-  materialization when the compiler supplies each field's exact physical extent
-  and the plan uses one `At` entry; incomplete values, fragments, overlap, and
-  out-of-bounds placement reject before destination mutation. The typed
-  source-owned bridge now derives complete field bytes and extents from a
-  checked structured value plus its exact typed-tree schema for fixed records
-  and arrays in the supported fixed subset. Psi retains the semantic value and
+  normalized foundation also admits atomic aggregate materialization when the
+  compiler supplies each field's exact physical extent. A field may use one
+  whole-value `At`; an outer fixed array may instead use exactly one `At` per
+  compiler-sized element at one nonoverlapping constant destination stride.
+  Authored entry order is presentation: sorted destination offsets select
+  semantic element order. Incomplete values, wrong element counts, irregular
+  strides, scalar fragments, overlap, and out-of-bounds placement reject before
+  destination mutation. The typed source-owned bridge derives complete field
+  bytes and extents from a checked structured value plus its exact typed-tree
+  schema for fixed records and arrays in the supported fixed subset. Psi
+  retains the semantic value and
   shape; the Omega realization seam supplies target byte order. Erased bindings
   remain required semantic terms but contribute no bytes or initialization
   work; an owned record whose fields are all erased therefore validates its

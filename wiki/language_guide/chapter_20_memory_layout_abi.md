@@ -698,14 +698,17 @@ invocation evidence and checks the resolved value before any write or context
 publication.
 
 The same target-neutral foundation accepts compiler-sized owned aggregate
-fields only through one whole-field `At` placement. It stages zeroed output,
-checks the exact supplied extent and every destination interval, and rejects
-missing, extra, incomplete, overlapping, fragmented, stored-integer, or
-out-of-bounds fields before changing the destination. This is the normalized
-writer primitive. The current typed source-owned bridge derives complete bytes
-for recursively fixed records and arrays in the supported checked-shape subset,
-including erased fields that remain semantically required but contribute no
-storage. This omission is recursive: a relevant nested record with only erased
+fields through one whole-field `At` placement. An outer fixed array may instead
+use exactly one `At` per compiler-sized element at one nonoverlapping constant
+destination stride; sorted destination offsets determine semantic element
+order independently of authored entry order. It stages zeroed output, checks
+the exact supplied extent and every destination interval, and rejects missing,
+extra, incomplete, wrong-count, irregular-stride, overlapping, scalar-fragment,
+stored-integer, or out-of-bounds fields before changing the destination. This is
+the normalized writer primitive. The current typed source-owned bridge derives
+complete bytes for recursively fixed records and arrays in the supported
+checked-shape subset, including erased fields that remain semantically required
+but contribute no storage. This omission is recursive: a relevant nested record with only erased
 runtime content receives no physical field entry, but its exact semantic value
 is still required. It rejects malformed nested values atomically. Runtime establishment
 beyond that fixed subset remains source-materialization work; sum placement

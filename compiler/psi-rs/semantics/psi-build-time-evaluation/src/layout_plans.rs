@@ -34,6 +34,14 @@ pub(crate) struct SchemaFieldInfo {
     pub(crate) primitive: Option<PrimitiveType>,
     pub(crate) kind: &'static str,
     pub(crate) declared_range: Option<(i64, i64)>,
+    pub(crate) repeated: Option<RepeatedFieldInfo>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RepeatedFieldInfo {
+    pub(crate) element_size: u64,
+    pub(crate) element_align: u64,
+    pub(crate) element_count: u64,
 }
 
 pub fn compute_layout_plan(
@@ -197,7 +205,16 @@ pub fn materialize_typed_owned_layout_into(
                 reflected.name, reflected.size
             )));
         }
-        schemas.push(AggregateFieldSchema::new(&reflected.name, reflected.size)?);
+        schemas.push(if let Some(repeated) = reflected.repeated {
+            AggregateFieldSchema::new_repeated(
+                &reflected.name,
+                repeated.element_size,
+                repeated.element_align,
+                repeated.element_count,
+            )?
+        } else {
+            AggregateFieldSchema::new(&reflected.name, reflected.size)?
+        });
         values.push(AggregateFieldValue::new(&reflected.name, bytes)?);
     }
     materialize_aggregate_layout_into(layout, &schemas, &values, destination)
@@ -265,7 +282,7 @@ pub(crate) fn schema_fields(
         if field.relevance.is_erased() {
             continue;
         }
-        let (size, align, source_bits, primitive, kind, declared_range) =
+        let (size, align, source_bits, primitive, kind, declared_range, repeated) =
             reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
                 format!(
                     "schema data `{schema_data}` field `{}` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes",
@@ -299,6 +316,7 @@ pub(crate) fn schema_fields(
             primitive,
             kind,
             declared_range,
+            repeated,
         });
     }
     if fields.is_empty() && typed.data_members(data).is_empty() {
@@ -475,6 +493,7 @@ type ReflectedFieldLayout = (
     Option<PrimitiveType>,
     &'static str,
     Option<(i64, i64)>,
+    Option<RepeatedFieldInfo>,
 );
 
 fn reflected_field_layout(
@@ -491,6 +510,7 @@ fn reflected_field_layout(
             "Scalar",
             psi_typed_trees::wire::scalar_representation_range(typed, type_reference)
                 .map(|range| (range.minimum, range.maximum)),
+            None,
         ));
     }
     match typed.type_reference_table.type_reference(type_reference) {
@@ -509,12 +529,25 @@ fn reflected_field_layout(
                 None,
                 "Repeated",
                 None,
+                Some(RepeatedFieldInfo {
+                    element_size,
+                    element_align,
+                    element_count: length,
+                }),
             ))
         }
         psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
             let (size, align) =
                 reflected_record_layout(typed, *symbol, name.as_str(), &mut Vec::new())?;
-            Some((size, align, size.checked_mul(8)?, None, "Nested", None))
+            Some((
+                size,
+                align,
+                size.checked_mul(8)?,
+                None,
+                "Nested",
+                None,
+                None,
+            ))
         }
         _ => None,
     }
@@ -987,8 +1020,8 @@ pub(crate) fn build_schema_value(
             .map(|payload_index| {
                 let info = payload.get(payload_index).map(|field| {
                     let reflected = reflected_field_layout(typed, field.type_reference);
-                    let (size, align, source_bits, primitive, kind, declared_range) =
-                        reflected.unwrap_or((0, 1, 0, None, "Nested", None));
+                    let (size, align, source_bits, primitive, kind, declared_range, repeated) =
+                        reflected.unwrap_or((0, 1, 0, None, "Nested", None, None));
                     SchemaFieldInfo {
                         name: field.name.to_string(),
                         identity: field.identity,
@@ -1002,6 +1035,7 @@ pub(crate) fn build_schema_value(
                         primitive,
                         kind,
                         declared_range,
+                        repeated,
                     }
                 });
                 build_schema_field_value(info.as_ref())
@@ -1144,8 +1178,44 @@ pub(crate) fn validate_plan(
         }
     };
 
+    // A repeated `At` changes the extent represented by each entry, so count
+    // those entries before validating destination intervals. Only a reflected
+    // outer fixed array may use more than one.
+    let mut at_counts = vec![0usize; schema_fields.len()];
+    for entry_index in 0..entry_count {
+        let Some(BuildTimeValue::Struct { fields, .. }) = entry_cells.get(entry_index) else {
+            return Err(fail(format!(
+                "entry {entry_index} is missing or not a FieldEntry"
+            )));
+        };
+        let key = match fields.iter().find(|(name, _)| name == "key") {
+            Some((_, BuildTimeValue::Int(key))) => *key as u64,
+            other => {
+                return Err(fail(format!(
+                    "entry {entry_index} has no integer key: {other:?}"
+                )));
+            }
+        };
+        let Some(field_index) = lookup(key) else {
+            return Err(fail(format!(
+                "entry {entry_index} refers to unknown field key {key}"
+            )));
+        };
+        let placement = fields
+            .iter()
+            .find(|(name, _)| name == "placement")
+            .map(|(_, value)| value)
+            .ok_or_else(|| fail(format!("entry {entry_index} carries no `placement`")))?;
+        if let BuildTimeValue::Case { variant, .. } = placement
+            && case_name(variant) == "At"
+        {
+            at_counts[field_index] += 1;
+        }
+    }
+
     let mut entries = Vec::with_capacity(entry_count);
     let mut source_spans: Vec<Vec<(u64, u64)>> = vec![Vec::new(); schema_fields.len()];
+    let mut repeated_at_offsets: Vec<Vec<u64>> = vec![Vec::new(); schema_fields.len()];
     let mut destination_spans: Vec<(u64, u64, String)> = Vec::new();
     let mut offsets_by_field = vec![None; schema_fields.len()];
     let mut kinds_by_field: Vec<Option<&'static str>> = vec![None; schema_fields.len()];
@@ -1183,12 +1253,39 @@ pub(crate) fn validate_plan(
 
         match case_name(variant).as_str() {
             "At" => {
-                if kinds_by_field[field_index].replace("At").is_some() {
-                    return Err(fail(format!(
-                        "field `{}` has more than one placement",
-                        schema_field.name
-                    )));
-                }
+                let tiled = at_counts[field_index] > 1;
+                let placement_size = if tiled {
+                    let Some(repeated) = schema_field.repeated else {
+                        return Err(fail(format!(
+                            "field `{}` has more than one `At` placement but is not an outer fixed array",
+                            schema_field.name
+                        )));
+                    };
+                    if at_counts[field_index] as u64 != repeated.element_count {
+                        return Err(fail(format!(
+                            "repeated field `{}` has {} `At` placements, expected one for each of its {} elements",
+                            schema_field.name, at_counts[field_index], repeated.element_count
+                        )));
+                    }
+                    if let Some(kind) = kinds_by_field[field_index]
+                        && kind != "RepeatedAt"
+                    {
+                        return Err(fail(format!(
+                            "field `{}` mixes repeated `At` with another placement",
+                            schema_field.name
+                        )));
+                    }
+                    kinds_by_field[field_index] = Some("RepeatedAt");
+                    repeated.element_size
+                } else {
+                    if kinds_by_field[field_index].replace("At").is_some() {
+                        return Err(fail(format!(
+                            "field `{}` has more than one placement",
+                            schema_field.name
+                        )));
+                    }
+                    schema_field.size
+                };
                 let offset = payload_uint(payload, "offset")?;
                 if offset % schema_field.align != 0 {
                     return Err(fail(format!(
@@ -1196,7 +1293,7 @@ pub(crate) fn validate_plan(
                         schema_field.name, schema_field.align
                     )));
                 }
-                let end = offset.checked_add(schema_field.size).ok_or_else(|| {
+                let end = offset.checked_add(placement_size).ok_or_else(|| {
                     fail(format!("field `{}` placement overflows", schema_field.name))
                 })?;
                 let start_bit = offset.checked_mul(8).ok_or_else(|| {
@@ -1206,7 +1303,11 @@ pub(crate) fn validate_plan(
                     fail(format!("field `{}` placement overflows", schema_field.name))
                 })?;
                 destination_spans.push((start_bit, end_bit, schema_field.name.clone()));
-                offsets_by_field[field_index] = Some(offset);
+                if tiled {
+                    repeated_at_offsets[field_index].push(offset);
+                } else {
+                    offsets_by_field[field_index] = Some(offset);
+                }
                 entries.push(LayoutFieldEntryReport {
                     field: schema_field.name.clone(),
                     member_identity: schema_field.identity,
@@ -1292,7 +1393,10 @@ pub(crate) fn validate_plan(
                         schema_field.name
                     )));
                 }
-                if matches!(kinds_by_field[field_index], Some("At" | "IntegerAt")) {
+                if matches!(
+                    kinds_by_field[field_index],
+                    Some("At" | "RepeatedAt" | "IntegerAt")
+                ) {
                     return Err(fail(format!(
                         "field `{}` mixes a whole-field and `Bits` placement",
                         schema_field.name
@@ -1366,6 +1470,22 @@ pub(crate) fn validate_plan(
                 )));
             }
             Some("At") => {}
+            Some("RepeatedAt") => {
+                let repeated = schema_field
+                    .repeated
+                    .expect("only a reflected outer fixed array enters repeated At");
+                let offsets = &mut repeated_at_offsets[index];
+                offsets.sort_unstable();
+                let stride = offsets[1] - offsets[0];
+                if stride < repeated.element_size
+                    || offsets.windows(2).any(|pair| pair[1] - pair[0] != stride)
+                {
+                    return Err(fail(format!(
+                        "repeated field `{}` element placements do not have one nonoverlapping constant stride",
+                        schema_field.name
+                    )));
+                }
+            }
             Some("IntegerAt") => {}
             Some("Bits") => {
                 let spans = &mut source_spans[index];
@@ -1428,6 +1548,11 @@ pub(crate) fn validate_plan(
             .position(|field| field.name == entry.field)
             .unwrap_or(usize::MAX);
         let source_lsb = match &entry.placement {
+            LayoutPlacementReport::At { offset }
+                if schema_fields[field_index].repeated.is_some() =>
+            {
+                *offset
+            }
             LayoutPlacementReport::At { .. } => 0,
             LayoutPlacementReport::IntegerAt { .. } => 0,
             LayoutPlacementReport::Bits { source_lsb, .. } => *source_lsb,

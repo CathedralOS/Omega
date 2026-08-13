@@ -248,6 +248,17 @@ pub struct AggregateFieldValue {
 pub struct AggregateFieldSchema {
     pub field: String,
     pub byte_size: u64,
+    shape: AggregateFieldShape,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AggregateFieldShape {
+    Whole,
+    Repeated {
+        element_byte_size: u64,
+        element_align: u64,
+        element_count: u64,
+    },
 }
 
 impl AggregateFieldSchema {
@@ -263,6 +274,45 @@ impl AggregateFieldSchema {
         Ok(Self {
             field: field.into(),
             byte_size,
+            shape: AggregateFieldShape::Whole,
+        })
+    }
+
+    /// Constructs the compiler-derived shape of one outer fixed array. A
+    /// validated layout may retain one whole-field `At`, or use exactly one
+    /// `At` per element at a constant destination stride. The policy never
+    /// supplies the element extent, alignment, or count.
+    pub fn new_repeated(
+        field: impl Into<String>,
+        element_byte_size: u64,
+        element_align: u64,
+        element_count: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if element_byte_size == 0 || element_count == 0 {
+            return Err(MaterializationDiagnostic(
+                "repeated aggregate schema requires nonzero element extent and count".into(),
+            ));
+        }
+        if element_align == 0 || !element_align.is_power_of_two() {
+            return Err(MaterializationDiagnostic(format!(
+                "repeated aggregate element alignment {element_align} is not a positive power of two"
+            )));
+        }
+        let byte_size = element_byte_size
+            .checked_mul(element_count)
+            .ok_or_else(|| {
+                MaterializationDiagnostic(
+                    "repeated aggregate compiler-derived physical extent overflows".into(),
+                )
+            })?;
+        Ok(Self {
+            field: field.into(),
+            byte_size,
+            shape: AggregateFieldShape::Repeated {
+                element_byte_size,
+                element_align,
+                element_count,
+            },
         })
     }
 }
@@ -1207,9 +1257,11 @@ pub fn materialize_scalar_layout_into(
 }
 
 /// Materializes complete aggregate fields through whole-extent `At`
-/// placements. All validation and copying happens against a staged zeroed
-/// buffer, so rejection leaves `destination` unchanged. Aggregate fields are
-/// deliberately not interpreted as scalar fragments or stored integers.
+/// placements, or one fixed outer array through compiler-sized element `At`
+/// placements at a constant destination stride. All validation and copying
+/// happens against a staged zeroed buffer, so rejection leaves `destination`
+/// unchanged. Aggregate fields are deliberately not interpreted as scalar
+/// fragments or stored integers.
 pub fn materialize_aggregate_layout_into(
     layout: &LayoutPlanReport,
     fields: &[AggregateFieldSchema],
@@ -1239,10 +1291,7 @@ pub fn materialize_aggregate_layout_into(
 
     let mut schemas = std::collections::BTreeMap::new();
     for field in fields {
-        if schemas
-            .insert(field.field.as_str(), field.byte_size)
-            .is_some()
-        {
+        if schemas.insert(field.field.as_str(), field).is_some() {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{}` is declared more than once",
                 field.field
@@ -1258,27 +1307,26 @@ pub fn materialize_aggregate_layout_into(
             )));
         }
     }
-    let planned = layout
-        .entries
-        .iter()
-        .map(|entry| entry.field.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    if let Some(field) = planned.iter().find(|field| !schemas.contains_key(**field)) {
+    let mut planned = std::collections::BTreeMap::<&str, Vec<&LayoutFieldEntryReport>>::new();
+    for entry in &layout.entries {
+        planned.entry(entry.field.as_str()).or_default().push(entry);
+    }
+    if let Some(field) = planned.keys().find(|field| !schemas.contains_key(**field)) {
         return Err(MaterializationDiagnostic(format!(
             "layout field `{field}` has no aggregate schema extent"
         )));
     }
-    if let Some(field) = schemas.keys().find(|field| !planned.contains(**field)) {
+    if let Some(field) = schemas.keys().find(|field| !planned.contains_key(**field)) {
         return Err(MaterializationDiagnostic(format!(
             "aggregate schema field `{field}` has no entry in the validated layout plan"
         )));
     }
-    if let Some(field) = planned.iter().find(|field| !supplied.contains_key(**field)) {
+    if let Some(field) = planned.keys().find(|field| !supplied.contains_key(**field)) {
         return Err(MaterializationDiagnostic(format!(
             "layout field `{field}` has no supplied aggregate value"
         )));
     }
-    if let Some(field) = supplied.keys().find(|field| !planned.contains(**field)) {
+    if let Some(field) = supplied.keys().find(|field| !planned.contains_key(**field)) {
         return Err(MaterializationDiagnostic(format!(
             "supplied aggregate field `{field}` has no entry in the validated layout plan"
         )));
@@ -1286,55 +1334,134 @@ pub fn materialize_aggregate_layout_into(
 
     let mut staged = vec![0_u8; byte_len];
     let mut occupied = vec![false; byte_len];
-    for entry in &layout.entries {
-        let LayoutPlacementReport::At { offset } = entry.placement else {
+    for (field_name, schema) in schemas {
+        let entries = planned
+            .get_mut(field_name)
+            .expect("complete aggregate plan set validated above");
+        if entries
+            .iter()
+            .any(|entry| !matches!(entry.placement, LayoutPlacementReport::At { .. }))
+        {
+            let requirement = match schema.shape {
+                AggregateFieldShape::Whole => "one whole `At` placement",
+                AggregateFieldShape::Repeated { .. } => {
+                    "whole-value or fixed-element `At` placement"
+                }
+            };
             return Err(MaterializationDiagnostic(format!(
-                "aggregate field `{}` requires one whole `At` placement",
-                entry.field
+                "aggregate field `{field_name}` requires {requirement}"
             )));
-        };
+        }
         let value = supplied
-            .get(entry.field.as_str())
+            .get(field_name)
             .expect("complete aggregate field set validated above");
-        let expected_size = usize::try_from(schemas[entry.field.as_str()]).map_err(|_| {
+        let expected_size = usize::try_from(schema.byte_size).map_err(|_| {
             MaterializationDiagnostic(format!(
                 "aggregate field `{}` extent cannot be represented on this compiler host",
-                entry.field
+                field_name
             ))
         })?;
         if value.bytes.len() != expected_size {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
-                entry.field,
+                field_name,
                 value.bytes.len()
             )));
         }
-        let start = usize::try_from(offset).map_err(|_| {
-            MaterializationDiagnostic(format!(
-                "aggregate field `{}` offset cannot be represented on this compiler host",
-                entry.field
-            ))
-        })?;
-        let end = start.checked_add(value.bytes.len()).ok_or_else(|| {
-            MaterializationDiagnostic(format!(
-                "aggregate field `{}` destination range overflows",
-                entry.field
-            ))
-        })?;
-        if end > byte_len {
+
+        entries.sort_unstable_by_key(|entry| match entry.placement {
+            LayoutPlacementReport::At { offset } => offset,
+            _ => unreachable!("non-At aggregate entries rejected above"),
+        });
+        let (source_chunk_size, required_align) = if entries.len() == 1 {
+            (expected_size, None)
+        } else {
+            let AggregateFieldShape::Repeated {
+                element_byte_size,
+                element_align,
+                element_count,
+            } = schema.shape
+            else {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` has more than one `At` placement but is not an outer fixed array"
+                )));
+            };
+            let actual_count = u64::try_from(entries.len()).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` placement count cannot be represented as u64"
+                ))
+            })?;
+            if actual_count != element_count {
+                return Err(MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` has {actual_count} element placements, expected {element_count}"
+                )));
+            }
+            let element_byte_size = usize::try_from(element_byte_size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` element extent cannot be represented on this compiler host"
+                ))
+            })?;
+            let offsets = entries
+                .iter()
+                .map(|entry| match entry.placement {
+                    LayoutPlacementReport::At { offset } => offset,
+                    _ => unreachable!("non-At aggregate entries rejected above"),
+                })
+                .collect::<Vec<_>>();
+            let stride = offsets[1].checked_sub(offsets[0]).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` element offsets are not ordered"
+                ))
+            })?;
+            if stride < element_byte_size as u64
+                || offsets.windows(2).any(|pair| pair[1] - pair[0] != stride)
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` element placements do not have one nonoverlapping constant stride"
+                )));
+            }
+            (element_byte_size, Some(element_align))
+        };
+
+        let chunks = value.bytes.chunks_exact(source_chunk_size);
+        if !chunks.remainder().is_empty() || chunks.len() != entries.len() {
             return Err(MaterializationDiagnostic(format!(
-                "aggregate field `{}` writes through byte {end}, past the {byte_len}-byte layout",
-                entry.field
+                "aggregate field `{field_name}` bytes do not tile its compiler-derived source elements exactly"
             )));
         }
-        if occupied[start..end].iter().any(|occupied| *occupied) {
-            return Err(MaterializationDiagnostic(format!(
-                "aggregate field `{}` overlaps an earlier whole-field placement",
-                entry.field
-            )));
+        for (entry, source) in entries.iter().zip(chunks) {
+            let LayoutPlacementReport::At { offset } = entry.placement else {
+                unreachable!("non-At aggregate entries rejected above")
+            };
+            if required_align.is_some_and(|align| !offset.is_multiple_of(align)) {
+                return Err(MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` element offset {offset} violates its compiler-derived alignment {}",
+                    required_align.expect("checked as present")
+                )));
+            }
+            let start = usize::try_from(offset).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` offset cannot be represented on this compiler host"
+                ))
+            })?;
+            let end = start.checked_add(source.len()).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` destination range overflows"
+                ))
+            })?;
+            if end > byte_len {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` writes through byte {end}, past the {byte_len}-byte layout"
+                )));
+            }
+            if occupied[start..end].iter().any(|occupied| *occupied) {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` overlaps an earlier aggregate placement"
+                )));
+            }
+            staged[start..end].copy_from_slice(source);
+            occupied[start..end].fill(true);
         }
-        staged[start..end].copy_from_slice(&value.bytes);
-        occupied[start..end].fill(true);
     }
     destination[..byte_len].copy_from_slice(&staged);
     Ok(())
@@ -2302,6 +2429,57 @@ mod tests {
                 .expect_err("aggregate fields cannot enter scalar fragment placement");
         assert!(error.0.contains("requires one whole `At` placement"));
         assert_eq!(unchanged, [0xa5; 20]);
+    }
+
+    #[test]
+    fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
+        let schema = [AggregateFieldSchema::new_repeated("items", 4, 4, 3)
+            .expect("compiler-derived repeated schema")];
+        let values = [
+            AggregateFieldValue::new("items", (0_u8..12).collect::<Vec<_>>())
+                .expect("complete repeated aggregate"),
+        ];
+        let layout = |offsets: &[u64]| LayoutPlanReport {
+            schema_identity: 1,
+            entries: offsets
+                .iter()
+                .map(|offset| LayoutFieldEntryReport {
+                    field: "items".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: *offset },
+                })
+                .collect(),
+            offsets: None,
+            size: Some(32),
+            align: 4,
+        };
+
+        for (offsets, expected) in [
+            (&[0, 8][..], "2 element placements, expected 3"),
+            (
+                &[0, 8, 20][..],
+                "do not have one nonoverlapping constant stride",
+            ),
+            (
+                &[0, 2, 4][..],
+                "do not have one nonoverlapping constant stride",
+            ),
+            (&[0, 6, 12][..], "violates its compiler-derived alignment 4"),
+        ] {
+            let mut unchanged = [0xa5; 32];
+            let error = materialize_aggregate_layout_into(
+                &layout(offsets),
+                &schema,
+                &values,
+                &mut unchanged,
+            )
+            .expect_err("invalid repeated aggregate geometry must reject");
+            assert!(
+                error.0.contains(expected),
+                "unexpected diagnostic: {error:?}"
+            );
+            assert_eq!(unchanged, [0xa5; 32]);
+        }
     }
 
     #[test]

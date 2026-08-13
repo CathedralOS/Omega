@@ -116,12 +116,15 @@ Owners:
   non-scalar tiling and mutable views beyond current record/array/slice checks.
   Raw bytes establish no typed fact without a selected validated plan and exact
   field identities. The accepted fixed subset reflects primitive arrays and
-  recursively fixed arrays/records as one whole `Repeated` or `Nested` `At`
-  extent; compiler-derived strides and offsets drive interpreter and all three
-  native target paths. Mutable fact-free byte views write and reread through
-  those same extents. Typed owned materialization derives complete bytes from
-  the exact schema (or a checked zero-argument Psi evaluator) while Omega
-  supplies byte order, zeroes padding, and validates completely before mutation.
+  recursively fixed arrays/records as one `Repeated` or `Nested` field. View
+  paths retain one whole `At` extent; owned materialization also admits an outer
+  fixed array tiled by exactly one compiler-sized element `At` at one validated
+  constant destination stride. Compiler-derived strides and offsets drive the
+  interpreter and all three native target paths. Mutable fact-free byte views
+  write and reread through those same extents. Typed owned materialization
+  derives complete bytes from the exact schema (or a checked zero-argument Psi
+  evaluator) while Omega supplies byte order, zeroes padding, and validates
+  completely before mutation.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
