@@ -251,8 +251,7 @@ fn build_structural_scalar_return_machine(
                 scalar_parameters.len(),
                 statement_index,
             );
-            let final_short_circuit_boolean = statement_index.checked_add(1) == Some(binding_count)
-                && primitive_type == PrimitiveType::Bool
+            let short_circuit_boolean = primitive_type == PrimitiveType::Bool
                 && matches!(expression, CheckedScalarExpression::Boolean(expression)
                 if checked_boolean_contains_short_circuit(expression)
                     && is_structural_boolean_return_expression(
@@ -260,7 +259,7 @@ fn build_structural_scalar_return_machine(
                         scalar_parameters.len(),
                         statement_index,
                     ));
-            (branch_free || final_short_circuit_boolean).then_some(CheckedScalarBinding {
+            (branch_free || short_circuit_boolean).then_some(CheckedScalarBinding {
                 statement_ordinal,
                 primitive_type,
                 value: CheckedScalarBindingValue::Expression,
@@ -277,16 +276,25 @@ fn build_structural_scalar_return_machine(
         return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    let has_short_circuit_binding = !bindings.is_empty()
-        && matches!(facts.values.scalar_expressions.expression_at(
-            state.symbol,
-            u32::try_from(bindings.len().checked_sub(1)?).ok()?,
-            CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: u32::try_from(bindings.len().checked_sub(1)?).ok()?,
-            },
-        ), Some(CheckedScalarExpression::Boolean(expression))
-            if checked_boolean_contains_short_circuit(expression));
-    let return_supported = if has_short_circuit_binding {
+    let short_circuit_binding_count = bindings
+        .iter()
+        .enumerate()
+        .filter(|(binding_index, _)| {
+            let Ok(binding_ordinal) = u32::try_from(*binding_index) else {
+                return false;
+            };
+            matches!(facts.values.scalar_expressions.expression_at(
+                state.symbol,
+                binding_ordinal,
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+            ), Some(CheckedScalarExpression::Boolean(expression))
+                if checked_boolean_contains_short_circuit(expression))
+        })
+        .count();
+    if short_circuit_binding_count > 1 {
+        return None;
+    }
+    let return_supported = if short_circuit_binding_count == 1 {
         is_branch_free_structural_scalar_expression(
             return_expression,
             scalar_parameters.len(),
