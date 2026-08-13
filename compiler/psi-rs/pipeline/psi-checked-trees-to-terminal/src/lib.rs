@@ -3210,13 +3210,21 @@ fn lower_nominal_structural_scalar_return_machine(
                 if binding.statement_ordinal != statement_ordinal
                     || binding.value != CheckedScalarBindingValue::Expression
                     || binding.primitive_type != PrimitiveType::Bool
-                    || !matches!(
-                        &authored_return_expression,
-                        LoweredDirectExpression::Boolean { expression }
-                            if matches!(expression.as_ref(),
-                                LoweredBooleanReturnExpression::Local { position }
-                                    if *position == scalar_parameter_count + binding_index)
-                    )
+                {
+                    return None;
+                }
+                let LoweredDirectExpression::Boolean {
+                    expression: return_expression,
+                } = &authored_return_expression
+                else {
+                    return None;
+                };
+                let local_position = scalar_parameter_count + binding_index;
+                if !is_branch_free_structural_boolean_expression(
+                    return_expression,
+                    scalar_parameter_count,
+                    binding_index + 1,
+                ) || boolean_local_reference_count(return_expression, local_position) != 1
                 {
                     return None;
                 }
@@ -3232,12 +3240,19 @@ fn lower_nominal_structural_scalar_return_machine(
                 let LoweredDirectExpression::Boolean { expression } = expression else {
                     return None;
                 };
-                is_one_top_level_structural_boolean_decision(
+                if !is_one_top_level_structural_boolean_decision(
                     &expression,
                     scalar_parameter_count,
                     binding_index,
-                )
-                .then_some(*expression)
+                ) {
+                    return None;
+                }
+                let expression =
+                    inline_boolean_local(return_expression, local_position, &expression);
+                let decision = lower_boolean_value_decision(&expression);
+                (boolean_decision_test_count(&decision) == 2
+                    && boolean_decision_block_count(&decision) == 5)
+                    .then_some(expression)
             });
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
         let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
@@ -3300,15 +3315,16 @@ fn lower_nominal_structural_scalar_return_machine(
         .bindings
         .len()
         .saturating_sub(usize::from(inlined_final_short_circuit_binding.is_some()));
-    let nominal_short_circuit_return = matches!(
-        &expression,
-        LoweredDirectExpression::Boolean { expression }
-            if is_one_top_level_structural_boolean_decision(
-                expression,
-                scalar_parameter_count,
-                expression_available_locals,
-            )
-    );
+    let nominal_short_circuit_return = inlined_final_short_circuit_binding.is_some()
+        || matches!(
+            &expression,
+            LoweredDirectExpression::Boolean { expression }
+                if is_one_top_level_structural_boolean_decision(
+                    expression,
+                    scalar_parameter_count,
+                    expression_available_locals,
+                )
+        );
     if !is_branch_free_structural_scalar_expression(
         &expression,
         scalar_parameter_count,
@@ -3671,6 +3687,59 @@ fn is_one_top_level_structural_boolean_decision(
     };
     is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
         && is_branch_free_structural_boolean_expression(right, scalar_parameters, available_locals)
+}
+
+fn boolean_local_reference_count(
+    expression: &LoweredBooleanReturnExpression,
+    local: usize,
+) -> usize {
+    match expression {
+        LoweredBooleanReturnExpression::Local { position } => usize::from(*position == local),
+        LoweredBooleanReturnExpression::Not { operand } => {
+            boolean_local_reference_count(operand, local)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right }
+        | LoweredBooleanReturnExpression::And { left, right }
+        | LoweredBooleanReturnExpression::Or { left, right } => {
+            boolean_local_reference_count(left, local)
+                .saturating_add(boolean_local_reference_count(right, local))
+        }
+        LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => 0,
+    }
+}
+
+fn inline_boolean_local(
+    expression: &LoweredBooleanReturnExpression,
+    local: usize,
+    replacement: &LoweredBooleanReturnExpression,
+) -> LoweredBooleanReturnExpression {
+    match expression {
+        LoweredBooleanReturnExpression::Local { position } if *position == local => {
+            replacement.clone()
+        }
+        LoweredBooleanReturnExpression::Not { operand } => LoweredBooleanReturnExpression::Not {
+            operand: Box::new(inline_boolean_local(operand, local, replacement)),
+        },
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            LoweredBooleanReturnExpression::Equal {
+                left: Box::new(inline_boolean_local(left, local, replacement)),
+                right: Box::new(inline_boolean_local(right, local, replacement)),
+            }
+        }
+        LoweredBooleanReturnExpression::And { left, right } => {
+            LoweredBooleanReturnExpression::And {
+                left: Box::new(inline_boolean_local(left, local, replacement)),
+                right: Box::new(inline_boolean_local(right, local, replacement)),
+            }
+        }
+        LoweredBooleanReturnExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
+            left: Box::new(inline_boolean_local(left, local, replacement)),
+            right: Box::new(inline_boolean_local(right, local, replacement)),
+        },
+        expression => expression.clone(),
+    }
 }
 
 fn lower_structural_unit_control_machine(

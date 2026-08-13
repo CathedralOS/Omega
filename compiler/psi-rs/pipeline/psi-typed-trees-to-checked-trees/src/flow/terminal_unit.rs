@@ -849,9 +849,14 @@ fn build_structural_scalar_return_machine(
         && matches!(
             return_expression,
             CheckedScalarExpression::Boolean(expression)
-                if matches!(expression.as_ref(),
-                    psi_checked_trees::CheckedBooleanExpression::Local { position }
-                        if *position == scalar_parameters.len() + binding_count - 1)
+                if is_branch_free_structural_boolean_expression(
+                    expression,
+                    scalar_parameters.len(),
+                    binding_count,
+                ) && checked_boolean_local_reference_count(
+                    expression,
+                    scalar_parameters.len() + binding_count - 1,
+                ) == 1
         );
     if !is_structural_scalar_return_expression(
         return_expression,
@@ -1153,6 +1158,30 @@ fn is_single_top_level_short_circuit_boolean_return(
                 )
         }
         _ => false,
+    }
+}
+
+fn checked_boolean_local_reference_count(
+    expression: &psi_checked_trees::CheckedBooleanExpression,
+    local: usize,
+) -> usize {
+    match expression {
+        psi_checked_trees::CheckedBooleanExpression::Local { position } => {
+            usize::from(*position == local)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
+            checked_boolean_local_reference_count(operand, local)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Equal { left, right }
+        | psi_checked_trees::CheckedBooleanExpression::And { left, right }
+        | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
+            checked_boolean_local_reference_count(left, local)
+                .saturating_add(checked_boolean_local_reference_count(right, local))
+        }
+        psi_checked_trees::CheckedBooleanExpression::Constant(_)
+        | psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
+        | psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. } => 0,
     }
 }
 
