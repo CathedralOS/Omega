@@ -13388,17 +13388,12 @@ fn runtime_activity_selection_greedy_exit_canary_runs() {
     // no earlier than the last chosen finish. Six activities yield 3 non-overlapping ->
     // exit 70.
     let canary = pass_canary("collections/runtime_activity_selection_greedy_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("activity selection canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("activity selection canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("activity selection canary should run");
     assert_eq!(
@@ -13408,7 +13403,7 @@ fn runtime_activity_selection_greedy_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13417,17 +13412,11 @@ fn runtime_maze_pathfind_exit_canary_runs() {
     // the adjacency-matrix BFS). The shortest distance from cell 0 to cell 24 through the
     // snaking corridor is 16 -> exit 70.
     let canary = pass_canary("collections/runtime_maze_pathfind_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("maze pathfind canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("maze pathfind canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("maze pathfind canary should run");
     assert_eq!(
@@ -13437,7 +13426,7 @@ fn runtime_maze_pathfind_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // UN-IGNORED 2026-07-10g: the latent hang this exposed (infinite backtracking,
