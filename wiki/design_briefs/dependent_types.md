@@ -382,7 +382,7 @@ producers, boundary calls, and deeper or binding-reborrow index trees remain
 fences.
 A value-shaped assignment also preserves a separately returned parameter origin
 when its right-hand side is a typed non-reference direct-call tree of maximum
-depth three and every frame is complete. Sibling branches are admitted
+depth four and every frame is complete. Sibling branches are admitted
 independently, and every nested-call write remains published. One deeper,
 binding-reborrow, recursive, or opaque branch fences the whole right-hand side;
 reference-valued roots retain their existing relational handling.
@@ -416,7 +416,7 @@ the same assignment. Their complete frames compose and publish independently;
 either side exceeding its depth or non-rebinding rail fences the returned-place
 relation. A compiler-owned mutable-slice view on the target collection is
 neutral to that composition: the target index and value tree retain independent
-depth-two budgets and publish all call writes.
+depth-two and depth-four budgets, respectively, and publish all call writes.
 Terminal returned places, stable local mutable aliases, and direct alias rebind
 replacements may contain one or more indexes whose non-rebinding call trees are
 independently complete through depth two. The first index fixes the coarse
