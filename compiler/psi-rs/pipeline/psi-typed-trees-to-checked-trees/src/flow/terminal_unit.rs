@@ -1743,52 +1743,59 @@ fn build_nominal_affine_unit_cleanup_machine(
     let cleanup_statements = program
         .statement_table
         .statements(cleanup_state.statement_nodes);
-    if !matches!(cleanup_statements, [] | [StatementNode::Call(_)]) {
+    if cleanup_statements.len() > 2
+        || cleanup_statements
+            .iter()
+            .any(|statement| !matches!(statement, StatementNode::Call(_)))
+    {
         return None;
     }
 
     let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
-    let cleanup_helper = match cleanup_target.operations.as_slice() {
-        [
-            CheckedUnitEffectOperationPlan::ReturnUnit {
-                statement_index: 0,
-                trivial_affine_local_discard_ordinals,
-                trivial_affine_discards,
-            },
-        ] if cleanup_statements.is_empty()
-            && trivial_affine_local_discard_ordinals.is_empty()
-            && trivial_affine_discards.is_empty() =>
-        {
-            None
-        }
-        [
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                service_reach,
-                structural_arguments,
-                claim_transfers,
-                ..
-            },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
-                statement_index: 1,
-                trivial_affine_local_discard_ordinals,
-                trivial_affine_discards,
-            },
-        ] if matches!(cleanup_statements, [StatementNode::Call(_)])
-            && coordinate.statement_index == 0
-            && coordinate.call_ordinal == 0
-            && *target_machine != cleanup_machine.symbol
-            && service_reach_is_empty(facts, *service_reach)
-            && structural_arguments.is_empty()
-            && claim_transfers.is_empty()
-            && trivial_affine_local_discard_ordinals.is_empty()
-            && trivial_affine_discards.is_empty() =>
-        {
-            Some(*target_machine)
-        }
-        _ => return None,
+    let (cleanup_return, cleanup_calls) = cleanup_target.operations.split_last()?;
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index,
+        trivial_affine_local_discard_ordinals,
+        trivial_affine_discards,
+    } = cleanup_return
+    else {
+        return None;
     };
+    if usize::try_from(*statement_index).ok()? != cleanup_calls.len()
+        || cleanup_calls.len() != cleanup_statements.len()
+        || !trivial_affine_local_discard_ordinals.is_empty()
+        || !trivial_affine_discards.is_empty()
+    {
+        return None;
+    }
+    let mut cleanup_helpers = Vec::with_capacity(cleanup_calls.len());
+    for (statement_index, operation) in cleanup_calls.iter().enumerate() {
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            service_reach,
+            structural_arguments,
+            claim_transfers,
+        } = operation
+        else {
+            return None;
+        };
+        if usize::try_from(coordinate.statement_index).ok()? != statement_index
+            || coordinate.call_ordinal != 0
+            || *target_machine == cleanup_machine.symbol
+            || cleanup_helpers
+                .iter()
+                .any(|(helper, _, _)| helper == target_machine)
+            || !service_reach_is_empty(facts, *service_reach)
+            || !structural_arguments.is_empty()
+            || !claim_transfers.is_empty()
+        {
+            return None;
+        }
+        cleanup_helpers.push((*target_machine, *target_state, *target_contract_fingerprint));
+    }
     if cleanup_target.attachment_type_identity != checked_parameter.type_identity
         || !cleanup_target.structural_parameters.is_empty()
         || !cleanup_target.trivial_affine_locals.is_empty()
@@ -1800,11 +1807,13 @@ fn build_nominal_affine_unit_cleanup_machine(
         return None;
     }
 
-    if let Some(helper_machine) = cleanup_helper {
+    for (helper_machine, helper_state, helper_fingerprint) in cleanup_helpers {
         let helper = unit_effects.for_machine(helper_machine)?;
         let helper_shape = shapes.types.get(&helper.attachment_type_identity)?;
         if helper.machine == machine.symbol
             || helper.machine == cleanup_machine.symbol
+            || helper.state != helper_state
+            || helper.contract_fingerprint != helper_fingerprint
             || !matches!(
                 &helper_shape.shape,
                 CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()

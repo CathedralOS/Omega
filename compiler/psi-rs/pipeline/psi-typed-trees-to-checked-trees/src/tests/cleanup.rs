@@ -47,7 +47,27 @@ fn accepts_exact_one_call_executable_cleanup_shape() {
 }
 
 #[test]
-fn executable_cleanup_rejects_more_than_one_call_or_nonempty_helper() {
+fn accepts_exact_two_call_executable_cleanup_shape() {
+    let source = r#"
+        data First {}
+        machine First::touch() {}
+        data Second {}
+        machine Second::touch() {}
+        data Wrapper { value: i32; }
+        machine Wrapper::drop(&mut self) {
+            First::touch();
+            Second::touch();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("exact two-call cleanup shape should check");
+}
+
+#[test]
+fn executable_cleanup_rejects_repeated_wider_or_nonempty_helpers() {
     rejects(
         r#"
             data Helper {}
@@ -64,10 +84,32 @@ fn executable_cleanup_rejects_more_than_one_call_or_nonempty_helper() {
         r#"
             data Leaf {}
             machine Leaf::finish() {}
-            data Helper {}
-            machine Helper::touch() { Leaf::finish(); }
+            data First {}
+            machine First::touch() {}
+            data Second {}
+            machine Second::touch() { Leaf::finish(); }
             data Wrapper { value: i32; }
-            machine Wrapper::drop(&mut self) { Helper::touch(); }
+            machine Wrapper::drop(&mut self) {
+                First::touch();
+                Second::touch();
+            }
+        "#,
+        "outside the executable cleanup slice",
+    );
+    rejects(
+        r#"
+            data First {}
+            machine First::touch() {}
+            data Second {}
+            machine Second::touch() {}
+            data Third {}
+            machine Third::touch() {}
+            data Wrapper { value: i32; }
+            machine Wrapper::drop(&mut self) {
+                First::touch();
+                Second::touch();
+                Third::touch();
+            }
         "#,
         "outside the executable cleanup slice",
     );

@@ -39,6 +39,110 @@ fn exact_one_call_nominal_affine_cleanup_validates_and_verifies() {
 }
 
 #[test]
+fn exact_two_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
+    let module = two_call_executable_nominal_affine_module();
+    let [first, second] = module.machines[1].blocks[0].operations.as_slice() else {
+        panic!("cleanup target has two ordered operations")
+    };
+    let OperationKind::CallUnit {
+        callee: first_callee,
+        ..
+    } = first.kind
+    else {
+        panic!("first cleanup operation is a Unit call")
+    };
+    let OperationKind::CallUnit {
+        callee: second_callee,
+        ..
+    } = second.kind
+    else {
+        panic!("second cleanup operation is a Unit call")
+    };
+    assert_eq!(
+        (first_callee, second_callee),
+        (machine_id(3), machine_id(4))
+    );
+    validate_module(&module).expect("exact two-call nominal cleanup should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("exact two-call nominal cleanup requires no proof evidence");
+}
+
+#[test]
+fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
+    let mut repeated = two_call_executable_nominal_affine_module();
+    let first_callee = match repeated.machines[1].blocks[0].operations[0].kind {
+        OperationKind::CallUnit { callee, .. } => callee,
+        _ => unreachable!(),
+    };
+    let OperationKind::CallUnit { callee, .. } =
+        &mut repeated.machines[1].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *callee = first_callee;
+    assert!(matches!(
+        validate_module(&repeated),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut nonempty_second = two_call_executable_nominal_affine_module();
+    nonempty_second.machines[3].blocks[0]
+        .operations
+        .push(Operation {
+            id: operation_id(3),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: machine_id(3),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    assert!(matches!(
+        validate_module(&nonempty_second),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut third_call = two_call_executable_nominal_affine_module();
+    third_call.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(3),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    assert!(matches!(
+        validate_module(&third_call),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut extra_helper = two_call_executable_nominal_affine_module();
+    let mut unused = extra_helper.machines[3].clone();
+    unused.id = machine_id(5);
+    unused.entry = block_id(5);
+    unused.blocks[0].id = block_id(5);
+    unused.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(5),
+        trivial_affine_discards: Vec::new(),
+    };
+    unused.contract.id = contract_id(5);
+    extra_helper.machines.push(unused);
+    assert!(matches!(
+        validate_module(&extra_helper),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
 fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
     let mut recursive_target = executable_nominal_affine_module();
     let cleanup_id = recursive_target.machines[1].id;
@@ -2209,6 +2313,39 @@ fn executable_nominal_affine_module() -> TerminalModule {
         }],
         contract: empty_contract(contract_id(3)),
     });
+    module
+}
+
+fn two_call_executable_nominal_affine_module() -> TerminalModule {
+    let mut module = executable_nominal_affine_module();
+    let helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(3),
+        identity: "SecondHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(2),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(4),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let mut second_helper = module.machines[2].clone();
+    second_helper.id = machine_id(4);
+    second_helper.attachment = Some(helper_type.id);
+    second_helper.entry = block_id(4);
+    second_helper.blocks[0].id = block_id(4);
+    second_helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(4),
+        trivial_affine_discards: Vec::new(),
+    };
+    second_helper.contract.id = contract_id(4);
+    module.machines.push(second_helper);
     module
 }
 

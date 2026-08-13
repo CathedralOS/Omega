@@ -40,6 +40,22 @@ const EXECUTABLE_SOURCE: &str = r#"
     machine Root::enter(token: Token) {}
 "#;
 
+const TWO_CALL_SOURCE: &str = r#"
+    data First {}
+    machine First::touch() {}
+    data Second {}
+    machine Second::touch() {}
+
+    data Token { flag: bool; }
+    machine Token::drop(&mut self) {
+        First::touch();
+        Second::touch();
+    }
+
+    data Root {}
+    machine Root::enter(token: Token) {}
+"#;
+
 #[test]
 fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
@@ -256,5 +272,88 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         decode_module(&bytes).expect("semantic module decodes"),
         lowered.semantic_module,
         "the three-machine cleanup closure is canonical artifact data"
+    );
+}
+
+#[test]
+fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() {
+    let tokens = Lexer::new(TWO_CALL_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("two-call nominal cleanup lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 4);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator else {
+        panic!("expected executable nominal cleanup return")
+    };
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .expect("cleanup target");
+    let [first_call, second_call] = target.blocks[0].operations.as_slice() else {
+        panic!("cleanup target must contain exactly two calls")
+    };
+    let callees = [first_call, second_call].map(|operation| {
+        assert_eq!(operation.result, OperationResult::Unit);
+        let OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } = &operation.kind
+        else {
+            panic!("cleanup operation must be an ordinary Unit call")
+        };
+        assert!(structural_arguments.is_empty());
+        assert!(claim_transfers.is_empty());
+        assert!(requirement_obligations.is_empty());
+        assert!(crash_continuations.is_empty());
+        *callee
+    });
+    assert_ne!(callees[0], callees[1]);
+    assert_eq!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .collect::<Vec<_>>(),
+        vec![entry.id, target.id, callees[0], callees[1]],
+        "the exact closure retains source call order"
+    );
+    for callee in callees {
+        let helper = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == callee)
+            .expect("cleanup helper");
+        assert!(helper.structural_parameters.is_empty());
+        assert!(helper.blocks[0].operations.is_empty());
+    }
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts exact ordered two-call nominal cleanup closure");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(
+        decode_module(&bytes).expect("semantic module decodes"),
+        lowered.semantic_module,
+        "the four-machine ordered cleanup closure is canonical artifact data"
     );
 }

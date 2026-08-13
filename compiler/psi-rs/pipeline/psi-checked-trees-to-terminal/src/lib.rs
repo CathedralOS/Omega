@@ -3416,47 +3416,57 @@ fn lower_nominal_affine_unit_cleanup_machine(
                 .services(plan.checked_inferred)
                 .is_empty()
     };
-    let cleanup_helper = match cleanup_target.operations.as_slice() {
-        [
-            CheckedUnitEffectOperationPlan::ReturnUnit {
-                statement_index: 0,
-                trivial_affine_local_discard_ordinals,
-                trivial_affine_discards,
-            },
-        ] if trivial_affine_local_discard_ordinals.is_empty()
-            && trivial_affine_discards.is_empty() =>
-        {
-            None
-        }
-        [
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                target_state,
-                target_contract_fingerprint,
-                service_reach,
-                structural_arguments,
-                claim_transfers,
-            },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
-                statement_index: 1,
-                trivial_affine_local_discard_ordinals,
-                trivial_affine_discards,
-            },
-        ] if coordinate.statement_index == 0
-            && coordinate.call_ordinal == 0
-            && *target_machine != plan.machine
-            && *target_machine != nominal.cleanup.cleanup_machine
-            && service_summary_is_empty(*service_reach)
-            && structural_arguments.is_empty()
-            && claim_transfers.is_empty()
-            && trivial_affine_local_discard_ordinals.is_empty()
-            && trivial_affine_discards.is_empty() =>
-        {
-            Some((*target_machine, *target_state, *target_contract_fingerprint))
-        }
-        _ => return unsupported("nominal cleanup target operation sequence drifted"),
+    let (cleanup_return, cleanup_calls) =
+        cleanup_target
+            .operations
+            .split_last()
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup target operation sequence is empty",
+            ))?;
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index,
+        trivial_affine_local_discard_ordinals,
+        trivial_affine_discards,
+    } = cleanup_return
+    else {
+        return unsupported("nominal cleanup target operation sequence drifted");
     };
+    if cleanup_calls.len() > 2
+        || usize::try_from(*statement_index).ok() != Some(cleanup_calls.len())
+        || !trivial_affine_local_discard_ordinals.is_empty()
+        || !trivial_affine_discards.is_empty()
+    {
+        return unsupported("nominal cleanup target operation sequence drifted");
+    }
+    let mut cleanup_helpers = Vec::with_capacity(cleanup_calls.len());
+    for (statement_index, operation) in cleanup_calls.iter().enumerate() {
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            service_reach,
+            structural_arguments,
+            claim_transfers,
+        } = operation
+        else {
+            return unsupported("nominal cleanup target operation sequence drifted");
+        };
+        if usize::try_from(coordinate.statement_index).ok() != Some(statement_index)
+            || coordinate.call_ordinal != 0
+            || *target_machine == plan.machine
+            || *target_machine == nominal.cleanup.cleanup_machine
+            || cleanup_helpers
+                .iter()
+                .any(|(helper, _, _)| helper == target_machine)
+            || !service_summary_is_empty(*service_reach)
+            || !structural_arguments.is_empty()
+            || !claim_transfers.is_empty()
+        {
+            return unsupported("nominal cleanup target operation sequence drifted");
+        }
+        cleanup_helpers.push((*target_machine, *target_state, *target_contract_fingerprint));
+    }
     if cleanup_target.state != nominal.cleanup.cleanup_state
         || cleanup_target.contract_fingerprint != nominal.cleanup.cleanup_contract_fingerprint
         || cleanup_contract.fingerprint != nominal.cleanup.cleanup_contract_fingerprint
@@ -3471,7 +3481,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal cleanup target identity or bounded signature drifted");
     }
 
-    if let Some((helper_machine, helper_state, helper_fingerprint)) = cleanup_helper {
+    for &(helper_machine, helper_state, helper_fingerprint) in &cleanup_helpers {
         let helper =
             unique_unit_machine(&checked.facts.flow.terminal_unit_effects, helper_machine)?;
         let helper_contract = checked
@@ -3544,10 +3554,8 @@ fn lower_nominal_affine_unit_cleanup_machine(
         plan.machine,
         &[nominal.cleanup.cleanup_machine],
     )?;
-    let expected_closure = cleanup_helper.map_or_else(
-        || vec![plan.machine, nominal.cleanup.cleanup_machine],
-        |(helper, _, _)| vec![plan.machine, nominal.cleanup.cleanup_machine, helper],
-    );
+    let mut expected_closure = vec![plan.machine, nominal.cleanup.cleanup_machine];
+    expected_closure.extend(cleanup_helpers.iter().map(|(helper, _, _)| *helper));
     if closure != expected_closure {
         return unsupported("nominal cleanup closure is not the exact bounded machine graph");
     }
@@ -3558,18 +3566,19 @@ fn lower_nominal_affine_unit_cleanup_machine(
             "nominal cleanup target is absent from its checked closure",
         ))?;
     let cleanup_terminal_id = machine_id(dense_identity(cleanup_machine_index)?);
-    let helper_terminal_id = cleanup_helper
+    let helper_terminal_ids = cleanup_helpers
+        .iter()
         .map(|(helper, _, _)| {
             closure
                 .iter()
-                .position(|candidate| *candidate == helper)
+                .position(|candidate| candidate == helper)
                 .ok_or(LoweringError::Unsupported(
                     "nominal cleanup helper is absent from its checked closure",
                 ))
                 .and_then(dense_identity)
                 .map(machine_id)
         })
-        .transpose()?;
+        .collect::<Result<Vec<_>, _>>()?;
     let mut lowered = lower_attached_unit_closure_including(
         &staged,
         plan.machine,
@@ -3594,6 +3603,28 @@ fn lower_nominal_affine_unit_cleanup_machine(
     let [cleanup_block] = cleanup_terminal.blocks.as_slice() else {
         return unsupported("nominal cleanup target terminal control drifted");
     };
+    let cleanup_operations_are_exact = cleanup_block.operations.len() == helper_terminal_ids.len()
+        && cleanup_block
+            .operations
+            .iter()
+            .zip(&helper_terminal_ids)
+            .all(|(operation, helper)| {
+                operation.result == psi_terminal::OperationResult::Unit
+                    && matches!(
+                        &operation.kind,
+                        OperationKind::CallUnit {
+                            callee,
+                            structural_arguments,
+                            claim_transfers,
+                            requirement_obligations,
+                            crash_continuations,
+                        } if callee == helper
+                            && structural_arguments.is_empty()
+                            && claim_transfers.is_empty()
+                            && requirement_obligations.is_empty()
+                            && crash_continuations.is_empty()
+                    )
+            });
     if cleanup_terminal.attachment != Some(cleanup_type)
         || !cleanup_terminal.parameters.is_empty()
         || !cleanup_terminal.structural_parameters.is_empty()
@@ -3604,27 +3635,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
         || !cleanup_terminal.content_entry_claims.is_empty()
         || !cleanup_terminal.content_identity_reshuffles.is_empty()
         || !cleanup_terminal.content_partition_compositions.is_empty()
-        || !match (cleanup_block.operations.as_slice(), helper_terminal_id) {
-            ([], None) => true,
-            ([operation], Some(helper)) => {
-                operation.result == psi_terminal::OperationResult::Unit
-                    && matches!(
-                        &operation.kind,
-                        OperationKind::CallUnit {
-                            callee,
-                            structural_arguments,
-                            claim_transfers,
-                            requirement_obligations,
-                            crash_continuations,
-                        } if *callee == helper
-                            && structural_arguments.is_empty()
-                            && claim_transfers.is_empty()
-                            && requirement_obligations.is_empty()
-                            && crash_continuations.is_empty()
-                    )
-            }
-            _ => false,
-        }
+        || !cleanup_operations_are_exact
         || !matches!(
             &cleanup_block.terminator,
             Terminator::ReturnUnit {
@@ -3639,7 +3650,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal cleanup target terminal machine is not exact and bounded");
     }
 
-    if let Some(helper_id) = helper_terminal_id {
+    for &helper_id in &helper_terminal_ids {
         let helper = lowered
             .semantic_module
             .machines
