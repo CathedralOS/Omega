@@ -349,6 +349,54 @@ fn scalar_return_composes_every_nominal_cleanup_bound() {
 }
 
 #[test]
+fn mixed_scalar_return_counts_nominal_work_but_not_root_discards() {
+    let mut module = three_ordered_shared_executable_nominal_affine_fixture();
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(910),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(911),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(999),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    assert_eq!(cleanups.len(), 3);
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(910),
+        cleanup_actions: vec![
+            TerminalAffineCleanupAction::InvokeNominal(cleanups[0].clone()),
+            TerminalAffineCleanupAction::DiscardRoot(cleanups[1].place),
+            TerminalAffineCleanupAction::InvokeNominal(cleanups[2].clone()),
+        ],
+    };
+
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed scalar cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("mixed scalar cleanup has an exact fixed bound");
+    assert_eq!(
+        certificate.ceiling_units(),
+        7,
+        "one scalar-return edge plus two three-unit nominal paths; the interleaved discard is no-code"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn two_helper_nominal_affine_cleanup_has_exact_six_unit_bound() {
     let module = two_helper_nominal_affine_fixture();
     let verified = verify_module(

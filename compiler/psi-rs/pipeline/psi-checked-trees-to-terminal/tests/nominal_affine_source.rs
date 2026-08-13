@@ -262,6 +262,30 @@ const SHARED_SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
     machine Root::measure(first: Token, second: Token) -> u64 { 7u64 }
 "#;
 
+const MIXED_SCALAR_RETURN_NOMINAL_LAST_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Plain { value: u64; }
+    data Token { value: u64; }
+    machine Token::drop(&mut self) { Helper::touch(); }
+
+    data Root {}
+    machine Root::measure(plain: Plain, token: Token) -> u64 { 7u64 }
+"#;
+
+const MIXED_SCALAR_RETURN_TRIVIAL_LAST_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Plain { value: u64; }
+    data Token { value: u64; }
+    machine Token::drop(&mut self) { Helper::touch(); }
+
+    data Root {}
+    machine Root::measure(token: Token, plain: Plain) -> u64 { 7u64 }
+"#;
+
 #[test]
 fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_codec() {
     let tokens = Lexer::new(SCALAR_RETURN_EXECUTABLE_SOURCE)
@@ -438,6 +462,98 @@ fn ordered_scalar_return_reuses_one_shared_cleanup_target_and_helper() {
         &AdmissionProfile::default(),
     )
     .expect("shared scalar nominal cleanups verify");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn mixed_scalar_return_invokes_nominal_then_discards_trivial_root() {
+    let tokens = Lexer::new(MIXED_SCALAR_RETURN_NOMINAL_LAST_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed scalar cleanup lowers in exact reverse-root order");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [plain, token] = entry.structural_parameters.as_slice() else {
+        panic!("mixed scalar entry has two roots")
+    };
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("mixed scalar entry returns a value")
+    };
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::InvokeNominal(cleanup),
+            TerminalAffineCleanupAction::DiscardRoot(discard),
+        ] if cleanup.place == token.place && *discard == plain.place
+    ));
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed scalar cleanup verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn mixed_scalar_return_discards_trivial_then_invokes_nominal_root() {
+    let tokens = Lexer::new(MIXED_SCALAR_RETURN_TRIVIAL_LAST_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed scalar cleanup lowers in exact reverse-root order");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [token, plain] = entry.structural_parameters.as_slice() else {
+        panic!("mixed scalar entry has two roots")
+    };
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("mixed scalar entry returns a value")
+    };
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::DiscardRoot(discard),
+            TerminalAffineCleanupAction::InvokeNominal(cleanup),
+        ] if *discard == plain.place && cleanup.place == token.place
+    ));
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed scalar cleanup verifies");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
 }

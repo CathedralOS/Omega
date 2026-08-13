@@ -576,6 +576,74 @@ fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
 }
 
 #[test]
+fn mixed_no_code_and_nominal_cleanup_is_scalar_only_and_keeps_action_ordinal() {
+    let mixed_unit = mixed_edge_owned_cleanup_plan();
+    assert_eq!(
+        build_terminal_object_artifact(&mixed_unit),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        )),
+        "the scalar-only mixed slice must not widen Unit artifact admission",
+    );
+
+    let mut scalar = mixed_unit;
+    let caller = &mut scalar.functions[2];
+    caller.bytes.splice(0..0, [0xb8, 1, 0, 0, 0]);
+    caller.internal_calls[0].offset += 5;
+    let outbound = caller.internal_calls[0]
+        .unit_stack
+        .as_mut()
+        .and_then(|stack| stack.outbound.as_mut())
+        .expect("x86 cleanup call stack pair");
+    outbound.allocation_offset += 5;
+    outbound.release_offset += 5;
+    caller.internal_unit_calls[0].code_offset += 5;
+    let cleanup = caller
+        .unit_affine_cleanup
+        .take()
+        .expect("mixed Unit cleanup fixture");
+    caller.scalar_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
+        code_offset: cleanup.code_offset + 5,
+        ..cleanup
+    });
+    caller.scalar_structural_parameters = std::mem::take(&mut caller.unit_parameters);
+    caller.scalar_structural_parameter_homes = std::mem::take(&mut caller.unit_parameter_homes);
+    caller.fuel_attribution[0].code_offset += 5;
+
+    let artifact = build_terminal_object_artifact(&scalar).expect("mixed scalar cleanup object");
+    let object_caller = artifact
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("mixed scalar cleanup caller");
+    assert_eq!(
+        object_caller.internal_unit_calls[0].owner,
+        TerminalCallSiteOwner::CleanupAction {
+            edge: edge_id(3),
+            action_ordinal: 1,
+        },
+        "the no-code action retains ordinal zero without renumbering the call",
+    );
+    let image = emit_terminal_executable_image(&artifact, 3).expect("mixed scalar cleanup image");
+    let installation =
+        build_terminal_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+            .expect("mixed scalar cleanup installation");
+    validate_terminal_installation_record(&installation, &image)
+        .expect("mixed scalar cleanup image binding");
+
+    let caller = &mut scalar.functions[2];
+    caller.internal_calls[0].owner = TerminalCallSiteOwner::CleanupAction {
+        edge: edge_id(3),
+        action_ordinal: 0,
+    };
+    caller.internal_unit_calls[0].owner = caller.internal_calls[0].owner;
+    assert!(
+        build_terminal_object_artifact(&scalar).is_err(),
+        "a cleanup call cannot claim the no-code action's ordinal",
+    );
+}
+
+#[test]
 fn x86_unit_stack_scan_uses_instruction_boundaries_not_immediate_substrings() {
     let mut plan = two_function_plan();
     plan.functions[0].bytes = vec![
@@ -2682,6 +2750,33 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
             },
         ],
     }
+}
+
+fn mixed_edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
+    let mut plan = edge_owned_cleanup_plan();
+    let caller = &mut plan.functions[2];
+    let trivial_place = PlaceId::new(2).expect("trivial place");
+    let trivial_type = StructuralTypeId::new(3).expect("trivial type");
+    let mut trivial_parameter = caller.unit_parameters[0].clone();
+    trivial_parameter.place = trivial_place;
+    trivial_parameter.structural_type = trivial_type;
+    let mut trivial_home = caller.unit_parameter_homes[0].clone();
+    trivial_home.place = trivial_place;
+    trivial_home.structural_type = trivial_type;
+    caller.unit_parameters.push(trivial_parameter);
+    caller.unit_parameter_homes.push(trivial_home);
+    caller
+        .unit_affine_cleanup
+        .as_mut()
+        .expect("Unit cleanup fixture")
+        .actions
+        .insert(0, TerminalAffineCleanupAction::DiscardRoot(trivial_place));
+    caller.internal_calls[0].owner = TerminalCallSiteOwner::CleanupAction {
+        edge: edge_id(3),
+        action_ordinal: 1,
+    };
+    caller.internal_unit_calls[0].owner = caller.internal_calls[0].owner;
+    plan
 }
 
 fn two_call_edge_owned_cleanup_plan() -> TerminalMachineCodePlan {

@@ -1865,6 +1865,106 @@ fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
     );
 }
 
+#[test]
+fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
+    let mut module = three_ordered_empty_nominal_affine_module(false);
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(20),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(21),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(99),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    assert_eq!(cleanups.len(), 3);
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(20),
+        cleanup_actions: vec![
+            TerminalAffineCleanupAction::InvokeNominal(cleanups[0].clone()),
+            TerminalAffineCleanupAction::DiscardRoot(cleanups[1].place),
+            TerminalAffineCleanupAction::InvokeNominal(cleanups[2].clone()),
+        ],
+    };
+
+    let semantic = encode_module(&module).expect("mixed scalar cleanup stream encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let structural_arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 120,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 121,
+            structural_type: structural_type_id(2),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 122,
+            structural_type: structural_type_id(3),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Boolean(true)],
+        &structural_arguments,
+    )
+    .expect("verified mixed scalar cleanup starts");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    for (consumed, expected_site) in [
+        FuelChargeSite::Edge(edge_id(1)),
+        FuelChargeSite::Edge(edge_id(4)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion { site, .. })
+                if site == expected_site
+        ));
+        assert_eq!(meter.usage().total_units(), consumed as u64);
+        meter.replenish(1).unwrap();
+    }
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Edge(edge_id(1)))
+            .unwrap()
+            .executions(),
+        1,
+        "the mixed cleanup stream shares one scalar-return edge charge"
+    );
+}
+
 fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {
     let mut module = nominal_affine_module();
     let first_type = structural_type_id(1);

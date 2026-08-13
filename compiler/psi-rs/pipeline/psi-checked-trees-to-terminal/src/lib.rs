@@ -16,11 +16,11 @@ use psi_checked_trees::{
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitBoundaryMachinePlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
     CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
@@ -1944,11 +1944,172 @@ fn lower_structural_domain_plans(
     Ok((declarations, domain_ids))
 }
 
+fn retain_additional_structural_types(
+    module: &mut TerminalModule,
+    plans: &[CheckedUnitStructuralTypePlan],
+    root_identities: impl IntoIterator<Item = String>,
+) -> Result<(), LoweringError> {
+    fn collect(
+        plans: &[CheckedUnitStructuralTypePlan],
+        identity: &str,
+        active: &mut Vec<String>,
+        selected: &mut Vec<String>,
+    ) -> Result<(), LoweringError> {
+        if active.iter().any(|candidate| candidate == identity) {
+            return unsupported("recursive structural type is outside scalar cleanup lowering");
+        }
+        if selected.iter().any(|candidate| candidate == identity) {
+            return Ok(());
+        }
+        let mut matches = plans.iter().filter(|plan| plan.identity == identity);
+        let plan = matches.next().ok_or(LoweringError::Unsupported(
+            "scalar cleanup references a missing structural type",
+        ))?;
+        if matches.next().is_some() || identity.is_empty() {
+            return unsupported("scalar cleanup structural type identity is invalid");
+        }
+        active.push(identity.to_owned());
+        match &plan.shape {
+            CheckedUnitStructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                        &field.field_type
+                    {
+                        collect(plans, type_identity, active, selected)?;
+                    }
+                }
+            }
+            CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                ..
+            } => collect(plans, element_type_identity, active, selected)?,
+        }
+        active.pop();
+        selected.push(identity.to_owned());
+        Ok(())
+    }
+
+    let mut selected = Vec::new();
+    let mut active = Vec::new();
+    for identity in root_identities {
+        collect(plans, &identity, &mut active, &mut selected)?;
+    }
+    selected.retain(|identity| {
+        !module
+            .structural_types
+            .iter()
+            .any(|declaration| declaration.identity == *identity)
+    });
+    selected.sort();
+    selected.dedup();
+    if selected.is_empty() {
+        return Ok(());
+    }
+
+    let mut next_type = module
+        .structural_types
+        .iter()
+        .map(|declaration| declaration.id.get())
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "scalar cleanup structural type identity space is exhausted",
+        ))?;
+    let mut type_ids = module
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .collect::<Vec<_>>();
+    for identity in &selected {
+        type_ids.push((
+            identity.clone(),
+            structural_type_id(allocate_dense(&mut next_type)?),
+        ));
+    }
+    let mut next_field = module
+        .structural_types
+        .iter()
+        .flat_map(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields.as_slice(),
+            StructuralTypeShape::FixedArray { .. } => &[],
+        })
+        .map(|field| field.id.get())
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "scalar cleanup structural field identity space is exhausted",
+        ))?;
+    for identity in selected {
+        let plan = plans
+            .iter()
+            .find(|plan| plan.identity == identity)
+            .expect("selected scalar structural type was validated");
+        let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::Record { fields } => {
+                let mut identities = BTreeSet::new();
+                let fields = fields
+                    .iter()
+                    .map(|field| {
+                        if field.identity.is_empty() || !identities.insert(&field.identity) {
+                            return Err(LoweringError::Unsupported(
+                                "scalar cleanup structural fields are invalid",
+                            ));
+                        }
+                        let field_type = match &field.field_type {
+                            CheckedUnitStructuralFieldType::Scalar(primitive) => {
+                                StructuralFieldType::Scalar(terminal_scalar_type(*primitive)?)
+                            }
+                            CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                                StructuralFieldType::Structural(lookup_type_id(
+                                    &type_ids,
+                                    type_identity,
+                                )?)
+                            }
+                            CheckedUnitStructuralFieldType::Erased { type_identity } => {
+                                StructuralFieldType::Erased {
+                                    type_identity: type_identity.clone(),
+                                }
+                            }
+                        };
+                        Ok(StructuralFieldDeclaration {
+                            id: structural_field_id(allocate_dense(&mut next_field)?),
+                            identity: field.identity.clone(),
+                            relevance: field.relevance,
+                            field_type,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                StructuralTypeShape::Record { fields }
+            }
+            CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                length,
+            } => StructuralTypeShape::FixedArray {
+                element: lookup_type_id(&type_ids, element_type_identity)?,
+                length: *length,
+            },
+        };
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: lookup_type_id(&type_ids, &identity)?,
+            identity,
+            shape,
+        });
+    }
+    Ok(())
+}
+
 fn lower_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if !plan.nominal_cleanups.is_empty() {
+    if plan.cleanup_actions.iter().any(|action| {
+        matches!(
+            action,
+            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
+        )
+    }) {
         return lower_nominal_structural_scalar_return_machine(checked, plan);
     }
     let (structural_types, type_ids) = lower_structural_type_plans(
@@ -2004,9 +2165,11 @@ fn lower_structural_scalar_return_machine(
         .structural_parameters
         .iter()
         .rev()
-        .map(|parameter| parameter.position)
+        .map(|parameter| {
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(parameter.position)
+        })
         .collect::<Vec<_>>();
-    if plan.trivial_affine_discard_parameter_positions != expected_cleanup {
+    if plan.cleanup_actions != expected_cleanup {
         return unsupported("structural scalar return cleanup does not consume its exact frontier");
     }
     let expected_return_ordinal = u32::try_from(plan.bindings.len()).map_err(|_| {
@@ -2021,9 +2184,14 @@ fn lower_structural_scalar_return_machine(
     let structural_parameters =
         lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
     let cleanup = plan
-        .trivial_affine_discard_parameter_positions
+        .cleanup_actions
         .iter()
-        .map(|position| {
+        .map(|action| {
+            let CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) = action else {
+                return Err(LoweringError::Unsupported(
+                    "structural scalar return trivial lane acquired a nominal cleanup",
+                ));
+            };
             let parameter_index = plan
                 .structural_parameters
                 .iter()
@@ -2479,27 +2647,78 @@ fn lower_nominal_structural_scalar_return_machine(
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     if plan.structural_parameters.is_empty()
-        || plan.nominal_cleanups.len() != plan.structural_parameters.len()
+        || plan.cleanup_actions.len() != plan.structural_parameters.len()
         || !plan.scalar_parameters.is_empty()
         || !plan.bindings.is_empty()
-        || !plan.trivial_affine_discard_parameter_positions.is_empty()
         || plan.return_statement_ordinal != 0
     {
         return unsupported("nominal scalar return exceeds its first bounded slice");
     }
     let parameter_count = plan.structural_parameters.len();
     for (position, parameter) in plan.structural_parameters.iter().enumerate() {
-        let cleanup = &plan.nominal_cleanups[parameter_count - position - 1];
+        let cleanup = &plan.cleanup_actions[parameter_count - position - 1];
         if usize::try_from(parameter.position).ok() != Some(position)
             || parameter.is_self
             || parameter.multiplicity != Multiplicity::Affine
             || !parameter.qualifications.is_empty()
-            || usize::try_from(cleanup.source_parameter_index).ok() != Some(position)
-            || cleanup.type_identity != parameter.type_identity
-            || !cleanup.requirements.is_empty()
         {
             return unsupported("nominal scalar return cleanup frontier drifted");
         }
+        match cleanup {
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(cleanup_position)
+                if *cleanup_position == parameter.position => {}
+            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
+                if cleanup.source_parameter_index == parameter.position
+                    && cleanup.type_identity == parameter.type_identity
+                    && cleanup.requirements.is_empty() => {}
+            _ => return unsupported("nominal scalar return cleanup frontier drifted"),
+        }
+    }
+    let mut nominal_parameters = Vec::new();
+    for parameter in &plan.structural_parameters {
+        if plan.cleanup_actions.iter().any(|action| {
+            matches!(
+                action,
+                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
+                    if cleanup.source_parameter_index == parameter.position
+            )
+        }) {
+            let mut normalized = parameter.clone();
+            normalized.position = u32::try_from(nominal_parameters.len()).map_err(|_| {
+                LoweringError::Unsupported("nominal scalar return root count exceeds u32")
+            })?;
+            nominal_parameters.push(normalized);
+        }
+    }
+    let mut nominal_cleanups = plan
+        .cleanup_actions
+        .iter()
+        .filter_map(|action| match action {
+            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
+                Some(cleanup.clone())
+            }
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => None,
+        })
+        .collect::<Vec<_>>();
+    for cleanup in &mut nominal_cleanups {
+        cleanup.source_parameter_index = u32::try_from(
+            plan.structural_parameters
+                .iter()
+                .filter(|parameter| {
+                    plan.cleanup_actions.iter().any(|action| {
+                        matches!(
+                            action,
+                            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(candidate)
+                                if candidate.source_parameter_index == parameter.position
+                        )
+                    })
+                })
+                .position(|parameter| parameter.position == cleanup.source_parameter_index)
+                .ok_or(LoweringError::Unsupported(
+                    "nominal scalar return cleanup root is absent",
+                ))?,
+        )
+        .map_err(|_| LoweringError::Unsupported("nominal scalar return root count exceeds u32"))?;
     }
     let contract = checked
         .facts
@@ -2525,7 +2744,7 @@ fn lower_nominal_structural_scalar_return_machine(
         machine: plan.machine,
         state: plan.state,
         attachment_type_identity: plan.attachment_type_identity.clone(),
-        structural_parameters: plan.structural_parameters.clone(),
+        structural_parameters: nominal_parameters,
         trivial_affine_locals: Vec::new(),
         entry_claims: Vec::new(),
         body_qualifications: Vec::new(),
@@ -2541,7 +2760,7 @@ fn lower_nominal_structural_scalar_return_machine(
     let nominal = CheckedNominalAffineUnitCleanupMachinePlan {
         machine: synthetic,
         caller_requirements: Vec::new(),
-        cleanups: plan.nominal_cleanups.clone(),
+        cleanups: nominal_cleanups,
     };
     let mut staged = checked.clone();
     for shape in &checked
@@ -2587,6 +2806,17 @@ fn lower_nominal_structural_scalar_return_machine(
         return unsupported("nominal scalar return value does not match its checked result type");
     }
     validate_direct_parameter_types(&expression, &[])?;
+    retain_additional_structural_types(
+        &mut lowered.semantic_module,
+        &checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .structural_types,
+        plan.structural_parameters
+            .iter()
+            .map(|parameter| parameter.type_identity.clone()),
+    )?;
     let operation_identity_base = lowered
         .semantic_module
         .machines
@@ -2596,6 +2826,15 @@ fn lower_nominal_structural_scalar_return_machine(
         .map(|operation| operation.id.get())
         .max()
         .unwrap_or(0);
+    let type_ids = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .collect::<Vec<_>>();
+    let mut next_place = 1_u64;
+    let structural_parameters =
+        lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
     let entry = lowered
         .semantic_module
         .machines
@@ -2610,7 +2849,18 @@ fn lower_nominal_structural_scalar_return_machine(
     let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &block.terminator else {
         return unsupported("nominal scalar return synthetic cleanup edge drifted");
     };
-    if cleanups.len() != plan.nominal_cleanups.len() {
+    if cleanups.len()
+        != plan
+            .cleanup_actions
+            .iter()
+            .filter(|action| {
+                matches!(
+                    action,
+                    CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
+                )
+            })
+            .count()
+    {
         return unsupported("nominal scalar return synthetic cleanup count drifted");
     }
     if cleanups.iter().any(|cleanup| {
@@ -2618,11 +2868,42 @@ fn lower_nominal_structural_scalar_return_machine(
     }) {
         return unsupported("nominal scalar return unexpectedly acquired proof context");
     }
-    let cleanup_actions = cleanups
+    let mut terminal_nominals = cleanups.iter().cloned();
+    let cleanup_actions = plan
+        .cleanup_actions
         .iter()
-        .cloned()
-        .map(TerminalAffineCleanupAction::InvokeNominal)
-        .collect();
+        .map(|action| {
+            let source_position = match action {
+                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) => *position,
+                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
+                    cleanup.source_parameter_index
+                }
+            };
+            let place = structural_parameters
+                .iter()
+                .find(|parameter| parameter.position == source_position)
+                .map(|parameter| parameter.place)
+                .ok_or(LoweringError::Unsupported(
+                    "nominal scalar return cleanup terminal root is absent",
+                ))?;
+            match action {
+                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                    Ok(TerminalAffineCleanupAction::DiscardRoot(place))
+                }
+                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_) => {
+                    let mut cleanup =
+                        terminal_nominals.next().ok_or(LoweringError::Unsupported(
+                            "nominal scalar return synthetic cleanup stream is short",
+                        ))?;
+                    cleanup.place = place;
+                    Ok(TerminalAffineCleanupAction::InvokeNominal(cleanup))
+                }
+            }
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if terminal_nominals.next().is_some() {
+        return unsupported("nominal scalar return synthetic cleanup stream is long");
+    }
     let edge = *edge;
     let mut next_value = 1_u64;
     let mut operations = OperationBuffer::new(operation_identity_base);
@@ -2637,6 +2918,17 @@ fn lower_nominal_structural_scalar_return_machine(
         id: value_id(next_value),
         scalar_type: result_type,
     });
+    entry.structural_parameters = structural_parameters.clone();
+    entry.structural_places = structural_parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        })
+        .collect();
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }
@@ -12846,8 +13138,10 @@ mod tests {
                     bindings: Vec::new(),
                     result_type: PrimitiveType::I32,
                     return_statement_ordinal: 0,
-                    trivial_affine_discard_parameter_positions: vec![1, 0],
-                    nominal_cleanups: Vec::new(),
+                    cleanup_actions: vec![
+                        CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+                        CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
+                    ],
                 }],
             };
         checked.facts.values.scalar_expressions.expressions.push(
@@ -12918,7 +13212,10 @@ mod tests {
             .flow
             .terminal_structural_scalar_returns
             .machines[0]
-            .trivial_affine_discard_parameter_positions = vec![0, 1];
+            .cleanup_actions = vec![
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        ];
 
         assert!(matches!(
             lower_machine(&checked, "example::Root::enter"),
@@ -15206,7 +15503,10 @@ mod tests {
             },
         ];
         plan.result_type = PrimitiveType::Bool;
-        plan.trivial_affine_discard_parameter_positions = vec![2, 0];
+        plan.cleanup_actions = vec![
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(2),
+            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
+        ];
         checked.facts.values.scalar_expressions.expressions[0].expression =
             CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(Box::new(
                 CheckedBooleanExpression::Parameter { position: 1 },

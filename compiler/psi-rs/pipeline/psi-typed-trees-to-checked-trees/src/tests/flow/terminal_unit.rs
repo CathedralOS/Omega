@@ -361,8 +361,9 @@ fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization(
         .terminal_structural_scalar_returns
         .for_machine(machine_named(&checked, "measure"))
         .expect("scalar return retains its nominal cleanup");
-    assert!(plan.trivial_affine_discard_parameter_positions.is_empty());
-    let [cleanup] = plan.nominal_cleanups.as_slice() else {
+    let [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)] =
+        plan.cleanup_actions.as_slice()
+    else {
         panic!("scalar return cleanup is exactly one nominal action")
     };
     assert_eq!(cleanup.source_parameter_index, 0);
@@ -402,24 +403,37 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
         .terminal_structural_scalar_returns
         .for_machine(machine_named(&checked, "measure"))
         .expect("scalar return retains its complete nominal cleanup frontier");
-    assert!(plan.trivial_affine_discard_parameter_positions.is_empty());
     assert_eq!(
-        plan.nominal_cleanups
+        plan.cleanup_actions
             .iter()
-            .map(|cleanup| cleanup.source_parameter_index)
+            .map(|action| match action {
+                psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                    cleanup,
+                ) => cleanup.source_parameter_index,
+                psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                    panic!("the all-nominal case must not publish a trivial discard")
+                }
+            })
             .collect::<Vec<_>>(),
         vec![1, 0],
         "nominal scalar-return cleanup order is reverse authored order"
     );
-    assert!(
-        plan.nominal_cleanups
-            .iter()
-            .all(|cleanup| cleanup.requirements.is_empty())
-    );
+    assert!(plan.cleanup_actions.iter().all(|action| matches!(
+        action,
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+            cleanup
+        ) if cleanup.requirements.is_empty()
+    )));
     let target_operation_lengths = plan
-        .nominal_cleanups
+        .cleanup_actions
         .iter()
-        .map(|cleanup| {
+        .map(|action| {
+            let psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                cleanup,
+            ) = action
+            else {
+                unreachable!("all-nominal action list")
+            };
             checked
                 .facts
                 .flow
@@ -434,25 +448,34 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
 }
 
 #[test]
-fn scalar_return_fences_mixed_trivial_and_nominal_cleanup_roots() {
+fn scalar_return_retains_mixed_cleanup_actions_in_reverse_parameter_order() {
     let checked = checked(
         r#"
+        data First { value: u64; }
+        machine First::drop(&mut self) {}
         data Plain { value: u64; }
-        data Token { value: u64; }
-        machine Token::drop(&mut self) {}
+        data Second { value: u64; }
+        machine Second::drop(&mut self) {}
         data Root {}
-        machine Root::measure(plain: Plain, token: Token) -> u64 { 7u64 }
+        machine Root::measure(first: First, plain: Plain, second: Second) -> u64 { 7u64 }
         "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine_named(&checked, "measure"))
-            .is_none(),
-        "the first nominal scalar-return slice must not partially retain a mixed frontier"
-    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("the complete mixed scalar cleanup frontier is retained");
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("mixed cleanup actions preserve one reverse-authored stream")
+    };
+    assert_eq!(second.source_parameter_index, 2);
+    assert_eq!(first.source_parameter_index, 0);
 }
 
 #[test]

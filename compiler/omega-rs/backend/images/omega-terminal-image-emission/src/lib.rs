@@ -527,6 +527,7 @@ pub fn build_terminal_object_artifact(
                 &attachments,
                 &machine_functions,
                 cleanup,
+                false,
             )?,
             (None, None) => {}
             (Some(_), None) if function.scalar_affine_cleanup.is_some() => {}
@@ -552,6 +553,7 @@ pub fn build_terminal_object_artifact(
                 &attachments,
                 &machine_functions,
                 cleanup,
+                true,
             )?;
         }
         if function.unit_parameters.len() != function.unit_parameter_homes.len()
@@ -945,6 +947,7 @@ fn validate_unit_affine_cleanup(
         &omega_terminal_machine_code::TerminalMachineCodeFunction,
     >,
     cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
+    allow_mixed_nominal_roots: bool,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
     let end = cleanup
@@ -1130,43 +1133,53 @@ fn validate_unit_affine_cleanup(
         let nominal = cleanup
             .actions
             .iter()
-            .filter_map(|action| match action {
-                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
+            .enumerate()
+            .filter_map(|(ordinal, action)| match action {
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    Some((ordinal, cleanup))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if nominal.len() != cleanup.actions.len()
-            || nominal.is_empty()
+        if nominal.is_empty()
+            || (!allow_mixed_nominal_roots && nominal.len() != cleanup.actions.len())
             || !cleanup.locals.is_empty()
-            || parameter_homes.len() != nominal.len()
+            || parameter_homes.len() != cleanup.actions.len()
             || parameter_homes
                 .iter()
                 .rev()
-                .zip(&nominal)
-                .any(|(home, nominal)| {
-                    home.place != nominal.place
-                        || home.structural_type != nominal.structural_type
-                        || home.multiplicity != psi_terminal::StructuralMultiplicity::Affine
-                        || !bounded_nominal_receiver_shape(home.shape)
-                        || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
-                        || (home.shape.byte_size != 0 && home.source.locations.is_empty())
-                        || attachments.get(&nominal.cleanup_machine)
-                            != Some(&Some(nominal.structural_type))
+                .zip(&cleanup.actions)
+                .any(|(home, action)| match action {
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                        *place != home.place
+                            || home.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                    }
+                    psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
+                        home.place != nominal.place
+                            || home.structural_type != nominal.structural_type
+                            || home.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                            || !bounded_nominal_receiver_shape(home.shape)
+                            || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
+                            || (home.shape.byte_size != 0 && home.source.locations.is_empty())
+                            || attachments.get(&nominal.cleanup_machine)
+                                != Some(&Some(nominal.structural_type))
+                    }
+                    psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => true,
                 })
         {
             true
         } else {
             let targets = nominal
                 .iter()
-                .map(|nominal| exact_nominal_target(nominal))
+                .map(|(_, nominal)| exact_nominal_target(nominal))
                 .collect::<Vec<_>>();
             let executable_ordinals = targets
                 .iter()
-                .enumerate()
-                .filter_map(|(ordinal, (function, _))| {
+                .zip(&nominal)
+                .filter_map(|((function, _), (action_ordinal, _))| {
                     function
                         .is_some_and(|function| !function.internal_unit_calls.is_empty())
-                        .then_some(ordinal)
+                        .then_some(*action_ordinal)
                 })
                 .collect::<Vec<_>>();
             let cleanup_calls = internal_unit_calls
@@ -1183,13 +1196,23 @@ fn validate_unit_affine_cleanup(
                 .iter()
                 .map(|ordinal| {
                     let action_ordinal = u32::try_from(*ordinal).ok()?;
+                    let nominal =
+                        cleanup
+                            .actions
+                            .get(*ordinal)
+                            .and_then(|action| match action {
+                                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                                    nominal,
+                                ) => Some(nominal),
+                                _ => None,
+                            })?;
                     let call = cleanup_calls.iter().find(|call| {
                         call.owner
                             == TerminalCallSiteOwner::CleanupAction {
                                 edge: cleanup.psi_edge,
                                 action_ordinal,
                             }
-                            && call.target == nominal[*ordinal].cleanup_machine
+                            && call.target == nominal.cleanup_machine
                     })?;
                     Some((
                         call.code_offset,
@@ -1208,6 +1231,11 @@ fn validate_unit_affine_cleanup(
                     let Ok(action_ordinal) = u32::try_from(*ordinal) else {
                         return true;
                     };
+                    let Some(psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)) =
+                        cleanup.actions.get(*ordinal)
+                    else {
+                        return true;
+                    };
                     cleanup_calls
                         .iter()
                         .filter(|call| {
@@ -1216,7 +1244,7 @@ fn validate_unit_affine_cleanup(
                                     edge: cleanup.psi_edge,
                                     action_ordinal,
                                 }
-                                && call.target == nominal[*ordinal].cleanup_machine
+                                && call.target == nominal.cleanup_machine
                                 && call.arguments.is_empty()
                                 && call.claim_transfers.is_empty()
                                 && call.code_offset >= cleanup.code_offset

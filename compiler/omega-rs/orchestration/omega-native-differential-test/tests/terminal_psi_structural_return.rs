@@ -18,7 +18,7 @@ use omega_terminal_image_emission::{
 use omega_terminal_machine_code::TerminalNativeFuelSite;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
-use omega_terminal_target_operations::TerminalTargetOperation;
+use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalTargetOperation};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::lower_machine;
 use psi_core::{ProfileDecisionId, StructuralPlaceKind};
@@ -392,6 +392,126 @@ fn source_scalar_result_runs_distinct_nominal_roots_in_reverse_order_on_all_targ
         );
         validate_terminal_installation_record(&installation, &image)
             .expect("installed ordered scalar cleanup binds its exact image");
+    }
+}
+
+#[test]
+fn source_scalar_result_preserves_mixed_cleanup_order_on_all_targets() {
+    let source = r#"
+        data First { value: u64; }
+
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+
+        data Last { value: u64; }
+
+        data Root {}
+        machine Root::measure(first: First, token: Token, last: Last) -> u64 { 7u64 }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize mixed scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed scalar cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type mixed scalar cleanup");
+    let checked = lower_typed_trees(typed).expect("check mixed scalar cleanup");
+    let lowered = lower_machine(&checked, "Root::measure")
+        .expect("mixed scalar cleanup reaches terminal Psi");
+    let semantic_bytes = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry_machine = lowered.semantic_module.entry;
+    drop(checked);
+    drop(lowered);
+
+    let module = decode_module(&semantic_bytes).expect("semantic artifact decodes");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry_machine)
+        .expect("mixed scalar cleanup entry");
+    let Terminator::Return {
+        edge,
+        cleanup_actions,
+        ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("mixed scalar cleanup entry returns a scalar")
+    };
+    let [
+        TerminalAffineCleanupAction::DiscardRoot(last),
+        TerminalAffineCleanupAction::InvokeNominal(token),
+        TerminalAffineCleanupAction::DiscardRoot(first),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("mixed roots form one ordered scalar cleanup stream")
+    };
+    assert_eq!(*last, entry.structural_parameters[2].place);
+    assert_eq!(token.place, entry.structural_parameters[1].place);
+    assert_eq!(*first, entry.structural_parameters[0].place);
+
+    let abstract_plan =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("verified mixed scalar cleanup crosses the Omega boundary");
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission failed: {error:?}", case.target));
+        let emitted_entry = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted mixed scalar cleanup entry");
+        let cleanup = emitted_entry
+            .scalar_affine_cleanup
+            .as_ref()
+            .expect("emitted mixed scalar cleanup custody");
+        assert_eq!(cleanup.actions, *cleanup_actions);
+        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 3);
+        assert_eq!(emitted_entry.internal_unit_calls.len(), 1);
+        assert_eq!(
+            emitted_entry.internal_unit_calls[0].target,
+            token.cleanup_machine
+        );
+        assert_eq!(
+            emitted_entry.internal_unit_calls[0].owner,
+            TerminalCallSiteOwner::CleanupAction {
+                edge: *edge,
+                action_ordinal: 1,
+            }
+        );
+        assert!(cleanup.code_offset > 0, "result bytes precede cleanups");
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation failed: {error:?}", case.target));
+        let installed_entry = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("installed mixed scalar cleanup entry");
+        assert_eq!(
+            installed_entry.scalar_affine_cleanup.as_ref(),
+            Some(cleanup)
+        );
+        let installation_bytes = encode_terminal_installation_record(&installation)
+            .expect("canonical mixed scalar cleanup installation");
+        assert_eq!(
+            decode_terminal_installation_record(&installation_bytes),
+            Ok(installation.clone())
+        );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed mixed scalar cleanup binds its exact image");
     }
 }
 
