@@ -4201,6 +4201,14 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells: [u64; 2];
     }
 
+    data Cell {
+        value: u64;
+    }
+
+    data CellBucket {
+        cells: [Cell; 2];
+    }
+
     data Main {
         value: u64;
         other_value: u64;
@@ -4208,6 +4216,7 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells: [u64; 2];
         matrix: [[u64; 2]; 2];
         bucket: Bucket;
+        cell_bucket: CellBucket;
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -4241,6 +4250,14 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 
     machine recursive_bucket(bucket: &mut Bucket) -> &mut Bucket {
         recursive_bucket(bucket)
+    }
+
+    machine return_cell_bucket(bucket: &mut CellBucket) -> &mut CellBucket {
+        bucket
+    }
+
+    machine recursive_cell_bucket(bucket: &mut CellBucket) -> &mut CellBucket {
+        recursive_cell_bucket(bucket)
     }
 
     machine Main::return_attached_cells(&mut self) -> &mut [u64; 2] {
@@ -4314,6 +4331,35 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         result: &'result mut u64
     ) -> &'result mut u64 {
         recursive_bucket(bucket).cells[make_index()] = 1;
+        result
+    }
+
+    machine return_after_member_after_index_target<'bucket, 'result, 'value>(
+        bucket: &'bucket mut CellBucket,
+        result: &'result mut u64,
+        value: &'value mut u64
+    ) -> &'result mut u64 {
+        return_cell_bucket(bucket).cells[
+            identity_index(write_index(value))
+        ].value = 1;
+        result
+    }
+
+    machine return_after_deep_member_after_index_target<'bucket, 'result>(
+        bucket: &'bucket mut CellBucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        return_cell_bucket(bucket).cells[
+            identity_index(identity_index(make_index()))
+        ].value = 1;
+        result
+    }
+
+    machine return_after_recursive_member_after_index_target<'bucket, 'result>(
+        bucket: &'bucket mut CellBucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        recursive_cell_bucket(bucket).cells[make_index()].value = 1;
         result
     }
 
@@ -4433,6 +4479,31 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias = 2;
     }
 
+    machine Main::member_after_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_member_after_index_target(
+            &mut self.cell_bucket,
+            &mut self.result,
+            &mut self.value
+        );
+        alias = 2;
+    }
+
+    machine Main::deep_member_after_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_member_after_index_target(
+            &mut self.cell_bucket,
+            &mut self.result
+        );
+        alias = 2;
+    }
+
+    machine Main::recursive_member_after_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_member_after_index_target(
+            &mut self.cell_bucket,
+            &mut self.result
+        );
+        alias = 2;
+    }
+
     machine Main::attached_helper_index_target_result(&mut self) {
         let alias: &mut u64 = self.return_after_attached_helper_index_target();
         alias = 2;
@@ -4512,6 +4583,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.bucket.cells", "self.result", "self.value"],
         ),
         (
+            "Main::member_after_index_target_result",
+            vec!["self.cell_bucket.cells", "self.result", "self.value"],
+        ),
+        (
             "Main::attached_helper_index_target_result",
             vec!["self.cells", "self.result", "self.value"],
         ),
@@ -4552,6 +4627,8 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::recursive_helper_index_target_result",
         "Main::deep_projected_helper_index_target_result",
         "Main::recursive_projected_helper_index_target_result",
+        "Main::deep_member_after_index_target_result",
+        "Main::recursive_member_after_index_target_result",
         "Main::recursive_attached_index_target_result",
         "Main::deep_repeated_index_target_result",
     ] {
