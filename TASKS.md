@@ -202,28 +202,27 @@ Remaining:
   bytes. Nested/wider paths, multiple moves, claims/content, contracts, and
   nominal `drop` remain fenced for partial-record cleanup.
 
-  The bounded whole-root nominal cleanup slice is complete: one root-only Unit
-  machine with exactly one claim-free, unqualified affine parameter whose
-  record is empty or contains only relevant Boolean/integer fields invokes its exact
-  attached `T::drop`: its body may be empty or contain up to two source-ordered
-  ordinary zero-argument calls to mutually distinct exact-empty attached
-  helpers. Checked
-  production, canonical terminal encoding,
-  independent verification, interpretation, and fixed fuel preserve the whole
-  receiver and charge both edges. Omega assigns a nonempty receiver its
-  ordinary ABI home while retaining parameter, attachment, and cleanup identity
-  through all five object/image/install paths. Empty drops add no call; the
-  executable form emits an edge-owned native call before return teardown and
-  retains source-ordered operation-owned helper-call custody. Nested/erased
-  receivers, three-or-more-call bodies, ordered multiple cleanups, locals,
-  claims, qualifications, contracts, and non-root edges remain fenced.
+  The bounded whole-root nominal cleanup slice is complete for one or two
+  claim-free, unqualified affine parameters whose records are empty or contain
+  only relevant Boolean/integer fields. One attached `T::drop` may be empty or
+  make up to two source-ordered calls to distinct exact-empty helpers. Two
+  attached drops execute in reverse parameter order, may share one cleanup
+  target, and currently must both be empty. Checked production, canonical
+  terminal encoding, independent verification, interpretation, and fixed fuel
+  preserve each whole receiver, charge the root edge once, and count every
+  cleanup invocation. Omega carries one ordered cleanup-action stream through
+  all five object/image/install paths. Empty drops add no call; the one-drop
+  executable form emits an edge-owned call before return teardown and retains
+  source-ordered operation-owned helper custody. Nested/erased receivers,
+  three-or-more-call bodies, wider or executable cleanup lists, locals, claims,
+  qualifications, contracts, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
   parameter tail and a finite consecutive prefix of established empty-record
   affine locals. Both clean up in canonical reverse order with no emitted
   cleanup code; register and stack ABI homes survive installation. Next add
-  wider executable drop bodies, ordered cleanup lists,
+  wider executable drop bodies and cleanup lists,
   and wider partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
@@ -441,8 +440,10 @@ reach or trust, and private proof improvements do not change public identity.
   artifact paths. The cleanup may be empty or make up to two source-ordered
   zero-argument calls to mutually distinct exact-empty helpers; native
   artifacts retain the cleanup edge and helper operations as distinct call
-  owners. Add wider executable nominal cleanup,
-  ordered cleanup lists, contextual cleanup-contract checking,
+  owners. Two empty nominal cleanups now run in reverse parameter order through
+  interpretation, fuel, and every native artifact path, including repeated use
+  of one cleanup target. Add wider executable nominal cleanup and cleanup
+  lists, contextual cleanup-contract checking,
   wider structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
