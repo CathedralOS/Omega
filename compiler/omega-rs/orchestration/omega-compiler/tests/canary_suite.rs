@@ -12943,20 +12943,13 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
     // first-arm guard skipped the middle arm. Exits 70 only when all three arms
     // (first/middle/default) select correctly.
     let canary = pass_canary("calls/runtime_multi_arm_value_transition_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-multi-arm-value-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("multi-arm value transition canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("multi-arm value transition canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("multi-arm value transition canary should run");
 
@@ -12968,7 +12961,7 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12981,22 +12974,15 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
     // but TRUE signed (wrong). A signed mis-compare selects the first arm and exits
     // 71; a correct unsigned compare selects the default arm and exits 70.
     let canary = pass_canary("calls/runtime_value_transition_unsigned_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-value-transition-unsigned-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned value-transition guard canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("unsigned value-transition guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("unsigned value-transition guard canary should run");
 
@@ -13008,7 +12994,7 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
