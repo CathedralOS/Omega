@@ -232,6 +232,59 @@ impl ScalarFieldValue {
     }
 }
 
+/// One complete aggregate supplied to a validated dictated-layout
+/// materializer. The compiler derives `bytes` from an owned typed value; source
+/// programs do not gain an arbitrary byte-patching operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggregateFieldValue {
+    pub field: String,
+    pub bytes: Vec<u8>,
+}
+
+/// Compiler-derived physical extent of one aggregate schema field. This is
+/// kept separate from the value so caller-provided bytes cannot claim their
+/// own completeness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggregateFieldSchema {
+    pub field: String,
+    pub byte_size: u64,
+}
+
+impl AggregateFieldSchema {
+    pub fn new(
+        field: impl Into<String>,
+        byte_size: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if byte_size == 0 {
+            return Err(MaterializationDiagnostic(
+                "aggregate field schema requires a nonzero physical extent".into(),
+            ));
+        }
+        Ok(Self {
+            field: field.into(),
+            byte_size,
+        })
+    }
+}
+
+impl AggregateFieldValue {
+    pub fn new(
+        field: impl Into<String>,
+        bytes: impl Into<Vec<u8>>,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let bytes = bytes.into();
+        if bytes.is_empty() {
+            return Err(MaterializationDiagnostic(
+                "aggregate field materialization requires a nonempty complete value".into(),
+            ));
+        }
+        Ok(Self {
+            field: field.into(),
+            bytes,
+        })
+    }
+}
+
 /// Declared scalar shape used when decoding bytes through a validated layout.
 /// The width comes from the compiler-materialized schema, not from the bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1153,6 +1206,140 @@ pub fn materialize_scalar_layout_into(
     Ok(())
 }
 
+/// Materializes complete aggregate fields through whole-extent `At`
+/// placements. All validation and copying happens against a staged zeroed
+/// buffer, so rejection leaves `destination` unchanged. Aggregate fields are
+/// deliberately not interpreted as scalar fragments or stored integers.
+pub fn materialize_aggregate_layout_into(
+    layout: &LayoutPlanReport,
+    fields: &[AggregateFieldSchema],
+    values: &[AggregateFieldValue],
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let byte_len = layout
+        .size
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "aggregate materialization requires a fixed-size layout plan".into(),
+            )
+        })
+        .and_then(|size| {
+            usize::try_from(size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "fixed layout size {size} cannot be represented on this compiler host"
+                ))
+            })
+        })?;
+    if destination.len() < byte_len {
+        return Err(MaterializationDiagnostic(format!(
+            "aggregate materialization needs {byte_len} bytes, destination has {}",
+            destination.len()
+        )));
+    }
+
+    let mut schemas = std::collections::BTreeMap::new();
+    for field in fields {
+        if schemas
+            .insert(field.field.as_str(), field.byte_size)
+            .is_some()
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` is declared more than once",
+                field.field
+            )));
+        }
+    }
+    let mut supplied = std::collections::BTreeMap::new();
+    for value in values {
+        if supplied.insert(value.field.as_str(), value).is_some() {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` is supplied more than once",
+                value.field
+            )));
+        }
+    }
+    let planned = layout
+        .entries
+        .iter()
+        .map(|entry| entry.field.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if let Some(field) = planned.iter().find(|field| !schemas.contains_key(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "layout field `{field}` has no aggregate schema extent"
+        )));
+    }
+    if let Some(field) = schemas.keys().find(|field| !planned.contains(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "aggregate schema field `{field}` has no entry in the validated layout plan"
+        )));
+    }
+    if let Some(field) = planned.iter().find(|field| !supplied.contains_key(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "layout field `{field}` has no supplied aggregate value"
+        )));
+    }
+    if let Some(field) = supplied.keys().find(|field| !planned.contains(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "supplied aggregate field `{field}` has no entry in the validated layout plan"
+        )));
+    }
+
+    let mut staged = vec![0_u8; byte_len];
+    let mut occupied = vec![false; byte_len];
+    for entry in &layout.entries {
+        let LayoutPlacementReport::At { offset } = entry.placement else {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` requires one whole `At` placement",
+                entry.field
+            )));
+        };
+        let value = supplied
+            .get(entry.field.as_str())
+            .expect("complete aggregate field set validated above");
+        let expected_size = usize::try_from(schemas[entry.field.as_str()]).map_err(|_| {
+            MaterializationDiagnostic(format!(
+                "aggregate field `{}` extent cannot be represented on this compiler host",
+                entry.field
+            ))
+        })?;
+        if value.bytes.len() != expected_size {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
+                entry.field,
+                value.bytes.len()
+            )));
+        }
+        let start = usize::try_from(offset).map_err(|_| {
+            MaterializationDiagnostic(format!(
+                "aggregate field `{}` offset cannot be represented on this compiler host",
+                entry.field
+            ))
+        })?;
+        let end = start.checked_add(value.bytes.len()).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "aggregate field `{}` destination range overflows",
+                entry.field
+            ))
+        })?;
+        if end > byte_len {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` writes through byte {end}, past the {byte_len}-byte layout",
+                entry.field
+            )));
+        }
+        if occupied[start..end].iter().any(|occupied| *occupied) {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` overlaps an earlier whole-field placement",
+                entry.field
+            )));
+        }
+        staged[start..end].copy_from_slice(&value.bytes);
+        occupied[start..end].fill(true);
+    }
+    destination[..byte_len].copy_from_slice(&staged);
+    Ok(())
+}
+
 /// Decodes one complete fixed scalar layout without establishing any semantic
 /// domain or authority fact. Callers receive ordinary named values; a separate
 /// validator decides whether those values establish an imported-table claim.
@@ -2050,6 +2237,71 @@ mod tests {
             normalized_layout_plan_fingerprint(&dynamic),
             normalized_layout_plan_fingerprint(&fixed)
         );
+    }
+
+    #[test]
+    fn owned_aggregate_materializer_places_complete_values_atomically() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "header".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 4 },
+                },
+                LayoutFieldEntryReport {
+                    field: "payload".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 12 },
+                },
+            ],
+            offsets: Some(vec![4, 12]),
+            size: Some(20),
+            align: 4,
+        };
+        let fields = [
+            AggregateFieldSchema::new("header", 4).expect("header schema"),
+            AggregateFieldSchema::new("payload", 6).expect("payload schema"),
+        ];
+        let values = [
+            AggregateFieldValue::new("header", [1, 2, 3, 4]).expect("header value"),
+            AggregateFieldValue::new("payload", [5, 6, 7, 8, 9, 10]).expect("payload value"),
+        ];
+        let mut bytes = [0xa5; 20];
+        materialize_aggregate_layout_into(&layout, &fields, &values, &mut bytes)
+            .expect("complete aggregates should materialize through whole At extents");
+        assert_eq!(&bytes[4..8], &[1, 2, 3, 4]);
+        assert_eq!(&bytes[12..18], &[5, 6, 7, 8, 9, 10]);
+        assert!(
+            bytes[..4]
+                .iter()
+                .chain(&bytes[8..12])
+                .chain(&bytes[18..])
+                .all(|byte| *byte == 0),
+            "padding and reserved bytes should be deterministically zeroed"
+        );
+
+        let mut short = values.clone();
+        short[1] = AggregateFieldValue::new("payload", [5, 6, 7]).expect("short payload");
+        let mut unchanged = [0xa5; 20];
+        let error = materialize_aggregate_layout_into(&layout, &fields, &short, &mut unchanged)
+            .expect_err("caller bytes cannot claim a complete aggregate extent");
+        assert!(error.0.contains("compiler-derived extent is 6"));
+        assert_eq!(unchanged, [0xa5; 20]);
+
+        let mut fragmented = layout.clone();
+        fragmented.entries[0].placement = LayoutPlacementReport::Bits {
+            container: 4,
+            container_width: 32,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 32,
+        };
+        let error =
+            materialize_aggregate_layout_into(&fragmented, &fields, &values, &mut unchanged)
+                .expect_err("aggregate fields cannot enter scalar fragment placement");
+        assert!(error.0.contains("requires one whole `At` placement"));
+        assert_eq!(unchanged, [0xa5; 20]);
     }
 
     #[test]

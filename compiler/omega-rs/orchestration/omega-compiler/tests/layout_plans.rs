@@ -8,10 +8,11 @@
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
 use omega_compiler::{
-    ByteOrder, ConsumptionInstant, EntryStubId, IntegerInterpretation, LayoutPlacementReport,
-    MaterializationAction, MaterializationContext, RelocationTarget, ScalarFieldSchema,
-    ScalarFieldValue, SymbolicFieldValue, compile_to_checked, compute_layout_plan,
-    decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, EntryStubId,
+    IntegerInterpretation, LayoutPlacementReport, MaterializationAction, MaterializationContext,
+    RelocationTarget, ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, compile_to_checked,
+    compute_layout_plan, decode_scalar_layout, derive_symbolic_materialization,
+    materialize_aggregate_layout_into, materialize_scalar_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -354,6 +355,18 @@ machine Main::main(&mut self) { }
     assert_eq!(report.offsets, Some(vec![8]));
     assert_eq!(report.size, Some(24));
     assert_eq!(report.align, 4);
+
+    let mut bytes = [0xa5; 24];
+    materialize_aggregate_layout_into(
+        &report,
+        &[AggregateFieldSchema::new("pair", 8).expect("compiler-derived pair extent")],
+        &[AggregateFieldValue::new("pair", [1, 0, 0, 0, 5, 4, 3, 2]).expect("owned pair bytes")],
+        &mut bytes,
+    )
+    .expect("owned fixed record should materialize through its whole At extent");
+    assert!(bytes[..8].iter().all(|byte| *byte == 0));
+    assert_eq!(&bytes[8..16], &[1, 0, 0, 0, 5, 4, 3, 2]);
+    assert!(bytes[16..].iter().all(|byte| *byte == 0));
 }
 
 #[test]

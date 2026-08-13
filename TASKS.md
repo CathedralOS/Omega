@@ -138,7 +138,12 @@ Owners:
   primitive/array/record shapes now likewise reflect as one `Nested` field with
   one whole `At` extent; mutable fact-free byte views preserve compiler-derived
   offsets inside that extent across interpreter, native x64, Windows x64, and
-  Linux AArch64 paths. Continue with sums and owned non-scalar materialization.
+  Linux AArch64 paths. The normalized layout foundation can now atomically
+  materialize compiler-sized owned aggregate fields through whole `At` extents,
+  zeroing padding and rejecting incomplete, overlapping, fragmented, or
+  out-of-bounds values before mutation. Connect that writer to typed
+  source-owned values; continue with sums after their placement vocabulary is
+  settled.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
