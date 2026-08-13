@@ -290,6 +290,39 @@ fn attached_closed_branch_free_boolean_retains_exact_structural_cleanup() {
 }
 
 #[test]
+fn attached_branch_free_scalar_locals_retain_exact_structural_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token) -> bool
+        {
+            let base: i32 = 3i32 + 4i32;
+            let small: bool = base < 8i32;
+            small == true
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("branch-free scalar local prefix should compose with structural cleanup");
+    assert_eq!(plan.bindings.len(), 2);
+    assert_eq!(plan.bindings[0].statement_ordinal, 0);
+    assert_eq!(plan.bindings[1].statement_ordinal, 1);
+    assert_eq!(plan.return_statement_ordinal, 2);
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+}
+
+#[test]
 fn structural_scalar_return_rejects_short_circuit_or_mixed_parameter_shapes() {
     for source in [
         r#"

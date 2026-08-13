@@ -192,21 +192,23 @@ responsible for reconstructing the emitted cleanup frontier.
 
 The first nonempty scalar-return source path composes the same cleanup evidence
 with an attached, one-state signature containing only claim-free affine
-structural parameters and one closed scalar return expression. Integer leaves
-are explicitly landed literals and internal nodes are the already checked
-terminal integer operations and casts. The accepted Boolean subset is
-branch-free: constants, negation, equality, and comparisons over those closed
-integer expressions. Neither form contains parameter or local references. The
-checked row carries the exact structural signature, scalar result carrier,
-return coordinate, and reverse-declaration cleanup positions. Production
-revalidates the closed expression shape, materializes it and reconstructs any
-exact-operation proofs before the return edge, resolves cleanup positions to
-structural places, and emits the existing verified scalar `Return`.
-Short-circuit Boolean operators remain fenced because their synthetic control
-edges would require path-specific structural cleanup placement. Scalar locals,
-mixed scalar/structural parameter namespaces, contracts, claims, effects, and
-multi-state control also remain outside this source slice; none is represented
-by smuggling structural custody through scalar parameters.
+structural parameters. Its scalar work is an ordered prefix of immutable
+primitive locals followed by one return expression. Every initializer and the
+return are checked branch-free expressions: explicitly landed integer literals,
+terminal integer operations and casts, Boolean constants, negation, equality,
+comparisons, and references to already materialized scalar locals. State
+parameters never enter this scalar namespace. The checked row carries the exact
+structural signature, local types and statement coordinates, scalar result
+carrier, return coordinate, and reverse-declaration cleanup positions.
+Production revalidates the prefix and its dense local namespace, materializes it
+in order, reconstructs any exact-operation proofs before the return edge,
+resolves cleanup positions to structural places, and emits the existing verified
+scalar `Return`. Short-circuit Boolean operators remain fenced because their
+synthetic control edges would require path-specific structural cleanup
+placement. Calls, mutable or non-scalar locals, mixed scalar/structural parameter
+namespaces, contracts, claims, effects, and multi-state control also remain
+outside this source slice; none is represented by smuggling structural custody
+through scalar parameters.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
