@@ -69,18 +69,10 @@ Remaining:
   language/checker fixtures stop at checked artifacts, while deployable or
   provider/artifact/ABI/layout/native tests select an exact root. Fix ordinary
   lowering/runtime defects exposed by documented sample execution separately
-  from entry selection. The Linux x64 shift/saturation/UTF-8 encoder cohort now
-  compiles each compatible receiver-bound fixture through the exact hosted
-  entry helper while retaining its emitted-byte assertions. The external-leaf
-  syscall provider canary likewise uses exact hosted roots for both Linux x64
-  and AArch64 while retaining trust, footprint, and syscall-byte assertions.
-  The static integer-dispatch guard cohort now uses the same exact hosted root
-  path on native x64 and cross-compiled Linux AArch64 while retaining its
-  target-specific footprint evidence.
-  The compiler-body general x86 binary-write footprint cohort now likewise
-  selects the exact Linux x64 hosted root before production compilation while
-  retaining its register and enumeration evidence.
-  Final composition of firmware
+  from entry selection. Representative runtime-text/indexing, provider syscall,
+  compiler-body, static-guard, and emitted-artifact cohorts already retain their
+  behavioral and target-specific assertions through exact roots; Git carries
+  the individual migration ledger. Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
@@ -410,44 +402,27 @@ customer-shaped compiler concept is introduced.
   state SCCs solve finite exact frames when write-capable parameters traverse
   bijective permutations, including edges forwarded through structurally
   transparent returned places. Stable local mutable aliases substitute exact
-  `self`/parameter origins through acyclic graphs and SCC equations, including
-  direct stable rebinding: the rebound name takes the replacement origin while
-  earlier reborrows keep their established origin. Exact returned-place
-  relations compose through bounded structurally transparent helpers,
-  caller-isolated scratch locals, statement-call arguments, and direct alias
-  rebinding while ordinary call writes remain published. Member suffixes remain
-  exact; indexing coarsens irreversibly to the nearest collection. One
-  non-rebinding direct-call tree through depth two, with complete frames, is
-  accepted in terminal return indexes, stable-alias indexes, and direct
-  alias-rebind replacements. The same bounded index expression is accepted on a
-  value-shaped assignment target inside a transparent returned-place helper;
-  its collection write and every index-call write remain published without
-  redirecting the returned origin. A value-shaped assignment RHS may likewise
-  be a typed non-reference direct-call tree through depth two with complete
-  frames; sibling branches are admitted independently and all nested writes
-  publish without redirecting a separate returned origin. A depth or binding-
-  reborrow violation on one sibling fences the whole RHS.
-  The bounded indexed target and bounded non-reference RHS may coexist on one
-  assignment; their complete frames and writes compose independently, while a
-  depth or rebinding violation on either side fences the relation.
-  A caller-isolated primitive scratch initializer may likewise contain a
-  direct-call tree through depth two when every frame is complete and every
-  write stays inside already established isolated scratch roots; those writes
-  remain helper-local while a separate returned parameter origin stays exact.
-  Internal statement helpers now also accept a mutable indexed argument whose
-  index is that bounded complete tree: caller-aware instantiation publishes the
-  callee write at collection precision and retains independent index-call
-  writes. The indexed argument may project through a stable helper-local
-  mutable alias, whose established origin supplies the collection. Boundary,
-  deeper, rebinding, recursive, and opaque indexed arguments remain fenced.
-  Deeper or recursive calls, binding reborrows, reference-valued or opaque
-  nodes, other effectful sources, escaped aliases, non-bijective transport, and
-  writes outside isolated roots remain fences or use existing alias handling.
-  Primitive-only concrete
-  record/sum locals remain caller-isolated
-  through nested fixed arrays; generic, reference-bearing, and other computed
-  roots do not. Continue with representable relational candidates without
-  restoring authored `stores` clauses or treating lifetime elision as evidence.
+  `self`/parameter origins through acyclic graphs and SCC equations; direct
+  rebinding changes only the rebound name, leaving earlier reborrows intact.
+  Exact returned-place relations compose through transparent helpers,
+  caller-isolated scratch locals, statement arguments, and direct alias
+  rebinding while all ordinary call writes remain published. Member projections
+  retain exact suffixes; indexing then coarsens irreversibly to the nearest
+  collection.
+
+  The current bounded expression class is a complete, non-reference direct-call
+  tree through depth two. It composes in return indexes, stable-alias indexes,
+  alias replacements, assignment targets and values, isolated primitive
+  scratch initializers, and mutable indexed statement arguments. Helper-result
+  member projection may precede the index; caller-aware instantiation retains
+  both collection-coarse callee writes and independent index-call writes.
+  Primitive-only concrete record/sum locals remain isolated through nested
+  fixed arrays. Recursive, boundary, deeper, rebinding or binding-reborrow,
+  reference-valued/opaque, escaped, non-bijective, generic, reference-bearing,
+  and out-of-isolated-root shapes remain fences. Continue with representable
+  relational candidates without restoring authored `stores` clauses or
+  treating lifetime elision as evidence; Git carries individual evidence
+  cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
