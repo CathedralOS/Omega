@@ -174,6 +174,9 @@ pub struct TerminalBoundarySettlementBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetUnitBody {
+    /// Canonical verifier-owned structural declaration closure used to replay
+    /// projected-layout and partial-cleanup partitions at artifact boundaries.
+    pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
     pub parameters: Vec<TerminalTargetStructuralParameter>,
     pub operations: Vec<TerminalTargetUnitOperation>,

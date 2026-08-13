@@ -77,6 +77,9 @@ pub struct TerminalMachineCodeFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalUnitAffineCleanupRecord {
     pub psi_edge: EdgeId,
+    /// Canonical verifier-owned type closure retained so object and installed
+    /// artifact validation can reconstruct the exact residual partition.
+    pub structural_types: Vec<StructuralTypeDeclaration>,
     pub locals: Vec<(
         OperationId,
         StructuralPlaceDeclaration,

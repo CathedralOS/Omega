@@ -128,6 +128,7 @@ fn assign_function(
                 })
                 .collect();
             TerminalAssignedOperation::UnitBody(TerminalAssignedUnitBody {
+                structural_types: body.structural_types.clone(),
                 call_plan: body.call_plan.clone(),
                 parameters: body.parameters.clone(),
                 operations,
@@ -2275,6 +2276,7 @@ mod tests {
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::UnitBody(
                     omega_terminal_target_operations::TerminalTargetUnitBody {
+                        structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
                         parameters: Vec::new(),
                         operations: vec![TerminalTargetUnitOperation::Call {

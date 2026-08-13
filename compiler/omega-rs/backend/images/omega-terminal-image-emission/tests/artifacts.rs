@@ -3,12 +3,13 @@ use omega_object_file::{
 };
 use omega_target::NativeTarget;
 use omega_terminal_image_emission::{
-    TerminalInstallationError, TerminalObjectError, build_terminal_installation_record,
-    build_terminal_object_artifact, can_emit_terminal_executable_image,
-    decode_terminal_installation_record, derive_terminal_stack_demand,
-    derive_terminal_unit_stack_demand, emit_terminal_executable_image,
-    emit_terminal_object_container, encode_terminal_installation_record,
-    terminal_installation_fingerprint, validate_terminal_installation_record,
+    TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
+    build_terminal_installation_record, build_terminal_object_artifact,
+    can_emit_terminal_executable_image, decode_terminal_installation_record,
+    derive_terminal_stack_demand, derive_terminal_unit_stack_demand,
+    emit_terminal_executable_image, emit_terminal_object_container,
+    encode_terminal_installation_record, terminal_installation_fingerprint,
+    validate_terminal_installation_record,
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
@@ -1357,7 +1358,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "2ae1074e103f1569859d826eff483e70856a7673ed58c8de456264f6b5f1e343"
+        "97c632402c4961399dd721672debbb3fb8665dea2a4bb57caeb7c324c1aac7da"
     );
 
     let mut changed_plan = plan;
@@ -1380,10 +1381,13 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&17_u16.to_le_bytes());
+    let future_marker = TERMINAL_INSTALLATION_FORMAT_MARKER + 1;
+    future[8..10].copy_from_slice(&future_marker.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(17))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(
+            future_marker
+        ))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -2403,6 +2407,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
         stack_alignment: 16,
     });
     let empty_return = |edge| TerminalUnitAffineCleanupRecord {
+        structural_types: Vec::new(),
         psi_edge: edge,
         locals: Vec::new(),
         actions: Vec::new(),
@@ -2494,6 +2499,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 internal_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: Some(TerminalUnitAffineCleanupRecord {
+                    structural_types: Vec::new(),
                     code_offset: 0,
                     byte_count: 1,
                     ..empty_return(edge_id(2))
@@ -2560,6 +2566,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                     byte_count: 13,
                 }],
                 unit_affine_cleanup: Some(TerminalUnitAffineCleanupRecord {
+                    structural_types: Vec::new(),
                     psi_edge: edge_id(3),
                     locals: Vec::new(),
                     actions: vec![TerminalAffineCleanupAction::InvokeNominal(
@@ -2659,6 +2666,7 @@ fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {
     };
     let code_offset = function.bytes.len() - byte_count;
     function.unit_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
+        structural_types: Vec::new(),
         psi_edge: function.provenance.edges[0],
         locals: Vec::new(),
         actions: Vec::new(),

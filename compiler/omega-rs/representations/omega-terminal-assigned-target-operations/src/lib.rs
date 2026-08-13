@@ -139,6 +139,7 @@ pub enum TerminalAssignedOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAssignedUnitBody {
+    pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
     pub parameters: Vec<TerminalTargetStructuralParameter>,
     pub operations: Vec<TerminalAssignedUnitOperation>,

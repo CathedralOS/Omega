@@ -2131,6 +2131,10 @@ fn lower_unit_function(
         attachment: function.attachment,
         provenance,
         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+            structural_types: structural_types
+                .values()
+                .map(|declaration| (*declaration).clone())
+                .collect(),
             call_plan,
             parameters,
             operations,
