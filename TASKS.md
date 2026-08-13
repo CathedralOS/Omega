@@ -193,20 +193,17 @@ Remaining:
   projected contracts, content-bearing splits, and partial returns remain
   fenced.
 
-  The flat structural partial-value cleanup slice is complete: one claim-free
-  affine record with at least two relevant structural fields may transfer a
-  finite nonempty set of distinct direct fields through source-ordered ordinary
-  Unit calls, provided at least one sibling remains. Return disposes every
-  residual sibling in reverse declaration order.
-  Alternatively, one ordinary Unit call may move one arbitrary-depth,
-  nonempty all-field path. Return disposes the maximal live sibling subtrees
-  encountered around that path in recursive reverse declaration order; a
-  partially moved ancestor is never discarded whole.
+  The structural partial-value cleanup slice is complete for one claim-free
+  affine record: source-ordered ordinary Unit calls may transfer a finite
+  nonempty set of pairwise prefix-disjoint, nonempty all-field paths, provided
+  at least one residual subtree remains. Return disposes every maximal live
+  residual subtree in recursive reverse declaration order; a partially moved
+  ancestor is never discarded whole.
   Checked plans, canonical terminal format, independent verification,
   interpretation/fuel, and all five Omega artifact/install paths preserve the
   exact root, field paths, and leaf types without a runtime bitmap or cleanup
-  bytes. Multiple moves involving a nested path, claims/content, contracts,
-  arrays/cases, and nominal `drop` remain fenced for partial-record cleanup.
+  bytes. Claims/content, contracts, arrays/cases, and nominal `drop` remain
+  fenced for partial-record cleanup.
 
   The whole-root nominal cleanup slice is complete for a finite nonempty list
   of claim-free, unqualified affine parameters whose records are empty or
@@ -438,11 +435,11 @@ reach or trust, and private proof improvements do not change public identity.
   materialization and transfer-map commitment. Accepted terminal slices carry
   exact reverse-declaration affine cleanup through Unit/scalar returns and
   bounded acyclic structural control, including short-circuit Boolean stages and
-  one equal-frontier diamond. Partial-record transfer accepts either a finite
-  source-ordered run of distinct direct fields or one arbitrary-depth all-field
-  path. It preserves and disposes every maximal residual sibling subtree in
-  recursive reverse declaration order through interpretation and all five
-  native artifact paths. One whole
+  one equal-frontier diamond. Partial-record transfer accepts a finite
+  source-ordered set of pairwise prefix-disjoint, nonempty all-field paths. It
+  preserves and disposes every maximal residual subtree in recursive reverse
+  declaration order through interpretation and all five native artifact paths.
+  One whole
   affine parameter whose record is
   empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native

@@ -170,22 +170,19 @@ path, type, layout, copy bytes, and claim transfer through installation.
 Nested/dynamic indexes, wider signatures, projected contracts, content-bearing
 partitions, partial returns, and aggregate construction remain fenced.
 
-The claim-free flat partial-cleanup slice accepts one affine transparent record
-with at least two relevant structural fields. A finite nonempty set of distinct
-direct fields may move through source-ordered one-parameter ordinary Unit
-calls, provided at least one sibling remains. The Unit return then names every
-residual sibling by exact root, canonical field path, and leaf type in reverse
-declaration order. Alternatively, one call may move one arbitrary-depth,
-nonempty all-field path; return then names the maximal live sibling subtrees
-around that path in recursive reverse declaration order and never discards a
-partially moved ancestor whole. The verifier independently proves that the
-moved and residual paths are disjoint and exhaust the root. Interpretation
+The claim-free partial-cleanup slice accepts one affine transparent record. A
+finite nonempty set of pairwise prefix-disjoint, nonempty all-field paths may
+move through source-ordered one-parameter ordinary Unit calls, provided at
+least one residual subtree remains. The Unit return then names every maximal
+live residual subtree by exact root, canonical field path, and subtree type in
+recursive reverse declaration order and never discards a partially moved
+ancestor whole. The verifier independently proves that the moved and residual
+paths are disjoint and exhaust the root. Interpretation
 charges the return edge before disposing the residual paths, so fuel exhaustion cannot
 clean early. Omega carries every path and type through all five target
 pipelines, object/image validation, and canonical installation records while
 emitting no cleanup instruction or runtime bitmap. Claims, content, contracts,
-nominal `drop`, arrays/cases, and multiple moves involving a nested path remain
-fenced.
+nominal `drop`, and arrays/cases remain fenced.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
