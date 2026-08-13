@@ -2,14 +2,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
     CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralControlTransferPlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralScalarParameterPlan,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
@@ -516,15 +516,16 @@ fn build_structural_unit_control_machine(
         {
             return None;
         }
-        let (attachment, parameters) =
-            structural_signature(program, shapes, machine, state, &binders)?;
+        let (attachment, structural_parameters, scalar_parameters) =
+            structural_scalar_signature(program, shapes, machine, state, &binders)?;
+        let parameters = structural_parameters;
         if parameters.is_empty()
             || parameters.iter().any(|parameter| {
                 parameter.is_self
                     || parameter.multiplicity != Multiplicity::Affine
                     || !parameter.qualifications.is_empty()
             })
-            || parameters.len() != program.state_parameters(state).len()
+            || parameters.len() + scalar_parameters.len() != program.state_parameters(state).len()
         {
             return None;
         }
@@ -535,12 +536,12 @@ fn build_structural_unit_control_machine(
             return None;
         }
         attachment_type_identity = Some(attachment);
-        signatures.push(parameters);
+        signatures.push((parameters, scalar_parameters));
     }
 
     let mut checked_states = Vec::with_capacity(states.len());
     for (state_index, state) in states.iter().enumerate() {
-        let source_parameters = &signatures[state_index];
+        let (source_parameters, source_scalar_parameters) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
         let terminator = match statements {
             [] => CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
@@ -568,7 +569,10 @@ fn build_structural_unit_control_machine(
                 let target_index = states
                     .iter()
                     .position(|candidate| candidate.symbol == path.symbol)?;
-                let target_parameters = &signatures[target_index];
+                let (target_parameters, target_scalar_parameters) = &signatures[target_index];
+                if !source_scalar_parameters.is_empty() || !target_scalar_parameters.is_empty() {
+                    return None;
+                }
                 let arguments = program.statement_table.expression_handles(*arguments);
                 if arguments.len() != target_parameters.len() {
                     return None;
@@ -645,11 +649,141 @@ fn build_structural_unit_control_machine(
                         .clone(),
                 }
             }
+            [
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] if when_true.exit == TransitionExit::Ordinary
+                && matches!(when_true.guard, TransitionGuardNode::When(_))
+                && when_false.exit == TransitionExit::Ordinary
+                && when_false.guard == TransitionGuardNode::Always
+                && !when_true.continuation.is_valid()
+                && !when_false.continuation.is_valid()
+                && source_scalar_parameters.len() == 1
+                && source_scalar_parameters[0].primitive_type == PrimitiveType::Bool =>
+            {
+                let guard_expression = facts.values.scalar_expressions.expression_at(
+                    state.symbol,
+                    0,
+                    CheckedScalarExpressionRole::Guard,
+                )?;
+                if !matches!(
+                    guard_expression,
+                    CheckedScalarExpression::Boolean(expression)
+                        if matches!(expression.as_ref(),
+                            psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 })
+                ) {
+                    return None;
+                }
+                let build_successor =
+                    |statement_ordinal: u32,
+                     transition: &psi_typed_trees::statement::TableTransition|
+                     -> Option<CheckedStructuralControlSuccessorPlan> {
+                        let TransitionTargetNode::Named { path, arguments } =
+                            program.statement_table.transition_target(transition.target)
+                        else {
+                            return None;
+                        };
+                        let target_index = states
+                            .iter()
+                            .position(|candidate| candidate.symbol == path.symbol)?;
+                        let (target_parameters, target_scalar_parameters) =
+                            &signatures[target_index];
+                        if !target_scalar_parameters.is_empty() {
+                            return None;
+                        }
+                        let arguments = program.statement_table.expression_handles(*arguments);
+                        if arguments.len() != target_parameters.len() {
+                            return None;
+                        }
+                        let mut transferred_sources = BTreeSet::new();
+                        let transfers = arguments
+                            .iter()
+                            .zip(target_parameters)
+                            .enumerate()
+                            .map(|(target_index, (argument, target))| {
+                                let place = super::canonical_place_from_expression_in_state(
+                                    program,
+                                    state.symbol,
+                                    usize::try_from(statement_ordinal).ok()?,
+                                    *argument,
+                                )?;
+                                let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+                                    return None;
+                                };
+                                if !place.segments.is_empty() {
+                                    return None;
+                                }
+                                let source_index = source_parameters.iter().position(|source| {
+                                    program
+                                        .state_parameters(state)
+                                        .get(source.position as usize)
+                                        .is_some_and(|parameter| parameter.symbol == root)
+                                })?;
+                                let source = &source_parameters[source_index];
+                                if source.type_identity != target.type_identity
+                                    || source.multiplicity != target.multiplicity
+                                    || !transferred_sources.insert(source_index)
+                                {
+                                    return None;
+                                }
+                                Some(CheckedStructuralControlTransferPlan {
+                                    source_parameter_index: u32::try_from(source_index).ok()?,
+                                    target_parameter_index: u32::try_from(target_index).ok()?,
+                                })
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+                            machine.symbol,
+                            state.symbol,
+                            statement_ordinal,
+                        )?;
+                        if cleanup.target_state != path.symbol {
+                            return None;
+                        }
+                        let cleanup_sources = cleanup
+                            .trivial_affine_discard_parameter_positions
+                            .iter()
+                            .map(|position| {
+                                source_parameters
+                                    .iter()
+                                    .position(|parameter| parameter.position == *position)
+                            })
+                            .collect::<Option<BTreeSet<_>>>()?;
+                        if !transferred_sources.is_disjoint(&cleanup_sources)
+                            || transferred_sources
+                                .union(&cleanup_sources)
+                                .copied()
+                                .collect::<BTreeSet<_>>()
+                                != (0..source_parameters.len()).collect::<BTreeSet<_>>()
+                        {
+                            return None;
+                        }
+                        Some(CheckedStructuralControlSuccessorPlan {
+                            statement_ordinal,
+                            target_state: path.symbol,
+                            transfers,
+                            trivial_affine_discard_parameter_positions: cleanup
+                                .trivial_affine_discard_parameter_positions
+                                .clone(),
+                        })
+                    };
+                let when_true = build_successor(0, when_true)?;
+                let when_false = build_successor(1, when_false)?;
+                if when_true.target_state == when_false.target_state {
+                    return None;
+                }
+                CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                    guard_scalar_parameter_index: 0,
+                    when_true,
+                    when_false,
+                }
+            }
             _ => return None,
         };
         checked_states.push(CheckedStructuralUnitControlStatePlan {
             state: state.symbol,
             structural_parameters: source_parameters.clone(),
+            scalar_parameters: source_scalar_parameters.clone(),
             terminator,
         });
     }

@@ -187,10 +187,12 @@ whole-parameter transfer maps for attached, multi-state Unit machines. It
 accepts only unconditional, acyclic, single-predecessor custody lineages and
 requires transfers plus reverse-order cleanup to partition every source
 frontier; stale types, positions, cleanup, joins, cycles, and reordered custody
-reject. Conditional rows remain checked evidence only until an equally exact
-guard/value control plan exists. The complete `EdgeCleanupPlan`, contextual
-cleanup contracts, repeated-cycle composition, and the retained whole-edge
-conservation witness remain CML4 work.
+reject. One narrow conditional producer now selects two ordered successors from
+a retained Boolean scalar input and independently reconstructs each arm's
+whole-parameter transfer/cleanup partition. Computed guards, scalar successor
+arguments, and wider conditional graphs remain fenced. The complete
+`EdgeCleanupPlan`, contextual cleanup contracts, repeated-cycle composition,
+and the retained whole-edge conservation witness remain CML4 work.
 
 Scalar-result materialization does not change that ordering. A first attached
 one-state source slice now evaluates an ordered prefix of immutable primitive

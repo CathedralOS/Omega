@@ -186,8 +186,9 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
 
 /// Complete checked input for the first terminal structural-control producer.
 /// This deliberately supports only claim-free affine, Unit-returning attached
-/// graphs whose states either return naturally or unconditionally transfer
-/// whole parameters to one local successor.
+/// graphs whose states return naturally, unconditionally transfer whole
+/// parameters, or select two independent whole-parameter successors from one
+/// retained Boolean scalar input.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralUnitControlPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
@@ -214,6 +215,7 @@ pub struct CheckedStructuralUnitControlMachinePlan {
 pub struct CheckedStructuralUnitControlStatePlan {
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub terminator: CheckedStructuralUnitControlTerminatorPlan,
 }
 
@@ -228,6 +230,19 @@ pub enum CheckedStructuralUnitControlTerminatorPlan {
         transfers: Vec<CheckedStructuralControlTransferPlan>,
         trivial_affine_discard_parameter_positions: Vec<u32>,
     },
+    Conditional {
+        guard_scalar_parameter_index: u32,
+        when_true: CheckedStructuralControlSuccessorPlan,
+        when_false: CheckedStructuralControlSuccessorPlan,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralControlSuccessorPlan {
+    pub statement_ordinal: u32,
+    pub target_state: SymbolHandle,
+    pub transfers: Vec<CheckedStructuralControlTransferPlan>,
+    pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

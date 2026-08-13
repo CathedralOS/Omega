@@ -207,6 +207,87 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
 }
 
 #[test]
+fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers() {
+    let supported = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(first: Token, second: Token, choose_first: bool)
+        {
+            transition choose_first {
+                true -> keep_first(first)
+                _ -> keep_second(second)
+            }
+            state keep_first(first: Token) {}
+            state keep_second(second: Token) {}
+        }
+        "#,
+    );
+    let machine = supported
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    let plan = supported
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("the exact structural Unit conditional should compose");
+    assert_eq!(plan.states.len(), 3);
+    assert_eq!(plan.states[0].scalar_parameters.len(), 1);
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+        guard_scalar_parameter_index,
+        when_true,
+        when_false,
+    } = &plan.states[0].terminator
+    else {
+        panic!("entry state should select two structural successors")
+    };
+    assert_eq!(*guard_scalar_parameter_index, 0);
+    assert_eq!(when_true.statement_ordinal, 0);
+    assert_eq!(when_true.transfers[0].source_parameter_index, 0);
+    assert_eq!(when_true.trivial_affine_discard_parameter_positions, [1]);
+    assert_eq!(when_false.statement_ordinal, 1);
+    assert_eq!(when_false.transfers[0].source_parameter_index, 1);
+    assert_eq!(when_false.trivial_affine_discard_parameter_positions, [0]);
+
+    let rejected = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(first: Token, second: Token, choose_first: bool)
+        {
+            transition choose_first == true {
+                true -> keep_first(first)
+                _ -> keep_second(second)
+            }
+            state keep_first(first: Token) {}
+            state keep_second(second: Token) {}
+        }
+        "#,
+    );
+    let machine = rejected
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    assert!(
+        rejected
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .for_machine(machine)
+            .is_none(),
+        "computed conditional guards remain fail-closed"
+    );
+}
+
+#[test]
 fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
     let checked = checked(
         r#"
