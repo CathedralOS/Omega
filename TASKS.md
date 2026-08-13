@@ -61,11 +61,13 @@ Remaining:
   target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
   entry explicitly. The CLI basics cohort and the five deployable proof
   samples, the eight CLI algorithm samples, the six CLI interpreter samples,
-  and seven deployable CLI game samples now author all four hosted roots; the
-  two proof-only samples remain targetless. `dungeon_crawler_cli` still has a
-  non-Unit `main` plus an existing Linux host-call argument lowering gap and
-  remains in the legacy staging set. Sample refresh names the exact host and
-  never invents an entry;
+  seven deployable CLI game samples, and ten deployable CLI text samples now
+  author all four hosted roots; the two proof-only samples remain targetless.
+  `dungeon_crawler_cli` still has a non-Unit `main` plus an existing Linux
+  host-call argument lowering gap and remains in the legacy staging set.
+  `fletcher_checksum` has a recursive value-call terminal without a selected
+  return-write, so it remains unrooted and outside the runnable native corpus.
+  Sample refresh names the exact host and never invents an entry;
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
   `temperature_convert`, now lowers directly from its authored host entry. The
@@ -629,10 +631,6 @@ checked-result arithmetic decision listed below.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.
-- **TCBMANIFEST:** derive executable TCB metadata from the selected-provider
-  closure and build profile. Separate known entries from proved completeness;
-  retain provider/executable/plan identity, scope, origin, implementation
-  evidence, and independent containment axes.
 - Extend component artifacts with stack needs, mapping cohorts, two-sided
   import/export checks, boundary multiplicity, custody receipts, and enumerable
   roots. Drain/coexistence, scheduling, and provisioning remain runtime work.

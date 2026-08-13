@@ -29,6 +29,8 @@
 //!    target without legacy staging.
 //!  * `game_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated games cohort has the same exact hosted-root guarantees.
+//!  * `text_samples_compile_from_authored_program_entry_bindings` — the
+//!    migrated text cohort has the same exact hosted-root guarantees.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -102,6 +104,18 @@ const EXPLICIT_ENTRY_GAME_SAMPLES: &[&str] = &[
     "tic_tac_toe",
     "turn_combat",
     "vending_machine",
+];
+const EXPLICIT_ENTRY_TEXT_SAMPLES: &[&str] = &[
+    "caesar_cipher",
+    "format_number",
+    "luhn_checksum",
+    "parse_int",
+    "parse_number",
+    "roman_numeral",
+    "string_catalog",
+    "string_hash",
+    "substring_search",
+    "text_padding",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -422,6 +436,68 @@ fn host_target_name() -> &'static str {
     }
 }
 
+fn assert_authored_entry_cohort(category: &str, samples: &[&str]) {
+    let mut failures = Vec::new();
+    for sample in samples {
+        let main_path = repo_root()
+            .join("samples/cli")
+            .join(category)
+            .join(sample)
+            .join("main.omg");
+        for target in HOSTED_SAMPLE_TARGETS {
+            let checked = match compile_to_checked(&main_path, Some(target)) {
+                Ok(checked) => checked,
+                Err(diagnostics) => {
+                    failures.push(format!(
+                        "{sample}/{target}: authored-entry selection failed: {diagnostics:#?}"
+                    ));
+                    continue;
+                }
+            };
+            if checked.selected_program_entry_machine() != Some("Main::main") {
+                failures.push(format!(
+                    "{sample}/{target}: selected {:?}, expected Main::main",
+                    checked.selected_program_entry_machine()
+                ));
+                continue;
+            }
+
+            let build_dir = std::env::temp_dir().join(format!(
+                "omega-authored-{category}-entry-{sample}-{target}-{}",
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&build_dir);
+            if let Err(diagnostics) = compile_program(CompileOptions {
+                root_path: main_path.clone(),
+                build_dir: Some(build_dir.clone()),
+                target_name: Some((*target).to_owned()),
+                write_output: false,
+            }) {
+                failures.push(format!(
+                    "{sample}/{target}: direct authored-entry lowering failed: {diagnostics:#?}"
+                ));
+            }
+            let _ = fs::remove_dir_all(build_dir);
+        }
+        match compile_to_checked(&main_path, None) {
+            Ok(checked) if checked.selected_program_entry_machine().is_none() => {}
+            Ok(checked) => failures.push(format!(
+                "{sample}/checked-only: unexpectedly selected {:?}",
+                checked.selected_program_entry_machine()
+            )),
+            Err(diagnostics) => failures.push(format!(
+                "{sample}/checked-only: compilation failed: {diagnostics:#?}"
+            )),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} {category} authored-entry checks failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
 fn host_root_owner() -> &'static str {
     match host_target_name() {
         "macos_arm64" => "macos_arm64",
@@ -493,166 +569,22 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
 
 #[test]
 fn algorithm_samples_compile_from_authored_program_entry_bindings() {
-    for sample in EXPLICIT_ENTRY_ALGORITHM_SAMPLES {
-        let main_path = repo_root()
-            .join("samples/cli/algorithms")
-            .join(sample)
-            .join("main.omg");
-        for target in HOSTED_SAMPLE_TARGETS {
-            let checked =
-                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
-                    panic!(
-                        "algorithm sample {sample} should select its authored {target} entry: \
-                         {diagnostics:#?}"
-                    )
-                });
-            assert_eq!(
-                checked.selected_program_entry_machine(),
-                Some("Main::main"),
-                "algorithm sample {sample} must select its authored Main::main binding for \
-                 {target}"
-            );
-
-            let build_dir = std::env::temp_dir().join(format!(
-                "omega-authored-algorithm-entry-{sample}-{target}-{}",
-                std::process::id()
-            ));
-            let _ = fs::remove_dir_all(&build_dir);
-            compile_program(CompileOptions {
-                root_path: main_path.clone(),
-                build_dir: Some(build_dir.clone()),
-                target_name: Some((*target).to_owned()),
-                write_output: false,
-            })
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "algorithm sample {sample} should lower directly for {target} without a \
-                     staged entry: {diagnostics:#?}"
-                )
-            });
-            let _ = fs::remove_dir_all(build_dir);
-        }
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!(
-                "algorithm sample {sample} should remain entry-agnostic when checked: \
-                 {diagnostics:#?}"
-            )
-        });
-        assert_eq!(
-            checked.selected_program_entry_machine(),
-            None,
-            "checked-only algorithm sample {sample} must not select a storage root"
-        );
-    }
+    assert_authored_entry_cohort("algorithms", EXPLICIT_ENTRY_ALGORITHM_SAMPLES);
 }
 
 #[test]
 fn interpreter_samples_compile_from_authored_program_entry_bindings() {
-    for sample in EXPLICIT_ENTRY_INTERPRETER_SAMPLES {
-        let main_path = repo_root()
-            .join("samples/cli/interpreters")
-            .join(sample)
-            .join("main.omg");
-        for target in HOSTED_SAMPLE_TARGETS {
-            let checked =
-                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
-                    panic!(
-                        "interpreter sample {sample} should select its authored {target} entry: \
-                         {diagnostics:#?}"
-                    )
-                });
-            assert_eq!(
-                checked.selected_program_entry_machine(),
-                Some("Main::main"),
-                "interpreter sample {sample} must select its authored Main::main binding for \
-                 {target}"
-            );
-
-            let build_dir = std::env::temp_dir().join(format!(
-                "omega-authored-interpreter-entry-{sample}-{target}-{}",
-                std::process::id()
-            ));
-            let _ = fs::remove_dir_all(&build_dir);
-            compile_program(CompileOptions {
-                root_path: main_path.clone(),
-                build_dir: Some(build_dir.clone()),
-                target_name: Some((*target).to_owned()),
-                write_output: false,
-            })
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "interpreter sample {sample} should lower directly for {target} without a \
-                     staged entry: {diagnostics:#?}"
-                )
-            });
-            let _ = fs::remove_dir_all(build_dir);
-        }
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!(
-                "interpreter sample {sample} should remain entry-agnostic when checked: \
-                 {diagnostics:#?}"
-            )
-        });
-        assert_eq!(
-            checked.selected_program_entry_machine(),
-            None,
-            "checked-only interpreter sample {sample} must not select a storage root"
-        );
-    }
+    assert_authored_entry_cohort("interpreters", EXPLICIT_ENTRY_INTERPRETER_SAMPLES);
 }
 
 #[test]
 fn game_samples_compile_from_authored_program_entry_bindings() {
-    for sample in EXPLICIT_ENTRY_GAME_SAMPLES {
-        let main_path = repo_root()
-            .join("samples/cli/games")
-            .join(sample)
-            .join("main.omg");
-        for target in HOSTED_SAMPLE_TARGETS {
-            let checked =
-                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
-                    panic!(
-                        "game sample {sample} should select its authored {target} entry: \
-                         {diagnostics:#?}"
-                    )
-                });
-            assert_eq!(
-                checked.selected_program_entry_machine(),
-                Some("Main::main"),
-                "game sample {sample} must select its authored Main::main binding for {target}"
-            );
+    assert_authored_entry_cohort("games", EXPLICIT_ENTRY_GAME_SAMPLES);
+}
 
-            let build_dir = std::env::temp_dir().join(format!(
-                "omega-authored-game-entry-{sample}-{target}-{}",
-                std::process::id()
-            ));
-            let _ = fs::remove_dir_all(&build_dir);
-            compile_program(CompileOptions {
-                root_path: main_path.clone(),
-                build_dir: Some(build_dir.clone()),
-                target_name: Some((*target).to_owned()),
-                write_output: false,
-            })
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "game sample {sample} should lower directly for {target} without a staged \
-                     entry: {diagnostics:#?}"
-                )
-            });
-            let _ = fs::remove_dir_all(build_dir);
-        }
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!(
-                "game sample {sample} should remain entry-agnostic when checked: \
-                 {diagnostics:#?}"
-            )
-        });
-        assert_eq!(
-            checked.selected_program_entry_machine(),
-            None,
-            "checked-only game sample {sample} must not select a storage root"
-        );
-    }
+#[test]
+fn text_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_cohort("text", EXPLICIT_ENTRY_TEXT_SAMPLES);
 }
 
 #[test]

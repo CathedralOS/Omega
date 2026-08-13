@@ -1,4 +1,4 @@
-// parse_number is deployable on every hosted target.
+// roman_numeral is deployable on every hosted target.
 
 target windows_x64 {
 }

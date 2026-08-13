@@ -1,4 +1,4 @@
-// parse_number is deployable on every hosted target.
+// substring_search is deployable on every hosted target.
 
 target windows_x64 {
 }
