@@ -8,6 +8,7 @@ use psi_terminal::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
 };
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_with_effect_handler_measured,
@@ -345,6 +346,30 @@ const MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
         plain: Plain,
         right: bool
     ) -> bool
+    {
+        let inverted: bool = !right;
+        left && inverted
+    }
+"#;
+
+const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    { Helper::touch(); }
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(
+        token: Token,
+        left: bool,
+        plain: Plain,
+        right: bool
+    ) -> bool
+    requires token.ready, plain.observed
     {
         let inverted: bool = !right;
         left && inverted
@@ -1285,6 +1310,175 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
             &mut handler,
         )
         .expect("mixed nominal short-circuit path interprets from canonical artifacts");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
+        assert_eq!(measured.usage().total_units(), expected_fuel);
+        assert!(measured.effects().is_empty());
+    }
+}
+
+#[test]
+fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
+    let tokens = Lexer::new(MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed contextual short-circuit scalar return");
+    let syntax =
+        parse_syntax_trees(&tokens).expect("parse mixed contextual short-circuit scalar return");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve mixed contextual short-circuit scalar return");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type mixed contextual short-circuit scalar return");
+    let checked =
+        lower_typed_trees(typed).expect("check mixed contextual short-circuit scalar return");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed contextual short-circuit scalar return lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("mixed contextual short-circuit entry");
+    let [token, plain] = entry.structural_parameters.as_slice() else {
+        panic!("mixed contextual short-circuit entry retains both structural roots")
+    };
+    assert_eq!(entry.contract.requires.len(), 2);
+    assert_eq!(entry.blocks.len(), 5);
+
+    let mut return_obligations = Vec::new();
+    let mut return_edges = Vec::new();
+    for block in &entry.blocks {
+        match &block.terminator {
+            Terminator::Return {
+                edge,
+                cleanup_actions,
+                ..
+            } => {
+                return_edges.push(*edge);
+                let [
+                    TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+                    TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
+                ] = cleanup_actions.as_slice()
+                else {
+                    panic!("every leaf retains the complete contextual cleanup stream")
+                };
+                assert_eq!(*plain_cleanup, plain.place);
+                assert_eq!(token_cleanup.place, token.place);
+                assert!(token_cleanup.cleanup_receiver.is_some());
+                let [obligation] = token_cleanup.requirement_obligations.as_slice() else {
+                    panic!("every nominal leaf owns one contextual obligation")
+                };
+                return_obligations.push(*obligation);
+            }
+            Terminator::Conditional { .. } => {}
+            _ => panic!("bounded contextual return emits only decisions and value leaves"),
+        }
+    }
+    return_edges.sort_unstable();
+    return_edges.dedup();
+    return_obligations.sort_unstable();
+    return_obligations.dedup();
+    assert_eq!(return_edges.len(), 3);
+    assert_eq!(return_obligations.len(), 3);
+    assert_eq!(lowered.proof_bundle.evidence.len(), 3);
+    assert!(return_obligations.iter().all(|obligation| {
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == *obligation)
+    }));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("every contextual short-circuit cleanup edge verifies independently");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("contextual short-circuit cleanup has one exact maximum path");
+    assert_eq!(fixed.ceiling_units(), 8);
+    validate_fixed_entry_fuel(&verified, &fixed)
+        .expect("contextual short-circuit fixed-fuel certificate recomputes");
+    drop(verified);
+    let semantics = encode_module(&lowered.semantic_module)
+        .expect("mixed contextual short-circuit module encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("mixed contextual short-circuit proof encodes");
+    assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+
+    let mut duplicated = lowered.semantic_module.clone();
+    let entry = duplicated
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == duplicated.entry)
+        .expect("duplicated contextual entry");
+    let mut first_obligation = None;
+    for block in &mut entry.blocks {
+        let Terminator::Return {
+            cleanup_actions, ..
+        } = &mut block.terminator
+        else {
+            continue;
+        };
+        let TerminalAffineCleanupAction::InvokeNominal(cleanup) = &mut cleanup_actions[1] else {
+            unreachable!()
+        };
+        match first_obligation {
+            Some(obligation) => {
+                cleanup.requirement_obligations[0] = obligation;
+                break;
+            }
+            None => first_obligation = Some(cleanup.requirement_obligations[0]),
+        }
+    }
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &duplicated,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "one contextual obligation identity cannot be replayed on two return edges",
+    );
+
+    let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    for (scalar_arguments, expected, expected_fuel) in [
+        (
+            [
+                TerminalScalarValue::Boolean(false),
+                TerminalScalarValue::Boolean(false),
+            ],
+            false,
+            7,
+        ),
+        (
+            [
+                TerminalScalarValue::Boolean(true),
+                TerminalScalarValue::Boolean(false),
+            ],
+            true,
+            8,
+        ),
+    ] {
+        let mut handler = AcceptTerminalEffects;
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &scalar_arguments,
+            &structural_arguments,
+            &mut handler,
+        )
+        .expect("mixed contextual short-circuit path interprets from canonical artifacts");
         assert_eq!(
             measured.value(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))

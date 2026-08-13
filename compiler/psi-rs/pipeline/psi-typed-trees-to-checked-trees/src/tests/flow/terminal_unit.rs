@@ -926,7 +926,7 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_boolean_decision() {
 }
 
 #[test]
-fn nominal_scalar_cleanup_fences_contextual_short_circuit_return() {
+fn nominal_scalar_cleanup_retains_contextual_short_circuit_return() {
     let checked = checked(
         r#"
         data Token { ready: bool; }
@@ -942,15 +942,18 @@ fn nominal_scalar_cleanup_fences_contextual_short_circuit_return() {
         }
         "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine_named(&checked, "measure"))
-            .is_none(),
-        "branched nominal cleanup stays proof-free until each leaf owns distinct obligations",
-    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("contextual short-circuit cleanup retains its checked scalar-return plan");
+    assert_eq!(plan.caller_requirements.len(), 1);
+    assert!(matches!(
+        plan.cleanup_actions.as_slice(),
+        [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)]
+            if cleanup.requirements.len() == 1
+    ));
 }
 
 #[test]

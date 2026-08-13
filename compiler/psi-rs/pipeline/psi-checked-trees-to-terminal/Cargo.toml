@@ -25,6 +25,7 @@ psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../psi-syntax-trees-to-symbol-resolved-trees" }
 psi-terminal-fuel = { path = "../../semantics/psi-terminal-fuel" }
+psi-terminal-fixed-fuel = { path = "../../semantics/psi-terminal-fixed-fuel" }
 psi-terminal-interpreter = { path = "../../semantics/psi-terminal-interpreter" }
 psi-tokens-to-syntax-trees = { path = "../psi-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../psi-typed-trees-to-checked-trees" }
