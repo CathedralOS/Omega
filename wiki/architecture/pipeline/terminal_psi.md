@@ -183,12 +183,15 @@ ordinary successors from one retained Boolean scalar input. Whole-parameter
 arguments provide exact type-preserving transfer maps; each map and its exact
 cleanup row must independently partition the source frontier. Production
 resolves checked parameter positions against the source-handle-free state
-signatures, emits the resulting jump/conditional/return blocks, and rejects
-stale signatures, arm order, or cleanup. This slice admits only reachable,
+signatures. Conditional arms may additionally pass direct primitive scalar
+inputs into typed successor block parameters; the edge materializes those
+arguments before committing its structural cleanup. Production emits the
+resulting jump/conditional/return blocks and rejects stale scalar or structural
+signatures, arm order, or cleanup. This slice admits only reachable,
 acyclic custody lineages whose surviving place order remains canonical. Joins,
-cycles, reordering, computed guards, scalar successor arguments, locals, and
-richer cleanup continue to fail closed. The terminal verifier remains
-responsible for reconstructing every emitted cleanup frontier.
+cycles, reordering, computed guards or successor values, locals, and richer
+cleanup continue to fail closed. The terminal verifier remains responsible for
+reconstructing every emitted cleanup frontier and scalar edge binding.
 
 The first nonempty scalar-return source path composes the same cleanup evidence
 with an attached, one-state signature containing only claim-free affine

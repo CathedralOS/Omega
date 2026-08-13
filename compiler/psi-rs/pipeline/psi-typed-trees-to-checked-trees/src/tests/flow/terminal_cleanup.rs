@@ -213,14 +213,14 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
         data Token { value: i32; }
         data Root {}
 
-        machine Root::route(first: Token, second: Token, choose_first: bool)
+        machine Root::route(first: Token, second: Token, choose_first: bool, value: i32)
         {
             transition choose_first {
-                true -> keep_first(first)
-                _ -> keep_second(second)
+                true -> keep_first(first, value)
+                _ -> keep_second(second, value)
             }
-            state keep_first(first: Token) {}
-            state keep_second(second: Token) {}
+            state keep_first(first: Token, value: i32) {}
+            state keep_second(second: Token, value: i32) {}
         }
         "#,
     );
@@ -237,7 +237,9 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
         .for_machine(machine)
         .expect("the exact structural Unit conditional should compose");
     assert_eq!(plan.states.len(), 3);
-    assert_eq!(plan.states[0].scalar_parameters.len(), 1);
+    assert_eq!(plan.states[0].scalar_parameters.len(), 2);
+    assert_eq!(plan.states[1].scalar_parameters.len(), 1);
+    assert_eq!(plan.states[2].scalar_parameters.len(), 1);
     let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
         guard_scalar_parameter_index,
         when_true,
@@ -249,9 +251,20 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     assert_eq!(*guard_scalar_parameter_index, 0);
     assert_eq!(when_true.statement_ordinal, 0);
     assert_eq!(when_true.transfers[0].source_parameter_index, 0);
+    assert_eq!(when_true.scalar_arguments.len(), 1);
+    assert_eq!(when_true.scalar_arguments[0].argument_ordinal, 1);
+    assert_eq!(
+        when_true.scalar_arguments[0].source_scalar_parameter_index,
+        1
+    );
+    assert_eq!(
+        when_true.scalar_arguments[0].target_scalar_parameter_index,
+        0
+    );
     assert_eq!(when_true.trivial_affine_discard_parameter_positions, [1]);
     assert_eq!(when_false.statement_ordinal, 1);
     assert_eq!(when_false.transfers[0].source_parameter_index, 1);
+    assert_eq!(when_false.scalar_arguments, when_true.scalar_arguments);
     assert_eq!(when_false.trivial_affine_discard_parameter_positions, [0]);
 
     let rejected = checked(
