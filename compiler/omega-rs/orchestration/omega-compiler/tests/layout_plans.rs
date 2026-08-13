@@ -585,6 +585,27 @@ machine Main::main(&mut self) { }
         &[2, 1, 0, 0, 3, 4, 5, 6, 7, 8, 0, 0, 9, 10, 11, 12]
     );
     assert!(bytes[..8].iter().chain(&bytes[24..]).all(|byte| *byte == 0));
+
+    let mut big_endian = [0xa5; 32];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::BigEndian,
+        &mut big_endian,
+    )
+    .expect("Omega target byte order should compose through fixed-record arrays");
+    assert_eq!(
+        &big_endian[8..24],
+        &[1, 2, 0, 0, 6, 5, 4, 3, 8, 7, 0, 0, 12, 11, 10, 9]
+    );
+    assert!(
+        big_endian[..8]
+            .iter()
+            .chain(&big_endian[24..])
+            .all(|byte| *byte == 0)
+    );
 }
 
 #[test]
