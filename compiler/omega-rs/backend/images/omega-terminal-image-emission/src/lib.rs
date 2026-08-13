@@ -1013,7 +1013,7 @@ fn validate_unit_affine_cleanup(
             })
             .collect::<Vec<_>>();
         if nominal.len() != cleanup.actions.len()
-            || !(1..=2).contains(&nominal.len())
+            || !(1..=3).contains(&nominal.len())
             || !cleanup.locals.is_empty()
             || parameter_homes.len() != nominal.len()
             || parameter_homes

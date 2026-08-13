@@ -1443,8 +1443,11 @@ fn validate_record_shape(
                                     })
                             })
                     }
-                    ([first, second], []) => {
-                        let bodies = [exact_nominal_body(first), exact_nominal_body(second)];
+                    (nominal @ [_, _, ..], []) if nominal.len() <= 3 => {
+                        let bodies = nominal
+                            .iter()
+                            .map(|cleanup| exact_nominal_body(cleanup))
+                            .collect::<Vec<_>>();
                         let executable = bodies
                             .iter()
                             .enumerate()
@@ -1470,8 +1473,7 @@ fn validate_record_shape(
                                             edge: cleanup.psi_edge,
                                             action_ordinal,
                                         }
-                                        && call.custody.target
-                                            == [first, second][*ordinal].cleanup_machine
+                                        && call.custody.target == nominal[*ordinal].cleanup_machine
                                 })?;
                                 Some((
                                     call.custody.code_offset,
@@ -1483,13 +1485,9 @@ fn validate_record_shape(
                             .collect::<Option<Vec<_>>>();
                         !cleanup.locals.is_empty()
                             || !discards.is_empty()
-                            || function.unit_parameter_homes.len() != 2
-                            || function
-                                .unit_parameter_homes
-                                .iter()
-                                .rev()
-                                .zip([first, second])
-                                .any(|(home, nominal)| {
+                            || function.unit_parameter_homes.len() != nominal.len()
+                            || function.unit_parameter_homes.iter().rev().zip(nominal).any(
+                                |(home, nominal)| {
                                     home.place != nominal.place
                                         || home.structural_type != nominal.structural_type
                                         || home.multiplicity != StructuralMultiplicity::Affine
@@ -1500,7 +1498,8 @@ fn validate_record_shape(
                                             && home.source.locations.is_empty())
                                         || attachments.get(&nominal.cleanup_machine)
                                             != Some(&Some(nominal.structural_type))
-                                })
+                                },
+                            )
                             || bodies.iter().any(Option::is_none)
                             || caller_cleanup_calls.len() != executable.len()
                             || ordered_executable_spans.is_none_or(|spans| {
@@ -1520,7 +1519,7 @@ fn validate_record_shape(
                                                     action_ordinal,
                                                 }
                                                 && call.custody.target
-                                                    == [first, second][*ordinal].cleanup_machine
+                                                    == nominal[*ordinal].cleanup_machine
                                                 && call.custody.arguments.is_empty()
                                                 && call.custody.claim_transfers.is_empty()
                                                 && call.custody.code_offset >= cleanup.code_offset
