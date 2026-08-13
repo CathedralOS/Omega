@@ -205,21 +205,24 @@ Remaining:
   The bounded whole-root nominal cleanup slice is complete: one root-only Unit
   machine with exactly one claim-free, unqualified affine parameter whose
   record is empty or contains only relevant Boolean/integer fields invokes its exact
-  empty attached `T::drop`. Checked production, canonical terminal encoding,
+  attached `T::drop`: its body may be empty or exactly one ordinary
+  zero-argument call to a distinct exact-empty attached helper. Checked
+  production, canonical terminal encoding,
   independent verification, interpretation, and fixed fuel preserve the whole
   receiver and charge both edges. Omega assigns a nonempty receiver its
   ordinary ABI home while retaining parameter, attachment, and cleanup identity
-  through all five object/image/install paths; the empty drop body adds no
-  cleanup bytes. Nested/erased receivers, executable drop bodies, ordered
-  multiple cleanups, locals, claims, qualifications, contracts, and non-root
-  edges remain fenced.
+  through all five object/image/install paths. Empty drops add no call; the
+  executable form emits an edge-owned native call before return teardown and
+  retains distinct operation-owned helper-call custody. Nested/erased
+  receivers, wider executable bodies, ordered multiple cleanups, locals,
+  claims, qualifications, contracts, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
   parameter tail and a finite consecutive prefix of established empty-record
   affine locals. Both clean up in canonical reverse order with no emitted
   cleanup code; register and stack ABI homes survive installation. Next add
-  wider nominal receivers and executable drop bodies, ordered cleanup lists,
+  wider executable drop bodies, ordered cleanup lists,
   and wider partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
@@ -432,9 +435,11 @@ reach or trust, and private proof improvements do not change public identity.
   one equal-frontier diamond. One direct-field partial-record transfer now
   preserves and disposes its exact residual sibling through interpretation and
   all five native artifact paths. One whole affine parameter whose record is
-  empty or contains only relevant Boolean/integer fields now invokes an exact empty
+  empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native
-  artifact paths. Add wider/executable nominal cleanup,
+  artifact paths. The cleanup may be empty or make one zero-argument call to
+  an exact-empty helper; native artifacts retain the cleanup edge and helper
+  operation as distinct call owners. Add wider executable nominal cleanup,
   ordered cleanup lists, contextual cleanup-contract checking,
   wider structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
