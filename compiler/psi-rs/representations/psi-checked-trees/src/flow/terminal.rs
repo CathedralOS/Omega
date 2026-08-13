@@ -495,9 +495,9 @@ pub struct CheckedUnitCallCoordinate {
 pub struct CheckedUnitStructuralArgumentPlan {
     /// Dense index into the caller's structural parameter list.
     pub source_parameter_index: u32,
-    /// Empty names the complete source parameter. The first projected slice
-    /// admits exactly one literal fixed-array index and only for a boundary
-    /// settlement.
+    /// Empty names the complete source parameter. Accepted projected slices
+    /// retain exactly one literal fixed-array index or direct record field;
+    /// their specialized checked plans constrain the legal destination.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
 }
@@ -539,8 +539,8 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     /// published through `CheckedUnitEffectPlans` while its return cleanup is
     /// still path-sensitive.
     pub machine: CheckedUnitEffectMachinePlan,
-    /// Exact reverse-declaration-ordered residual cleanup after the sole
-    /// projected call commits.
+    /// Exact reverse-declaration-ordered residual cleanup after every
+    /// source-ordered projected call commits.
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 

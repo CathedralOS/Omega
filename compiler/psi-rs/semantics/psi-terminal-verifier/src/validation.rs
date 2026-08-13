@@ -1914,10 +1914,11 @@ fn validate_unit_operation_static(
     Ok(())
 }
 
-/// Validate the complete bounded representation for one direct-field affine
-/// transfer followed by disposal of every residual sibling in reverse
-/// declaration order. This partition is checked independently of producer
-/// facts before the ownership walk relies on the path-sensitive terminator.
+/// Validate the complete bounded representation for a nonempty run of
+/// direct-field affine transfers followed by disposal of every residual
+/// sibling in reverse declaration order. This partition is checked
+/// independently of producer facts before the ownership walk relies on the
+/// path-sensitive terminator.
 fn validate_partial_affine_cleanup_shape(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -1964,9 +1965,7 @@ fn validate_partial_affine_cleanup_shape(
         machine: machine.id,
         block,
     };
-    let [(block, _operation, callee_id, arguments, claim_transfers)] =
-        direct_field_calls.as_slice()
-    else {
+    let Some((block, ..)) = direct_field_calls.first() else {
         return Err(invalid(
             partial_returns
                 .first()
@@ -1977,15 +1976,17 @@ fn validate_partial_affine_cleanup_shape(
         return Err(invalid(block.id));
     };
     if partial_block.id != block.id
+        || direct_field_calls
+            .iter()
+            .any(|(candidate, ..)| candidate.id != block.id)
         || !matches!(machine.result, TerminalMachineResult::Unit)
-        || block.operations.len() != 1
+        || block.operations.len() != direct_field_calls.len()
         || machine.structural_parameters.len() != 1
         || machine.structural_places.len() != 1
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
-        || !claim_transfers.is_empty()
     {
         return Err(invalid(block.id));
     }
@@ -2023,37 +2024,41 @@ fn validate_partial_affine_cleanup_shape(
     {
         return Err(invalid(block.id));
     }
-    let [argument] = arguments.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    let [StructuralPathSegment::Field(moved_identity)] = argument.path.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    if argument.place != root.place {
-        return Err(invalid(block.id));
-    }
-    let Some(moved_field) = fields
-        .iter()
-        .find(|field| field.identity == *moved_identity)
-    else {
-        return Err(invalid(block.id));
-    };
-    let StructuralFieldType::Structural(moved_type) = moved_field.field_type else {
-        return Err(invalid(block.id));
-    };
-    let Some(callee) = machines.get(callee_id).copied() else {
-        return Err(invalid(block.id));
-    };
-    let [callee_parameter] = callee.structural_parameters.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    if callee.result != TerminalMachineResult::Unit
-        || !callee.parameters.is_empty()
-        || callee_parameter.structural_type != moved_type
-        || callee_parameter.multiplicity != StructuralMultiplicity::Affine
-        || !callee_parameter.qualifications.is_empty()
-    {
-        return Err(invalid(block.id));
+    let mut moved_identities = BTreeSet::new();
+    for (_, _, callee_id, arguments, claim_transfers) in &direct_field_calls {
+        let [argument] = arguments.as_slice() else {
+            return Err(invalid(block.id));
+        };
+        let [StructuralPathSegment::Field(moved_identity)] = argument.path.as_slice() else {
+            return Err(invalid(block.id));
+        };
+        if argument.place != root.place || !moved_identities.insert(moved_identity.clone()) {
+            return Err(invalid(block.id));
+        }
+        let Some(moved_field) = fields
+            .iter()
+            .find(|field| field.identity == *moved_identity)
+        else {
+            return Err(invalid(block.id));
+        };
+        let StructuralFieldType::Structural(moved_type) = moved_field.field_type else {
+            return Err(invalid(block.id));
+        };
+        let Some(callee) = machines.get(callee_id).copied() else {
+            return Err(invalid(block.id));
+        };
+        let [callee_parameter] = callee.structural_parameters.as_slice() else {
+            return Err(invalid(block.id));
+        };
+        if !claim_transfers.is_empty()
+            || callee.result != TerminalMachineResult::Unit
+            || !callee.parameters.is_empty()
+            || callee_parameter.structural_type != moved_type
+            || callee_parameter.multiplicity != StructuralMultiplicity::Affine
+            || !callee_parameter.qualifications.is_empty()
+        {
+            return Err(invalid(block.id));
+        }
     }
     let Terminator::ReturnUnitPartialAffine {
         trivial_affine_discards,
@@ -2066,9 +2071,10 @@ fn validate_partial_affine_cleanup_shape(
     let residual_fields = fields
         .iter()
         .rev()
-        .filter(|field| field.identity != *moved_identity)
+        .filter(|field| !moved_identities.contains(&field.identity))
         .collect::<Vec<_>>();
-    if !trivial_affine_discards.is_empty()
+    if residual_fields.is_empty()
+        || !trivial_affine_discards.is_empty()
         || residual_affine_discards.len() != residual_fields.len()
         || residual_affine_discards
             .iter()
@@ -4079,7 +4085,7 @@ fn validate_structural_frontier(
                     .union(&residual_identities)
                     .cloned()
                     .collect::<BTreeSet<_>>();
-                if moved.len() != 1
+                if moved.is_empty()
                     || !moved.is_disjoint(&residual_identities)
                     || expected_fields.as_ref() != Some(&covered_fields)
                     || frontier.owned_places.remove(&root_place)

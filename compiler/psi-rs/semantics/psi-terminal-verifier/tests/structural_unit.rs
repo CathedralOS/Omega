@@ -1098,6 +1098,107 @@ fn direct_field_partial_affine_return_validates_and_verifies() {
 }
 
 #[test]
+fn multiple_direct_field_partial_affine_moves_validate_and_verify() {
+    let module = multiple_move_partial_affine_field_module();
+    let caller = &module.machines[0];
+    assert_eq!(
+        caller.blocks[0]
+            .operations
+            .iter()
+            .map(|operation| {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &operation.kind
+                else {
+                    panic!("expected direct-field Unit call")
+                };
+                let [StructuralArgument { path, .. }] = structural_arguments.as_slice() else {
+                    panic!("expected one structural argument")
+                };
+                let [StructuralPathSegment::Field(identity)] = path.as_slice() else {
+                    panic!("expected one direct field")
+                };
+                identity.as_str()
+            })
+            .collect::<Vec<_>>(),
+        vec!["right", "middle"]
+    );
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| match discard.path.as_slice() {
+                [StructuralPathSegment::Field(identity)] => identity.as_str(),
+                _ => panic!("expected one direct field residual"),
+            })
+            .collect::<Vec<_>>(),
+        vec!["left"]
+    );
+    validate_module(&module)
+        .expect("distinct moved fields plus their exact complement exhaust root");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("multiple partial affine moves introduce no producer-authored proposition");
+}
+
+#[test]
+fn multiple_direct_field_partial_affine_moves_reject_duplicates_and_exhaustion() {
+    let expected = |module: &TerminalModule| ModuleError::InvalidPartialAffineCleanup {
+        machine: module.machines[0].id,
+        block: module.machines[0].blocks[0].id,
+    };
+
+    let mut duplicate = multiple_move_partial_affine_field_module();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut duplicate.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("right".into())];
+    assert_eq!(
+        validate_module(&duplicate).unwrap_err(),
+        expected(&duplicate)
+    );
+
+    let mut exhaustive = multiple_move_partial_affine_field_module();
+    let mut final_call = exhaustive.machines[0].blocks[0].operations[1].clone();
+    final_call.id = operation_id(3);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut final_call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("left".into())];
+    exhaustive.machines[0].blocks[0].operations.push(final_call);
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut exhaustive.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.clear();
+    assert_eq!(
+        validate_module(&exhaustive).unwrap_err(),
+        expected(&exhaustive)
+    );
+}
+
+#[test]
 fn direct_field_partial_affine_return_rejects_forged_conservation_shapes() {
     let expected = |module: &TerminalModule| ModuleError::InvalidPartialAffineCleanup {
         machine: module.machines[0].id,
@@ -2414,6 +2515,31 @@ fn partial_affine_field_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         machines: vec![caller, callee],
     }
+}
+
+fn multiple_move_partial_affine_field_module() -> TerminalModule {
+    let mut module = partial_affine_field_module();
+    let caller_block = &mut module.machines[0].blocks[0];
+    let mut second_call = caller_block.operations[0].clone();
+    second_call.id = operation_id(2);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut second_call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("middle".into())];
+    caller_block.operations.push(second_call);
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut caller_block.terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.remove(0);
+    module
 }
 
 fn nominal_affine_module() -> TerminalModule {

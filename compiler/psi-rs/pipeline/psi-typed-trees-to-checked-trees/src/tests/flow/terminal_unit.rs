@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
+fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_cleanup() {
     let checked = checked(
         r#"
         data Token { value: u64; }
@@ -11,6 +11,7 @@ fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
         data Root {}
         machine Root::enter(value: Quartet) {
             Sink::take(value.third);
+            Sink::take(value.first);
         }
         "#,
     );
@@ -29,27 +30,37 @@ fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
         .flow
         .terminal_partial_affine_unit_cleanups
         .for_machine(machine)
-        .expect("direct-field transfer with one affine sibling cleanup");
-    assert!(matches!(
-        plan.machine.operations.as_slice(),
-        [
+        .expect("direct-field transfers with exact affine sibling cleanup");
+    let moved_paths = plan.machine.operations[..2]
+        .iter()
+        .map(|operation| match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 structural_arguments,
                 claim_transfers,
                 ..
-            },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
-                trivial_affine_discards,
-                ..
+            } if structural_arguments.len() == 1 && claim_transfers.is_empty() => {
+                assert_eq!(structural_arguments[0].source_parameter_index, 0);
+                structural_arguments[0].path.clone()
             }
-        ] if structural_arguments.len() == 1
-            && structural_arguments[0].source_parameter_index == 0
-            && structural_arguments[0].path
-                == [CheckedUnitStructuralPathSegment::Field("third".to_owned())]
-            && claim_transfers.is_empty()
-            && trivial_affine_discards.is_empty()
+            _ => panic!("partial cleanup requires source-ordered direct Unit calls"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        moved_paths,
+        vec![
+            vec![CheckedUnitStructuralPathSegment::Field("third".to_owned())],
+            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
+        ]
+    );
+    assert!(matches!(
+        plan.machine.operations.last(),
+        Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 2,
+            trivial_affine_discards,
+            ..
+        }) if trivial_affine_discards.is_empty()
     ));
-    assert_eq!(plan.residual_affine_discards.len(), 3);
+    assert_eq!(plan.residual_affine_discards.len(), 2);
     assert_eq!(
         plan.residual_affine_discards
             .iter()
@@ -62,7 +73,6 @@ fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
         vec![
             vec![CheckedUnitStructuralPathSegment::Field("fourth".to_owned())],
             vec![CheckedUnitStructuralPathSegment::Field("second".to_owned())],
-            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
         ]
     );
 }
@@ -86,7 +96,7 @@ fn direct_field_partial_cleanup_fails_closed_outside_finite_structural_records()
         machine Root::nested(value: Outer) {
             Sink::take(value.inner.right);
         }
-        machine Root::multiple(value: Pair) {
+        machine Root::complete(value: Pair) {
             Sink::take(value.right);
             Sink::take(value.left);
         }
@@ -96,7 +106,7 @@ fn direct_field_partial_cleanup_fails_closed_outside_finite_structural_records()
         "#,
     );
 
-    for machine in ["missing", "nested", "multiple", "scalar"] {
+    for machine in ["missing", "nested", "complete", "scalar"] {
         assert!(
             checked
                 .facts

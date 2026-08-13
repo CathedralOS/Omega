@@ -1905,9 +1905,14 @@ fn build_partial_affine_unit_cleanup_machine(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if statements.is_empty()
+        || statements
+            .iter()
+            .any(|statement| !matches!(statement, StatementNode::Call(_)))
+    {
         return None;
-    };
+    }
     if !is_unit(program, state.return_type)
         || !program.machine_contracts(machine).is_empty()
         || !program.state_contracts(state).is_empty()
@@ -1954,68 +1959,85 @@ fn build_partial_affine_unit_cleanup_machine(
     }
 
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let [call] = facts.flow.control.calls.span_or_empty(state_flow.calls) else {
-        return None;
-    };
-    if call.statement_index != 0
-        || call.call_ordinal != 0
-        || !service_reach_is_empty(facts, state_flow.service_reach)
-        || !service_reach_is_empty(facts, call.service_reach)
+    let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
+    if calls.len() != statements.len()
+        || calls.iter().enumerate().any(|(statement_index, call)| {
+            call.statement_index != statement_index || call.call_ordinal != 0
+        })
     {
         return None;
     }
-    let operation = build_call_operation(
-        program,
-        facts,
-        machine,
-        state,
-        &structural_parameters,
-        &entry_claims,
-        call,
-        true,
-    )?;
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        target_machine,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = &operation
-    else {
-        return None;
-    };
-    let [argument] = structural_arguments.as_slice() else {
-        return None;
-    };
-    let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice() else {
-        return None;
-    };
-    if argument.source_parameter_index != 0 || !claim_transfers.is_empty() {
+    if !service_reach_is_empty(facts, state_flow.service_reach) {
         return None;
     }
+    let mut operations = Vec::with_capacity(calls.len().saturating_add(1));
+    let mut moved_fields = Vec::<(String, String)>::with_capacity(calls.len());
+    for call in calls {
+        if !service_reach_is_empty(facts, call.service_reach) {
+            return None;
+        }
+        let operation = build_call_operation(
+            program,
+            facts,
+            machine,
+            state,
+            &structural_parameters,
+            &entry_claims,
+            call,
+            true,
+        )?;
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            target_machine,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = &operation
+        else {
+            return None;
+        };
+        let [argument] = structural_arguments.as_slice() else {
+            return None;
+        };
+        let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice()
+        else {
+            return None;
+        };
+        if argument.source_parameter_index != 0
+            || !claim_transfers.is_empty()
+            || moved_fields
+                .iter()
+                .any(|(earlier, _)| earlier == moved_field)
+        {
+            return None;
+        }
 
-    let target = unit_effects.for_machine(*target_machine)?;
-    let [target_parameter] = target.structural_parameters.as_slice() else {
-        return None;
-    };
-    if target_parameter.is_self
-        || target_parameter.multiplicity != Multiplicity::Affine
-        || !target_parameter.qualifications.is_empty()
-        || !target.entry_claims.is_empty()
-        || !target.trivial_affine_locals.is_empty()
-        || !target.body_qualifications.is_empty()
-        || !service_reach_is_empty(facts, target.service_reach)
-        || !service_reach_plan_is_empty(facts, target.contract_service_reach)
-        || !matches!(
-            target.operations.as_slice(),
-            [CheckedUnitEffectOperationPlan::ReturnUnit {
-                trivial_affine_local_discard_ordinals,
-                trivial_affine_discards,
-                ..
-            }] if trivial_affine_local_discard_ordinals.is_empty()
-                && trivial_affine_discards.as_slice() == [0]
-        )
-    {
-        return None;
+        let target = unit_effects.for_machine(*target_machine)?;
+        let [target_parameter] = target.structural_parameters.as_slice() else {
+            return None;
+        };
+        if target_parameter.type_identity != argument.type_identity
+            || target_parameter.is_self
+            || target_parameter.multiplicity != Multiplicity::Affine
+            || !target_parameter.qualifications.is_empty()
+            || !target.entry_claims.is_empty()
+            || !target.trivial_affine_locals.is_empty()
+            || !target.body_qualifications.is_empty()
+            || !service_reach_is_empty(facts, target.service_reach)
+            || !service_reach_plan_is_empty(facts, target.contract_service_reach)
+            || !matches!(
+                target.operations.as_slice(),
+                [CheckedUnitEffectOperationPlan::ReturnUnit {
+                    trivial_affine_local_discard_ordinals,
+                    trivial_affine_discards,
+                    ..
+                }] if trivial_affine_local_discard_ordinals.is_empty()
+                    && trivial_affine_discards.as_slice() == [0]
+            )
+        {
+            return None;
+        }
+        moved_fields.push((moved_field.clone(), argument.type_identity.clone()));
+        operations.push(operation);
     }
 
     let source_shape = shapes.types.get(&checked_parameter.type_identity)?;
@@ -2033,17 +2055,22 @@ fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
-    let mut moved_candidates = fields.iter().filter(|field| field.identity == *moved_field);
-    let moved = moved_candidates.next()?;
-    if moved_candidates.next().is_some()
-        || structural_field_type_identity(moved)? != &argument.type_identity
-    {
-        return None;
+    for (moved_field, moved_type) in &moved_fields {
+        let mut moved_candidates = fields.iter().filter(|field| field.identity == *moved_field);
+        let moved = moved_candidates.next()?;
+        if moved_candidates.next().is_some() || structural_field_type_identity(moved)? != moved_type
+        {
+            return None;
+        }
     }
     let residual_affine_discards = fields
         .iter()
         .rev()
-        .filter(|field| field.identity != *moved_field)
+        .filter(|field| {
+            !moved_fields
+                .iter()
+                .any(|(moved, _)| moved == &field.identity)
+        })
         .map(|field| {
             Some(CheckedUnitPartialAffineDiscardPlan {
                 source_parameter_index: 0,
@@ -2054,6 +2081,9 @@ fn build_partial_affine_unit_cleanup_machine(
             })
         })
         .collect::<Option<Vec<_>>>()?;
+    if residual_affine_discards.is_empty() {
+        return None;
+    }
     if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
         return None;
     }
@@ -2061,6 +2091,11 @@ fn build_partial_affine_unit_cleanup_machine(
     if !service_reach_plan_is_empty(facts, contract.service_reach) {
         return None;
     }
+    operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index: u32::try_from(statements.len()).ok()?,
+        trivial_affine_local_discard_ordinals: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    });
     Some(CheckedPartialAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             machine: machine.symbol,
@@ -2073,14 +2108,7 @@ fn build_partial_affine_unit_cleanup_machine(
             contract_fingerprint: contract.fingerprint,
             contract_service_reach: contract.service_reach.clone(),
             service_reach: state_flow.service_reach.clone(),
-            operations: vec![
-                operation,
-                CheckedUnitEffectOperationPlan::ReturnUnit {
-                    statement_index: 1,
-                    trivial_affine_local_discard_ordinals: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
-                },
-            ],
+            operations,
         },
         residual_affine_discards,
     })
