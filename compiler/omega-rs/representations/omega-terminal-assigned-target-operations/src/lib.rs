@@ -14,7 +14,8 @@ use psi_core::{
     ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm,
+    StructuralParameterDeclaration, StructuralResultDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +36,16 @@ pub struct TerminalAssignedFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedOperation {
     UnitBody(TerminalAssignedUnitBody),
+    ReturnStructuralParameter {
+        call_plan: CallPlan,
+        source: StructuralParameterDeclaration,
+        result: StructuralResultDeclaration,
+        shape: ValueShape,
+        source_placement: ValuePlacement,
+        result_placement: ValuePlacement,
+        psi_edge: EdgeId,
+        returned_claims: Vec<ClaimId>,
+    },
     Crash {
         psi_edge: EdgeId,
         cause: CrashCause,

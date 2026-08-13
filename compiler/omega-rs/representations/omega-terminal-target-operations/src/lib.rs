@@ -10,7 +10,8 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm,
+    StructuralParameterDeclaration, StructuralResultDeclaration, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -189,6 +190,18 @@ pub enum TerminalTargetOperation {
     /// a separate representation so value-less execution cannot fabricate a
     /// pseudo-result.
     UnitBody(TerminalTargetUnitBody),
+    /// Return one exact whole-root structural parameter through the selected
+    /// native ABI while retaining its zero-runtime custody metadata.
+    ReturnStructuralParameter {
+        call_plan: CallPlan,
+        source: StructuralParameterDeclaration,
+        result: StructuralResultDeclaration,
+        shape: ValueShape,
+        source_placement: ValuePlacement,
+        result_placement: ValuePlacement,
+        psi_edge: EdgeId,
+        returned_claims: Vec<ClaimId>,
+    },
     /// End the execution domain at one verified terminal-Psi crash edge.
     Crash {
         psi_edge: EdgeId,

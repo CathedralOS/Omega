@@ -9,12 +9,12 @@
 
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ServiceId, StructuralTypeId, ValueId,
+    PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
+    StructuralArgument, StructuralParameterDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,17 +69,26 @@ pub struct TerminalAbstractResult {
     pub scalar_type: ScalarType,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAbstractFunctionResult {
     Unit,
     Scalar(TerminalAbstractResult),
+    Structural(StructuralResultDeclaration),
 }
 
 impl TerminalAbstractFunctionResult {
-    pub const fn scalar(self) -> Option<TerminalAbstractResult> {
+    pub const fn scalar(&self) -> Option<TerminalAbstractResult> {
         match self {
             Self::Unit => None,
-            Self::Scalar(result) => Some(result),
+            Self::Scalar(result) => Some(*result),
+            Self::Structural(_) => None,
+        }
+    }
+
+    pub const fn structural(&self) -> Option<&StructuralResultDeclaration> {
+        match self {
+            Self::Structural(result) => Some(result),
+            Self::Unit | Self::Scalar(_) => None,
         }
     }
 }
@@ -326,6 +335,16 @@ pub enum TerminalAbstractOperation {
     },
     ReturnUnit {
         psi_edge: EdgeId,
+    },
+    /// Transfer one verified structural root and its complete live claim set
+    /// into the function's declared structural result. Omega realization must
+    /// preserve this custody metadata even though claim identities add no ABI
+    /// fragments of their own.
+    ReturnStructural {
+        psi_edge: EdgeId,
+        source: PlaceId,
+        returned_claims: Vec<ClaimId>,
+        trivial_affine_discards: Vec<PlaceId>,
     },
     /// A verified no-successor terminal. The audit-only site guard and frontier
     /// remain attached at the Omega boundary even though native realization

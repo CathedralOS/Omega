@@ -1,17 +1,24 @@
 use std::num::NonZeroU64;
 
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValuePlacement,
+    ValueShape, evaluate_call_plan,
+};
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord, TerminalProviderExecutionRecord,
+    TerminalPortEffectRecord, TerminalProviderExecutionRecord, TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::TerminalMetadataOnlyPortRealization;
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ProfileDecisionId, ServiceId,
+    ProfileDecisionId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
-use psi_terminal::{CompletionReceipt, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_terminal::{
+    CompletionReceipt, SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralResultDeclaration, TerminalPsiIdentity, VocabularyMarker,
+};
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
 
@@ -20,7 +27,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 3;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 4;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -101,6 +108,7 @@ pub struct TerminalInstallationRecord {
     profile_decision: ProfileDecisionId,
     selected_provider_plans: Vec<SelectedProviderPlanIdentity>,
     functions: Vec<TerminalInstalledFunction>,
+    structural_returns: Vec<TerminalInstalledStructuralReturn>,
     fuel_attribution: Vec<TerminalObjectFuelAttribution>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
@@ -137,6 +145,10 @@ impl TerminalInstallationRecord {
         &self.functions
     }
 
+    pub fn structural_returns(&self) -> &[TerminalInstalledStructuralReturn] {
+        &self.structural_returns
+    }
+
     pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
         &self.fuel_attribution
     }
@@ -159,6 +171,12 @@ pub struct TerminalInstalledFunction {
     pub machine: MachineId,
     pub text_offset: usize,
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInstalledStructuralReturn {
+    pub machine: MachineId,
+    pub returned: TerminalStructuralReturnRecord,
 }
 
 /// Build the canonical installation record for an emitted image.
@@ -237,6 +255,18 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 byte_count: function.byte_count,
             })
             .collect(),
+        structural_returns: image
+            .functions()
+            .iter()
+            .filter_map(|function| {
+                function.structural_return.clone().map(|returned| {
+                    TerminalInstalledStructuralReturn {
+                        machine: function.machine,
+                        returned,
+                    }
+                })
+            })
+            .collect(),
         fuel_attribution: image.fuel_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
@@ -257,6 +287,8 @@ pub fn encode_terminal_installation_record(
         .map_err(|_| TerminalInstallationError::TooManyBoundarySettlements)?;
     let function_count = u32::try_from(record.functions.len())
         .map_err(|_| TerminalInstallationError::TooManyInstalledFunctions)?;
+    let structural_return_count = u32::try_from(record.structural_returns.len())
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturns)?;
     let fuel_attribution_count = u32::try_from(record.fuel_attribution.len())
         .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
     let port_effect_count = u32::try_from(record.port_effects.len())
@@ -345,6 +377,10 @@ pub fn encode_terminal_installation_record(
             u64::try_from(function.byte_count)
                 .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
         );
+    }
+    push_u32(&mut bytes, structural_return_count);
+    for installed in &record.structural_returns {
+        encode_structural_return(&mut bytes, installed)?;
     }
     push_u32(&mut bytes, fuel_attribution_count);
     for installed in &record.fuel_attribution {
@@ -553,6 +589,12 @@ pub fn decode_terminal_installation_record(
                 .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
         });
     }
+    let structural_return_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturns)?;
+    let mut structural_returns = Vec::with_capacity(structural_return_count);
+    for _ in 0..structural_return_count {
+        structural_returns.push(decode_structural_return(&mut reader)?);
+    }
     let fuel_attribution_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
     if fuel_attribution_count > reader.remaining() / 64 {
@@ -743,6 +785,7 @@ pub fn decode_terminal_installation_record(
         profile_decision,
         selected_provider_plans,
         functions,
+        structural_returns,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -778,6 +821,19 @@ pub fn validate_terminal_installation_record(
         || record.fuel_attribution != image.fuel_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
+        || record.structural_returns
+            != image
+                .functions()
+                .iter()
+                .filter_map(|function| {
+                    function.structural_return.clone().map(|returned| {
+                        TerminalInstalledStructuralReturn {
+                            machine: function.machine,
+                            returned,
+                        }
+                    })
+                })
+                .collect::<Vec<_>>()
         || record.functions.len() != image.functions().len()
         || record
             .functions
@@ -858,6 +914,43 @@ fn validate_record_shape(
         .iter()
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
+    let mut previous_return = None;
+    for installed in &record.structural_returns {
+        let function = function_by_machine.get(&installed.machine).ok_or(
+            TerminalInstallationError::StructuralReturnMachineMissing(installed.machine),
+        )?;
+        let returned = &installed.returned;
+        let expected_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(record.target),
+            &CallSignature {
+                parameters: vec![returned.shape],
+                result: Some(returned.shape),
+            },
+        )
+        .map_err(|_| TerminalInstallationError::InvalidStructuralReturn(installed.machine))?;
+        let expected_source = expected_plan.parameters.as_slice();
+        let expected_result = expected_plan.result.as_ref();
+        if previous_return.is_some_and(|previous| previous >= installed.machine)
+            || returned.code_offset != 0
+            || returned.byte_count != function.byte_count
+            || returned.source.position != 0
+            || returned.source.is_self
+            || returned.source.multiplicity != StructuralMultiplicity::Linear
+            || returned.result.multiplicity != StructuralMultiplicity::Linear
+            || returned.source.structural_type != returned.result.structural_type
+            || returned.source.qualifications != returned.result.qualifications
+            || returned.source.place == returned.result.place
+            || returned.shape != ValueShape::integer(8, 8)
+            || expected_source != [returned.source_placement.clone()]
+            || expected_result != Some(&returned.result_placement)
+            || returned.returned_claims.len() != 1
+        {
+            return Err(TerminalInstallationError::InvalidStructuralReturn(
+                installed.machine,
+            ));
+        }
+        previous_return = Some(installed.machine);
+    }
     let mut previous_fuel = None;
     let mut fuel_sites = std::collections::BTreeSet::new();
     for installed in &record.fuel_attribution {
@@ -1019,6 +1112,286 @@ fn fingerprint_image(bytes: &[u8]) -> TerminalImageFingerprint {
     TerminalImageFingerprint(hash(IMAGE_DOMAIN, bytes))
 }
 
+fn encode_structural_return(
+    bytes: &mut Vec<u8>,
+    installed: &TerminalInstalledStructuralReturn,
+) -> Result<(), TerminalInstallationError> {
+    let returned = &installed.returned;
+    push_u64(bytes, installed.machine.get());
+    push_u64(bytes, returned.psi_edge.get());
+    encode_structural_parameter(bytes, &returned.source)?;
+    encode_structural_result(bytes, &returned.result)?;
+    encode_shape(bytes, returned.shape)?;
+    encode_placement(bytes, &returned.source_placement)?;
+    encode_placement(bytes, &returned.result_placement)?;
+    push_u32(
+        bytes,
+        u32::try_from(returned.returned_claims.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnClaims)?,
+    );
+    for claim in &returned.returned_claims {
+        push_u64(bytes, claim.get());
+    }
+    push_u64(
+        bytes,
+        u64::try_from(returned.code_offset)
+            .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(returned.byte_count)
+            .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+    );
+    Ok(())
+}
+
+fn encode_structural_parameter(
+    bytes: &mut Vec<u8>,
+    parameter: &StructuralParameterDeclaration,
+) -> Result<(), TerminalInstallationError> {
+    push_u64(bytes, parameter.place.get());
+    push_u32(bytes, parameter.position);
+    bytes.push(u8::from(parameter.is_self));
+    bytes.push(multiplicity_tag(parameter.multiplicity));
+    bytes.extend_from_slice(&[0; 2]);
+    push_u64(bytes, parameter.structural_type.get());
+    encode_domains(bytes, &parameter.qualifications)
+}
+
+fn encode_structural_result(
+    bytes: &mut Vec<u8>,
+    result: &StructuralResultDeclaration,
+) -> Result<(), TerminalInstallationError> {
+    push_u64(bytes, result.place.get());
+    push_u64(bytes, result.structural_type.get());
+    bytes.push(multiplicity_tag(result.multiplicity));
+    bytes.extend_from_slice(&[0; 3]);
+    encode_domains(bytes, &result.qualifications)
+}
+
+fn encode_domains(
+    bytes: &mut Vec<u8>,
+    domains: &[StructuralDomainId],
+) -> Result<(), TerminalInstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(domains.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralQualifications)?,
+    );
+    for domain in domains {
+        push_u64(bytes, domain.get());
+    }
+    Ok(())
+}
+
+fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) -> Result<(), TerminalInstallationError> {
+    if shape.class != ValueClass::Integer {
+        return Err(TerminalInstallationError::UnsupportedStructuralReturnShape);
+    }
+    bytes.push(1);
+    bytes.push(0);
+    push_u16(bytes, shape.byte_size);
+    push_u16(bytes, shape.alignment);
+    push_u16(bytes, 0);
+    Ok(())
+}
+
+fn encode_placement(
+    bytes: &mut Vec<u8>,
+    placement: &ValuePlacement,
+) -> Result<(), TerminalInstallationError> {
+    encode_shape(bytes, placement.shape)?;
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return Err(TerminalInstallationError::UnsupportedStructuralReturnPlacement);
+    };
+    bytes.push(register_tag(*register)?);
+    bytes.push(0);
+    push_u16(bytes, *value_byte_offset);
+    push_u16(bytes, *byte_size);
+    push_u16(bytes, 0);
+    Ok(())
+}
+
+fn decode_structural_return(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalInstalledStructuralReturn, TerminalInstallationError> {
+    let machine =
+        MachineId::new(reader.u64()?).ok_or(TerminalInstallationError::ZeroFunctionIdentity)?;
+    let psi_edge = EdgeId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("edge"),
+    )?;
+    let source = decode_structural_parameter(reader)?;
+    let result = decode_structural_result(reader)?;
+    let shape = decode_shape(reader)?;
+    let source_placement = decode_placement(reader)?;
+    let result_placement = decode_placement(reader)?;
+    let claim_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnClaims)?;
+    let mut returned_claims = Vec::with_capacity(claim_count);
+    for _ in 0..claim_count {
+        returned_claims.push(ClaimId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("claim"),
+        )?);
+    }
+    Ok(TerminalInstalledStructuralReturn {
+        machine,
+        returned: TerminalStructuralReturnRecord {
+            psi_edge,
+            source,
+            result,
+            shape,
+            source_placement,
+            result_placement,
+            returned_claims,
+            code_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+            byte_count: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
+        },
+    })
+}
+
+fn decode_structural_parameter(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralParameterDeclaration, TerminalInstallationError> {
+    let place = PlaceId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("source place"),
+    )?;
+    let position = reader.u32()?;
+    let is_self = decode_boolean(reader.u8()?)?;
+    let multiplicity = decode_multiplicity(reader.u8()?)?;
+    if reader.u16()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("source type"),
+    )?;
+    Ok(StructuralParameterDeclaration {
+        place,
+        position,
+        is_self,
+        structural_type,
+        multiplicity,
+        qualifications: decode_domains(reader)?,
+    })
+}
+
+fn decode_structural_result(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralResultDeclaration, TerminalInstallationError> {
+    let place = PlaceId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("result place"),
+    )?;
+    let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("result type"),
+    )?;
+    let multiplicity = decode_multiplicity(reader.u8()?)?;
+    if reader.take(3)? != [0; 3] {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    Ok(StructuralResultDeclaration {
+        place,
+        structural_type,
+        multiplicity,
+        qualifications: decode_domains(reader)?,
+    })
+}
+
+fn decode_domains(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralDomainId>, TerminalInstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralQualifications)?;
+    let mut domains = Vec::with_capacity(count);
+    for _ in 0..count {
+        domains.push(StructuralDomainId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("domain"),
+        )?);
+    }
+    Ok(domains)
+}
+
+fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, TerminalInstallationError> {
+    if reader.u8()? != 1 || reader.u8()? != 0 {
+        return Err(TerminalInstallationError::UnsupportedStructuralReturnShape);
+    }
+    let byte_size = reader.u16()?;
+    let alignment = reader.u16()?;
+    if reader.u16()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    Ok(ValueShape::integer(byte_size, alignment))
+}
+
+fn decode_placement(reader: &mut Reader<'_>) -> Result<ValuePlacement, TerminalInstallationError> {
+    let shape = decode_shape(reader)?;
+    let register = decode_register(reader.u8()?)?;
+    if reader.u8()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    let value_byte_offset = reader.u16()?;
+    let byte_size = reader.u16()?;
+    if reader.u16()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    Ok(ValuePlacement {
+        shape,
+        locations: vec![ValueLocation::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        }],
+    })
+}
+
+fn multiplicity_tag(value: StructuralMultiplicity) -> u8 {
+    match value {
+        StructuralMultiplicity::Unrestricted => 1,
+        StructuralMultiplicity::Affine => 2,
+        StructuralMultiplicity::Linear => 3,
+    }
+}
+
+fn decode_multiplicity(value: u8) -> Result<StructuralMultiplicity, TerminalInstallationError> {
+    match value {
+        1 => Ok(StructuralMultiplicity::Unrestricted),
+        2 => Ok(StructuralMultiplicity::Affine),
+        3 => Ok(StructuralMultiplicity::Linear),
+        _ => Err(TerminalInstallationError::InvalidStructuralMultiplicity(
+            value,
+        )),
+    }
+}
+
+fn register_tag(register: MachineRegister) -> Result<u8, TerminalInstallationError> {
+    match register {
+        MachineRegister::X86Rax => Ok(1),
+        MachineRegister::X86Rcx => Ok(2),
+        MachineRegister::X86Rdi => Ok(3),
+        MachineRegister::Aarch64X(0) => Ok(4),
+        _ => Err(TerminalInstallationError::UnsupportedStructuralReturnRegister(register)),
+    }
+}
+
+fn decode_register(value: u8) -> Result<MachineRegister, TerminalInstallationError> {
+    match value {
+        1 => Ok(MachineRegister::X86Rax),
+        2 => Ok(MachineRegister::X86Rcx),
+        3 => Ok(MachineRegister::X86Rdi),
+        4 => Ok(MachineRegister::Aarch64X(0)),
+        _ => Err(TerminalInstallationError::InvalidStructuralReturnRegister(
+            value,
+        )),
+    }
+}
+
 fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(domain);
@@ -1163,6 +1536,9 @@ pub enum TerminalInstallationError {
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
+    TooManyStructuralReturns,
+    TooManyStructuralReturnClaims,
+    TooManyStructuralQualifications,
     TooManyFuelAttributions,
     TooManyPortEffects,
     TooManyBoundarySettlements,
@@ -1170,9 +1546,16 @@ pub enum TerminalInstallationError {
     TooManyCompletionReceipts,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
+    StructuralReturnOffsetNotRepresentable,
     FuelAttributionOffsetNotRepresentable,
     PortEffectOffsetNotRepresentable,
     ZeroFunctionIdentity,
+    ZeroStructuralReturnIdentity(&'static str),
+    InvalidStructuralMultiplicity(u8),
+    UnsupportedStructuralReturnShape,
+    UnsupportedStructuralReturnPlacement,
+    UnsupportedStructuralReturnRegister(MachineRegister),
+    InvalidStructuralReturnRegister(u8),
     ZeroFuelScheduleIdentity,
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),
@@ -1181,6 +1564,8 @@ pub enum TerminalInstallationError {
     ZeroProviderExecutionEvidence,
     NoInstalledFunctions,
     NonCanonicalInstalledFunctions,
+    StructuralReturnMachineMissing(MachineId),
+    InvalidStructuralReturn(MachineId),
     FuelAttributionMachineMissing(MachineId),
     NonCanonicalFuelAttributionOrder,
     DuplicateFuelAttributionSite {

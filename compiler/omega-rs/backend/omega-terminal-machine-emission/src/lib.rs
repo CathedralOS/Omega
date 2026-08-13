@@ -23,8 +23,8 @@ use omega_terminal_machine_code::{
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
     TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
+    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -60,6 +60,7 @@ fn emit_function(
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
+    let mut structural_return = None;
     let mut unit_stack = None;
     let mut scalar_stack_eligible = false;
     let mut scalar_control_flow = TerminalScalarControlFlowEvidence::Linear;
@@ -72,6 +73,43 @@ fn emit_function(
             boundary_settlements = emitted.boundary_settlements;
             unit_stack = Some(emitted.stack);
             emitted.bytes
+        }
+        TerminalAssignedOperation::ReturnStructuralParameter {
+            source,
+            result,
+            shape,
+            source_placement,
+            result_placement,
+            psi_edge,
+            returned_claims,
+            ..
+        } => {
+            let bytes = emit_structural_parameter_return(
+                source.place,
+                source_placement,
+                result_placement,
+                target.architecture,
+            )?;
+            fuel_attribution.push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Edge(*psi_edge),
+                units: 1,
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: bytes.len(),
+            });
+            structural_return = Some(TerminalStructuralReturnRecord {
+                psi_edge: *psi_edge,
+                source: source.clone(),
+                result: result.clone(),
+                shape: *shape,
+                source_placement: source_placement.clone(),
+                result_placement: result_placement.clone(),
+                returned_claims: returned_claims.clone(),
+                code_offset: 0,
+                byte_count: bytes.len(),
+            });
+            bytes
         }
         // The verified cause remains in the assigned operation and terminal
         // artifact identity. Both closed causes realize as the target's
@@ -340,7 +378,71 @@ fn emit_function(
         fuel_attribution,
         port_effects,
         boundary_settlements,
+        structural_return,
     })
+}
+
+fn emit_structural_parameter_return(
+    source: psi_core::PlaceId,
+    source_placement: &ValuePlacement,
+    result_placement: &ValuePlacement,
+    architecture: Architecture,
+) -> Result<Vec<u8>, EmissionError> {
+    let [
+        ValueLocation::Register {
+            register: source_register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = source_placement.locations.as_slice()
+    else {
+        return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+    };
+    let [
+        ValueLocation::Register {
+            register: result_register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = result_placement.locations.as_slice()
+    else {
+        return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+    };
+    match architecture {
+        Architecture::X86_64 => {
+            let source_code = x86_unit_register(*source_register)?;
+            let result_code = x86_unit_register(*result_register)?;
+            if result_code != 0 {
+                return Err(EmissionError::UnsupportedStructuralResultRegister(
+                    *result_register,
+                ));
+            }
+            Ok(vec![
+                0x48 | (((source_code >> 3) & 1) << 2),
+                0x89,
+                0xc0 | ((source_code & 7) << 3),
+                0xc3,
+            ])
+        }
+        Architecture::Aarch64 => {
+            let source_code = aarch64_unit_register(*source_register)?;
+            let result_code = aarch64_unit_register(*result_register)?;
+            if result_code != 0 {
+                return Err(EmissionError::UnsupportedStructuralResultRegister(
+                    *result_register,
+                ));
+            }
+            let mut instructions = Vec::new();
+            if source_code != 0 {
+                instructions.push(0xaa00_03e0 | (u32::from(source_code) << 16));
+            }
+            instructions.push(0xd65f_03c0);
+            Ok(instructions
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect())
+        }
+    }
 }
 
 struct UnitEmission {
@@ -4892,6 +4994,8 @@ pub enum EmissionError {
     MissingUnitParameterHome(psi_core::PlaceId),
     UnitParameterHomeMismatch(psi_core::PlaceId),
     UnsupportedUnitRegister(MachineRegister),
+    UnsupportedStructuralReturnPlacement(psi_core::PlaceId),
+    UnsupportedStructuralResultRegister(MachineRegister),
     PortWriteUnsupportedOnArchitecture(Architecture),
     IntegerWidthNotNativelySupported {
         value: ValueId,

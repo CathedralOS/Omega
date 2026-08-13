@@ -90,8 +90,9 @@ whole-parameter result: the structural result signature and `ReturnStructural`
 edge carry one exact live linear value and its ordered whole-root claim set.
 The verifier performs the transfer only on that exit; content equality is not
 an entry axiom. Checked source produces the exact one-state, one-parameter
-passthrough; structural calls, projections, and native ABI realization remain
-later slices.
+passthrough. Native realization covers its exact one-fragment root form and
+retains claim identity as zero-runtime typed metadata; structural calls,
+projections, and wider values remain later slices.
 Cancellation and failure paths obey the same conservation law. A `try_*`
 operation that has not completed must therefore return the live linear value
 in its pending/failure case.

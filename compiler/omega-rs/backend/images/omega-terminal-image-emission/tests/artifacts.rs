@@ -1117,6 +1117,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                structural_return: None,
             }],
         };
         let artifact = build_terminal_object_artifact(&plan).expect("artifact");
@@ -1188,7 +1189,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "f1a637482775555fd523fdd5386ca8b09cc4a66cd39adaa3090d5d10e1798b14"
+        "e66bc8e0a659605051efec707cbab2eee6d5eace293aae709ffcbbb92f584b22"
     );
 
     let mut changed_plan = plan;
@@ -1211,10 +1212,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&4_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&5_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(4))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(5))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -1321,6 +1322,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 operation_ordinal: 1,
                 code_offset: 27,
             }],
+            structural_return: None,
         }],
     };
     let artifact = build_terminal_object_artifact(&plan).expect("effect artifact");
@@ -1393,6 +1395,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                structural_return: None,
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
@@ -1407,6 +1410,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                structural_return: None,
             },
         ],
     }
@@ -1439,6 +1443,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                structural_return: None,
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
@@ -1459,6 +1464,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                structural_return: None,
             },
         ],
     }
