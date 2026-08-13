@@ -194,8 +194,11 @@ an unconditional prefix, and one arm may contain a second decision; a third
 conditional state remains fenced.
 Unconditional jumps and conditional
 arms may forward direct scalar inputs into typed successor parameters; terminal
-edge semantics materialize those arguments before cleanup. Computed guards or
-successor values and wider conditional graphs remain fenced. The complete
+edge semantics materialize those arguments before cleanup. One bounded diamond
+may reconverge when both predecessors reconstruct the same ordered custody
+frontier; scalar values bind through the join's typed parameters. Divergent
+frontiers, wider joins, and cycles reject. Computed guards or successor values
+and wider conditional graphs remain fenced. The complete
 `EdgeCleanupPlan`, contextual
 cleanup contracts, repeated-cycle composition, and the retained whole-edge
 conservation witness remain CML4 work.
