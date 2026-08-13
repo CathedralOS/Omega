@@ -618,7 +618,8 @@ fn encode_typed_owned_value(
                 PrimitiveType::U16 => u16::try_from(*value).is_ok(),
                 PrimitiveType::I32 => i32::try_from(*value).is_ok(),
                 PrimitiveType::U32 => u32::try_from(*value).is_ok(),
-                PrimitiveType::I64 | PrimitiveType::U64 => true,
+                PrimitiveType::I64 => true,
+                PrimitiveType::U64 => *value >= 0,
                 _ => false,
             };
             let in_declared_range =
