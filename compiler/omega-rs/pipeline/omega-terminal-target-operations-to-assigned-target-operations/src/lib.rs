@@ -122,10 +122,12 @@ fn assign_function(
                         psi_edge,
                         trivial_affine_discards,
                         residual_affine_discards,
+                        nominal_affine_cleanup,
                     } => TerminalAssignedUnitOperation::Return {
                         psi_edge: *psi_edge,
                         trivial_affine_discards: trivial_affine_discards.clone(),
                         residual_affine_discards: residual_affine_discards.clone(),
+                        nominal_affine_cleanup: *nominal_affine_cleanup,
                     },
                 })
                 .collect();
@@ -420,6 +422,7 @@ fn assign_function(
     };
     Ok(TerminalAssignedFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance: function.provenance.clone(),
         operation,
     })
@@ -2272,6 +2275,7 @@ mod tests {
             entry: MachineId::new(1).unwrap(),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).unwrap(),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::UnitBody(
                     omega_terminal_target_operations::TerminalTargetUnitBody {
@@ -2325,6 +2329,7 @@ mod tests {
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TerminalTargetOperation::ReturnIntegerExpression {
                     psi_edge: EdgeId::new(1).expect("edge"),

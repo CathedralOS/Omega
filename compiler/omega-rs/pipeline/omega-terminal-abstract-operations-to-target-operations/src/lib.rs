@@ -1340,6 +1340,7 @@ fn lower_function(
 
     Ok(TerminalTargetFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance,
         operation: returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?,
     })
@@ -1510,6 +1511,7 @@ fn lower_structural_return_function(
     require_one_direct_structural_fragment(function.machine, result_placement)?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance: TerminalPsiProvenance {
             operations: trivial_affine_locals
                 .iter()
@@ -1927,6 +1929,7 @@ fn lower_unit_function(
                 psi_edge,
                 trivial_affine_discards,
                 residual_affine_discards,
+                nominal_affine_cleanup,
             } => {
                 let local_places = operations
                     .iter()
@@ -1953,7 +1956,9 @@ fn lower_unit_function(
                             .map(|parameter| parameter.place),
                     )
                     .collect::<Vec<_>>();
-                if residual_affine_discards.is_empty() && trivial_affine_discards != &expected_roots
+                if residual_affine_discards.is_empty()
+                    && nominal_affine_cleanup.is_none()
+                    && trivial_affine_discards != &expected_roots
                 {
                     return Err(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
@@ -1989,10 +1994,61 @@ fn lower_unit_function(
                         ));
                     }
                 }
+                if let Some(cleanup) = nominal_affine_cleanup {
+                    let [parameter] = function.structural_parameters.as_slice() else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    if !local_places.is_empty()
+                        || !trivial_affine_discards.is_empty()
+                        || !residual_affine_discards.is_empty()
+                        || parameter.place != cleanup.place
+                        || parameter.structural_type != cleanup.structural_type
+                        || parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                    {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    }
+                    let Some(cleanup_function) = functions.get(&cleanup.cleanup_machine).copied()
+                    else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    if cleanup_function.attachment != Some(cleanup.structural_type)
+                        || cleanup_function.result != TerminalAbstractFunctionResult::Unit
+                        || !cleanup_function.parameters.is_empty()
+                        || !cleanup_function.structural_parameters.is_empty()
+                        || !cleanup_function.entry_claims.is_empty()
+                        || !cleanup_function.published_service_ceiling.is_empty()
+                        || cleanup_function.block_entries.as_slice()
+                            != [
+                                omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                                    block: cleanup_function.entry,
+                                    operation_offset: 0,
+                                },
+                            ]
+                        || !matches!(cleanup_function.operations.as_slice(),
+                            [TerminalAbstractOperation::ReturnUnit {
+                                trivial_affine_discards,
+                                residual_affine_discards,
+                                nominal_affine_cleanup: None,
+                                ..
+                            }] if trivial_affine_discards.is_empty()
+                                && residual_affine_discards.is_empty())
+                    {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    }
+                }
                 operations.push(TerminalTargetUnitOperation::Return {
                     psi_edge: *psi_edge,
                     trivial_affine_discards: trivial_affine_discards.clone(),
                     residual_affine_discards: residual_affine_discards.clone(),
+                    nominal_affine_cleanup: *nominal_affine_cleanup,
                 });
                 provenance.edges.push(*psi_edge);
                 returned = true;
@@ -2043,6 +2099,7 @@ fn lower_unit_function(
     }
     Ok(TerminalTargetFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance,
         operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
             call_plan,
@@ -2072,7 +2129,7 @@ fn structural_shape(
         match &declaration.shape {
             StructuralTypeShape::Record { fields } => {
                 if fields.is_empty() {
-                    return Err(LoweringError::EmptyStructuralType(structural_type));
+                    return Ok(ValueShape::integer(0, 1));
                 }
                 let mut byte_size = 0_u32;
                 let mut alignment = 1_u16;
@@ -2273,6 +2330,7 @@ fn lower_integer_conditional(
     )?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance: conditional_provenance(function, lowered.operations, lowered.edges),
         operation: target_operation_from_integer_control(lowered.control, result_type),
     })
@@ -2294,6 +2352,7 @@ fn lower_boolean_conditional(
     )?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
+        attachment: function.attachment,
         provenance: conditional_provenance(function, lowered.operations, lowered.edges),
         operation: target_operation_from_boolean_control(lowered.control),
     })
@@ -4658,6 +4717,7 @@ mod tests {
                             psi_edge: EdgeId::new(1).unwrap(),
                             trivial_affine_discards: Vec::new(),
                             residual_affine_discards: Vec::new(),
+                            nominal_affine_cleanup: None,
                         },
                     ],
                 ),
@@ -4668,6 +4728,7 @@ mod tests {
                         psi_edge: EdgeId::new(2).unwrap(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
+                        nominal_affine_cleanup: None,
                     }],
                 ),
             ],
@@ -4935,6 +4996,7 @@ mod tests {
                         psi_edge: EdgeId::new(1).unwrap(),
                         trivial_affine_discards: vec![argument_place],
                         residual_affine_discards: Vec::new(),
+                        nominal_affine_cleanup: None,
                     },
                 ],
             }],

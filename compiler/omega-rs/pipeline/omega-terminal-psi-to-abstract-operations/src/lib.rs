@@ -711,6 +711,7 @@ fn lower_machine(
                     psi_edge: *edge,
                     trivial_affine_discards: trivial_affine_discards.clone(),
                     residual_affine_discards: Vec::new(),
+                    nominal_affine_cleanup: None,
                 });
             }
             Terminator::ReturnUnitPartialAffine {
@@ -736,6 +737,21 @@ fn lower_machine(
                     psi_edge: *edge,
                     trivial_affine_discards: trivial_affine_discards.clone(),
                     residual_affine_discards: residual_affine_discards.clone(),
+                    nominal_affine_cleanup: None,
+                });
+            }
+            Terminator::ReturnUnitNominalAffine { edge, cleanup } => {
+                if result.is_some() || !lowered_unit_affine_locals.is_empty() {
+                    return Err(LoweringError::UnsupportedStructuralReturn {
+                        machine: machine.id,
+                        edge: *edge,
+                    });
+                }
+                operations.push(TerminalAbstractOperation::ReturnUnit {
+                    psi_edge: *edge,
+                    trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
+                    nominal_affine_cleanup: Some(*cleanup),
                 });
             }
             Terminator::ReturnStructural { edge, .. } => {

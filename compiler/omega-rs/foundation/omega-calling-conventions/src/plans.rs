@@ -545,13 +545,47 @@ pub fn evaluate_call_plan(
     signature: &CallSignature,
 ) -> Result<CallPlan, PlanDiagnostic> {
     validate_signature_shapes(policy, signature)?;
-    let mut plan = match policy {
-        CallingPolicy::MicrosoftX64 => evaluate_microsoft_x64(signature)?,
-        CallingPolicy::SystemVAMD64 => evaluate_system_v_amd64(signature)?,
-        CallingPolicy::Aapcs64 => evaluate_aapcs64(signature)?,
-        CallingPolicy::LinuxSyscallX86_64 => evaluate_linux_syscall_x86_64(signature)?,
-        CallingPolicy::LinuxSyscallAarch64 => evaluate_linux_syscall_aarch64(signature)?,
+    let runtime_signature = CallSignature {
+        parameters: signature
+            .parameters
+            .iter()
+            .copied()
+            .filter(|shape| shape.byte_size != 0)
+            .collect(),
+        result: signature.result.filter(|shape| shape.byte_size != 0),
     };
+    let mut plan = match policy {
+        CallingPolicy::MicrosoftX64 => evaluate_microsoft_x64(&runtime_signature)?,
+        CallingPolicy::SystemVAMD64 => evaluate_system_v_amd64(&runtime_signature)?,
+        CallingPolicy::Aapcs64 => evaluate_aapcs64(&runtime_signature)?,
+        CallingPolicy::LinuxSyscallX86_64 => evaluate_linux_syscall_x86_64(&runtime_signature)?,
+        CallingPolicy::LinuxSyscallAarch64 => evaluate_linux_syscall_aarch64(&runtime_signature)?,
+    };
+    let mut runtime_parameters = plan.parameters.into_iter();
+    plan.parameters = signature
+        .parameters
+        .iter()
+        .copied()
+        .map(|shape| {
+            if shape.byte_size == 0 {
+                ValuePlacement {
+                    shape,
+                    locations: Vec::new(),
+                }
+            } else {
+                runtime_parameters
+                    .next()
+                    .expect("runtime call plan covers every nonempty parameter")
+            }
+        })
+        .collect();
+    debug_assert!(runtime_parameters.next().is_none());
+    if signature.result.is_some_and(|shape| shape.byte_size == 0) {
+        plan.result = Some(ValuePlacement {
+            shape: signature.result.expect("zero-sized result exists"),
+            locations: Vec::new(),
+        });
+    }
     plan.policy = policy;
     validate_call_plan(&plan, signature)?;
     Ok(plan)
@@ -882,9 +916,14 @@ fn validate_signature_shapes(
     signature: &CallSignature,
 ) -> Result<(), PlanDiagnostic> {
     for shape in signature.parameters.iter().chain(signature.result.iter()) {
-        if shape.byte_size == 0 || shape.alignment == 0 || !shape.alignment.is_power_of_two() {
+        if shape.alignment == 0 || !shape.alignment.is_power_of_two() {
             return Err(PlanDiagnostic(
-                "call-signature values need nonzero size and power-of-two alignment".into(),
+                "call-signature values need power-of-two alignment".into(),
+            ));
+        }
+        if shape.byte_size == 0 && (shape.class != ValueClass::Integer || shape.alignment != 1) {
+            return Err(PlanDiagnostic(
+                "zero-sized call values must use the canonical integer-class shape".into(),
             ));
         }
         match shape.class {
@@ -2177,6 +2216,41 @@ mod tests {
             }
         ));
         assert_eq!(plan.shadow_bytes, 32);
+    }
+
+    #[test]
+    fn zero_sized_parameters_retain_identity_without_consuming_abi_locations() {
+        let empty = ValueShape::integer(0, 1);
+        let scalar = ValueShape::integer(8, 8);
+        for policy in [
+            CallingPolicy::MicrosoftX64,
+            CallingPolicy::SystemVAMD64,
+            CallingPolicy::Aapcs64,
+        ] {
+            let plan = evaluate_call_plan(
+                policy,
+                &CallSignature {
+                    parameters: vec![empty, scalar, empty],
+                    result: None,
+                },
+            )
+            .expect("canonical empty values are erased from ABI placement");
+            assert_eq!(plan.parameters.len(), 3);
+            assert_eq!(plan.parameters[0].shape, empty);
+            assert!(plan.parameters[0].locations.is_empty());
+            assert_eq!(plan.parameters[1].shape, scalar);
+            assert!(!plan.parameters[1].locations.is_empty());
+            assert_eq!(plan.parameters[2].shape, empty);
+            assert!(plan.parameters[2].locations.is_empty());
+            validate_call_plan(
+                &plan,
+                &CallSignature {
+                    parameters: vec![empty, scalar, empty],
+                    result: None,
+                },
+            )
+            .unwrap();
+        }
     }
 
     #[test]

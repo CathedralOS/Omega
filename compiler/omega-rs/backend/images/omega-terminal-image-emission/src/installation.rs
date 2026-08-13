@@ -29,7 +29,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 12;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 13;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -176,6 +176,7 @@ impl TerminalInstallationRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalInstalledFunction {
     pub machine: MachineId,
+    pub attachment: Option<StructuralTypeId>,
     pub text_offset: usize,
     pub byte_count: usize,
     pub unit_body: bool,
@@ -275,6 +276,7 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 unit_parameters: function.unit_parameters.clone(),
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
+                attachment: function.attachment,
             })
             .collect(),
         structural_returns: image
@@ -404,6 +406,14 @@ pub fn encode_terminal_installation_record(
     push_u32(&mut bytes, function_count);
     for function in &record.functions {
         push_u64(&mut bytes, function.machine.get());
+        match function.attachment {
+            Some(attachment) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 7]);
+                push_u64(&mut bytes, attachment.get());
+            }
+            None => bytes.extend_from_slice(&[0; 16]),
+        }
         push_u64(
             &mut bytes,
             u64::try_from(function.text_offset)
@@ -699,6 +709,23 @@ pub fn decode_terminal_installation_record(
     for _ in 0..function_count {
         let machine =
             MachineId::new(reader.u64()?).ok_or(TerminalInstallationError::ZeroFunctionIdentity)?;
+        let attachment = match reader.u8()? {
+            0 => {
+                if reader.take(7)? != [0; 7] || reader.u64()? != 0 {
+                    return Err(TerminalInstallationError::NonzeroReservedField);
+                }
+                None
+            }
+            1 => {
+                if reader.take(7)? != [0; 7] {
+                    return Err(TerminalInstallationError::NonzeroReservedField);
+                }
+                Some(StructuralTypeId::new(reader.u64()?).ok_or(
+                    TerminalInstallationError::ZeroStructuralReturnIdentity("function attachment"),
+                )?)
+            }
+            tag => return Err(TerminalInstallationError::InvalidPresenceFlag(tag)),
+        };
         let text_offset = usize::try_from(reader.u64()?)
             .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
         let byte_count = usize::try_from(reader.u64()?)
@@ -763,6 +790,7 @@ pub fn decode_terminal_installation_record(
         }
         functions.push(TerminalInstalledFunction {
             machine,
+            attachment,
             text_offset,
             byte_count,
             unit_body,
@@ -1097,6 +1125,7 @@ pub fn validate_terminal_installation_record(
             .zip(image.functions())
             .any(|(installed, emitted)| {
                 installed.machine != emitted.machine
+                    || installed.attachment != emitted.attachment
                     || installed.text_offset != emitted.text_offset
                     || installed.byte_count != emitted.byte_count
                     || installed.unit_body != emitted.unit_stack.is_some()
@@ -1157,6 +1186,11 @@ fn validate_record_shape(
     }
     let mut expected_text_offset = 0_usize;
     let mut previous_function = None;
+    let attachments = record
+        .functions
+        .iter()
+        .map(|function| (function.machine, function.attachment))
+        .collect::<std::collections::BTreeMap<_, _>>();
     for function in &record.functions {
         if function.byte_count == 0
             || function.text_offset != expected_text_offset
@@ -1240,9 +1274,26 @@ fn validate_record_shape(
                     .collect::<std::collections::BTreeSet<_>>()
                     .len()
                     != cleanup.discards.len()
-                || match cleanup.residual_discards.as_slice() {
-                    [] => parameter_discards != expected_parameter_discards,
-                    [residual] => {
+                || match (
+                    cleanup.nominal_cleanup,
+                    cleanup.residual_discards.as_slice(),
+                ) {
+                    (Some(nominal), []) => {
+                        !cleanup.locals.is_empty()
+                            || !cleanup.discards.is_empty()
+                            || function.unit_parameter_homes.len() != 1
+                            || function.unit_parameter_homes[0].place != nominal.place
+                            || function.unit_parameter_homes[0].structural_type
+                                != nominal.structural_type
+                            || function.unit_parameter_homes[0].multiplicity
+                                != StructuralMultiplicity::Affine
+                            || function.unit_parameter_homes[0].shape != ValueShape::integer(0, 1)
+                            || !function.unit_parameter_homes[0].source.locations.is_empty()
+                            || attachments.get(&nominal.cleanup_machine)
+                                != Some(&Some(nominal.structural_type))
+                    }
+                    (None, []) => parameter_discards != expected_parameter_discards,
+                    (None, [residual]) => {
                         let parameter_type = function
                             .unit_parameters
                             .iter()
@@ -1863,6 +1914,15 @@ fn encode_unit_affine_cleanup(
         )?;
         push_u64(bytes, discard.structural_type.get());
     }
+    match cleanup.nominal_cleanup {
+        Some(nominal) => {
+            bytes.push(1);
+            push_u64(bytes, nominal.place.get());
+            push_u64(bytes, nominal.structural_type.get());
+            push_u64(bytes, nominal.cleanup_machine.get());
+        }
+        None => bytes.push(0),
+    }
     push_u64(
         bytes,
         u64::try_from(cleanup.code_offset)
@@ -2150,6 +2210,12 @@ fn decode_direct_placement(
     let shape = decode_shape(reader)?;
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::UnsupportedInternalUnitCallPlacement)?;
+    if count == 0 && shape.byte_size == 0 {
+        return Ok(ValuePlacement {
+            shape,
+            locations: Vec::new(),
+        });
+    }
     if count == 0 || count > reader.remaining() / 6 {
         return Err(TerminalInstallationError::UnsupportedInternalUnitCallPlacement);
     }
@@ -2461,12 +2527,34 @@ fn decode_unit_affine_cleanup(
             structural_type,
         });
     }
+    let nominal_cleanup = match reader.u8()? {
+        0 => None,
+        1 => Some(psi_terminal::NominalAffineCleanup {
+            place: PlaceId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity(
+                    "nominal Unit cleanup place",
+                ),
+            )?,
+            structural_type: StructuralTypeId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity(
+                    "nominal Unit cleanup type",
+                ),
+            )?,
+            cleanup_machine: MachineId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroStructuralReturnIdentity(
+                    "nominal Unit cleanup machine",
+                ),
+            )?,
+        }),
+        tag => return Err(TerminalInstallationError::InvalidPresenceFlag(tag)),
+    };
     Ok(
         omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
             psi_edge,
             locals,
             discards,
             residual_discards,
+            nominal_cleanup,
             code_offset: usize::try_from(reader.u64()?)
                 .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
             byte_count: usize::try_from(reader.u64()?)
@@ -2821,6 +2909,7 @@ pub enum TerminalInstallationError {
     InvalidArchitectureTag(u8),
     InvalidObjectFormatTag(u8),
     InvalidBoolean(u8),
+    InvalidPresenceFlag(u8),
     NonzeroReservedField,
     UnexpectedEnd,
     TrailingBytes(usize),

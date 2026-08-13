@@ -10,10 +10,10 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralAffineDiscard,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, NominalAffineCleanup,
+    StructuralAffineDiscard, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -29,6 +29,8 @@ pub struct TerminalTargetOperationPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetFunction {
     pub machine: MachineId,
+    /// Exact terminal attachment retained for artifact-side nominal cleanup validation.
+    pub attachment: Option<StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub operation: TerminalTargetOperation,
 }
@@ -199,6 +201,7 @@ pub enum TerminalTargetUnitOperation {
         psi_edge: EdgeId,
         trivial_affine_discards: Vec<PlaceId>,
         residual_affine_discards: Vec<StructuralAffineDiscard>,
+        nominal_affine_cleanup: Option<NominalAffineCleanup>,
     },
 }
 

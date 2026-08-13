@@ -129,6 +129,7 @@ impl omega_external_roots::TerminalObjectEvidence for TerminalObjectArtifact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalObjectFunction {
     pub machine: MachineId,
+    pub attachment: Option<psi_core::StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
@@ -271,6 +272,11 @@ pub fn build_terminal_object_artifact(
     let mut text_size = 0usize;
     let mut validated_unit_stacks = std::collections::BTreeMap::new();
     let mut validated_scalar_stacks = std::collections::BTreeMap::new();
+    let attachments = plan
+        .functions
+        .iter()
+        .map(|function| (function.machine, function.attachment))
+        .collect::<std::collections::BTreeMap<_, _>>();
     for function in &plan.functions {
         if let Some(previous) = previous
             && previous >= function.machine
@@ -466,6 +472,7 @@ pub fn build_terminal_object_artifact(
                 &function.fuel_attribution,
                 &function.unit_parameter_homes,
                 &function.internal_unit_calls,
+                &attachments,
                 cleanup,
             )?,
             (None, None) => {}
@@ -748,6 +755,7 @@ pub fn build_terminal_object_artifact(
         }
         functions.push(TerminalObjectFunction {
             machine: function.machine,
+            attachment: function.attachment,
             provenance: function.provenance.clone(),
             symbol,
             text_offset,
@@ -825,6 +833,7 @@ fn validate_unit_affine_cleanup(
     fuel: &[TerminalNativeFuelAttribution],
     parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
     internal_unit_calls: &[omega_terminal_machine_code::TerminalInternalUnitCallRecord],
+    attachments: &std::collections::BTreeMap<MachineId, Option<psi_core::StructuralTypeId>>,
     cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
@@ -892,9 +901,26 @@ fn validate_unit_affine_cleanup(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != cleanup.discards.len()
-        || match cleanup.residual_discards.as_slice() {
-            [] => suffix != expected_parameter_suffix,
-            [residual] => {
+        || match (
+            cleanup.nominal_cleanup,
+            cleanup.residual_discards.as_slice(),
+        ) {
+            (Some(nominal), []) => {
+                !cleanup.locals.is_empty()
+                    || !cleanup.discards.is_empty()
+                    || parameter_homes.len() != 1
+                    || parameter_homes[0].place != nominal.place
+                    || parameter_homes[0].structural_type != nominal.structural_type
+                    || parameter_homes[0].multiplicity
+                        != psi_terminal::StructuralMultiplicity::Affine
+                    || parameter_homes[0].shape
+                        != omega_calling_conventions::ValueShape::integer(0, 1)
+                    || !parameter_homes[0].source.locations.is_empty()
+                    || attachments.get(&nominal.cleanup_machine)
+                        != Some(&Some(nominal.structural_type))
+            }
+            (None, []) => suffix != expected_parameter_suffix,
+            (None, [residual]) => {
                 let parameter_type = parameter_homes
                     .iter()
                     .find(|parameter| parameter.place == residual.place)
