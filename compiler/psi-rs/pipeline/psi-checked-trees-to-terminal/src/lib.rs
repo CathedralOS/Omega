@@ -1797,20 +1797,11 @@ fn lower_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    let return_supported = if !staged_short_circuit_bindings.is_empty() {
-        is_branch_free_structural_scalar_expression(
-            &expression,
-            scalar_parameter_count,
-            plan.bindings.len(),
-        )
-    } else {
-        is_structural_scalar_return_expression(
-            &expression,
-            scalar_parameter_count,
-            plan.bindings.len(),
-        )
-    };
-    if !return_supported {
+    if !is_structural_scalar_return_expression(
+        &expression,
+        scalar_parameter_count,
+        plan.bindings.len(),
+    ) {
         return unsupported("structural scalar return is outside its checked value/control slice");
     }
     if expression.scalar_type() != result_type {
@@ -1930,29 +1921,75 @@ fn lower_structural_scalar_return_machine(
                 scalar_values.push(ValueDeclaration { id, scalar_type });
             }
         }
-        validate_direct_parameter_types(
-            &expression,
-            &scalar_values
-                .iter()
-                .map(|value| value.scalar_type)
-                .collect::<Vec<_>>(),
-        )?;
-        let value = emit_direct_expression(
-            &expression,
-            &scalar_values,
-            &mut next_value,
-            &mut operations,
-        );
-        blocks.push(Block {
-            id: next_block,
-            parameters: next_block_parameters,
-            operations: operations.operations[operation_start..].to_vec(),
-            terminator: Terminator::Return {
-                edge: edge_id(next_edge),
-                value,
-                trivial_affine_discards: cleanup,
-            },
-        });
+        if let LoweredDirectExpression::Boolean { expression } = &expression
+            && contains_short_circuit(expression)
+        {
+            validate_boolean_parameter_types(
+                expression,
+                &scalar_values
+                    .iter()
+                    .map(|value| value.scalar_type)
+                    .collect::<Vec<_>>(),
+            )?;
+            let decision_operation_start = operations.operations.len();
+            let decision = lower_boolean_value_decision(expression);
+            let first_synthetic_block = block_id(next_block.get().checked_add(1).ok_or(
+                LoweringError::Unsupported(
+                    "structural scalar return decision block identity overflows",
+                ),
+            )?);
+            let (mut root, mut children) = emit_inlined_boolean_value_blocks(
+                &decision,
+                &scalar_values,
+                next_block_parameters,
+                LoweredBooleanDecisionExit::Return,
+                next_block,
+                first_synthetic_block,
+                &mut next_value,
+                &mut next_edge,
+                &mut operations,
+            );
+            let mut root_operations =
+                operations.operations[operation_start..decision_operation_start].to_vec();
+            root_operations.extend(root.operations);
+            root.operations = root_operations;
+            let final_decision_start = blocks.len();
+            blocks.push(root);
+            blocks.append(&mut children);
+            for block in &mut blocks[final_decision_start..] {
+                if let Terminator::Return {
+                    trivial_affine_discards,
+                    ..
+                } = &mut block.terminator
+                {
+                    *trivial_affine_discards = cleanup.clone();
+                }
+            }
+        } else {
+            validate_direct_parameter_types(
+                &expression,
+                &scalar_values
+                    .iter()
+                    .map(|value| value.scalar_type)
+                    .collect::<Vec<_>>(),
+            )?;
+            let value = emit_direct_expression(
+                &expression,
+                &scalar_values,
+                &mut next_value,
+                &mut operations,
+            );
+            blocks.push(Block {
+                id: next_block,
+                parameters: next_block_parameters,
+                operations: operations.operations[operation_start..].to_vec(),
+                terminator: Terminator::Return {
+                    edge: edge_id(next_edge),
+                    value,
+                    trivial_affine_discards: cleanup,
+                },
+            });
+        }
         blocks
     } else if let LoweredDirectExpression::Boolean { expression } = &expression
         && contains_short_circuit(expression)
@@ -10435,6 +10472,59 @@ mod tests {
         assert_eq!(
             psi_terminal_codec::decode_module(&bytes)
                 .expect("short-circuit local cleanup should decode canonically"),
+            lowered.semantic_module
+        );
+
+        checked.facts.values.scalar_expressions.expressions[7].expression =
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
+                left: Box::new(CheckedBooleanExpression::Local { position: 6 }),
+                right: Box::new(CheckedBooleanExpression::Constant(false)),
+            }));
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("repeated local decisions should feed a final short-circuit return");
+        let machine = &lowered.semantic_module.machines[0];
+        assert_eq!(machine.blocks.len(), 20);
+        let final_decision = &machine.blocks[15..];
+        assert!(matches!(
+            final_decision[0].parameters.as_slice(),
+            [ValueDeclaration {
+                scalar_type: ScalarType::Boolean,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            final_decision[0].operations.as_slice(),
+            [Operation {
+                kind: OperationKind::BooleanNot { .. },
+                ..
+            }]
+        ));
+        assert!(final_decision.iter().all(|block| match &block.terminator {
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                when_true.trivial_affine_discards.is_empty()
+                    && when_false.trivial_affine_discards.is_empty()
+            }
+            Terminator::Return {
+                trivial_affine_discards,
+                ..
+            } => trivial_affine_discards == &[place_id(2), place_id(1)],
+            _ => false,
+        }));
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("final short-circuit cleanup should verify after repeated local convergence");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("composed final short-circuit cleanup should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("composed final short-circuit cleanup should decode canonically"),
             lowered.semantic_module
         );
 

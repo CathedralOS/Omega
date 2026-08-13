@@ -428,6 +428,35 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
     assert_eq!(plan.return_statement_ordinal, 7);
     assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
 
+    let composed = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token) -> bool
+        {
+            let first: bool = true && false;
+            let middle: bool = !first;
+            let second: bool = middle || false;
+            second && true
+        }
+        "#,
+    );
+    let machine = composed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    let plan = composed
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("repeated local decisions may feed one final short-circuit return");
+    assert_eq!(plan.bindings.len(), 3);
+    assert_eq!(plan.return_statement_ordinal, 3);
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+
     let rejected = checked(
         r#"
         data Token { value: i32; }
