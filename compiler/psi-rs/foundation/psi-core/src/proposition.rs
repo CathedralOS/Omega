@@ -2354,6 +2354,11 @@ impl PropositionContext {
                 {
                     return Err(PropositionError::EntryResultStructuralPlace(subject.root));
                 }
+                if matches!(kind, StructuralPlaceKind::TrivialAffineLocal { .. }) {
+                    return Err(PropositionError::UnsupportedContentLocalStructuralPlace(
+                        subject.root,
+                    ));
+                }
                 Ok(())
             }
             ContentTerm::Separate(terms) => {
@@ -2571,6 +2576,7 @@ pub enum PropositionError {
     UnknownValue(ValueId),
     UnknownStructuralPlace(PlaceId),
     EntryResultStructuralPlace(PlaceId),
+    UnsupportedContentLocalStructuralPlace(PlaceId),
     ConflictingValueType {
         id: ValueId,
         first: ScalarType,

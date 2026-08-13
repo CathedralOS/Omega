@@ -9,9 +9,10 @@ use psi_checked_trees::{
     CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
     CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
     CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
@@ -131,6 +132,11 @@ pub(crate) fn build_checked_structural_return_plans(
                         .iter()
                         .map(|parameter| parameter.type_identity.as_str()),
                 )
+                .chain(
+                    plan.trivial_affine_locals
+                        .iter()
+                        .map(|local| local.type_identity.as_str()),
+                )
                 .chain(std::iter::once(plan.result.type_identity.as_str()))
         })
         .collect::<BTreeSet<_>>();
@@ -165,10 +171,14 @@ fn build_structural_return_machine(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    let [StatementNode::Expression(return_expression)] =
-        program.statement_table.statements(state.statement_nodes)
-    else {
-        return None;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let (local_statements, return_expression) = match statements {
+        [StatementNode::Expression(return_expression)] => (&[][..], *return_expression),
+        [
+            local @ StatementNode::LocalData(_),
+            StatementNode::Expression(return_expression),
+        ] => (std::slice::from_ref(local), *return_expression),
+        _ => return None,
     };
     if !program.machine_contracts(machine).is_empty() {
         return None;
@@ -176,6 +186,95 @@ fn build_structural_return_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
         structural_signature(program, shapes, machine, state, &binders)?;
+    let trivial_affine_locals = local_statements
+        .iter()
+        .enumerate()
+        .map(|(declaration_ordinal, statement)| {
+            let StatementNode::LocalData(local) = statement else {
+                unreachable!("the local prefix contains only local declarations")
+            };
+            let TypeReferenceNode::Named {
+                name: local_type_name,
+                ..
+            } = program
+                .type_reference_table
+                .type_reference(local.type_reference)
+            else {
+                return None;
+            };
+            if local.is_mutable
+                || !local.initial_value.is_valid()
+                || crate::checks::type_multiplicity(program, local.type_reference)
+                    != Multiplicity::Affine
+                || !parameter_qualifications(program, shapes, local.type_reference, &binders)?
+                    .is_empty()
+                // Psi validation currently recognizes the reserved nominal
+                // cleanup shape by this canonical qualified machine spelling.
+                // Do not classify such a type as trivial no-code disposal.
+                || program.machines().iter().any(|candidate| {
+                    candidate.name.as_str().ends_with("::drop")
+                        && candidate.attached_data.as_ref().is_some_and(|attached| {
+                            local_type_name == attached
+                        })
+                })
+            {
+                return None;
+            }
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(local.initial_value)
+            else {
+                return None;
+            };
+            if literal.case_name.is_some()
+                || !program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty()
+            {
+                return None;
+            }
+            let local_events = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && event.root == psi_facts::PlaceRoot::Symbol(local.symbol)
+                })
+                .map(|(_, event)| event)
+                .collect::<Vec<_>>();
+            let [event] = local_events.as_slice() else {
+                return None;
+            };
+            if event.source != PermissionEventSource::StateExit
+                || event.kind != PermissionEventKind::AffineDrop
+                || event.multiplicity != Multiplicity::Affine
+                || event.access != PermissionAccess::Owned
+                || event.claim_identity != PermissionClaimIdentity::Unknown
+                || event.provenance != psi_language_semantics::PermissionProvenance::Unknown
+                || event.obligation_live
+                || !facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .is_empty()
+            {
+                return None;
+            }
+            let type_identity = shapes.add_type(local.type_reference, &binders, &[])?;
+            let shape = shapes.types.get(&type_identity)?;
+            if !shape.fields.is_empty() {
+                return None;
+            }
+            Some(CheckedTrivialAffineStructuralLocalPlan {
+                declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
+                type_identity,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
     let input = structural_parameters.first()?;
     if !matches!(structural_parameters.len(), 1 | 2)
         || input.multiplicity != Multiplicity::Linear
@@ -188,7 +287,7 @@ fn build_structural_return_machine(
     }
     let source_parameters = program.state_parameters(state);
     let source_parameter = source_parameters.get(input.position as usize)?;
-    let ExpressionNode::Name(path) = program.expression_table.expression(*return_expression) else {
+    let ExpressionNode::Name(path) = program.expression_table.expression(return_expression) else {
         return None;
     };
     if path.symbol != source_parameter.symbol
@@ -239,13 +338,24 @@ fn build_structural_return_machine(
         &structural_parameters,
         source_parameters,
         &[],
-    )?;
+        &trivial_affine_locals
+            .iter()
+            .filter_map(|plan| {
+                local_statements
+                    .get(plan.declaration_ordinal as usize)
+                    .and_then(|statement| match statement {
+                        StatementNode::LocalData(local) => Some(local.symbol),
+                        _ => None,
+                    })
+            })
+            .collect::<Vec<_>>(),
+    );
     let expected_discards: &[u32] = if structural_parameters.len() == 2 {
         &[1]
     } else {
         &[]
     };
-    if trivial_affine_discards != expected_discards {
+    if trivial_affine_discards.as_deref() != Some(expected_discards) {
         return None;
     }
     let outcome_maps = facts
@@ -328,8 +438,14 @@ fn build_structural_return_machine(
             multiplicity: Multiplicity::Linear,
             qualifications: result_qualifications,
         },
+        trivial_affine_local_discard_ordinals: trivial_affine_locals
+            .iter()
+            .rev()
+            .map(|local| local.declaration_ordinal)
+            .collect(),
+        trivial_affine_locals,
         entry_claim: entry_claim.clone(),
-        trivial_affine_discards,
+        trivial_affine_discards: expected_discards.to_vec(),
         transferred_claim: entry_claim.claim_identity,
     })
 }
@@ -1310,6 +1426,7 @@ fn build_checked_machine(
             &structural_parameters,
             program.state_parameters(state),
             &operations,
+            &[],
         )?,
     });
 
@@ -1831,6 +1948,7 @@ fn return_unit_affine_discards(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     source_parameters: &[StateParameter],
     operations: &[CheckedUnitEffectOperationPlan],
+    admitted_local_symbols: &[SymbolHandle],
 ) -> Option<Vec<u32>> {
     let transferred_parameters = operations
         .iter()
@@ -1862,6 +1980,8 @@ fn return_unit_affine_discards(
                 && event.kind == PermissionEventKind::AffineDrop
                 && event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Affine
+                && event.claim_identity == PermissionClaimIdentity::Unknown
+                && event.provenance == psi_language_semantics::PermissionProvenance::Unknown
                 && !event.obligation_live
                 && facts
                     .flow
@@ -1881,7 +2001,17 @@ fn return_unit_affine_discards(
                     event.root
                         == psi_facts::PlaceRoot::Symbol(parameter_root_symbol(machine, source))
                 })
-        })?;
+        });
+        if parameter_index.is_none() {
+            let psi_facts::PlaceRoot::Symbol(root) = event.root else {
+                return None;
+            };
+            if admitted_local_symbols.contains(&root) {
+                continue;
+            }
+            return None;
+        }
+        let parameter_index = parameter_index?;
         let parameter = &structural_parameters[parameter_index];
         if parameter.multiplicity != Multiplicity::Affine
             || output.contains(&(parameter_index as u32))

@@ -364,6 +364,13 @@ pub struct CheckedStructuralReturnMachinePlan {
     /// Dense parameter index of the whole root transferred to the result.
     pub returned_parameter_index: u32,
     pub result: CheckedStructuralResultPlan,
+    /// Source-handle-free declarations for the exact trivial affine locals
+    /// established before the whole-root return. The first slice admits zero
+    /// or one empty-record local.
+    pub trivial_affine_locals: Vec<CheckedTrivialAffineStructuralLocalPlan>,
+    /// Exact local declaration coordinates cleaned before parameter cleanup,
+    /// in reverse declaration order.
+    pub trivial_affine_local_discard_ordinals: Vec<u32>,
     pub entry_claim: CheckedUnitEntryClaimPlan,
     /// Exact reverse-declaration affine cleanup positions committed after
     /// result materialization. The first accepted extension has one row.
@@ -371,6 +378,12 @@ pub struct CheckedStructuralReturnMachinePlan {
     /// Exact identity shared by the entry claim, normalized claim outcome, and
     /// identity-reshuffle fact.
     pub transferred_claim: psi_language_semantics::PermissionClaimIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedTrivialAffineStructuralLocalPlan {
+    pub declaration_ordinal: u32,
+    pub type_identity: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

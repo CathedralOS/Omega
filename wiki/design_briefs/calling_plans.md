@@ -739,9 +739,11 @@ status or byte-count result, that result remains part of plan validation and
 footprint accounting but does not manufacture an Omega result storage operand.
 The exact compiler-internal root structural passthrough also uses the ordinary
 native parameter/result plan for its eight-byte fragments. Its live claim and
-optional claim-free affine cleanup are retained in typed artifacts and add no
-physical ABI word or instruction. Wider structural returns remain rejected
-until their complete vertical slice exists.
+optional claim-free affine cleanup are retained in typed artifacts. One exact
+empty-record local establishment is semantic/fuel metadata, not another native
+parameter; neither it nor cleanup adds a physical ABI word or cleanup
+instruction. Wider structural returns remain rejected until their complete
+vertical slice exists.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

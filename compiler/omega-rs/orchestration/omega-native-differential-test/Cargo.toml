@@ -42,6 +42,7 @@ omega-terminal-assigned-target-operations = { path = "../../representations/omeg
 omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
 omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
+omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{ContentDomainId, PlaceId, PropositionError};
+use crate::{ContentDomainId, PlaceId, PropositionError, StructuralTypeId};
 
 /// One compiler-owned closed content algebra and its normalized parameter
 /// identity. The parameter is the canonical coordinate-space or unit type
@@ -37,8 +37,19 @@ pub enum ContentPlaceVersion {
 /// Role of a module-declared structural-place root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralPlaceKind {
-    Parameter { position: u32, is_self: bool },
+    Parameter {
+        position: u32,
+        is_self: bool,
+    },
     Result,
+    /// One whole, claim-free affine local established by an explicit terminal
+    /// operation. The exact concrete type and source declaration coordinate
+    /// make trivial disposal independently checkable without retaining a
+    /// source-tree handle.
+    TrivialAffineLocal {
+        declaration_ordinal: u32,
+        structural_type: StructuralTypeId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -195,6 +206,10 @@ fn encode_fingerprint_term(
                     output.extend_from_slice(&position.to_le_bytes());
                 }
                 StructuralPlaceKind::Result => output.push(3),
+                // Trivial affine locals carry no claims or content
+                // qualifications in the accepted slice, so they cannot become
+                // content-proposition roots by merely being declared.
+                StructuralPlaceKind::TrivialAffineLocal { .. } => return None,
             }
             output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
             for segment in &subject.segments {

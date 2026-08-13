@@ -15,17 +15,18 @@ use omega_terminal_image_emission::{
     emit_terminal_object_container, encode_terminal_installation_record,
     validate_terminal_installation_record,
 };
+use omega_terminal_machine_code::TerminalNativeFuelSite;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
 use omega_terminal_target_operations::TerminalTargetOperation;
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::ProfileDecisionId;
+use psi_core::{ProfileDecisionId, StructuralPlaceKind};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::{TerminalMachineResult, Terminator};
+use psi_terminal::{OperationKind, TerminalMachineResult, Terminator};
 use psi_terminal_codec::{
     decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
 };
@@ -132,7 +133,11 @@ fn checked_source() -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
-fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
+fn assert_source_structural_return(
+    machine_name: &str,
+    has_parameter_cleanup: bool,
+    has_local_cleanup: bool,
+) {
     let checked = checked_source();
     let planned_structural_returns = checked
         .facts
@@ -182,16 +187,51 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
     else {
         panic!("fixture must transfer its structural input")
     };
-    let expected_cleanup = machine
-        .structural_parameters
+    let trivial_affine_locals = machine.blocks[0]
+        .operations
         .iter()
-        .skip(1)
+        .map(|operation| {
+            let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind else {
+                panic!("structural return may only establish trivial affine locals")
+            };
+            let place = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == destination)
+                .expect("local establishment has a typed place")
+                .clone();
+            let StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } = place.kind
+            else {
+                panic!("local establishment must name a trivial affine local")
+            };
+            let local_type = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+                .expect("local type remains declared")
+                .clone();
+            (operation.id, place, local_type)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(trivial_affine_locals.len(), usize::from(has_local_cleanup));
+    let expected_cleanup = trivial_affine_locals
+        .iter()
         .rev()
-        .map(|parameter| parameter.place)
+        .map(|(_, place, _)| place.id)
+        .chain(
+            machine
+                .structural_parameters
+                .iter()
+                .skip(1)
+                .rev()
+                .map(|parameter| parameter.place),
+        )
         .collect::<Vec<_>>();
     assert_eq!(
         machine.structural_parameters.len(),
-        usize::from(cleanup) + 1
+        usize::from(has_parameter_cleanup) + 1
     );
     assert_eq!(*source, machine.structural_parameters[0].place);
     assert_eq!(returned_claims, &[entry_claim.claim]);
@@ -273,13 +313,15 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
             psi_edge,
             source,
             returned_claims,
+            trivial_affine_locals: abstract_locals,
             trivial_affine_discards,
         }] if *psi_edge == return_edge
             && *source == source_place
             && returned_claims == &[claim]
+            && abstract_locals == &trivial_affine_locals
             && trivial_affine_discards == &expected_cleanup
     ));
-    if cleanup {
+    if has_parameter_cleanup || has_local_cleanup {
         let mut missing_cleanup = abstract_plan.clone();
         let [
             TerminalAbstractOperation::ReturnStructural {
@@ -316,6 +358,7 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
             result_placement,
             psi_edge,
             returned_claims,
+            trivial_affine_locals: target_locals,
             trivial_affine_discards,
         } = &target_function.operation
         else {
@@ -330,6 +373,7 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
         assert_direct_register_placement(result_placement, case.result);
         assert_eq!(*psi_edge, return_edge);
         assert_eq!(returned_claims, &[claim]);
+        assert_eq!(target_locals, &trivial_affine_locals);
         assert_eq!(trivial_affine_discards, &expected_cleanup);
 
         let assigned = assign_registers(&target_plan).unwrap_or_else(|error| {
@@ -345,6 +389,7 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
             result_placement: assigned_result_placement,
             psi_edge: assigned_edge,
             returned_claims: assigned_claims,
+            trivial_affine_locals: assigned_locals,
             trivial_affine_discards: assigned_cleanup,
         } = &assigned.functions[0].operation
         else {
@@ -359,8 +404,9 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
         assert_eq!(assigned_result_placement, result_placement);
         assert_eq!(assigned_edge, psi_edge);
         assert_eq!(assigned_claims, returned_claims);
+        assert_eq!(assigned_locals, target_locals);
         assert_eq!(assigned_cleanup, trivial_affine_discards);
-        if cleanup {
+        if has_parameter_cleanup || has_local_cleanup {
             let mut noncanonical_cleanup = target_plan.clone();
             let TerminalTargetOperation::ReturnStructuralParameter {
                 trivial_affine_discards,
@@ -385,7 +431,41 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
         };
         assert_eq!(machine_function.bytes, case.bytes);
         assert_eq!(machine_function.provenance.edges, [return_edge]);
-        assert!(machine_function.provenance.operations.is_empty());
+        assert_eq!(
+            machine_function.provenance.operations,
+            trivial_affine_locals
+                .iter()
+                .map(|(operation, _, _)| *operation)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            machine_function.fuel_attribution.len(),
+            trivial_affine_locals.len() + 1
+        );
+        for (ordinal, (operation, _, _)) in trivial_affine_locals.iter().enumerate() {
+            let attribution = &machine_function.fuel_attribution[ordinal];
+            assert_eq!(
+                attribution.site,
+                TerminalNativeFuelSite::Operation(*operation)
+            );
+            assert_eq!(attribution.operation_ordinal, ordinal);
+            assert_eq!(attribution.code_offset, 0);
+            assert_eq!(attribution.byte_count, 0);
+        }
+        let return_attribution = machine_function
+            .fuel_attribution
+            .last()
+            .expect("structural return has edge fuel attribution");
+        assert_eq!(
+            return_attribution.site,
+            TerminalNativeFuelSite::Edge(return_edge)
+        );
+        assert_eq!(
+            return_attribution.operation_ordinal,
+            trivial_affine_locals.len()
+        );
+        assert_eq!(return_attribution.code_offset, 0);
+        assert_eq!(return_attribution.byte_count, case.bytes.len());
         let custody = machine_function
             .structural_return
             .as_ref()
@@ -399,6 +479,7 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
         assert_eq!(&custody.source_placement, source_placement);
         assert_eq!(&custody.result_placement, result_placement);
         assert_eq!(custody.returned_claims, [claim]);
+        assert_eq!(custody.trivial_affine_locals, trivial_affine_locals);
         assert_eq!(custody.trivial_affine_discards, expected_cleanup);
         assert_eq!(custody.code_offset, 0);
         assert_eq!(custody.byte_count, case.bytes.len());
@@ -415,7 +496,7 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
             "{:?} object validation must reject a silently dropped live claim",
             case.target
         );
-        if cleanup {
+        if has_parameter_cleanup || has_local_cleanup {
             let mut dropped_cleanup = machine_code.clone();
             dropped_cleanup.functions[0]
                 .structural_return
@@ -428,7 +509,61 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
                 "{:?} object validation must reject missing cleanup custody",
                 case.target
             );
+        }
+        if has_local_cleanup {
+            assert_eq!(
+                custody.parameter_placements.len(),
+                machine.structural_parameters.len(),
+                "a no-code local must not receive an ABI placement"
+            );
 
+            let mut missing_local = machine_code.clone();
+            missing_local.functions[0]
+                .structural_return
+                .as_mut()
+                .expect("structural custody row")
+                .trivial_affine_locals
+                .clear();
+            assert!(
+                build_terminal_object_artifact(&missing_local).is_err(),
+                "object validation must reject cleanup without its typed local declaration"
+            );
+
+            let mut aliased_local = machine_code.clone();
+            let aliased = aliased_local.functions[0]
+                .structural_return
+                .as_mut()
+                .expect("structural custody row");
+            let (_, local, _) = &mut aliased.trivial_affine_locals[0];
+            local.id = aliased.source.place;
+            aliased.trivial_affine_discards[0] = aliased.source.place;
+            assert!(
+                build_terminal_object_artifact(&aliased_local).is_err(),
+                "object validation must reject a local aliased to the returned source"
+            );
+
+            let mut mutated_local_type = machine_code.clone();
+            let mutated = mutated_local_type.functions[0]
+                .structural_return
+                .as_mut()
+                .expect("structural custody row");
+            let (_, _, local_type) = &mut mutated.trivial_affine_locals[0];
+            local_type.id = mutated.source.structural_type;
+            assert!(
+                build_terminal_object_artifact(&mutated_local_type).is_err(),
+                "object validation must reject a mismatched local type declaration identity"
+            );
+
+            let mut missing_establishment_fuel = machine_code.clone();
+            missing_establishment_fuel.functions[0]
+                .fuel_attribution
+                .remove(0);
+            assert!(
+                build_terminal_object_artifact(&missing_establishment_fuel).is_err(),
+                "object validation must reject a local establishment without exact fuel attribution"
+            );
+        }
+        if has_parameter_cleanup {
             let mut aliased_parameter = machine_code.clone();
             let aliased_custody = aliased_parameter.functions[0]
                 .structural_return
@@ -486,6 +621,34 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
         let mut custody_suffix = Vec::new();
         custody_suffix.extend_from_slice(&claim.get().to_le_bytes());
         custody_suffix.extend_from_slice(
+            &u32::try_from(trivial_affine_locals.len())
+                .expect("local count fits u32")
+                .to_le_bytes(),
+        );
+        for (operation, local, local_type) in &trivial_affine_locals {
+            let StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+            } = local.kind
+            else {
+                unreachable!("typed local checked above")
+            };
+            custody_suffix.extend_from_slice(&operation.get().to_le_bytes());
+            custody_suffix.extend_from_slice(&local.id.get().to_le_bytes());
+            custody_suffix.extend_from_slice(&declaration_ordinal.to_le_bytes());
+            custody_suffix.extend_from_slice(&0_u32.to_le_bytes());
+            custody_suffix.extend_from_slice(&structural_type.get().to_le_bytes());
+            custody_suffix.extend_from_slice(&local_type.id.get().to_le_bytes());
+            custody_suffix.extend_from_slice(
+                &u32::try_from(local_type.identity.len())
+                    .expect("type identity length fits u32")
+                    .to_le_bytes(),
+            );
+            custody_suffix.extend_from_slice(local_type.identity.as_bytes());
+            custody_suffix.extend_from_slice(&0_u32.to_le_bytes());
+        }
+        let cleanup_count_in_suffix = custody_suffix.len();
+        custody_suffix.extend_from_slice(
             &u32::try_from(expected_cleanup.len())
                 .expect("cleanup count fits u32")
                 .to_le_bytes(),
@@ -522,9 +685,23 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
             validate_terminal_installation_record(&changed_claim, &image).is_err(),
             "installation validation must reject a changed structural custody claim"
         );
-        if cleanup {
+        if has_local_cleanup {
+            let mut changed_local_type_bytes = installation_bytes.clone();
+            let local_type_declaration_offset = custody_offset + 44;
+            changed_local_type_bytes
+                [local_type_declaration_offset..local_type_declaration_offset + 8]
+                .copy_from_slice(&source.structural_type.get().to_le_bytes());
+            assert_eq!(
+                decode_terminal_installation_record(&changed_local_type_bytes),
+                Err(TerminalInstallationError::InvalidStructuralReturn(
+                    machine.id
+                )),
+                "canonical installation decoding must reject a mutated local type identity"
+            );
+        }
+        if has_parameter_cleanup || has_local_cleanup {
             let mut changed_cleanup_bytes = installation_bytes.clone();
-            let cleanup_place_offset = custody_offset + 8 + 4;
+            let cleanup_place_offset = custody_offset + cleanup_count_in_suffix + 4;
             changed_cleanup_bytes[cleanup_place_offset..cleanup_place_offset + 8]
                 .copy_from_slice(&source.place.get().to_le_bytes());
             assert_eq!(
@@ -541,7 +718,7 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
             assert!(host_structural_round_trip(
                 case.bytes,
                 OPAQUE_REGION_IDENTITY,
-                cleanup
+                has_parameter_cleanup
             ));
         }
     }
@@ -549,8 +726,10 @@ fn assert_source_structural_return(machine_name: &str, cleanup: bool) {
 
 #[test]
 fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop() {
-    assert_source_structural_return("Main::forward", false);
-    assert_source_structural_return("Main::forward_and_drop", true);
+    assert_source_structural_return("Main::forward", false, false);
+    assert_source_structural_return("Main::forward_and_drop", true, false);
+    assert_source_structural_return("Main::forward_with_local", false, true);
+    assert_source_structural_return("Main::forward_with_local_and_drop", true, true);
 }
 
 #[cfg(unix)]

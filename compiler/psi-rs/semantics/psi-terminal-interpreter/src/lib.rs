@@ -215,6 +215,7 @@ pub struct TerminalExecution {
 struct ExecutableMachine {
     parameters: Vec<psi_terminal::ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
+    structural_places: Vec<psi_terminal::StructuralPlaceDeclaration>,
     entry_claims: Vec<EntryClaim>,
     content_entry_claims: Vec<psi_terminal::ContentEntryClaim>,
     result: TerminalMachineResult,
@@ -295,6 +296,7 @@ impl TerminalExecution {
                     ExecutableMachine {
                         parameters: machine.parameters.clone(),
                         structural_parameters: machine.structural_parameters.clone(),
+                        structural_places: machine.structural_places.clone(),
                         entry_claims: machine.entry_claims.clone(),
                         content_entry_claims: machine.content_entry_claims.clone(),
                         result: machine.result.clone(),
@@ -386,6 +388,38 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::EstablishTrivialAffineLocal { destination } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit)
+                            || self.structural_values.contains_key(&destination)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let machine = self.machines.get(&self.current_machine).ok_or(
+                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                        )?;
+                        let Some(psi_terminal::StructuralPlaceDeclaration {
+                            kind:
+                                psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                                    structural_type,
+                                    ..
+                                },
+                            ..
+                        }) = machine
+                            .structural_places
+                            .iter()
+                            .find(|place| place.id == destination)
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.structural_values.insert(
+                            destination,
+                            TerminalStructuralValue {
+                                opaque_identity: destination.get(),
+                                structural_type: *structural_type,
+                                qualifications: Vec::new(),
+                            },
+                        );
+                    }
                     OperationKind::CallUnit {
                         callee,
                         structural_arguments,

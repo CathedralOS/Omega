@@ -37,7 +37,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "5d8c5e420ee68e79b0538e1e5662a44e95a06d3d0c86c6c9701f5a3fd7d38fa0"
+        "c12113c93e2751583d061b2d5b8adbe89d28804374150e0bdf2a7171b175d3d2"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -90,6 +90,108 @@ fn unit_return_affine_discard_round_trips_canonically() {
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
 
+#[test]
+fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
+    let source_type = structural_type_id(1);
+    let local_type = structural_type_id(2);
+    let source = place_id(1);
+    let local = place_id(50);
+    let result = place_id(51);
+    let machine = TerminalMachine {
+        id: machine_id(1),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: source,
+            position: 0,
+            is_self: false,
+            structural_type: source_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: Vec::new(),
+        }],
+        result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: result,
+            structural_type: source_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: Vec::new(),
+        }),
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: source,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: local,
+                kind: StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal: 0,
+                    structural_type: local_type,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: result,
+                kind: StructuralPlaceKind::Result,
+            },
+        ],
+        entry_claims: vec![EntryClaim {
+            claim: claim_id(1),
+            input: source,
+            field_path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(1),
+                result: OperationResult::Unit,
+                kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
+            }],
+            terminator: Terminator::ReturnStructural {
+                edge: edge_id(1),
+                source,
+                returned_claims: vec![claim_id(1)],
+                trivial_affine_discards: vec![local],
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    let module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine.id,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: source_type,
+                identity: "Region".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: local_type,
+                identity: "EmptyScratch".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![machine],
+    };
+    let bytes = encode_module(&module).expect("local semantic rows encode");
+    assert_eq!(decode_module(&bytes), Ok(module));
+}
 #[test]
 fn scalar_jump_affine_discard_round_trips_canonically() {
     let mut module = structural_effect_fixture();
@@ -209,7 +311,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 3_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 4_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 

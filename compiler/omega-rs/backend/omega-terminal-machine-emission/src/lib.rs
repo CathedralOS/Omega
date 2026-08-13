@@ -84,6 +84,7 @@ fn emit_function(
             result_placement,
             psi_edge,
             returned_claims,
+            trivial_affine_locals,
             trivial_affine_discards,
         } => {
             let bytes = emit_structural_parameter_return(
@@ -92,11 +93,21 @@ fn emit_function(
                 result_placement,
                 target.architecture,
             )?;
+            for (operation_ordinal, (operation, _, _)) in trivial_affine_locals.iter().enumerate() {
+                fuel_attribution.push(TerminalNativeFuelAttribution {
+                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                    site: TerminalNativeFuelSite::Operation(*operation),
+                    units: 1,
+                    operation_ordinal,
+                    code_offset: 0,
+                    byte_count: 0,
+                });
+            }
             fuel_attribution.push(TerminalNativeFuelAttribution {
                 schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
                 site: TerminalNativeFuelSite::Edge(*psi_edge),
                 units: 1,
-                operation_ordinal: 0,
+                operation_ordinal: trivial_affine_locals.len(),
                 code_offset: 0,
                 byte_count: bytes.len(),
             });
@@ -110,6 +121,7 @@ fn emit_function(
                 source_placement: source_placement.clone(),
                 result_placement: result_placement.clone(),
                 returned_claims: returned_claims.clone(),
+                trivial_affine_locals: trivial_affine_locals.clone(),
                 trivial_affine_discards: trivial_affine_discards.clone(),
                 code_offset: 0,
                 byte_count: bytes.len(),

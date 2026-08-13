@@ -12,10 +12,11 @@ use psi_proof_kernel::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    MachineContract, Operation, OperationKind, OperationResult, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    MachineContract, Operation, OperationKind, OperationResult, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -2340,6 +2341,123 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
     assert!(matches!(
         validate_module(&scalar_carrier),
         Err(ModuleError::UnitMachineHasResultStructuralPlace { .. })
+    ));
+}
+
+#[test]
+fn structural_return_requires_exact_trivial_affine_local_establishment_and_cleanup() {
+    let (mut module, _, _) = identity_reshuffle_module();
+    let machine = &mut module.machines[0];
+    let affine_parameter_place = PlaceId::new(776).unwrap();
+    let local_place = PlaceId::new(777).unwrap();
+    let local_type = StructuralTypeId::new(777).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: local_type,
+        identity: "EmptyScratch".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: local_place,
+        kind: StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: 0,
+            structural_type: local_type,
+        },
+    });
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: affine_parameter_place,
+            position: 1,
+            is_self: false,
+            structural_type: local_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: affine_parameter_place,
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    machine.blocks[0].operations.push(Operation {
+        id: OperationId::new(777).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::EstablishTrivialAffineLocal {
+            destination: local_place,
+        },
+    });
+    let Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![local_place, affine_parameter_place];
+    validate_module(&module).expect("exact local establishment and cleanup validate");
+
+    let mut missing_cleanup = module.clone();
+    let Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &mut missing_cleanup.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.clear();
+    assert!(matches!(
+        validate_module(&missing_cleanup),
+        Err(ModuleError::StructuralReturnAffineDiscardsMismatch { .. })
+    ));
+
+    let mut reordered_cleanup = module.clone();
+    let Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &mut reordered_cleanup.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.reverse();
+    assert!(matches!(
+        validate_module(&reordered_cleanup),
+        Err(ModuleError::StructuralReturnAffineDiscardsMismatch { .. })
+    ));
+
+    let mut missing_establishment = module.clone();
+    missing_establishment.machines[0].blocks[0]
+        .operations
+        .clear();
+    assert!(matches!(
+        validate_module(&missing_establishment),
+        Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(_))
+    ));
+
+    let mut duplicate_establishment = module.clone();
+    let duplicate = duplicate_establishment.machines[0].blocks[0].operations[0].clone();
+    duplicate_establishment.machines[0].blocks[0]
+        .operations
+        .push(Operation {
+            id: OperationId::new(778).unwrap(),
+            ..duplicate
+        });
+    assert!(matches!(
+        validate_module(&duplicate_establishment),
+        Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(_))
+    ));
+
+    let mut nonempty = module;
+    let StructuralTypeShape::Record { fields } = &mut nonempty.structural_types[1].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).unwrap(),
+        identity: "marker".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    assert!(matches!(
+        validate_module(&nonempty),
+        Err(ModuleError::TrivialAffineLocalDeclarationRequiresEmptyRecord { .. })
     ));
 }
 

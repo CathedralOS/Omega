@@ -11,7 +11,8 @@ use psi_core::{
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm,
-    StructuralParameterDeclaration, StructuralResultDeclaration, TerminalPsiIdentity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -205,6 +206,12 @@ pub enum TerminalTargetOperation {
         result_placement: ValuePlacement,
         psi_edge: EdgeId,
         returned_claims: Vec<ClaimId>,
+        /// Typed no-ABI local declarations retained as zero-code metadata.
+        trivial_affine_locals: Vec<(
+            OperationId,
+            StructuralPlaceDeclaration,
+            StructuralTypeDeclaration,
+        )>,
         /// Exact verifier-owned reverse-declaration cleanup order.
         trivial_affine_discards: Vec<PlaceId>,
     },

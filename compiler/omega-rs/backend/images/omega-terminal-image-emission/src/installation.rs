@@ -17,7 +17,7 @@ use psi_core::{
 };
 use psi_terminal::{
     CompletionReceipt, SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralResultDeclaration, TerminalPsiIdentity, VocabularyMarker,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, TerminalPsiIdentity, VocabularyMarker,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
@@ -27,7 +27,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 5;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 6;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -933,6 +933,11 @@ fn validate_record_shape(
         )
         .map_err(|_| TerminalInstallationError::InvalidStructuralReturn(installed.machine))?;
         let expected_result = expected_plan.result.as_ref();
+        let structural_fuel = record
+            .fuel_attribution
+            .iter()
+            .filter(|attribution| attribution.machine == installed.machine)
+            .collect::<Vec<_>>();
         if previous_return.is_some_and(|previous| previous >= installed.machine)
             || returned.code_offset != 0
             || returned.byte_count != function.byte_count
@@ -951,6 +956,24 @@ fn validate_record_shape(
             || returned.parameters.iter().skip(1).any(|parameter| {
                 parameter.place == returned.source.place || parameter.place == returned.result.place
             })
+            || returned.trivial_affine_locals.len() > 1
+            || returned.trivial_affine_locals.iter().enumerate().any(|(index, (_, local, local_type))| {
+                !matches!(
+                    local.kind,
+                    psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal,
+                        structural_type
+                    } if usize::try_from(declaration_ordinal) == Ok(index)
+                        && structural_type == local_type.id
+                ) || local.id == returned.source.place
+                    || local.id == returned.result.place
+                    || returned.parameters.iter().any(|parameter| parameter.place == local.id)
+                    || local_type.identity.is_empty()
+                    || !matches!(
+                        local_type.shape,
+                        psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                    )
+            })
             || returned.parameter_placements.len() != returned.parameters.len()
             || expected_plan.parameters != returned.parameter_placements
             || returned.parameter_placements.first() != Some(&returned.source_placement)
@@ -963,11 +986,18 @@ fn validate_record_shape(
                 })
             || returned.trivial_affine_discards
                 != returned
-                    .parameters
+                    .trivial_affine_locals
                     .iter()
-                    .skip(1)
                     .rev()
-                    .map(|parameter| parameter.place)
+                    .map(|(_, local, _)| local.id)
+                    .chain(
+                        returned
+                            .parameters
+                            .iter()
+                            .skip(1)
+                            .rev()
+                            .map(|parameter| parameter.place),
+                    )
                     .collect::<Vec<_>>()
             || returned
                 .parameters
@@ -976,6 +1006,33 @@ fn validate_record_shape(
                 .any(|parameter| parameter.multiplicity != StructuralMultiplicity::Affine)
             || expected_result != Some(&returned.result_placement)
             || returned.returned_claims.len() != 1
+            || structural_fuel.len() != returned.trivial_affine_locals.len() + 1
+            || returned
+                .trivial_affine_locals
+                .iter()
+                .enumerate()
+                .any(|(ordinal, (operation, _, _))| {
+                    structural_fuel.get(ordinal).is_none_or(|installed| {
+                        installed.attribution.schedule
+                            != TerminalFuelSchedule::CURRENT.identity()
+                            || installed.attribution.site
+                                != TerminalNativeFuelSite::Operation(*operation)
+                            || installed.attribution.units != 1
+                            || installed.attribution.operation_ordinal != ordinal
+                            || installed.attribution.code_offset != 0
+                            || installed.attribution.byte_count != 0
+                    })
+                })
+            || structural_fuel.last().is_none_or(|installed| {
+                installed.attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
+                    || installed.attribution.site
+                        != TerminalNativeFuelSite::Edge(returned.psi_edge)
+                    || installed.attribution.units != 1
+                    || installed.attribution.operation_ordinal
+                        != returned.trivial_affine_locals.len()
+                    || installed.attribution.code_offset != 0
+                    || installed.attribution.byte_count != returned.byte_count
+            })
         {
             return Err(TerminalInstallationError::InvalidStructuralReturn(
                 installed.machine,
@@ -1182,6 +1239,16 @@ fn encode_structural_return(
     }
     push_u32(
         bytes,
+        u32::try_from(returned.trivial_affine_locals.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
+    );
+    for (operation, local, local_type) in &returned.trivial_affine_locals {
+        push_u64(bytes, operation.get());
+        encode_trivial_affine_local(bytes, local)?;
+        encode_trivial_affine_local_type(bytes, local_type)?;
+    }
+    push_u32(
+        bytes,
         u32::try_from(returned.trivial_affine_discards.len())
             .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
     );
@@ -1198,6 +1265,43 @@ fn encode_structural_return(
         u64::try_from(returned.byte_count)
             .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
     );
+    Ok(())
+}
+
+fn encode_trivial_affine_local(
+    bytes: &mut Vec<u8>,
+    local: &StructuralPlaceDeclaration,
+) -> Result<(), TerminalInstallationError> {
+    let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+        declaration_ordinal,
+        structural_type,
+    } = local.kind
+    else {
+        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
+    };
+    push_u64(bytes, local.id.get());
+    push_u32(bytes, declaration_ordinal);
+    push_u32(bytes, 0);
+    push_u64(bytes, structural_type.get());
+    Ok(())
+}
+
+fn encode_trivial_affine_local_type(
+    bytes: &mut Vec<u8>,
+    declaration: &psi_terminal::StructuralTypeDeclaration,
+) -> Result<(), TerminalInstallationError> {
+    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape;
+    if !fields.is_empty() {
+        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
+    }
+    push_u64(bytes, declaration.id.get());
+    push_u32(
+        bytes,
+        u32::try_from(declaration.identity.len())
+            .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?,
+    );
+    bytes.extend_from_slice(declaration.identity.as_bytes());
+    push_u32(bytes, 0);
     Ok(())
 }
 
@@ -1308,6 +1412,19 @@ fn decode_structural_return(
             TerminalInstallationError::ZeroStructuralReturnIdentity("claim"),
         )?);
     }
+    let local_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    let mut trivial_affine_locals = Vec::with_capacity(local_count);
+    for _ in 0..local_count {
+        let operation = OperationId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("local operation"),
+        )?;
+        trivial_affine_locals.push((
+            operation,
+            decode_trivial_affine_local(reader)?,
+            decode_trivial_affine_local_type(reader)?,
+        ));
+    }
     let cleanup_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
     let mut trivial_affine_discards = Vec::with_capacity(cleanup_count);
@@ -1328,12 +1445,59 @@ fn decode_structural_return(
             source_placement,
             result_placement,
             returned_claims,
+            trivial_affine_locals,
             trivial_affine_discards,
             code_offset: usize::try_from(reader.u64()?)
                 .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
             byte_count: usize::try_from(reader.u64()?)
                 .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
         },
+    })
+}
+
+fn decode_trivial_affine_local(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralPlaceDeclaration, TerminalInstallationError> {
+    let id = PlaceId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("local place"),
+    )?;
+    let declaration_ordinal = reader.u32()?;
+    if reader.u32()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("local type"),
+    )?;
+    Ok(StructuralPlaceDeclaration {
+        id,
+        kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal,
+            structural_type,
+        },
+    })
+}
+
+fn decode_trivial_affine_local_type(
+    reader: &mut Reader<'_>,
+) -> Result<psi_terminal::StructuralTypeDeclaration, TerminalInstallationError> {
+    let id = StructuralTypeId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("local type declaration"),
+    )?;
+    let identity_len = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?;
+    let identity = std::str::from_utf8(reader.take(identity_len)?)
+        .map_err(|_| TerminalInstallationError::InvalidStructuralTypeIdentity)?
+        .to_owned();
+    if identity.is_empty() {
+        return Err(TerminalInstallationError::InvalidStructuralTypeIdentity);
+    }
+    if reader.u32()? != 0 {
+        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
+    }
+    Ok(psi_terminal::StructuralTypeDeclaration {
+        id,
+        identity,
+        shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
     })
 }
 
@@ -1643,6 +1807,9 @@ pub enum TerminalInstallationError {
     UnsupportedStructuralReturnPlacement,
     UnsupportedStructuralReturnRegister(MachineRegister),
     InvalidStructuralReturnRegister(u8),
+    InvalidStructuralReturnLocal,
+    StructuralTypeIdentityTooLong,
+    InvalidStructuralTypeIdentity,
     ZeroFuelScheduleIdentity,
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),

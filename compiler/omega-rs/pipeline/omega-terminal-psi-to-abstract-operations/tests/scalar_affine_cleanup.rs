@@ -258,6 +258,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             source: actual_source,
             returned_claims,
             trivial_affine_discards,
+            ..
         }] if *psi_edge == edge
             && *actual_source == source
             && returned_claims.as_slice() == [claim]

@@ -698,6 +698,35 @@ fn validate_operation_foundation(
                 return malformed("port write references an unknown service");
             }
         }
+        OperationKind::EstablishTrivialAffineLocal { destination } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("trivial affine local establishment declares a scalar result");
+            }
+            let Some(StructuralPlaceDeclaration {
+                kind:
+                    StructuralPlaceKind::TrivialAffineLocal {
+                        structural_type, ..
+                    },
+                ..
+            }) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *destination)
+            else {
+                return malformed("trivial affine local establishment has no local declaration");
+            };
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == *structural_type)
+            else {
+                return malformed("trivial affine local has an unknown structural type");
+            };
+            let StructuralTypeShape::Record { fields } = &declaration.shape;
+            if !fields.is_empty() {
+                return malformed("trivial affine local must have an empty record type");
+            }
+        }
         OperationKind::Call { .. } => {
             if !matches!(operation.result, OperationResult::Scalar(_)) {
                 return malformed("scalar call declares a Unit result");
@@ -1444,6 +1473,10 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             }
         }
         match operation.kind.clone() {
+            OperationKind::EstablishTrivialAffineLocal { destination } => {
+                writer.u8(37);
+                writer.id(destination);
+            }
             OperationKind::Call {
                 callee,
                 arguments,
@@ -1980,6 +2013,14 @@ fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) 
             writer.u8(u8::from(is_self));
         }
         StructuralPlaceKind::Result => writer.u8(2),
+        StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal,
+            structural_type,
+        } => {
+            writer.u8(3);
+            writer.u32(declaration_ordinal);
+            writer.id(structural_type);
+        }
     }
 }
 
@@ -3020,6 +3061,9 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 port: reader.u16()?,
                 value: reader.u8()?,
             },
+            37 => OperationKind::EstablishTrivialAffineLocal {
+                destination: reader.id("PlaceId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -3229,6 +3273,10 @@ fn decode_structural_place_kind(
             is_self: reader.boolean()?,
         },
         2 => StructuralPlaceKind::Result,
+        3 => StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: reader.u32()?,
+            structural_type: reader.id("StructuralTypeId")?,
+        },
         tag => return Err(CodecError::InvalidTag("StructuralPlaceKind", tag)),
     })
 }
