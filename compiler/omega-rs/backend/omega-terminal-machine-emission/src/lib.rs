@@ -793,7 +793,7 @@ fn emit_unit_body(
                 } else {
                     false
                 } || (expected_local_prefix.is_empty()
-                    && (1..=3).contains(&nominal_cleanups.len())
+                    && !nominal_cleanups.is_empty()
                     && nominal_cleanups.len() == cleanup_actions.len()
                     && nominal_cleanups.len() == body.parameters.len()
                     && body.parameters.iter().rev().zip(&nominal_cleanups).all(
@@ -1160,8 +1160,7 @@ fn executable_nominal_cleanup(
     let Some((cleanup_return, helper_calls)) = cleanup_body.operations.split_last() else {
         return Err(invalid());
     };
-    if helper_calls.len() > 3
-        || !matches!(cleanup_return,
+    if !matches!(cleanup_return,
             TerminalAssignedUnitOperation::Return {
                 cleanup_actions,
                 ..

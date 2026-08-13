@@ -2038,7 +2038,7 @@ fn lower_unit_function(
                     if !local_places.is_empty()
                         || !root_discards.is_empty()
                         || !residual_discards.is_empty()
-                        || !matches!(nominal_cleanups.len(), 1 | 2 | 3)
+                        || nominal_cleanups.is_empty()
                         || function.structural_parameters.len() != nominal_cleanups.len()
                         || function
                             .structural_parameters
@@ -2171,8 +2171,7 @@ fn validate_bounded_nominal_cleanup_body(
     let Some((cleanup_return, helper_calls)) = cleanup_function.operations.split_last() else {
         return Err(invalid());
     };
-    if helper_calls.len() > 3
-        || !matches!(cleanup_return,
+    if !matches!(cleanup_return,
             TerminalAbstractOperation::ReturnUnit { cleanup_actions, .. }
                 if cleanup_actions.is_empty())
     {

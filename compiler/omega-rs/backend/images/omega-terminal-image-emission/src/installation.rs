@@ -1294,7 +1294,6 @@ fn validate_record_shape(
                         .is_some_and(|return_cleanup| {
                             return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
                         })
-                    && calls.len() <= 3
                     && owners.len() == calls.len()
                     && targets.len() == calls.len()
                     && calls.iter().enumerate().all(|(ordinal, call)| {
@@ -1443,7 +1442,7 @@ fn validate_record_shape(
                                     })
                             })
                     }
-                    (nominal @ [_, _, ..], []) if nominal.len() <= 3 => {
+                    (nominal @ [_, _, ..], []) => {
                         let bodies = nominal
                             .iter()
                             .map(|cleanup| exact_nominal_body(cleanup))
@@ -2806,6 +2805,9 @@ fn decode_unit_affine_cleanup(
     )?;
     let local_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    if local_count > reader.remaining() {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
     let mut locals = Vec::with_capacity(local_count);
     for _ in 0..local_count {
         let operation = OperationId::new(reader.u64()?).ok_or(
@@ -2819,6 +2821,9 @@ fn decode_unit_affine_cleanup(
     }
     let action_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    if action_count > reader.remaining() {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
     let mut actions = Vec::with_capacity(action_count);
     for _ in 0..action_count {
         let tag = reader.u8()?;
@@ -3343,3 +3348,20 @@ impl std::fmt::Display for TerminalInstallationError {
 }
 
 impl std::error::Error for TerminalInstallationError {}
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_decoder_rejects_impossible_capacity_before_allocation() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&1_u64.to_le_bytes());
+        bytes.extend_from_slice(&u32::MAX.to_le_bytes());
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_unit_affine_cleanup(&mut reader),
+            Err(TerminalInstallationError::UnexpectedEnd)
+        );
+    }
+}
