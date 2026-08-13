@@ -12725,22 +12725,15 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
     // RE-ENCODES the decoded value to prove the view is content-correct (ptr +
     // len point at the right buffer bytes); exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_decode_byte_slice_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-wire-decode-byte-slice-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire decode byte-slice canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire decode byte-slice canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire decode byte-slice canary should run");
 
@@ -12752,7 +12745,7 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12763,22 +12756,15 @@ fn runtime_wire_decoded_byte_slice_index_exit_canary_runs() {
     // argument strategy and was never written (parameter kept uninitialized
     // bytes); now resolved as a value operand. Exits 70 when decoded.bytes[0]==72.
     let canary = pass_canary("wire/runtime_wire_decoded_byte_slice_index_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-wire-decoded-byte-slice-index-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire decoded byte-slice index canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire decoded byte-slice index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire decoded byte-slice index canary should run");
 
@@ -12790,7 +12776,7 @@ fn runtime_wire_decoded_byte_slice_index_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12802,22 +12788,15 @@ fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
     // length is genuinely runtime (decoded from a varint), so a correct read
     // proves the len slot is targeted; exits 70 when n == 2.
     let canary = pass_canary("wire/runtime_wire_decoded_byte_slice_len_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-wire-decoded-byte-slice-len-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire decoded byte-slice .len canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire decoded byte-slice .len canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire decoded byte-slice .len canary should run");
 
@@ -12829,7 +12808,7 @@ fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
