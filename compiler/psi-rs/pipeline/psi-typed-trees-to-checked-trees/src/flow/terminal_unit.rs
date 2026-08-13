@@ -263,7 +263,7 @@ fn build_structural_scalar_return_machine(
     };
     let return_statement_ordinal = u32::try_from(binding_count).ok()?;
     let result_type = program.primitive_type_reference(state.return_type)?;
-    if !is_branch_free_structural_scalar_expression(
+    if !is_structural_scalar_return_expression(
         facts.values.scalar_expressions.expression_at(
             state.symbol,
             return_statement_ordinal,
@@ -294,6 +294,61 @@ fn build_structural_scalar_return_machine(
             .map(|(_, position)| position)
             .collect(),
     })
+}
+
+fn is_structural_scalar_return_expression(
+    expression: &CheckedScalarExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    match expression {
+        CheckedScalarExpression::Boolean(expression) => {
+            is_structural_boolean_return_expression(expression, scalar_parameters, available_locals)
+        }
+        expression => is_branch_free_structural_integer_expression(
+            expression,
+            scalar_parameters,
+            available_locals,
+        ),
+    }
+}
+
+fn is_structural_boolean_return_expression(
+    expression: &psi_checked_trees::CheckedBooleanExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    match expression {
+        psi_checked_trees::CheckedBooleanExpression::Constant(_) => true,
+        psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
+            is_structural_boolean_return_expression(operand, scalar_parameters, available_locals)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Equal { left, right }
+        | psi_checked_trees::CheckedBooleanExpression::And { left, right }
+        | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
+            is_structural_boolean_return_expression(left, scalar_parameters, available_locals)
+                && is_structural_boolean_return_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
+        }
+        psi_checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_integer_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
+        }
+        psi_checked_trees::CheckedBooleanExpression::Parameter { position } => {
+            *position < scalar_parameters
+        }
+        psi_checked_trees::CheckedBooleanExpression::Local { position } => {
+            *position >= scalar_parameters
+                && *position < scalar_parameters.saturating_add(available_locals)
+        }
+    }
 }
 
 fn is_branch_free_structural_integer_expression(

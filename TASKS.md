@@ -199,12 +199,14 @@ Remaining:
   scalar-return source path now handles an attached one-state machine with only
   an exact partition of primitive scalar inputs and claim-free affine structural
   parameters, plus an ordered prefix of immutable primitive locals and one
-  branch-free scalar return. Landed integer operations, Boolean
+  scalar return. Landed integer operations, Boolean
   constants/negation/equality/comparisons, and references to scalar inputs or
   already materialized locals emit—with exact-operation proofs reconstructed
-  where required—before exact reverse-declaration cleanup. Calls, mutable or
-  non-scalar locals, short-circuit Boolean control, contracts, claims, effects,
-  and multi-state control remain fenced. Unconditional
+  where required—before exact reverse-declaration cleanup. Final short-circuit
+  Boolean returns preserve the frontier across decisions and repeat cleanup on
+  every terminal leaf. Calls, mutable or non-scalar locals, short-circuit local
+  initializers, contracts, claims, effects, and multi-state control remain
+  fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
   arguments are materialized; each ordered conditional successor carries its
@@ -461,10 +463,10 @@ reach or trust, and private proof improvements do not change public identity.
   path now composes exact ordinary-edge cleanup with source-handle-free state
   signatures and whole-parameter transfers for acyclic, single-predecessor Unit
   machines. A separate one-state scalar-return path materializes an immutable
-  primitive-local prefix and branch-free scalar return, then reconstructs any
-  exact-operation proofs before exact cleanup of its complete affine structural
-  frontier. Neither is yet the complete `EdgeCleanupPlan`, short-circuit or
-  conditional-control
+  primitive-local prefix and scalar return, then reconstructs any exact-operation
+  proofs before exact cleanup of its complete affine structural frontier; final
+  short-circuit returns repeat the same cleanup on every value leaf. Neither is
+  yet the complete `EdgeCleanupPlan`, short-circuit-local or conditional-control
   path, repeated-cycle composition, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
