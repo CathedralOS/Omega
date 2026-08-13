@@ -58,7 +58,7 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
 "#;
 
 const NOMINAL_AFFINE_SOURCE: &str = r#"
-    data Token { tag: bool; payload: u64; }
+    data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
     machine Token::drop(&mut self) {}
     data Root {}
     machine Root::enter(token: Token) {}
@@ -433,7 +433,7 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
 }
 
 #[test]
-fn two_field_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
+fn wide_flat_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
     let plan = nominal_affine_plan();
     let caller_machine = plan.entry;
     let caller = plan
@@ -487,7 +487,7 @@ fn two_field_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() 
         let TerminalTargetOperation::UnitBody(target_body) = &target_caller.operation else {
             panic!("caller remains Unit")
         };
-        assert_eq!(target_body.parameters[0].shape, ValueShape::integer(16, 8));
+        assert_eq!(target_body.parameters[0].shape, ValueShape::integer(40, 8));
         assert!(!target_body.parameters[0].placement.locations.is_empty());
         let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
             trivial_affine_discards,

@@ -1813,10 +1813,9 @@ fn validate_record_shape(
 fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
     shape == ValueShape::integer(0, 1)
         || shape.class == ValueClass::Integer
-            && matches!(
-                (shape.byte_size, shape.alignment),
-                (1, 1) | (2, 1 | 2) | (4, 2 | 4) | (8, 4 | 8) | (16, 8)
-            )
+            && shape.byte_size != 0
+            && matches!(shape.alignment, 1 | 2 | 4 | 8)
+            && shape.byte_size % shape.alignment == 0
 }
 
 fn fingerprint_image(bytes: &[u8]) -> TerminalImageFingerprint {
