@@ -9555,20 +9555,13 @@ stderr:
 #[test]
 fn runtime_nested_middle_index_3d_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_middle_index_3d_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-middle-3d-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested runtime-middle 3D canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested runtime-middle 3D canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested runtime-middle 3D canary should run");
 
@@ -9582,7 +9575,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A range-typed LET carrying a computed index (`let m = k + 1; arr[m]`) on
@@ -9590,20 +9583,13 @@ stderr:
 #[test]
 fn runtime_let_bound_computed_index_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_let_bound_computed_index_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-let-computed-index-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("let-bound computed index canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("let-bound computed index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("let-bound computed index canary should run");
 
@@ -9617,7 +9603,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // Array-of-structs element field in every binary-operand position (left/right
