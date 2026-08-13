@@ -29,6 +29,14 @@ pub(super) fn field_model_result_present(
     }
 }
 
+/// Whether a retained native call result is also represented by a leading
+/// Omega result operand. Some statement-shaped adapters (notably console
+/// writes) retain the native status/count in the ABI plan for validation but
+/// intentionally discard it at the language boundary.
+pub(super) fn omega_result_present(operation_key: HostOperationKey, plan: &CallPlan) -> bool {
+    plan.result.is_some() && !operation_key.discards_native_result()
+}
+
 pub(super) fn host_binding<'plan>(
     input: MachineEmissionContext<'plan>,
     operation_key: HostOperationKey,
@@ -97,8 +105,11 @@ pub(super) fn instruction_requires_float_control_restore(
 
 #[cfg(test)]
 mod tests {
-    use super::field_model_result_present;
-    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use super::{field_model_result_present, omega_result_present};
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, HostCapability, HostOperation, HostOperationKey, ValueShape,
+        evaluate_call_plan,
+    };
 
     fn one_parameter_result_plan() -> omega_calling_conventions::CallPlan {
         evaluate_call_plan(
@@ -131,5 +142,18 @@ mod tests {
             true
         );
         assert!(field_model_result_present(4, &plan, 1, "table").is_err());
+    }
+
+    #[test]
+    fn discarded_native_result_is_not_an_omega_result_operand() {
+        let plan = one_parameter_result_plan();
+        assert!(!omega_result_present(
+            HostOperationKey::new(HostCapability::Stdout, HostOperation::Write),
+            &plan,
+        ));
+        assert!(omega_result_present(
+            HostOperationKey::new(HostCapability::Filesystem, HostOperation::Open),
+            &plan,
+        ));
     }
 }

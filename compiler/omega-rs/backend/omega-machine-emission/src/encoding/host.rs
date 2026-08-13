@@ -4,7 +4,7 @@ use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_instruction_selection as architecture;
 use psi_diagnostics::Diagnostic;
 
-use crate::host_bindings::{field_model_result_present, host_binding};
+use crate::host_bindings::{field_model_result_present, host_binding, omega_result_present};
 
 pub(super) fn encode_host_operation(
     input: MachineEmissionContext<'_>,
@@ -32,7 +32,7 @@ pub(super) fn encode_host_operation(
                     *number,
                     plan,
                 )
-            } else if plan.result.is_some() {
+            } else if omega_result_present(operation_key, plan) {
                 architecture::encode_value_syscall_sequence_with_plan(
                     input.target.architecture,
                     operands,

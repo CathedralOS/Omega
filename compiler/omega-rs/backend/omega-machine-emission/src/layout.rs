@@ -1,7 +1,7 @@
 use crate::MachineEmissionContext;
 use crate::host_bindings::{
     field_model_result_present, host_binding, instruction_requires_float_control_restore,
-    runtime_text_call_plans,
+    omega_result_present, runtime_text_call_plans,
 };
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
@@ -12,12 +12,13 @@ use omega_instruction_selection::{
     authored_import_call_sequence_width, control_register_read_width, control_register_write_width,
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, encode_host_call_sequence_with_plan,
-    entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
-    entry_indirect_argument_write_width, entry_stack_argument_write_width, flags_restore_width,
-    flags_snapshot_width, function_enter_width, host_call_sequence_width_with_plan,
-    interrupt_control_width, machine_halt_width, memory_fence_width, msr_read_width,
-    msr_write_width, port_read_width, port_write_width, return_register_integer_write_width,
-    return_width, runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
+    encode_syscall_sequence_with_plan, entry_argument_register_write_width,
+    entry_arguments_slice_descriptor_write_width, entry_indirect_argument_write_width,
+    entry_stack_argument_write_width, flags_restore_width, flags_snapshot_width,
+    function_enter_width, host_call_sequence_width_with_plan, interrupt_control_width,
+    machine_halt_width, memory_fence_width, msr_read_width, msr_write_width, port_read_width,
+    port_write_width, return_register_integer_write_width, return_width,
+    runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width, runtime_atomic_fetch_sub_width,
     runtime_atomic_fetch_xor_width, runtime_atomic_load_to_storage_width,
     runtime_atomic_store_from_operand_width, runtime_atomic_swap_width,
@@ -26,8 +27,8 @@ use omega_instruction_selection::{
     runtime_text_line_read_width_with_plans, runtime_text_literal_compare_width,
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
     runtime_text_storage_compare_width, runtime_text_stored_suffix_append_width,
-    runtime_value_compare_width, syscall_sequence_width_with_plan,
-    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_with_plan,
+    runtime_value_compare_width, table_function_call_sequence_width_with_plan,
+    vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 use psi_diagnostics::Diagnostic;
@@ -141,7 +142,7 @@ fn machine_instruction_width(
                     )
                 }
                 HostBindingMechanism::Syscall { number, .. }
-                    if plan.result.is_some() =>
+                    if omega_result_present(host_operation.operation_key, plan) =>
                 {
                     omega_instruction_selection::value_syscall_sequence_width_with_plan(
                         input.target.architecture,
@@ -151,12 +152,21 @@ fn machine_instruction_width(
                     )
                 }
                 HostBindingMechanism::Syscall { number, .. } => {
-                    syscall_sequence_width_with_plan(
+                    encode_syscall_sequence_with_plan(
                         input.target.architecture,
                         operands,
                         *number,
                         plan,
                     )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "host operation {}.{} has no encodable syscall sequence: {}",
+                            host_operation.operation_key.capability_name(),
+                            host_operation.operation_key.operation_name(),
+                            error.message,
+                        ))
+                    })?
+                    .len()
                 }
                 HostBindingMechanism::VtableSlot { index } => {
                     vtable_call_sequence_width_with_plan(

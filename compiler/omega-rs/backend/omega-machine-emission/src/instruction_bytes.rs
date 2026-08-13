@@ -1,6 +1,7 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances;
 use crate::encoding::encode_machine_instruction_bytes;
+use crate::host_bindings::omega_result_present;
 use crate::layout::{self, layout_machine_instructions};
 use omega_assigned_target_operations::{
     CopyPlacesRole, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
@@ -326,22 +327,12 @@ mod validation_partition_tests {
 }
 
 fn assigned_outbound_syscall_storage_argument_is_closed(
-    architecture: omega_target::Architecture,
+    _architecture: omega_target::Architecture,
     operand: &omega_assigned_target_operations::InstructionOperand,
 ) -> bool {
     use omega_assigned_target_operations::InstructionOperandKind;
 
     match operand.kind {
-        InstructionOperandKind::RuntimeStringPointer {
-            byte_offset,
-            is_bounded_buffer: true,
-            ..
-        } => {
-            architecture == omega_target::Architecture::X86_64
-                || byte_offset
-                    .checked_add(8)
-                    .is_some_and(|content_offset| content_offset <= 4095)
-        }
         InstructionOperandKind::RuntimeStringPointer { .. }
         | InstructionOperandKind::RuntimeStringLength { .. }
         | InstructionOperandKind::RuntimePointeeStringPointer { .. }
@@ -1555,7 +1546,7 @@ fn compiler_instruction_validation_kind(
                     },
                 ));
             }
-            if binding.call_plan().result.is_some() {
+            if omega_result_present(*operation_key, binding.call_plan()) {
                 let Some((result, arguments)) = operands.split_first() else {
                     return Ok(None);
                 };

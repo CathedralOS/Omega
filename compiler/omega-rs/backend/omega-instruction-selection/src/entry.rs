@@ -1337,7 +1337,8 @@ pub fn derive_boundary_compiler_body_outbound_syscall_footprint(
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
             || operation.operation_key.uses_linux_timespec_argument()
-            || binding.call_plan().result.is_some()
+            || (binding.call_plan().result.is_some()
+                && !operation.operation_key.discards_native_result())
             || !matches!(
                 binding.call_plan().entry_control,
                 EntryControl::SupervisorCall { .. }
@@ -2619,22 +2620,12 @@ pub fn derive_boundary_compiler_body_outbound_indirect_call_footprint(
 }
 
 fn abstract_outbound_syscall_storage_argument_is_closed(
-    architecture: omega_target::Architecture,
+    _architecture: omega_target::Architecture,
     operand: &omega_abstract_operations::InstructionOperand,
 ) -> bool {
     use omega_abstract_operations::InstructionOperandKind;
 
     match operand.kind {
-        InstructionOperandKind::RuntimeStringPointer {
-            byte_offset,
-            is_bounded_buffer: true,
-            ..
-        } => {
-            architecture == omega_target::Architecture::X86_64
-                || byte_offset
-                    .checked_add(8)
-                    .is_some_and(|content_offset| content_offset <= 4095)
-        }
         InstructionOperandKind::RuntimeStringPointer { .. }
         | InstructionOperandKind::RuntimeStringLength { .. }
         | InstructionOperandKind::RuntimePointeeStringPointer { .. }
@@ -2746,7 +2737,8 @@ fn derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprin
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
             || operation.operation_key.uses_linux_timespec_argument()
-            || binding.call_plan().result.is_some()
+            || (binding.call_plan().result.is_some()
+                && !operation.operation_key.discards_native_result())
             || binding.call_plan().parameters.len() != arguments.len()
             || !matches!(
                 binding.call_plan().entry_control,
@@ -3099,6 +3091,7 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
             || operation.operation_key.uses_linux_timespec_result()
             || operation.operation_key.uses_linux_timespec_argument()
             || binding.call_plan().result.is_none()
+            || operation.operation_key.discards_native_result()
             || binding.call_plan().parameters.len() != arguments.len()
             || !matches!(
                 binding.call_plan().entry_control,
@@ -4457,14 +4450,14 @@ mod tests {
                 byte_offset: 32,
             },
         };
-        let bounded_at_aarch64_limit = InstructionOperand {
+        let bounded_small_offset = InstructionOperand {
             kind: InstructionOperandKind::RuntimeStringPointer {
                 region: RuntimeStorageRegion::RuntimeFrame,
                 byte_offset: 4087,
                 is_bounded_buffer: true,
             },
         };
-        let bounded_beyond_aarch64_limit = InstructionOperand {
+        let bounded_large_offset = InstructionOperand {
             kind: InstructionOperandKind::RuntimeStringPointer {
                 region: RuntimeStorageRegion::RuntimeFrame,
                 byte_offset: 4088,
@@ -4489,15 +4482,15 @@ mod tests {
         }
         assert!(abstract_outbound_syscall_storage_argument_is_closed(
             omega_target::Architecture::Aarch64,
-            &bounded_at_aarch64_limit,
+            &bounded_small_offset,
         ));
-        assert!(!abstract_outbound_syscall_storage_argument_is_closed(
+        assert!(abstract_outbound_syscall_storage_argument_is_closed(
             omega_target::Architecture::Aarch64,
-            &bounded_beyond_aarch64_limit,
+            &bounded_large_offset,
         ));
         assert!(abstract_outbound_syscall_storage_argument_is_closed(
             omega_target::Architecture::X86_64,
-            &bounded_beyond_aarch64_limit,
+            &bounded_large_offset,
         ));
         assert!(abstract_outbound_syscall_data_argument_is_closed(
             &data_address,

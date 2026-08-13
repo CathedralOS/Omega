@@ -3083,14 +3083,20 @@ fn encode_simple_outbound_syscall(
             "final outbound syscall replay retained non-supervisor entry control",
         ));
     };
-    let has_result = plan.result.is_some();
-    let parameter_count = operands.len().saturating_sub(usize::from(has_result));
+    // The retained ABI result does not imply a leading Omega result operand:
+    // statement-shaped adapters may intentionally discard the native status.
+    // Operand arity distinguishes those calls from value-producing syscalls.
+    let has_result_operand =
+        plan.result.is_some() && operands.len() == plan.parameters.len().saturating_add(1);
+    let parameter_count = operands
+        .len()
+        .saturating_sub(usize::from(has_result_operand));
     let word = ValueShape::integer(8, 8);
     omega_calling_conventions::validate_call_plan(
         plan,
         &CallSignature {
             parameters: vec![word; parameter_count],
-            result: has_result.then_some(word),
+            result: plan.result.as_ref().map(|placement| placement.shape),
         },
     )
     .map_err(|error| {
@@ -3142,7 +3148,7 @@ fn encode_simple_outbound_syscall(
             )),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if !has_result {
+    if !has_result_operand {
         let address_sites = outbound_syscall_argument_storage_sites(architecture, operands)?;
         let bytes = match architecture {
             Architecture::X86_64 => omega_isa_x86_64::encode_syscall_sequence(
