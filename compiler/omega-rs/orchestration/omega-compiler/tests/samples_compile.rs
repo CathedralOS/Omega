@@ -9,8 +9,9 @@
 //! the default target and reports *all* broken samples at once, so a language
 //! change that breaks a demo fails the suite the same day. This broad source-
 //! compatibility sweep is entry-agnostic. Authored entry migration is checked
-//! separately, while the broad native oracle keeps staging an exact host-owned
-//! adapter around samples that have not yet reached a directly lowerable entry.
+//! separately. The broad native oracle uses an authored host entry whenever one
+//! exists and keeps its exact host-owned staging adapter only for unrooted
+//! legacy samples (plus explicitly documented lowering gaps).
 //!
 //! Four guards:
 //!  * `all_samples_reach_checked_trees` — every sample `main.omg` under
@@ -73,6 +74,7 @@ const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "shape_area",
     "shapes_area",
 ];
+const STAGED_AUTHORED_RUNTIME_SAMPLES: &[&str] = &["cli__basics__temperature_convert"];
 
 #[cfg(windows)]
 fn executable_name() -> &'static str {
@@ -177,7 +179,34 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn compile_exact_host_entry(
+fn compile_sample_runtime_entry(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    let has_authored_entry = fs::read_to_string(
+        options
+            .root_path
+            .parent()
+            .expect("sample source has a project directory")
+            .join("build.omg"),
+    )
+    .is_ok_and(|source| {
+        source.contains(".roots.bind(")
+            && source.contains(&format!("{}::ProgramEntry", host_root_owner()))
+    });
+    let staged_lowering_gap =
+        STAGED_AUTHORED_RUNTIME_SAMPLES.contains(&sample_name(&options.root_path).as_str());
+
+    if has_authored_entry && !staged_lowering_gap {
+        return compile_program(CompileOptions {
+            target_name: Some(host_target_name().to_owned()),
+            ..options
+        });
+    }
+
+    compile_staged_legacy_host_entry(options)
+}
+
+fn compile_staged_legacy_host_entry(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
     let ordinal = NEXT_ENTRY_STAGE.fetch_add(1, Ordering::Relaxed);
@@ -191,7 +220,7 @@ fn compile_exact_host_entry(
     {
         let _ = fs::remove_dir_all(&stage_dir);
         return Err(vec![psi_diagnostics::Diagnostic::error(format!(
-            "failed to stage exact sample entry: {error}"
+            "failed to stage legacy sample entry: {error}"
         ))]);
     }
 
@@ -570,6 +599,7 @@ fn samples_with_documented_exit_run_correctly() {
     let sample_mains = sample_mains();
     let mut failures: Vec<String> = Vec::new();
     let mut checked = 0usize;
+    let filter = std::env::var("OMEGA_SAMPLE_RUNTIME_FILTER").ok();
 
     for main_path in &sample_mains {
         let source = fs::read_to_string(main_path).unwrap_or_default();
@@ -577,11 +607,19 @@ fn samples_with_documented_exit_run_correctly() {
             continue;
         };
         let name = sample_name(main_path);
+        if !filter.as_deref().is_none_or(|filter| {
+            filter
+                .split(',')
+                .map(str::trim)
+                .any(|candidate| !candidate.is_empty() && name.contains(candidate))
+        }) {
+            continue;
+        }
         let build_dir =
             std::env::temp_dir().join(format!("omega-sample-run-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
 
-        match compile_exact_host_entry(CompileOptions {
+        match compile_sample_runtime_entry(CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
             target_name: None,
@@ -628,7 +666,7 @@ fn samples_with_documented_exit_run_correctly() {
 
     assert!(
         checked > 0,
-        "expected at least one sample with a documented `Expected exit:` annotation"
+        "expected at least one selected sample with a documented `Expected exit:` annotation"
     );
     assert!(
         failures.is_empty(),
