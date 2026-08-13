@@ -280,6 +280,121 @@ fn source_scalar_result_precedes_nominal_cleanup_through_all_native_artifacts() 
     }
 }
 
+#[test]
+fn source_scalar_result_runs_distinct_nominal_roots_in_reverse_order_on_all_targets() {
+    let source = r#"
+        data FirstHelper {}
+        machine FirstHelper::touch() {}
+        data SecondHelper {}
+        machine SecondHelper::touch() {}
+
+        data First { value: u64; }
+        machine First::drop(&mut self) { FirstHelper::touch(); }
+        data Second { value: u64; }
+        machine Second::drop(&mut self) { SecondHelper::touch(); }
+
+        data Root {}
+        machine Root::measure(first: First, second: Second) -> u64 { 7u64 }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize ordered scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse ordered scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve ordered scalar cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type ordered scalar cleanup");
+    let checked = lower_typed_trees(typed).expect("check ordered scalar cleanup");
+    let lowered = lower_machine(&checked, "Root::measure")
+        .expect("ordered scalar nominal cleanup reaches terminal Psi");
+    let semantic_bytes = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry_machine = lowered.semantic_module.entry;
+    drop(checked);
+    drop(lowered);
+
+    let module = decode_module(&semantic_bytes).expect("semantic artifact decodes");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry_machine)
+        .expect("ordered scalar cleanup entry");
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("ordered scalar cleanup entry returns a scalar")
+    };
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(second),
+        TerminalAffineCleanupAction::InvokeNominal(first),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("two nominal roots form one ordered scalar cleanup stream")
+    };
+    assert_eq!(second.place, entry.structural_parameters[1].place);
+    assert_eq!(first.place, entry.structural_parameters[0].place);
+    assert_ne!(second.cleanup_machine, first.cleanup_machine);
+
+    let abstract_plan =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("verified ordered scalar cleanup crosses the Omega boundary");
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission failed: {error:?}", case.target));
+        let emitted_entry = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted ordered scalar cleanup entry");
+        let cleanup = emitted_entry
+            .scalar_affine_cleanup
+            .as_ref()
+            .expect("emitted ordered scalar cleanup custody");
+        assert_eq!(cleanup.actions, *cleanup_actions);
+        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 2);
+        assert_eq!(emitted_entry.internal_unit_calls.len(), 2);
+        assert_eq!(
+            emitted_entry
+                .internal_unit_calls
+                .iter()
+                .map(|call| call.target)
+                .collect::<Vec<_>>(),
+            vec![second.cleanup_machine, first.cleanup_machine]
+        );
+        assert!(cleanup.code_offset > 0, "result bytes precede cleanups");
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation failed: {error:?}", case.target));
+        let installed_entry = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("installed ordered scalar cleanup entry");
+        assert_eq!(
+            installed_entry.scalar_affine_cleanup.as_ref(),
+            Some(cleanup)
+        );
+        let installation_bytes = encode_terminal_installation_record(&installation)
+            .expect("canonical ordered scalar cleanup installation");
+        assert_eq!(
+            decode_terminal_installation_record(&installation_bytes),
+            Ok(installation.clone())
+        );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed ordered scalar cleanup binds its exact image");
+    }
+}
+
 fn assert_source_structural_return(
     machine_name: &str,
     parameter_cleanup_count: usize,

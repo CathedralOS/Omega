@@ -1948,7 +1948,7 @@ fn lower_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if plan.nominal_cleanup.is_some() {
+    if !plan.nominal_cleanups.is_empty() {
         return lower_nominal_structural_scalar_return_machine(checked, plan);
     }
     let (structural_types, type_ids) = lower_structural_type_plans(
@@ -2478,28 +2478,28 @@ fn lower_nominal_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let cleanup = plan
-        .nominal_cleanup
-        .as_ref()
-        .ok_or(LoweringError::Unsupported(
-            "nominal scalar return is missing its cleanup plan",
-        ))?;
-    let [parameter] = plan.structural_parameters.as_slice() else {
-        return unsupported("nominal scalar return requires one structural parameter");
-    };
-    if parameter.position != 0
-        || parameter.is_self
-        || parameter.multiplicity != Multiplicity::Affine
-        || !parameter.qualifications.is_empty()
-        || cleanup.source_parameter_index != 0
-        || cleanup.type_identity != parameter.type_identity
-        || !cleanup.requirements.is_empty()
+    if plan.structural_parameters.is_empty()
+        || plan.nominal_cleanups.len() != plan.structural_parameters.len()
         || !plan.scalar_parameters.is_empty()
         || !plan.bindings.is_empty()
         || !plan.trivial_affine_discard_parameter_positions.is_empty()
         || plan.return_statement_ordinal != 0
     {
         return unsupported("nominal scalar return exceeds its first bounded slice");
+    }
+    let parameter_count = plan.structural_parameters.len();
+    for (position, parameter) in plan.structural_parameters.iter().enumerate() {
+        let cleanup = &plan.nominal_cleanups[parameter_count - position - 1];
+        if usize::try_from(parameter.position).ok() != Some(position)
+            || parameter.is_self
+            || parameter.multiplicity != Multiplicity::Affine
+            || !parameter.qualifications.is_empty()
+            || usize::try_from(cleanup.source_parameter_index).ok() != Some(position)
+            || cleanup.type_identity != parameter.type_identity
+            || !cleanup.requirements.is_empty()
+        {
+            return unsupported("nominal scalar return cleanup frontier drifted");
+        }
     }
     let contract = checked
         .facts
@@ -2541,7 +2541,7 @@ fn lower_nominal_structural_scalar_return_machine(
     let nominal = CheckedNominalAffineUnitCleanupMachinePlan {
         machine: synthetic,
         caller_requirements: Vec::new(),
-        cleanups: vec![cleanup.clone()],
+        cleanups: plan.nominal_cleanups.clone(),
     };
     let mut staged = checked.clone();
     for shape in &checked
@@ -2610,13 +2610,19 @@ fn lower_nominal_structural_scalar_return_machine(
     let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &block.terminator else {
         return unsupported("nominal scalar return synthetic cleanup edge drifted");
     };
-    let [cleanup] = cleanups.as_slice() else {
+    if cleanups.len() != plan.nominal_cleanups.len() {
         return unsupported("nominal scalar return synthetic cleanup count drifted");
-    };
-    if cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty() {
+    }
+    if cleanups.iter().any(|cleanup| {
+        cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty()
+    }) {
         return unsupported("nominal scalar return unexpectedly acquired proof context");
     }
-    let cleanup_action = TerminalAffineCleanupAction::InvokeNominal(cleanup.clone());
+    let cleanup_actions = cleanups
+        .iter()
+        .cloned()
+        .map(TerminalAffineCleanupAction::InvokeNominal)
+        .collect();
     let edge = *edge;
     let mut next_value = 1_u64;
     let mut operations = OperationBuffer::new(operation_identity_base);
@@ -2625,7 +2631,7 @@ fn lower_nominal_structural_scalar_return_machine(
     block.terminator = Terminator::Return {
         edge,
         value,
-        cleanup_actions: vec![cleanup_action],
+        cleanup_actions,
     };
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
         id: value_id(next_value),
@@ -12841,7 +12847,7 @@ mod tests {
                     result_type: PrimitiveType::I32,
                     return_statement_ordinal: 0,
                     trivial_affine_discard_parameter_positions: vec![1, 0],
-                    nominal_cleanup: None,
+                    nominal_cleanups: Vec::new(),
                 }],
             };
         checked.facts.values.scalar_expressions.expressions.push(

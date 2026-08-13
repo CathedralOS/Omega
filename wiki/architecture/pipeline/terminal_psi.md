@@ -297,12 +297,13 @@ performs the same complete cleanup.
 Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
-One narrower nominal branch admits exactly one direct affine structural
-parameter, no scalar inputs or locals, no authored contract, and one immediate
-supported scalar result. After materializing that result, its return edge
-invokes the parameter's exact attached `drop`; the drop may be empty or contain
+One narrower nominal branch admits a finite nonempty list of direct affine
+structural parameters, no scalar inputs or locals, no authored contract, and
+one immediate supported scalar result. After materializing that result, its
+return edge invokes every parameter's exact attached `drop` in reverse authored
+order; targets may be distinct or shared, and each drop may be empty or contain
 the bounded source-ordered zero-argument helper-call body accepted by the Unit
-nominal slice. Terminal production retains the cleanup target and helpers in
+nominal slice. Terminal production retains the cleanup targets and helpers in
 the same closed module. Contextual cleanup requirements, nested nominal
 ownership, projections, and wider mixed cleanup/control shapes still fail
 closed.
@@ -459,7 +460,7 @@ composes every nominal invocation. Omega preserves the same action order and
 call ownership through target assignment, all five machine emitters, object and
 image custody, and canonical installation; no-code actions emit no target
 instruction. Current source production covers the wider trivial-discard scalar
-slice plus the single-root, closed-result nominal branch described above; mixed
+slice plus the finite all-nominal, closed-result branch described above; mixed
 trivial/nominal roots and contextual scalar cleanup remain fenced.
 
 The proof kernel, proposition representation, total primitive judgments,

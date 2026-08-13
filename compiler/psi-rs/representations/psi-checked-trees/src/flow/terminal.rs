@@ -300,11 +300,11 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
-    /// Narrow attached nominal cleanup invoked after scalar result
-    /// materialization. The first scalar-return slice admits at most one whole
-    /// structural root; wider mixed cleanup uses the same ordered action model
-    /// once checked production can construct its complete frontier.
-    pub nominal_cleanup: Option<CheckedUnitNominalAffineCleanupPlan>,
+    /// Attached nominal cleanups invoked after scalar result materialization,
+    /// in reverse authored parameter order. The first scalar-return slice
+    /// admits either this complete all-nominal root list or the complete
+    /// trivial-discard list above; mixed cleanup frontiers remain fenced.
+    pub nominal_cleanups: Vec<CheckedUnitNominalAffineCleanupPlan>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

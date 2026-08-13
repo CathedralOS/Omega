@@ -805,80 +805,100 @@ fn build_structural_scalar_return_machine(
                 })
         })
         .collect::<Vec<_>>();
-    let (trivial_affine_discard_parameter_positions, nominal_cleanup) =
-        if nominal_positions.is_empty() {
-            (
-                whole_discards
-                    .into_iter()
-                    .map(|(_, position)| position)
-                    .collect(),
-                None,
-            )
-        } else {
-            let [(_, position)] = nominal_positions.as_slice() else {
-                return None;
-            };
-            if structural_parameters.len() != 1
-                || !scalar_parameters.is_empty()
-                || !bindings.is_empty()
-                || *position != 0
-                || !program.state_contracts(state).is_empty()
-            {
-                return None;
-            }
-            let source_parameter = source_state_parameters.get(*position as usize)?;
-            let TypeReferenceNode::Named {
-                symbol: parameter_data_symbol,
-                ..
-            } = program
-                .type_reference_table
-                .type_reference(source_parameter.type_reference)
-            else {
-                return None;
-            };
-            let parameter_data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *parameter_data_symbol)?;
-            let cleanup_machines = program
-                .machines()
-                .iter()
-                .filter(|candidate| {
-                    candidate.supply_mode == MachineSupplyMode::CheckedBody
-                        && candidate.name.as_str().ends_with("::drop")
-                        && candidate
-                            .attached_data
-                            .as_ref()
-                            .is_some_and(|attached| attached == &parameter_data.name)
-                })
-                .collect::<Vec<_>>();
-            let [cleanup_machine] = cleanup_machines.as_slice() else {
-                return None;
-            };
-            let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
-            if !checked_requires_expressions(
-                program,
-                facts,
-                cleanup_machine.symbol,
-                cleanup_target.state,
-            )?
-            .is_empty()
-                || cleanup_target.attachment_type_identity != structural_parameters[0].type_identity
-            {
-                return None;
-            }
-            (
-                Vec::new(),
+    let (trivial_affine_discard_parameter_positions, nominal_cleanups) = if nominal_positions
+        .is_empty()
+    {
+        (
+            whole_discards
+                .into_iter()
+                .map(|(_, position)| position)
+                .collect(),
+            Vec::new(),
+        )
+    } else {
+        if nominal_positions.len() != whole_discards.len()
+            || structural_parameters.len() != source_state_parameters.len()
+            || structural_parameters.len() != whole_discards.len()
+            || !scalar_parameters.is_empty()
+            || !bindings.is_empty()
+            || !program.state_contracts(state).is_empty()
+        {
+            return None;
+        }
+        let cleanups = whole_discards
+            .iter()
+            .map(|(_, position)| {
+                let source_parameter = source_state_parameters.get(*position as usize)?;
+                let checked_parameter = structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.position == *position)?;
+                if source_parameter.is_self
+                    || source_parameter.is_const
+                    || source_parameter.is_mutable
+                    || checked_parameter.is_self
+                    || checked_parameter.multiplicity != Multiplicity::Affine
+                    || !checked_parameter.qualifications.is_empty()
+                {
+                    return None;
+                }
+                let TypeReferenceNode::Named {
+                    symbol: parameter_data_symbol,
+                    ..
+                } = program
+                    .type_reference_table
+                    .type_reference(source_parameter.type_reference)
+                else {
+                    return None;
+                };
+                let parameter_data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *parameter_data_symbol)?;
+                let cleanup_machines = program
+                    .machines()
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.supply_mode == MachineSupplyMode::CheckedBody
+                            && candidate.name.as_str().ends_with("::drop")
+                            && candidate
+                                .attached_data
+                                .as_ref()
+                                .is_some_and(|attached| attached == &parameter_data.name)
+                    })
+                    .collect::<Vec<_>>();
+                let [cleanup_machine] = cleanup_machines.as_slice() else {
+                    return None;
+                };
+                let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
+                if !checked_requires_expressions(
+                    program,
+                    facts,
+                    cleanup_machine.symbol,
+                    cleanup_target.state,
+                )?
+                .is_empty()
+                    || cleanup_target.attachment_type_identity != checked_parameter.type_identity
+                    || !is_bounded_scalar_nominal_cleanup_target(
+                        facts,
+                        unit_effects,
+                        cleanup_machine.symbol,
+                        cleanup_target,
+                    )
+                {
+                    return None;
+                }
                 Some(CheckedUnitNominalAffineCleanupPlan {
-                    source_parameter_index: 0,
-                    type_identity: structural_parameters[0].type_identity.clone(),
+                    source_parameter_index: checked_parameter.position,
+                    type_identity: checked_parameter.type_identity.clone(),
                     cleanup_machine: cleanup_machine.symbol,
                     cleanup_state: cleanup_target.state,
                     cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
                     requirements: Vec::new(),
-                }),
-            )
-        };
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        (Vec::new(), cleanups)
+    };
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -889,8 +909,105 @@ fn build_structural_scalar_return_machine(
         result_type,
         return_statement_ordinal,
         trivial_affine_discard_parameter_positions,
-        nominal_cleanup,
+        nominal_cleanups,
     })
+}
+
+fn is_bounded_scalar_nominal_cleanup_target(
+    facts: &CheckFacts,
+    unit_effects: &CheckedUnitEffectPlans,
+    cleanup_machine: SymbolHandle,
+    cleanup_target: &CheckedUnitEffectMachinePlan,
+) -> bool {
+    if !cleanup_target.structural_parameters.is_empty()
+        || !cleanup_target.trivial_affine_locals.is_empty()
+        || !cleanup_target.entry_claims.is_empty()
+        || !cleanup_target.body_qualifications.is_empty()
+        || !service_reach_is_empty(facts, cleanup_target.service_reach)
+        || !service_reach_plan_is_empty(facts, cleanup_target.contract_service_reach)
+    {
+        return false;
+    }
+    let Some((cleanup_return, cleanup_calls)) = cleanup_target.operations.split_last() else {
+        return false;
+    };
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index,
+        trivial_affine_local_discard_ordinals,
+        trivial_affine_discards,
+    } = cleanup_return
+    else {
+        return false;
+    };
+    if usize::try_from(*statement_index).ok() != Some(cleanup_calls.len())
+        || !trivial_affine_local_discard_ordinals.is_empty()
+        || !trivial_affine_discards.is_empty()
+    {
+        return false;
+    }
+
+    let mut helpers = Vec::with_capacity(cleanup_calls.len());
+    for (statement_index, operation) in cleanup_calls.iter().enumerate() {
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            service_reach,
+            structural_arguments,
+            claim_transfers,
+        } = operation
+        else {
+            return false;
+        };
+        if usize::try_from(coordinate.statement_index).ok() != Some(statement_index)
+            || coordinate.call_ordinal != 0
+            || *target_machine == cleanup_machine
+            || helpers
+                .iter()
+                .any(|(helper, _, _)| helper == target_machine)
+            || !service_reach_is_empty(facts, *service_reach)
+            || !structural_arguments.is_empty()
+            || !claim_transfers.is_empty()
+        {
+            return false;
+        }
+        helpers.push((*target_machine, *target_state, *target_contract_fingerprint));
+    }
+
+    helpers
+        .into_iter()
+        .all(|(helper_machine, helper_state, helper_fingerprint)| {
+            let Some(helper) = unit_effects.for_machine(helper_machine) else {
+                return false;
+            };
+            let helper_shape = unit_effects
+                .structural_types
+                .iter()
+                .find(|shape| shape.identity == helper.attachment_type_identity);
+            helper.machine != cleanup_machine
+                && helper.state == helper_state
+                && helper.contract_fingerprint == helper_fingerprint
+                && matches!(
+                    helper_shape.map(|shape| &shape.shape),
+                    Some(CheckedUnitStructuralTypeShape::Record { fields }) if fields.is_empty()
+                )
+                && helper.structural_parameters.is_empty()
+                && helper.trivial_affine_locals.is_empty()
+                && helper.entry_claims.is_empty()
+                && helper.body_qualifications.is_empty()
+                && service_reach_is_empty(facts, helper.service_reach)
+                && service_reach_plan_is_empty(facts, helper.contract_service_reach)
+                && matches!(
+                    helper.operations.as_slice(),
+                    [CheckedUnitEffectOperationPlan::ReturnUnit {
+                        statement_index: 0,
+                        trivial_affine_local_discard_ordinals,
+                        trivial_affine_discards,
+                    }] if trivial_affine_local_discard_ordinals.is_empty()
+                        && trivial_affine_discards.is_empty()
+                )
+        })
 }
 
 fn checked_boolean_contains_short_circuit(
