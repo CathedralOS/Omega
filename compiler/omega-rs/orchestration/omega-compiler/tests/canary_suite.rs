@@ -8955,20 +8955,12 @@ fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
 #[test]
 fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_ranged_bitwise_and_mask_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-ranged-andmask-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-ranged-andmask-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("ranged bitwise-and mask canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("ranged bitwise-and mask canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("ranged bitwise-and mask canary should run");
 
@@ -8981,7 +8973,7 @@ fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A DECLARED range discharges the index obligation with no guard: `i: usize
@@ -9046,20 +9038,13 @@ fn runtime_declared_range_index_write_exit_canary_runs() {
 #[test]
 fn runtime_expression_range_bound_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_expression_range_bound_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-expr-range-bound-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("expression range bound canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("expression range bound canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("expression range bound canary should run");
 
@@ -9072,7 +9057,7 @@ fn runtime_expression_range_bound_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // Machine-collection element-field RMW at a RUNTIME index under a dominating
