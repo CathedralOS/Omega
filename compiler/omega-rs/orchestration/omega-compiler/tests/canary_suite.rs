@@ -9267,20 +9267,13 @@ stderr:
 #[test]
 fn runtime_frame_indexed_local_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-frame-idx-local-read-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("frame indexed local read canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("frame indexed local read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("frame indexed local read canary should run");
 
@@ -9294,7 +9287,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // 1-byte elements (i8) of a by-value param array at a runtime index --
