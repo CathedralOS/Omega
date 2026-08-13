@@ -13,7 +13,7 @@ use omega_terminal_abstract_operations::{
 use psi_core::{BlockId, MachineId, ScalarType, StructuralPlaceKind};
 use psi_terminal::{
     OperationKind, OperationResult, StructuralMultiplicity, StructuralResultDeclaration,
-    TerminalMachine, Terminator,
+    TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -709,9 +709,11 @@ fn lower_machine(
                 }
                 operations.push(TerminalAbstractOperation::ReturnUnit {
                     psi_edge: *edge,
-                    trivial_affine_discards: trivial_affine_discards.clone(),
-                    residual_affine_discards: Vec::new(),
-                    nominal_affine_cleanup: None,
+                    cleanup_actions: trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .map(TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
                 });
             }
             Terminator::ReturnUnitPartialAffine {
@@ -735,12 +737,20 @@ fn lower_machine(
                 }
                 operations.push(TerminalAbstractOperation::ReturnUnit {
                     psi_edge: *edge,
-                    trivial_affine_discards: trivial_affine_discards.clone(),
-                    residual_affine_discards: residual_affine_discards.clone(),
-                    nominal_affine_cleanup: None,
+                    cleanup_actions: trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .map(TerminalAffineCleanupAction::DiscardRoot)
+                        .chain(
+                            residual_affine_discards
+                                .iter()
+                                .cloned()
+                                .map(TerminalAffineCleanupAction::DiscardResidual),
+                        )
+                        .collect(),
                 });
             }
-            Terminator::ReturnUnitNominalAffine { edge, cleanup } => {
+            Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
                 if result.is_some() || !lowered_unit_affine_locals.is_empty() {
                     return Err(LoweringError::UnsupportedStructuralReturn {
                         machine: machine.id,
@@ -749,9 +759,11 @@ fn lower_machine(
                 }
                 operations.push(TerminalAbstractOperation::ReturnUnit {
                     psi_edge: *edge,
-                    trivial_affine_discards: Vec::new(),
-                    residual_affine_discards: Vec::new(),
-                    nominal_affine_cleanup: Some(*cleanup),
+                    cleanup_actions: cleanups
+                        .iter()
+                        .copied()
+                        .map(TerminalAffineCleanupAction::InvokeNominal)
+                        .collect(),
                 });
             }
             Terminator::ReturnStructural { edge, .. } => {
