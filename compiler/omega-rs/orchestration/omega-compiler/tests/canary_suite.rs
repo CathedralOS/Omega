@@ -8812,19 +8812,12 @@ fn runtime_guarded_element_increment_exit_canary_runs() {
 #[test]
 fn runtime_element_range_dataflow_exit_canary_runs() {
     let canary = pass_canary("range/runtime_element_range_dataflow_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-elem-range-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-elem-range-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("element range dataflow canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("element range dataflow canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("element range dataflow canary should run");
 
@@ -8837,7 +8830,7 @@ fn runtime_element_range_dataflow_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // MULTI-predecessor edge agreement: two states funnel into `push` under
@@ -8847,19 +8840,12 @@ fn runtime_element_range_dataflow_exit_canary_runs() {
 #[test]
 fn runtime_funnel_guard_agreement_exit_canary_runs() {
     let canary = pass_canary("range/runtime_funnel_guard_agreement_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-funnel-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-funnel-guard-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("funnel guard agreement canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("funnel guard agreement canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("funnel guard agreement canary should run");
 
@@ -8872,7 +8858,7 @@ fn runtime_funnel_guard_agreement_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A binary value with a GUARD-bounded operand: `self.y = self.p + self.dir`,
