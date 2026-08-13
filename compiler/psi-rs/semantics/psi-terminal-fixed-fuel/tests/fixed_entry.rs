@@ -253,6 +253,25 @@ fn ordered_nominal_affine_cleanups_count_shared_executable_target_and_helper_twi
 }
 
 #[test]
+fn three_nominal_affine_cleanups_count_shared_executable_target_and_helper_three_times() {
+    let module = three_ordered_shared_executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("three shared executable cleanup actions verify");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("three shared executable cleanups have an exact repeated bound");
+    assert_eq!(
+        certificate.ceiling_units(),
+        10,
+        "root plus the shared call/helper/drop path invoked three times"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
     let module = executable_nominal_affine_fixture();
     let verified = verify_module(
@@ -1288,6 +1307,41 @@ fn ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
         },
     });
     module.machines.push(helper);
+    module
+}
+
+fn three_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
+    let mut module = ordered_shared_executable_nominal_affine_fixture();
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(902),
+            position: 2,
+            is_self: false,
+            structural_type: structural_type_id(900),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(902),
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 2,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!("ordered fixture retains nominal cleanup")
+    };
+    cleanups.insert(
+        0,
+        NominalAffineCleanup {
+            place: place_id(902),
+            structural_type: structural_type_id(900),
+            cleanup_machine: machine_id(901),
+        },
+    );
     module
 }
 

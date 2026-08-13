@@ -51,6 +51,66 @@ fn two_nominal_affine_roots_validate_in_reverse_order_and_may_share_a_target() {
 }
 
 #[test]
+fn three_nominal_affine_roots_validate_in_reverse_order_and_reject_a_fourth() {
+    let module = three_root_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        cleanups
+            .iter()
+            .map(|cleanup| cleanup.place)
+            .collect::<Vec<_>>(),
+        vec![place_id(3), place_id(2), place_id(1)]
+    );
+    validate_module(&module).expect("three ordered nominal cleanup roots should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("three shared cleanup targets require no proof evidence");
+
+    let mut too_wide = module;
+    let caller = &mut too_wide.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(4),
+            position: 3,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 3,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups.insert(
+        0,
+        NominalAffineCleanup {
+            place: place_id(4),
+            structural_type: structural_type_id(1),
+            cleanup_machine: machine_id(2),
+        },
+    );
+    assert!(matches!(
+        validate_module(&too_wide),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
 fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies() {
     let module = two_root_one_executable_nominal_affine_module();
     validate_module(&module).expect("one executable cleanup action should validate");
@@ -2447,6 +2507,41 @@ fn two_root_nominal_affine_module() -> TerminalModule {
         0,
         NominalAffineCleanup {
             place: place_id(2),
+            structural_type: structural_type_id(1),
+            cleanup_machine: machine_id(2),
+        },
+    );
+    module
+}
+
+fn three_root_nominal_affine_module() -> TerminalModule {
+    let mut module = two_root_nominal_affine_module();
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(3),
+            position: 2,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::Parameter {
+            position: 2,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups.insert(
+        0,
+        NominalAffineCleanup {
+            place: place_id(3),
             structural_type: structural_type_id(1),
             cleanup_machine: machine_id(2),
         },
