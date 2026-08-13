@@ -16,11 +16,12 @@ use omega_terminal_machine_code::{
     TerminalInternalCallRelocation, TerminalInternalUnitCallRecord, TerminalMachineCodeFunction,
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
     TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
-    TerminalScalarCleanupPreservationEvidence, TerminalScalarConditionalCondition,
-    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord,
-    TerminalUnitStackEvidence,
+    TerminalScalarCleanupPreservationEvidence, TerminalScalarConditionalArm,
+    TerminalScalarConditionalBranchEvidence, TerminalScalarConditionalCondition,
+    TerminalScalarControlAffineCleanupRecord, TerminalScalarControlFlowEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -1232,6 +1233,69 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
 }
 
 #[test]
+fn scalar_three_leaf_cleanup_object_custody_rejects_corruption() {
+    let plan = scalar_three_leaf_cleanup_plan();
+    let artifact = build_terminal_object_artifact(&plan).expect("three-leaf cleanup object");
+    let function = &artifact.functions()[0];
+    assert_eq!(function.scalar_control_affine_cleanups.len(), 3);
+    assert_eq!(
+        function
+            .scalar_control_affine_cleanups
+            .iter()
+            .map(|record| record.cleanup.psi_edge)
+            .collect::<Vec<_>>(),
+        [edge_id(10), edge_id(11), edge_id(12)]
+    );
+
+    let invalid = Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+        machine_id(1),
+    ));
+    let mut reordered = plan.clone();
+    reordered.functions[0]
+        .scalar_control_affine_cleanups
+        .swap(0, 1);
+    assert_eq!(build_terminal_object_artifact(&reordered), invalid);
+
+    let mut duplicate_edge = plan.clone();
+    duplicate_edge.functions[0].scalar_control_affine_cleanups[1]
+        .cleanup
+        .psi_edge = edge_id(10);
+    assert_eq!(build_terminal_object_artifact(&duplicate_edge), invalid);
+
+    let mut crossed_interval = plan.clone();
+    crossed_interval.functions[0].scalar_control_affine_cleanups[0]
+        .cleanup
+        .byte_count += 1;
+    assert_eq!(build_terminal_object_artifact(&crossed_interval), invalid);
+
+    let mut forged_preservation = plan.clone();
+    forged_preservation.functions[0].scalar_control_affine_cleanups[2]
+        .preservation
+        .result_store_offset += 1;
+    assert_eq!(
+        build_terminal_object_artifact(&forged_preservation),
+        invalid
+    );
+
+    let mut forged_control = plan;
+    let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn { nested_arm, .. } =
+        &mut forged_control.functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("scalar stack")
+            .control_flow
+    else {
+        unreachable!()
+    };
+    *nested_arm = TerminalScalarConditionalArm::False;
+    assert!(matches!(
+        build_terminal_object_artifact(&forged_control),
+        Err(TerminalObjectError::InvalidScalarConditionalEvidence { .. })
+            | Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(_))
+    ));
+}
+
+#[test]
 fn scalar_expression_conditionals_replay_balanced_prefix_and_validate_branch_kind() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let plan = scalar_expression_two_return_conditional_plan(target);
@@ -1483,6 +1547,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -1557,7 +1622,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "34f2f55b7012a4cf6c9654132c4df9f6670a9d48c62413e040feed7ea359930e"
+        "66350a9ee3df47421541bcec6af749990d0b5a58dec604618a694be12fee9cc3"
     );
 
     let mut changed_plan = plan;
@@ -1699,6 +1764,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 code_offset: 27,
             }],
             scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
             structural_return: None,
@@ -1780,6 +1846,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -1803,6 +1870,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -1844,6 +1912,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -1875,6 +1944,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -1956,6 +2026,135 @@ fn scalar_two_return_conditional_plan(target: NativeTarget) -> TerminalMachineCo
             });
         }
     }
+    plan
+}
+
+fn scalar_three_leaf_cleanup_plan() -> TerminalMachineCodePlan {
+    let mut plan = two_function_plan();
+    plan.entry = machine_id(1);
+    plan.functions.truncate(1);
+    let function = &mut plan.functions[0];
+    function.provenance.edges = vec![
+        edge_id(1),
+        edge_id(2),
+        edge_id(3),
+        edge_id(4),
+        edge_id(10),
+        edge_id(11),
+        edge_id(12),
+    ];
+    function.bytes = vec![
+        0x85, 0xc0, // test eax, eax
+        0x0f, 0x84, 0x38, 0, 0, 0, // root jz third leaf at 64
+        0x85, 0xc0, // nested test eax, eax
+        0x0f, 0x84, 0x18, 0, 0, 0, // nested jz second leaf at 40
+        0xb8, 1, 0, 0, 0, // first result
+        0x48, 0x83, 0xec, 16, // first preservation allocation
+        0x48, 0x89, 0x44, 0x24, 0, // first result store
+        0x48, 0x8b, 0x44, 0x24, 0, // first result load
+        0x48, 0x83, 0xc4, 16, 0xc3, // first release/return
+        0xb8, 0, 0, 0, 0, // second result
+        0x48, 0x83, 0xec, 16, 0x48, 0x89, 0x44, 0x24, 0, 0x48, 0x8b, 0x44, 0x24, 0, 0x48, 0x83,
+        0xc4, 16, 0xc3, 0xb8, 1, 0, 0, 0, // third result
+        0x48, 0x83, 0xec, 16, 0x48, 0x89, 0x44, 0x24, 0, 0x48, 0x8b, 0x44, 0x24, 0, 0x48, 0x83,
+        0xc4, 16, 0xc3,
+    ];
+    let leaf =
+        |edge: u64, cleanup_start: usize, end: usize| TerminalScalarControlAffineCleanupRecord {
+            cleanup: TerminalUnitAffineCleanupRecord {
+                psi_edge: edge_id(edge),
+                structural_types: Vec::new(),
+                locals: Vec::new(),
+                actions: vec![TerminalAffineCleanupAction::DiscardRoot(
+                    PlaceId::new(1).unwrap(),
+                )],
+                code_offset: cleanup_start,
+                byte_count: end - cleanup_start,
+            },
+            preservation: TerminalScalarCleanupPreservationEvidence {
+                frame: TerminalStackAdjustmentPair {
+                    byte_size: 16,
+                    allocation_offset: cleanup_start,
+                    allocation_byte_count: 4,
+                    release_offset: end - 5,
+                    release_byte_count: 4,
+                },
+                result_byte_offset: 0,
+                result_store_offset: cleanup_start + 4,
+                result_load_offset: end - 10,
+                aarch64_return_link: None,
+            },
+        };
+    function.scalar_control_affine_cleanups =
+        vec![leaf(10, 21, 40), leaf(11, 45, 64), leaf(12, 69, 88)];
+    function.scalar_stack = Some(TerminalScalarStackEvidence {
+        mutations: [21, 45, 69]
+            .into_iter()
+            .flat_map(|start| {
+                [
+                    scalar_mutation(
+                        start,
+                        4,
+                        TerminalScalarStackMutationKind::Allocate { byte_size: 16 },
+                    ),
+                    scalar_mutation(
+                        start + 14,
+                        4,
+                        TerminalScalarStackMutationKind::Release { byte_size: 16 },
+                    ),
+                ]
+            })
+            .collect(),
+        control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+            root: TerminalScalarConditionalBranchEvidence {
+                condition: TerminalScalarConditionalCondition::Parameter,
+                branch_offset: 2,
+                branch_byte_count: 6,
+                false_arm_offset: 64,
+            },
+            nested: TerminalScalarConditionalBranchEvidence {
+                condition: TerminalScalarConditionalCondition::Parameter,
+                branch_offset: 10,
+                branch_byte_count: 6,
+                false_arm_offset: 40,
+            },
+            nested_arm: TerminalScalarConditionalArm::True,
+        },
+        stack_alignment: 16,
+        cleanup_preservation: None,
+    });
+    function.scalar_structural_parameters = vec![TerminalUnitParameterRecord {
+        place: PlaceId::new(1).unwrap(),
+        structural_type: StructuralTypeId::new(1).unwrap(),
+        multiplicity: StructuralMultiplicity::Affine,
+        shape: ValueShape::integer(0, 1),
+    }];
+    function.scalar_structural_parameter_homes = vec![TerminalUnitParameterHomeRecord {
+        place: PlaceId::new(1).unwrap(),
+        structural_type: StructuralTypeId::new(1).unwrap(),
+        multiplicity: StructuralMultiplicity::Affine,
+        shape: ValueShape::integer(0, 1),
+        source: ValuePlacement {
+            shape: ValueShape::integer(0, 1),
+            locations: Vec::new(),
+        },
+        byte_offset: 0,
+        indirect: false,
+    }];
+    function.fuel_attribution = [(10, 21, 19), (11, 45, 19), (12, 69, 19)]
+        .into_iter()
+        .enumerate()
+        .map(
+            |(ordinal, (edge, code_offset, byte_count))| TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Edge(edge_id(edge)),
+                units: 1,
+                operation_ordinal: ordinal,
+                code_offset,
+                byte_count,
+            },
+        )
+        .collect();
     plan
 }
 
@@ -2813,6 +3012,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -2848,6 +3048,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
@@ -2928,6 +3129,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,

@@ -62,6 +62,12 @@ pub struct TerminalMachineCodeFunction {
     /// been materialized. The record deliberately reuses the exact cleanup
     /// vocabulary while remaining distinct from a Unit body.
     pub scalar_affine_cleanup: Option<TerminalUnitAffineCleanupRecord>,
+    /// Canonical true-before-false DFS leaves for the exact bounded
+    /// two-decision/three-return Boolean-control carrier. Each row binds one
+    /// real terminal-Psi return edge and physical cleanup suffix to the
+    /// independently replayable result/link preservation for that suffix.
+    /// Branch-free scalar cleanup continues to use `scalar_affine_cleanup`.
+    pub scalar_control_affine_cleanups: Vec<TerminalScalarControlAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<TerminalUnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<TerminalUnitParameterHomeRecord>,
     /// Exact native byte intervals attributed to the current Psi logical-fuel
@@ -95,6 +101,12 @@ pub struct TerminalUnitAffineCleanupRecord {
     pub actions: Vec<TerminalAffineCleanupAction>,
     pub code_offset: usize,
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalScalarControlAffineCleanupRecord {
+    pub cleanup: TerminalUnitAffineCleanupRecord,
+    pub preservation: TerminalScalarCleanupPreservationEvidence,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -373,6 +385,30 @@ pub enum TerminalScalarControlFlowEvidence {
         branch_byte_count: usize,
         false_arm_offset: usize,
     },
+    /// Exactly two Boolean decisions and three independently returning leaves.
+    /// The root is followed by its true arm and then its false arm; `nested_arm`
+    /// identifies which root arm contains the sole nested decision. The three
+    /// corresponding cleanup records remain in physical true-before-false DFS
+    /// order on the containing function.
+    TopLevelTwoDecisionThreeReturn {
+        root: TerminalScalarConditionalBranchEvidence,
+        nested: TerminalScalarConditionalBranchEvidence,
+        nested_arm: TerminalScalarConditionalArm,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalScalarConditionalBranchEvidence {
+    pub condition: TerminalScalarConditionalCondition,
+    pub branch_offset: usize,
+    pub branch_byte_count: usize,
+    pub false_arm_offset: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalScalarConditionalArm {
+    True,
+    False,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

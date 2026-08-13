@@ -30,10 +30,11 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
-    TerminalScalarConditionalCondition, TerminalScalarControlFlowEvidence,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarConditionalArm, TerminalScalarConditionalBranchEvidence,
+    TerminalScalarConditionalCondition, TerminalScalarControlAffineCleanupRecord,
+    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
+    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalPsiProvenance};
 use psi_core::MachineId;
@@ -145,6 +146,9 @@ pub struct TerminalObjectFunction {
     pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    /// Three byte-validated scalar cleanup records in canonical physical/DFS
+    /// return-leaf order for the bounded two-decision Boolean control lane.
+    pub scalar_control_affine_cleanups: Vec<TerminalScalarControlAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
     pub scalar_structural_parameter_homes:
         Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
@@ -307,7 +311,12 @@ pub fn build_terminal_object_artifact(
                 function.machine,
             ));
         }
-        if function.unit_affine_cleanup.is_some() && function.scalar_affine_cleanup.is_some() {
+        if (function.unit_affine_cleanup.is_some()
+            && (function.scalar_affine_cleanup.is_some()
+                || !function.scalar_control_affine_cleanups.is_empty()))
+            || (function.scalar_affine_cleanup.is_some()
+                && !function.scalar_control_affine_cleanups.is_empty())
+        {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
                 function.machine,
             ));
@@ -357,6 +366,14 @@ pub fn build_terminal_object_artifact(
                 stack,
                 function.scalar_affine_cleanup.as_ref(),
             )?;
+            validate_scalar_control_cleanup_evidence(
+                plan.target.architecture,
+                function.machine,
+                &function.provenance,
+                &function.bytes,
+                stack,
+                &function.scalar_control_affine_cleanups,
+            )?;
             validated_scalar_stacks.insert(
                 function.machine,
                 validate_scalar_stack(
@@ -366,6 +383,7 @@ pub fn build_terminal_object_artifact(
                     &function.internal_calls,
                     stack,
                     function.scalar_affine_cleanup.as_ref(),
+                    &function.scalar_control_affine_cleanups,
                 )?,
             );
         }
@@ -445,7 +463,9 @@ pub fn build_terminal_object_artifact(
         let is_unit_custody_relocation =
             |call: &&omega_terminal_machine_code::TerminalInternalCallRelocation| {
                 call.unit_stack.is_some()
-                    || (function.scalar_affine_cleanup.is_some()
+                    || ((function.scalar_affine_cleanup.is_some()
+                        || cleanup_for_owner(&function.scalar_control_affine_cleanups, call.owner)
+                            .is_some())
                         && matches!(call.owner, TerminalCallSiteOwner::CleanupAction { .. })
                         && call.scalar_stack.is_some())
             };
@@ -478,18 +498,19 @@ pub fn build_terminal_object_artifact(
                 function.machine,
             ));
         }
-        let (parameter_homes, affine_cleanup) =
-            if let Some(cleanup) = function.scalar_affine_cleanup.as_ref() {
-                (
-                    function.scalar_structural_parameter_homes.as_slice(),
-                    Some(cleanup),
-                )
-            } else {
-                (
-                    function.unit_parameter_homes.as_slice(),
-                    function.unit_affine_cleanup.as_ref(),
-                )
-            };
+        let scalar_cleanup_custody = function.scalar_affine_cleanup.is_some()
+            || !function.scalar_control_affine_cleanups.is_empty();
+        let parameter_homes = if scalar_cleanup_custody {
+            function.scalar_structural_parameter_homes.as_slice()
+        } else {
+            function.unit_parameter_homes.as_slice()
+        };
+        let default_affine_cleanup = if let Some(cleanup) = function.scalar_affine_cleanup.as_ref()
+        {
+            Some(cleanup)
+        } else {
+            function.unit_affine_cleanup.as_ref()
+        };
         for custody in &function.internal_unit_calls {
             let unit_call_stack = validated_call_stacks
                 .iter()
@@ -507,6 +528,9 @@ pub fn build_terminal_object_artifact(
                     function.machine,
                 ));
             }
+            let affine_cleanup =
+                cleanup_for_owner(&function.scalar_control_affine_cleanups, custody.owner)
+                    .or(default_affine_cleanup);
             validate_internal_unit_call_custody(
                 plan.target,
                 function.machine,
@@ -561,6 +585,39 @@ pub fn build_terminal_object_artifact(
                 true,
             )?;
         }
+        if !function.scalar_control_affine_cleanups.is_empty() {
+            if function.unit_stack.is_some()
+                || function.scalar_stack.is_none()
+                || function.scalar_affine_cleanup.is_some()
+            {
+                return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                    function.machine,
+                ));
+            }
+            for record in &function.scalar_control_affine_cleanups {
+                let cleanup_end = record
+                    .cleanup
+                    .code_offset
+                    .checked_add(record.cleanup.byte_count)
+                    .ok_or(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                        function.machine,
+                    ))?;
+                validate_unit_affine_cleanup(
+                    function.machine,
+                    &function.provenance,
+                    function.bytes.get(..cleanup_end).ok_or(
+                        TerminalObjectError::InvalidUnitAffineCleanupEvidence(function.machine),
+                    )?,
+                    &function.fuel_attribution,
+                    &function.scalar_structural_parameter_homes,
+                    &function.internal_unit_calls,
+                    &attachments,
+                    &machine_functions,
+                    &record.cleanup,
+                    true,
+                )?;
+            }
+        }
         if function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function
                 .unit_parameters
@@ -589,7 +646,7 @@ pub fn build_terminal_object_artifact(
                         || parameter.multiplicity != home.multiplicity
                         || parameter.shape != home.shape
                 })
-            || (function.scalar_affine_cleanup.is_none()
+            || (!scalar_cleanup_custody
                 && (!function.scalar_structural_parameters.is_empty()
                     || !function.scalar_structural_parameter_homes.is_empty()))
         {
@@ -868,6 +925,7 @@ pub fn build_terminal_object_artifact(
             unit_parameter_homes: function.unit_parameter_homes.clone(),
             unit_affine_cleanup: function.unit_affine_cleanup.clone(),
             scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
+            scalar_control_affine_cleanups: function.scalar_control_affine_cleanups.clone(),
             scalar_structural_parameters: function.scalar_structural_parameters.clone(),
             scalar_structural_parameter_homes: function.scalar_structural_parameter_homes.clone(),
             structural_return: function.structural_return.clone(),
@@ -2206,6 +2264,7 @@ fn validate_scalar_stack(
     calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
     evidence: &TerminalScalarStackEvidence,
     scalar_affine_cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    scalar_control_affine_cleanups: &[TerminalScalarControlAffineCleanupRecord],
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -2226,7 +2285,7 @@ fn validate_scalar_stack(
         false_arm_offset,
     } = evidence.control_flow
     {
-        if scalar_affine_cleanup.is_some() {
+        if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
                 machine,
             ));
@@ -2242,6 +2301,34 @@ fn validate_scalar_stack(
             branch_byte_count,
             false_arm_offset,
         );
+    }
+    if let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+        root,
+        nested,
+        nested_arm,
+    } = evidence.control_flow
+    {
+        if scalar_affine_cleanup.is_some() {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                machine,
+            ));
+        }
+        return validate_top_level_two_decision_three_return_scalar_stack(
+            architecture,
+            machine,
+            bytes,
+            calls,
+            evidence,
+            root,
+            nested,
+            nested_arm,
+            scalar_control_affine_cleanups,
+        );
+    }
+    if !scalar_control_affine_cleanups.is_empty() {
+        return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine,
+        ));
     }
     if evidence
         .mutations
@@ -2478,19 +2565,123 @@ fn validate_scalar_cleanup_preservation(
     stack: &TerminalScalarStackEvidence,
     cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 ) -> Result<(), TerminalObjectError> {
+    let (Some(cleanup), Some(preservation)) = (cleanup, stack.cleanup_preservation) else {
+        return if cleanup.is_none() && stack.cleanup_preservation.is_none() {
+            Ok(())
+        } else {
+            Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                machine,
+            ))
+        };
+    };
+    validate_scalar_cleanup_preservation_record(
+        architecture,
+        machine,
+        bytes,
+        cleanup,
+        preservation,
+        bytes.len(),
+    )
+}
+
+fn validate_scalar_control_cleanup_evidence(
+    architecture: Architecture,
+    machine: MachineId,
+    provenance: &TerminalPsiProvenance,
+    bytes: &[u8],
+    stack: &TerminalScalarStackEvidence,
+    records: &[TerminalScalarControlAffineCleanupRecord],
+) -> Result<(), TerminalObjectError> {
+    let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
+    let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+        root,
+        nested,
+        nested_arm,
+    } = stack.control_flow
+    else {
+        return if records.is_empty() {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
+    };
+    let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
+    if records.len() != leaf_regions.len() || stack.cleanup_preservation.is_some() {
+        return Err(invalid());
+    }
+    let mut edges = std::collections::BTreeSet::new();
+    for (record, (leaf_start, leaf_end)) in records.iter().zip(leaf_regions) {
+        let cleanup = &record.cleanup;
+        let cleanup_end = cleanup
+            .code_offset
+            .checked_add(cleanup.byte_count)
+            .ok_or_else(invalid)?;
+        if cleanup.code_offset < leaf_start
+            || cleanup_end != leaf_end
+            || !edges.insert(cleanup.psi_edge)
+        {
+            return Err(invalid());
+        }
+        let position = provenance
+            .edges
+            .iter()
+            .position(|edge| *edge == cleanup.psi_edge)
+            .ok_or_else(invalid)?;
+        if provenance.edges[position + 1..].contains(&cleanup.psi_edge) {
+            return Err(invalid());
+        }
+        validate_scalar_cleanup_preservation_record(
+            architecture,
+            machine,
+            bytes,
+            cleanup,
+            record.preservation,
+            leaf_end,
+        )?;
+    }
+    if records.windows(2).any(|pair| {
+        pair[0]
+            .cleanup
+            .code_offset
+            .checked_add(pair[0].cleanup.byte_count)
+            .is_none_or(|end| end > pair[1].cleanup.code_offset)
+    }) || records[1..].iter().any(|record| {
+        record.cleanup.structural_types != records[0].cleanup.structural_types
+            || record.cleanup.locals != records[0].cleanup.locals
+            || record.cleanup.actions != records[0].cleanup.actions
+    }) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn cleanup_for_owner<'a>(
+    records: &'a [TerminalScalarControlAffineCleanupRecord],
+    owner: TerminalCallSiteOwner,
+) -> Option<&'a omega_terminal_machine_code::TerminalUnitAffineCleanupRecord> {
+    let TerminalCallSiteOwner::CleanupAction { edge, .. } = owner else {
+        return None;
+    };
+    records
+        .iter()
+        .find(|record| record.cleanup.psi_edge == edge)
+        .map(|record| &record.cleanup)
+}
+
+fn validate_scalar_cleanup_preservation_record(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
+    preservation: omega_terminal_machine_code::TerminalScalarCleanupPreservationEvidence,
+    expected_end: usize,
+) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
     let exact_at = |offset: usize, expected: &[u8]| {
         bytes
             .get(offset..)
             .and_then(|tail| tail.get(..expected.len()))
             == Some(expected)
-    };
-    let (Some(cleanup), Some(preservation)) = (cleanup, stack.cleanup_preservation) else {
-        return if cleanup.is_none() && stack.cleanup_preservation.is_none() {
-            Ok(())
-        } else {
-            Err(invalid())
-        };
     };
     let frame = preservation.frame;
     let cleanup_end = cleanup
@@ -2499,7 +2690,7 @@ fn validate_scalar_cleanup_preservation(
         .ok_or_else(invalid)?;
     validate_stack_adjustment_pair(architecture, machine, None, bytes, frame)
         .map_err(|_| invalid())?;
-    if cleanup_end != bytes.len()
+    if cleanup_end != expected_end
         || frame.byte_size != 16
         || frame.allocation_offset != cleanup.code_offset
         || preservation.result_byte_offset != 0
@@ -2528,8 +2719,8 @@ fn validate_scalar_cleanup_preservation(
                 || !exact_at(preservation.result_store_offset, &store)
                 || load_end != frame.release_offset
                 || !exact_at(preservation.result_load_offset, &load)
-                || release_end != bytes.len()
-                || bytes.last() != Some(&0xc3)
+                || release_end != expected_end
+                || bytes.get(expected_end.saturating_sub(1)) != Some(&0xc3)
             {
                 return Err(invalid());
             }
@@ -2562,9 +2753,9 @@ fn validate_scalar_cleanup_preservation(
                 || link.load_offset != link_load_offset
                 || !exact_at(link.load_offset, &link_load)
                 || frame.release_offset != release_offset
-                || terminal_end != bytes.len()
+                || terminal_end != expected_end
                 || !exact_at(
-                    bytes.len().saturating_sub(4),
+                    expected_end.saturating_sub(4),
                     &0xd65f_03c0_u32.to_le_bytes(),
                 )
             {
@@ -2654,6 +2845,7 @@ fn validate_top_level_two_return_scalar_stack(
         condition == TerminalScalarConditionalCondition::Expression,
         evidence,
         &mut validated_calls,
+        None,
     )?;
     if condition == TerminalScalarConditionalCondition::Parameter && prefix_peak != 0 {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -2673,6 +2865,7 @@ fn validate_top_level_two_return_scalar_stack(
         true,
         evidence,
         &mut validated_calls,
+        None,
     )?;
     let false_peak = replay_scalar_conditional_region(
         architecture,
@@ -2686,6 +2879,7 @@ fn validate_top_level_two_return_scalar_stack(
         true,
         evidence,
         &mut validated_calls,
+        None,
     )?;
     if let Some((&offset, _)) = claimed.first_key_value() {
         return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
@@ -2704,6 +2898,211 @@ fn validate_top_level_two_return_scalar_stack(
         },
         validated_calls,
     ))
+}
+
+fn validate_top_level_two_decision_three_return_scalar_stack(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
+    evidence: &TerminalScalarStackEvidence,
+    root: TerminalScalarConditionalBranchEvidence,
+    nested: TerminalScalarConditionalBranchEvidence,
+    nested_arm: TerminalScalarConditionalArm,
+    cleanups: &[TerminalScalarControlAffineCleanupRecord],
+) -> Result<
+    (
+        TerminalObjectScalarStack,
+        Vec<TerminalObjectScalarCallStack>,
+    ),
+    TerminalObjectError,
+> {
+    let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
+    if cleanups.len() != leaf_regions.len()
+        || evidence.cleanup_preservation.is_some()
+        || evidence
+            .mutations
+            .windows(2)
+            .any(|pair| pair[0].offset >= pair[1].offset)
+    {
+        return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine,
+        ));
+    }
+    validate_scalar_conditional_branch(
+        architecture,
+        root.condition,
+        machine,
+        bytes,
+        root.branch_offset,
+        root.branch_byte_count,
+        root.false_arm_offset,
+    )?;
+    validate_scalar_conditional_branch(
+        architecture,
+        nested.condition,
+        machine,
+        bytes,
+        nested.branch_offset,
+        nested.branch_byte_count,
+        nested.false_arm_offset,
+    )?;
+    let mut claimed = evidence
+        .mutations
+        .iter()
+        .map(|mutation| (mutation.offset, *mutation))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if claimed.len() != evidence.mutations.len() {
+        return Err(TerminalObjectError::NonCanonicalScalarStackMutationOrder(
+            machine,
+        ));
+    }
+    let mut call_sites = std::collections::BTreeMap::new();
+    for call in calls {
+        validate_internal_call_site(architecture, machine, bytes, *call)?;
+        let call_start = match architecture {
+            Architecture::X86_64 => call.offset - 1,
+            Architecture::Aarch64 => call.offset,
+        };
+        call_sites.insert(call_start, *call);
+    }
+    let mut validated_calls = Vec::with_capacity(calls.len());
+    let mut peak = replay_scalar_conditional_region(
+        architecture,
+        machine,
+        bytes,
+        0,
+        root.branch_offset,
+        false,
+        &mut claimed,
+        &mut call_sites,
+        root.condition == TerminalScalarConditionalCondition::Expression,
+        evidence,
+        &mut validated_calls,
+        None,
+    )?;
+    if root.condition == TerminalScalarConditionalCondition::Parameter && peak != 0 {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: root.branch_offset,
+        });
+    }
+    let root_branch_end = root
+        .branch_offset
+        .checked_add(root.branch_byte_count)
+        .ok_or(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: root.branch_offset,
+        })?;
+    let nested_arm_start = match nested_arm {
+        TerminalScalarConditionalArm::True => root_branch_end,
+        TerminalScalarConditionalArm::False => root.false_arm_offset,
+    };
+    let nested_peak = replay_scalar_conditional_region(
+        architecture,
+        machine,
+        bytes,
+        nested_arm_start,
+        nested.branch_offset,
+        false,
+        &mut claimed,
+        &mut call_sites,
+        nested.condition == TerminalScalarConditionalCondition::Expression,
+        evidence,
+        &mut validated_calls,
+        None,
+    )?;
+    if nested.condition == TerminalScalarConditionalCondition::Parameter && nested_peak != 0 {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: nested.branch_offset,
+        });
+    }
+    peak = peak.max(nested_peak);
+    for ((start, end), cleanup) in leaf_regions.into_iter().zip(cleanups) {
+        peak = peak.max(replay_scalar_conditional_region(
+            architecture,
+            machine,
+            bytes,
+            start,
+            end,
+            true,
+            &mut claimed,
+            &mut call_sites,
+            true,
+            evidence,
+            &mut validated_calls,
+            Some(&cleanup.cleanup),
+        )?);
+    }
+    if let Some((&offset, _)) = claimed.first_key_value() {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    if let Some((&offset, call)) = call_sites.first_key_value() {
+        return Err(TerminalObjectError::InvalidInternalCallSite {
+            caller: machine,
+            owner: call.owner,
+            offset,
+        });
+    }
+    Ok((
+        TerminalObjectScalarStack {
+            local_peak_bytes: peak,
+            stack_alignment: evidence.stack_alignment,
+        },
+        validated_calls,
+    ))
+}
+
+fn scalar_control_leaf_regions(
+    machine: MachineId,
+    byte_count: usize,
+    root: TerminalScalarConditionalBranchEvidence,
+    nested: TerminalScalarConditionalBranchEvidence,
+    nested_arm: TerminalScalarConditionalArm,
+) -> Result<[(usize, usize); 3], TerminalObjectError> {
+    let invalid =
+        |offset| TerminalObjectError::InvalidScalarConditionalEvidence { machine, offset };
+    let root_true = root
+        .branch_offset
+        .checked_add(root.branch_byte_count)
+        .ok_or_else(|| invalid(root.branch_offset))?;
+    let nested_true = nested
+        .branch_offset
+        .checked_add(nested.branch_byte_count)
+        .ok_or_else(|| invalid(nested.branch_offset))?;
+    if root_true >= root.false_arm_offset
+        || root.false_arm_offset >= byte_count
+        || nested_true >= nested.false_arm_offset
+        || nested.false_arm_offset >= byte_count
+    {
+        return Err(invalid(root.branch_offset));
+    }
+    match nested_arm {
+        TerminalScalarConditionalArm::True
+            if nested.branch_offset >= root_true
+                && nested.false_arm_offset < root.false_arm_offset =>
+        {
+            Ok([
+                (nested_true, nested.false_arm_offset),
+                (nested.false_arm_offset, root.false_arm_offset),
+                (root.false_arm_offset, byte_count),
+            ])
+        }
+        TerminalScalarConditionalArm::False
+            if nested.branch_offset >= root.false_arm_offset
+                && nested.false_arm_offset < byte_count =>
+        {
+            Ok([
+                (root_true, root.false_arm_offset),
+                (nested_true, nested.false_arm_offset),
+                (nested.false_arm_offset, byte_count),
+            ])
+        }
+        TerminalScalarConditionalArm::True | TerminalScalarConditionalArm::False => {
+            Err(invalid(nested.branch_offset))
+        }
+    }
 }
 
 fn validate_scalar_conditional_branch(
@@ -2789,6 +3188,7 @@ fn replay_scalar_conditional_region(
     allow_calls: bool,
     evidence: &TerminalScalarStackEvidence,
     validated_calls: &mut Vec<TerminalObjectScalarCallStack>,
+    scalar_affine_cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 ) -> Result<u32, TerminalObjectError> {
     if start > end || end > bytes.len() {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -2834,18 +3234,25 @@ fn replay_scalar_conditional_region(
                     let call = call_sites.remove(&offset).ok_or(
                         TerminalObjectError::UntypedScalarInternalCall { machine, offset },
                     )?;
-                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
-                        return Err(TerminalObjectError::UntypedScalarInternalCall {
-                            machine,
-                            offset,
-                        });
-                    };
-                    if !allow_calls {
-                        return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
-                            machine,
-                            operation,
-                            offset,
-                        });
+                    match call.owner {
+                        TerminalCallSiteOwner::Operation(operation) if !allow_calls => {
+                            return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
+                                machine,
+                                operation,
+                                offset,
+                            });
+                        }
+                        TerminalCallSiteOwner::Operation(_) if allow_calls => {}
+                        TerminalCallSiteOwner::CleanupAction { edge, .. }
+                            if allow_calls
+                                && scalar_affine_cleanup
+                                    .is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
+                        _ => {
+                            return Err(TerminalObjectError::UntypedScalarInternalCall {
+                                machine,
+                                offset,
+                            });
+                        }
                     }
                     let call_evidence = call.scalar_stack.ok_or(
                         TerminalObjectError::MissingScalarCallStackEvidence {
@@ -2861,7 +3268,7 @@ fn replay_scalar_conditional_region(
                         call_evidence,
                         evidence,
                         depth,
-                        None,
+                        scalar_affine_cleanup,
                     )?;
                     peak = peak.max(validated.caller_live_bytes);
                     validated_calls.push(validated);
@@ -2941,18 +3348,25 @@ fn replay_scalar_conditional_region(
                     let call = call_sites.remove(&offset).ok_or(
                         TerminalObjectError::UntypedScalarInternalCall { machine, offset },
                     )?;
-                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
-                        return Err(TerminalObjectError::UntypedScalarInternalCall {
-                            machine,
-                            offset,
-                        });
-                    };
-                    if !allow_calls {
-                        return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
-                            machine,
-                            operation,
-                            offset,
-                        });
+                    match call.owner {
+                        TerminalCallSiteOwner::Operation(operation) if !allow_calls => {
+                            return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
+                                machine,
+                                operation,
+                                offset,
+                            });
+                        }
+                        TerminalCallSiteOwner::Operation(_) if allow_calls => {}
+                        TerminalCallSiteOwner::CleanupAction { edge, .. }
+                            if allow_calls
+                                && scalar_affine_cleanup
+                                    .is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
+                        _ => {
+                            return Err(TerminalObjectError::UntypedScalarInternalCall {
+                                machine,
+                                offset,
+                            });
+                        }
                     }
                     let call_evidence = call.scalar_stack.ok_or(
                         TerminalObjectError::MissingScalarCallStackEvidence {
@@ -2968,7 +3382,7 @@ fn replay_scalar_conditional_region(
                         call_evidence,
                         evidence,
                         depth,
-                        None,
+                        scalar_affine_cleanup,
                     )?;
                     peak = peak.max(validated.caller_live_bytes);
                     validated_calls.push(validated);

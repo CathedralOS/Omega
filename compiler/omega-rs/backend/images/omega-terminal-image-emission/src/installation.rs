@@ -31,7 +31,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 17;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 18;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -186,6 +186,12 @@ pub struct TerminalInstalledFunction {
     pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    /// Canonical true-before-false DFS cleanup leaves for the exact bounded
+    /// two-decision/three-return scalar-control carrier. This remains distinct
+    /// from the branch-free scalar cleanup above: each physical suffix owns its
+    /// terminal-Psi return edge and exact byte interval.
+    pub scalar_control_affine_cleanups:
+        Vec<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
     pub scalar_structural_parameter_homes:
         Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
@@ -283,6 +289,11 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
                 scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
+                scalar_control_affine_cleanups: function
+                    .scalar_control_affine_cleanups
+                    .iter()
+                    .map(|record| record.cleanup.clone())
+                    .collect(),
                 scalar_structural_parameters: function.scalar_structural_parameters.clone(),
                 scalar_structural_parameter_homes: function
                     .scalar_structural_parameter_homes
@@ -489,6 +500,10 @@ pub fn encode_terminal_installation_record(
                 bytes.extend_from_slice(&[0; 3]);
             }
         }
+        encode_scalar_control_affine_cleanups(
+            &mut bytes,
+            &function.scalar_control_affine_cleanups,
+        )?;
     }
     push_u32(&mut bytes, structural_return_count);
     for installed in &record.structural_returns {
@@ -852,6 +867,7 @@ pub fn decode_terminal_installation_record(
                 }
                 tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
             },
+            scalar_control_affine_cleanups: decode_scalar_control_affine_cleanups(&mut reader)?,
         });
     }
     let structural_return_count = usize::try_from(reader.u32()?)
@@ -1174,6 +1190,10 @@ pub fn validate_terminal_installation_record(
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
                     || installed.scalar_affine_cleanup != emitted.scalar_affine_cleanup
+                    || !installed_scalar_control_cleanups_match_object(
+                        &installed.scalar_control_affine_cleanups,
+                        &emitted.scalar_control_affine_cleanups,
+                    )
                     || installed.scalar_structural_parameters
                         != emitted.scalar_structural_parameters
                     || installed.scalar_structural_parameter_homes
@@ -1183,6 +1203,17 @@ pub fn validate_terminal_installation_record(
         return Err(TerminalInstallationError::ImageBindingMismatch);
     }
     Ok(())
+}
+
+fn installed_scalar_control_cleanups_match_object(
+    installed: &[omega_terminal_machine_code::TerminalUnitAffineCleanupRecord],
+    emitted: &[omega_terminal_machine_code::TerminalScalarControlAffineCleanupRecord],
+) -> bool {
+    installed.len() == emitted.len()
+        && installed
+            .iter()
+            .zip(emitted)
+            .all(|(installed, emitted)| installed == &emitted.cleanup)
 }
 
 pub fn terminal_installation_fingerprint(
@@ -1244,15 +1275,20 @@ fn validate_record_shape(
         {
             return Err(TerminalInstallationError::NonCanonicalInstalledFunctions);
         }
+        let has_scalar_control_cleanup = !function.scalar_control_affine_cleanups.is_empty();
+        let has_scalar_cleanup =
+            function.scalar_affine_cleanup.is_some() || has_scalar_control_cleanup;
         if function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (!function.unit_body
-                && function.scalar_affine_cleanup.is_none()
+                && !has_scalar_cleanup
                 && (!function.unit_parameters.is_empty()
                     || !function.unit_parameter_homes.is_empty()))
             || function.scalar_structural_parameters.len()
                 != function.scalar_structural_parameter_homes.len()
-            || (function.scalar_affine_cleanup.is_some() && function.unit_body)
+            || !matches!(function.scalar_control_affine_cleanups.len(), 0 | 3)
+            || (function.scalar_affine_cleanup.is_some() && has_scalar_control_cleanup)
+            || (has_scalar_cleanup && function.unit_body)
             || function
                 .scalar_structural_parameters
                 .iter()
@@ -1263,7 +1299,7 @@ fn validate_record_shape(
                         || parameter.multiplicity != home.multiplicity
                         || parameter.shape != home.shape
                 })
-            || (function.scalar_affine_cleanup.is_none()
+            || (!has_scalar_cleanup
                 && (!function.scalar_structural_parameters.is_empty()
                     || !function.scalar_structural_parameter_homes.is_empty()))
             || function
@@ -1659,7 +1695,10 @@ fn validate_record_shape(
             }
         }
         if let Some(cleanup) = &function.scalar_affine_cleanup {
-            validate_scalar_affine_cleanup_shape(record, function, cleanup)?;
+            validate_scalar_affine_cleanup_shape(record, function, cleanup, true)?;
+        }
+        if has_scalar_control_cleanup {
+            validate_scalar_control_affine_cleanup_shape(record, function)?;
         }
         expected_text_offset = expected_text_offset
             .checked_add(function.byte_count)
@@ -1853,10 +1892,18 @@ fn validate_record_shape(
             .iter()
             .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
             .collect::<std::collections::BTreeSet<_>>();
+        let control_cleanup = match custody.owner {
+            TerminalCallSiteOwner::CleanupAction { edge, .. } => function
+                .scalar_control_affine_cleanups
+                .iter()
+                .find(|cleanup| cleanup.psi_edge == edge),
+            TerminalCallSiteOwner::Operation(_) => None,
+        };
         let affine_cleanup = function
             .scalar_affine_cleanup
             .as_ref()
-            .or(function.unit_affine_cleanup.as_ref());
+            .or(function.unit_affine_cleanup.as_ref())
+            .or(control_cleanup);
         let owner_valid = match custody.owner {
             TerminalCallSiteOwner::Operation(operation) => {
                 record.fuel_attribution.iter().any(|attribution| {
@@ -2206,6 +2253,7 @@ fn validate_scalar_affine_cleanup_shape(
     record: &TerminalInstallationRecord,
     function: &TerminalInstalledFunction,
     cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
+    require_function_end: bool,
 ) -> Result<(), TerminalInstallationError> {
     let invalid = || TerminalInstallationError::InvalidUnitAffineCleanup(function.machine);
     let end = cleanup
@@ -2213,7 +2261,8 @@ fn validate_scalar_affine_cleanup_shape(
         .checked_add(cleanup.byte_count)
         .ok_or(TerminalInstallationError::FunctionOffsetNotRepresentable)?;
     if cleanup.byte_count == 0
-        || end != function.byte_count
+        || end > function.byte_count
+        || (require_function_end && end != function.byte_count)
         || !cleanup.locals.is_empty()
         || cleanup.actions.len() != function.scalar_structural_parameter_homes.len()
         || function
@@ -2282,6 +2331,72 @@ fn validate_scalar_affine_cleanup_shape(
         }
     }
     Ok(())
+}
+
+fn validate_scalar_control_affine_cleanup_shape(
+    record: &TerminalInstallationRecord,
+    function: &TerminalInstalledFunction,
+) -> Result<(), TerminalInstallationError> {
+    let invalid = || TerminalInstallationError::InvalidUnitAffineCleanup(function.machine);
+    let cleanups = &function.scalar_control_affine_cleanups;
+    if cleanups.len() != 3 {
+        return Err(
+            TerminalInstallationError::InvalidScalarControlAffineCleanupCount(cleanups.len()),
+        );
+    }
+    if !scalar_control_affine_cleanups_are_canonical(cleanups, function.byte_count) {
+        return Err(invalid());
+    }
+    for (leaf_ordinal, cleanup) in cleanups.iter().enumerate() {
+        validate_scalar_affine_cleanup_shape(record, function, cleanup, false)?;
+        if record
+            .fuel_attribution
+            .iter()
+            .filter(|attribution| {
+                attribution.machine == function.machine
+                    && attribution.attribution.site
+                        == TerminalNativeFuelSite::Edge(cleanup.psi_edge)
+                    && attribution.attribution.units == 1
+                    && attribution.attribution.operation_ordinal == leaf_ordinal
+                    && attribution.attribution.code_offset == cleanup.code_offset
+                    && attribution.attribution.byte_count == cleanup.byte_count
+            })
+            .count()
+            != 1
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(())
+}
+
+fn scalar_control_affine_cleanups_are_canonical(
+    cleanups: &[omega_terminal_machine_code::TerminalUnitAffineCleanupRecord],
+    function_byte_count: usize,
+) -> bool {
+    let [first, second, third] = cleanups else {
+        return false;
+    };
+    let edges = cleanups
+        .iter()
+        .map(|cleanup| cleanup.psi_edge)
+        .collect::<std::collections::BTreeSet<_>>();
+    edges.len() == cleanups.len()
+        && cleanups.iter().all(|cleanup| {
+            cleanup.locals.is_empty()
+                && cleanup.structural_types == first.structural_types
+                && cleanup.actions == first.actions
+                && cleanup.byte_count == first.byte_count
+        })
+        && first
+            .code_offset
+            .checked_add(first.byte_count)
+            .is_some_and(|end| end <= second.code_offset)
+        && second
+            .code_offset
+            .checked_add(second.byte_count)
+            .is_some_and(|end| end <= third.code_offset)
+        && third.code_offset.checked_add(third.byte_count) == Some(function_byte_count)
 }
 
 fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
@@ -2419,6 +2534,27 @@ fn encode_unit_affine_cleanup(
         u64::try_from(cleanup.byte_count)
             .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
     );
+    Ok(())
+}
+
+fn encode_scalar_control_affine_cleanups(
+    bytes: &mut Vec<u8>,
+    cleanups: &[omega_terminal_machine_code::TerminalUnitAffineCleanupRecord],
+) -> Result<(), TerminalInstallationError> {
+    if !matches!(cleanups.len(), 0 | 3) {
+        return Err(
+            TerminalInstallationError::InvalidScalarControlAffineCleanupCount(cleanups.len()),
+        );
+    }
+    push_u32(
+        bytes,
+        u32::try_from(cleanups.len()).map_err(|_| {
+            TerminalInstallationError::InvalidScalarControlAffineCleanupCount(cleanups.len())
+        })?,
+    );
+    for cleanup in cleanups {
+        encode_unit_affine_cleanup(bytes, cleanup)?;
+    }
     Ok(())
 }
 
@@ -3219,6 +3355,25 @@ fn decode_unit_affine_cleanup(
     )
 }
 
+fn decode_scalar_control_affine_cleanups(
+    reader: &mut Reader<'_>,
+) -> Result<
+    Vec<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    TerminalInstallationError,
+> {
+    let count = usize::try_from(reader.u32()?).map_err(|_| {
+        TerminalInstallationError::InvalidScalarControlAffineCleanupCount(usize::MAX)
+    })?;
+    if !matches!(count, 0 | 3) {
+        return Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(count));
+    }
+    let mut cleanups = Vec::with_capacity(count);
+    for _ in 0..count {
+        cleanups.push(decode_unit_affine_cleanup(reader)?);
+    }
+    Ok(cleanups)
+}
+
 fn decode_trivial_affine_local(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralPlaceDeclaration, TerminalInstallationError> {
@@ -3844,6 +3999,7 @@ pub enum TerminalInstallationError {
     InvalidStructuralReturn(MachineId),
     InvalidInternalUnitCall(MachineId),
     InvalidUnitAffineCleanup(MachineId),
+    InvalidScalarControlAffineCleanupCount(usize),
     FuelAttributionMachineMissing(MachineId),
     NonCanonicalFuelAttributionOrder,
     DuplicateFuelAttributionSite {
@@ -3900,6 +4056,44 @@ impl std::error::Error for TerminalInstallationError {}
 mod resource_tests {
     use super::*;
 
+    fn scalar_control_cleanup(
+        edge: u64,
+        code_offset: usize,
+    ) -> omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
+        omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
+            psi_edge: EdgeId::new(edge).expect("cleanup edge"),
+            structural_types: Vec::new(),
+            locals: Vec::new(),
+            actions: vec![psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+                PlaceId::new(1).expect("cleanup place"),
+            )],
+            code_offset,
+            byte_count: 4,
+        }
+    }
+
+    fn scalar_control_object_cleanup(
+        edge: u64,
+        code_offset: usize,
+    ) -> omega_terminal_machine_code::TerminalScalarControlAffineCleanupRecord {
+        omega_terminal_machine_code::TerminalScalarControlAffineCleanupRecord {
+            cleanup: scalar_control_cleanup(edge, code_offset),
+            preservation: omega_terminal_machine_code::TerminalScalarCleanupPreservationEvidence {
+                frame: omega_terminal_machine_code::TerminalStackAdjustmentPair {
+                    byte_size: 16,
+                    allocation_offset: code_offset,
+                    allocation_byte_count: 4,
+                    release_offset: code_offset + 3,
+                    release_byte_count: 1,
+                },
+                result_byte_offset: 0,
+                result_store_offset: code_offset + 1,
+                result_load_offset: code_offset + 2,
+                aarch64_return_link: None,
+            },
+        }
+    }
+
     #[test]
     fn cleanup_decoder_rejects_impossible_capacity_before_allocation() {
         let mut bytes = Vec::new();
@@ -3909,6 +4103,116 @@ mod resource_tests {
         assert_eq!(
             decode_unit_affine_cleanup(&mut reader),
             Err(TerminalInstallationError::UnexpectedEnd)
+        );
+    }
+
+    #[test]
+    fn scalar_control_cleanup_codec_requires_exactly_three_records() {
+        let cleanups = vec![
+            scalar_control_cleanup(1, 4),
+            scalar_control_cleanup(2, 12),
+            scalar_control_cleanup(3, 20),
+        ];
+        let mut bytes = Vec::new();
+        encode_scalar_control_affine_cleanups(&mut bytes, &cleanups)
+            .expect("encode exact three-leaf cleanup set");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_scalar_control_affine_cleanups(&mut reader)
+                .expect("decode exact three-leaf cleanup set"),
+            cleanups
+        );
+        assert_eq!(reader.remaining(), 0);
+
+        for count in [1_usize, 2, 4] {
+            let invalid = (0..count)
+                .map(|index| scalar_control_cleanup(index as u64 + 1, index * 8))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                encode_scalar_control_affine_cleanups(&mut Vec::new(), &invalid),
+                Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(count))
+            );
+            let mut encoded_count = Vec::new();
+            push_u32(&mut encoded_count, count as u32);
+            assert_eq!(
+                decode_scalar_control_affine_cleanups(&mut Reader::new(&encoded_count)),
+                Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(count))
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_control_cleanup_canonicality_rejects_edge_and_interval_corruption() {
+        let cleanups = vec![
+            scalar_control_cleanup(1, 4),
+            scalar_control_cleanup(2, 12),
+            scalar_control_cleanup(3, 20),
+        ];
+        assert!(scalar_control_affine_cleanups_are_canonical(&cleanups, 24));
+
+        let mut duplicate_edge = cleanups.clone();
+        duplicate_edge[1].psi_edge = duplicate_edge[0].psi_edge;
+        assert!(!scalar_control_affine_cleanups_are_canonical(
+            &duplicate_edge,
+            24
+        ));
+
+        let mut overlapping = cleanups.clone();
+        overlapping[1].code_offset = 7;
+        assert!(!scalar_control_affine_cleanups_are_canonical(
+            &overlapping,
+            24
+        ));
+
+        let mut reordered = cleanups.clone();
+        reordered.swap(0, 1);
+        assert!(!scalar_control_affine_cleanups_are_canonical(
+            &reordered, 24
+        ));
+
+        let mut changed_actions = cleanups.clone();
+        changed_actions[2].actions.clear();
+        assert!(!scalar_control_affine_cleanups_are_canonical(
+            &changed_actions,
+            24
+        ));
+
+        assert!(!scalar_control_affine_cleanups_are_canonical(&cleanups, 25));
+    }
+
+    #[test]
+    fn installed_scalar_control_cleanup_projection_binds_the_exact_object_records() {
+        let emitted = vec![
+            scalar_control_object_cleanup(1, 4),
+            scalar_control_object_cleanup(2, 12),
+            scalar_control_object_cleanup(3, 20),
+        ];
+        let mut installed = emitted
+            .iter()
+            .map(|record| record.cleanup.clone())
+            .collect::<Vec<_>>();
+        assert!(installed_scalar_control_cleanups_match_object(
+            &installed, &emitted
+        ));
+
+        installed[1].psi_edge = EdgeId::new(9).expect("different edge");
+        assert!(!installed_scalar_control_cleanups_match_object(
+            &installed, &emitted
+        ));
+        installed[1] = emitted[1].cleanup.clone();
+        installed[2].actions.clear();
+        assert!(!installed_scalar_control_cleanups_match_object(
+            &installed, &emitted
+        ));
+    }
+
+    #[test]
+    fn previous_installation_marker_is_not_accepted() {
+        let mut bytes = MAGIC.to_vec();
+        push_u16(&mut bytes, 17);
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Err(TerminalInstallationError::UnsupportedFormatMarker(17))
         );
     }
 }
