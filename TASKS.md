@@ -200,14 +200,26 @@ Remaining:
   interpretation/fuel, and all five Omega artifact/install paths preserve the
   exact root, field paths, and leaf types without a runtime bitmap or cleanup
   bytes. Nested/wider paths, multiple moves, claims/content, contracts, and
-  nominal `drop` remain fenced.
+  nominal `drop` remain fenced for partial-record cleanup.
+
+  The first whole-root nominal cleanup slice is complete: one root-only Unit
+  machine with exactly one claim-free, unqualified affine empty-record
+  parameter invokes its exact empty attached `T::drop`. Checked production,
+  canonical terminal encoding, independent verification, interpretation, and
+  fixed fuel preserve the cleanup closure and charge both edges. Omega erases
+  the empty value from ABI locations while retaining parameter, attachment,
+  and cleanup identity through all five object/image/install paths with no
+  cleanup bytes. Nonempty receivers, executable drop bodies, ordered multiple
+  cleanups, locals, claims, qualifications, contracts, and non-root edges remain
+  fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
   parameter tail and a finite consecutive prefix of established empty-record
   affine locals. Both clean up in canonical reverse order with no emitted
   cleanup code; register and stack ABI homes survive installation. Next add
-  nominal cleanup and wider partial-value cleanup,
+  nonempty nominal receivers and executable drop bodies, ordered cleanup lists,
+  and wider partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,
@@ -418,7 +430,10 @@ reach or trust, and private proof improvements do not change public identity.
   bounded acyclic structural control, including short-circuit Boolean stages and
   one equal-frontier diamond. One direct-field partial-record transfer now
   preserves and disposes its exact residual sibling through interpretation and
-  all five native artifact paths. Add contextual cleanup-contract checking,
+  all five native artifact paths. One whole affine empty-record parameter now
+  invokes an exact empty attached nominal cleanup through interpretation, fuel,
+  and all five native artifact paths. Add nonempty/executable nominal cleanup,
+  ordered cleanup lists, contextual cleanup-contract checking,
   wider structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
