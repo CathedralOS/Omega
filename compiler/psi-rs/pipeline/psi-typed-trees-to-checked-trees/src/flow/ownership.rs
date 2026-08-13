@@ -9,13 +9,16 @@ mod type_references;
 use calls::append_call_ownership_events;
 pub(crate) use calls::owned_method_receiver_place;
 use events::{DirectMoveEventSink, append_move_event_for_place};
-pub(crate) use events::{DiscoveredMoveEvent, FlowOwnershipEventSource};
+pub(crate) use events::{
+    DiscoveredMoveEvent, FlowOwnershipEventSource, normalized_event_place_root,
+};
 use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
     initializer_produces_owned_value,
 };
 pub(crate) use place_types::{
-    expression_type_reference_in_state, project_type_reference_from_segments,
+    canonical_place_type_reference, expression_type_reference_in_state,
+    project_type_reference_from_segments,
 };
 use type_references::type_requires_ownership;
 
