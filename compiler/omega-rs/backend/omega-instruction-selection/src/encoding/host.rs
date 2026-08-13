@@ -69,9 +69,20 @@ pub(super) fn normalized_syscall_registers_for_plan(
         Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
     };
     let word = ValueShape::integer(8, 8);
+    // `has_result` describes the lowered Omega operand list, not necessarily
+    // the native ABI. Statement-shaped adapters may retain a native status or
+    // count in their authoritative plan while intentionally discarding it.
+    // Preserve that result in validation without requiring a synthetic leading
+    // result operand; the statement encoder simply ignores its placement.
+    let retained_result = match plan_source {
+        SyscallPlan::Authoritative(plan) if !has_result => {
+            plan.result.as_ref().map(|placement| placement.shape)
+        }
+        _ => has_result.then_some(word),
+    };
     let signature = CallSignature {
         parameters: vec![word; parameter_count],
-        result: has_result.then_some(word),
+        result: retained_result,
     };
     let plan = match plan_source {
         SyscallPlan::Authoritative(plan) => {
@@ -2191,6 +2202,28 @@ mod syscall_plan_contract_tests {
                 .expect("explicit-plan timespec argument relocation"),
                 "timespec argument relocation {architecture:?}"
             );
+        }
+    }
+
+    #[test]
+    fn statement_syscall_accepts_a_retained_discarded_native_result() {
+        let operands = [
+            TargetInstructionOperand {
+                kind: TargetInstructionOperandKind::ImmediateInteger(1),
+            },
+            TargetInstructionOperand {
+                kind: TargetInstructionOperandKind::ImmediateInteger(2),
+            },
+            TargetInstructionOperand {
+                kind: TargetInstructionOperandKind::ImmediateInteger(3),
+            },
+        ];
+
+        for (architecture, number) in [(Architecture::X86_64, 1), (Architecture::Aarch64, 64)] {
+            let plan = explicit_plan(architecture, operands.len(), true);
+            let bytes = encode_syscall_sequence_with_plan(architecture, &operands, number, &plan)
+                .expect("statement syscall may discard its retained native result");
+            assert!(!bytes.is_empty(), "{architecture:?}");
         }
     }
 
