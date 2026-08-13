@@ -197,7 +197,7 @@ primitive locals followed by one return expression. Every initializer and the
 return use checked scalar expressions: explicitly landed integer literals,
 terminal integer operations and casts, Boolean constants, negation, equality,
 comparisons, and references to already materialized scalar locals. Initializers
-are branch-free except for the exact one-local Boolean continuation below. State
+are branch-free except for the repeated Boolean continuations below. State
 parameters are partitioned explicitly: primitive inputs receive dense scalar
 positions plus retained authored positions, while affine custody retains its
 separate structural positions. Their authored-position maps must be disjoint and
@@ -211,12 +211,11 @@ cleanup positions to structural places. A final short-circuit Boolean return is
 expanded into explicit decision blocks: internal conditional edges preserve the
 unchanged structural frontier, and every terminal value leaf carries the same
 checked complete cleanup list. The verifier reconstructs that requirement on
-each path. Up to two short-circuit Boolean locals are also accepted within an
-otherwise branch-free primitive binding sequence: prefix values dominate the
-first decision tree, each tree's leaves jump without cleanup to one typed
-Boolean convergence parameter, and branch-free work in that continuation may
-lead to the next tree or the final return and complete cleanup. A third
-short-circuit stage remains fenced pending wider repeated-control composition.
+each path. Any finite sequence of short-circuit Boolean locals is also accepted
+within an otherwise branch-free primitive binding sequence: prefix values
+dominate the first decision tree, each tree's leaves jump without cleanup to one
+typed Boolean convergence parameter, and branch-free work in that continuation
+may lead to the next tree or the final return and complete cleanup.
 Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
