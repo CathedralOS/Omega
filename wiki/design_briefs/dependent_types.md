@@ -374,11 +374,13 @@ independently, and every nested-call write remains published. One deeper,
 binding-reborrow, recursive, or opaque branch fences the whole right-hand side;
 reference-valued roots retain their existing relational handling.
 A value-shaped assignment through an indexed target likewise preserves a
-separately returned parameter origin when each of its one or more indexes is a
-complete, non-rebinding direct-call tree of maximum depth two. The first index
-fixes the collection-coarse target, later indexes are absorbing, and the
-ordinary frame publishes every index-call write. Deeper, binding-reborrow,
-recursive, or opaque indexed targets remain fences.
+separately returned parameter origin when the collection projects through a
+stable helper-local mutable alias or an exact transparent helper result and
+each of its one or more indexes is a complete, non-rebinding direct-call tree
+of maximum depth two. The first index fixes the collection-coarse target, later
+indexes are absorbing, and the ordinary frame publishes every index-call
+write. Deeper, binding-reborrow, recursive, or opaque indexed targets remain
+fences.
 The bounded indexed target and bounded non-reference value tree may occur on
 the same assignment. Their complete frames compose and publish independently;
 either side exceeding its depth or non-rebinding rail fences the returned-place

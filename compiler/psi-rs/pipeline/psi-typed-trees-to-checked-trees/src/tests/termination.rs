@@ -4234,8 +4234,25 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells
     }
 
+    machine return_after_alias_index_target<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        let alias: &mut [u64; 2] = cells;
+        alias[identity_index(write_index(value))] = 1;
+        cells
+    }
+
     machine return_after_deep_index_target(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         cells[identity_index(identity_index(make_index()))] = 1;
+        cells
+    }
+
+    machine return_after_deep_alias_index_target(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        let alias: &mut [u64; 2] = cells;
+        alias[identity_index(identity_index(make_index()))] = 1;
         cells
     }
 
@@ -4281,8 +4298,20 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias[0] = 2;
     }
 
+    machine Main::alias_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_alias_index_target(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
     machine Main::deep_index_target_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_deep_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    machine Main::deep_alias_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_deep_alias_index_target(&mut self.cells);
         alias[0] = 2;
     }
 
@@ -4331,6 +4360,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::alias_index_target_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
             "Main::repeated_index_target_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
@@ -4361,6 +4394,7 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 
     for name in [
         "Main::deep_index_target_result",
+        "Main::deep_alias_index_target_result",
         "Main::binding_reborrow_index_target_result",
         "Main::recursive_index_target_result",
         "Main::deep_repeated_index_target_result",
