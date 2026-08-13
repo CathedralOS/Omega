@@ -539,6 +539,48 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
+    let main_path = write_program(
+        "typed-owned-negative-u64",
+        r#"
+use omega::language::core::layout;
+
+data Whole { entries: [FieldEntry; 64]; }
+machine Whole::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 8, size_is_dynamic: false, align: 8 }
+}
+data Samples { value: u64; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("u64 schema should check");
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Samples")
+        .expect("u64 should have one whole-field placement");
+    let value = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![("value".to_owned(), BuildTimeValue::Int(-1))],
+    };
+    let mut unchanged = [0x5a; 8];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &report,
+        &value,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("negative structured carrier must not inhabit u64");
+    assert!(error.0.contains("outside `u64`"));
+    assert_eq!(unchanged, [0x5a; 8]);
+}
+
+#[test]
 fn fixed_primitive_arrays_reject_scalar_bit_placement() {
     let main_path = write_program(
         "fixed-array-bits",
