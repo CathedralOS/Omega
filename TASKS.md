@@ -61,7 +61,12 @@ Remaining:
   target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
   entry explicitly. Production and development interpreter execution likewise
   requires an exact choice, while checked-only compilation selects no storage
-  root. Fix unrelated lowering/runtime defects separately. Final firmware
+  root. Fix unrelated lowering/runtime defects separately. In particular,
+  `samples/cli/basics/temperature_convert` now selects its exact authored
+  `Main::main` entry, but direct production lowering still rejects
+  `self.fahrenheit = self.celsius * 1.8 + 32.0` because that entry-shaped float
+  assignment lacks runtime value/write lowering; keep this engineering defect
+  separate from entry selection. Final firmware
   composition of
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
@@ -420,6 +425,10 @@ state through a raw address.
 - Bring up PIT+PIC first and LAPIC as the production provider. The hard root only
   acknowledges, records time, publishes a coalesced wake, and returns; fan-out
   runs in an ordinary task.
+- Completing the x2APIC acknowledgement transition is design-blocked on owner
+  Q9: the provider-neutral `InterruptAcknowledgement::complete` requirement
+  currently hardcodes `PortIo`, while x2APIC correctly uses `MachineControl`.
+  Do not grant false port-I/O reach to the x2APIC provider as a workaround.
 
 Acceptance: QEMU installs Cathedral-owned memory/interrupt structures, reports
 timer ticks over owned serial output, and halts between ticks. No
@@ -683,6 +692,9 @@ These entries are pointers, not duplicate specifications.
   in the reconstructed obligation set.
 - **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** blocked on the source contract and
   checked representation in owner Q8.
+- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** blocked on selecting how the
+  semantic pending-to-completed transition publishes the exact PIC or
+  LAPIC/x2APIC realization effect in owner Q9.
 
 ## Platform-gated verification
 

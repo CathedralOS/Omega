@@ -150,3 +150,22 @@ multiplicity, lifetime, provenance, retirement, and invalidation under permitted
 writes; and prevent raw bytes, admission alone, or a layout/access policy from
 manufacturing proof. Physical `LayoutPlan`, `AccessPlan`, offsets, and transfers
 remain erased-stripped.
+
+## Q9 — Provider-neutral interrupt acknowledgement settlement
+
+`InterruptAcknowledgement in Pending` is the semantic debt carried from one
+hard-interrupt arrival to its exact completion. The core
+`InterruptAcknowledgement::complete` boundary currently publishes `PortIo`,
+which fits the legacy PIC realization but falsely requires port-I/O authority
+from LAPIC/x2APIC providers whose acknowledgement is a `MachineControl`
+operation. Cathedral must not widen an x2APIC implementation to `PortIo` merely
+to satisfy that hardcoded effect.
+
+Choose how the provider-neutral acknowledgement requirement selects and
+publishes its realization-specific effect without leaking PIC or APIC mechanism
+into the semantic acknowledgement type. The decision must preserve the exact
+pending-to-completed linear transition, reject forgotten and duplicate
+completion, retain the selected provider and operation in checked/terminal
+evidence, and expose only the authority actually used by that realization. It
+must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
+without treating either mechanism as universally reachable.
