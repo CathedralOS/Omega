@@ -360,13 +360,14 @@ The argument may index through a stable helper-local mutable alias; its
 established origin supplies the collection. It may instead index a structurally
 transparent helper result directly, with the helper's returned-place relation
 supplying the collection. The compiler-owned `as_mut_slice()` view is neutral
-on that argument spine, including after a transparent helper result: the callee
-write rebases through the helper and view to its backing array before the index
-coarsens it. Deeper index trees and recursive or opaque view producers remain
-fences. An attached helper may likewise root that relation in its actual `self`
-receiver. An exact member projection may follow the helper result before one
-or more indexes: the
-suffix composes first, the first index coarsens to that nearest collection, and
+on that argument spine, including after a transparent free helper result or an
+attached helper result rooted in its actual `self` receiver: the callee write
+rebases through the helper and view to its backing array before the index
+coarsens it. Deeper index trees and recursive or opaque free/attached view
+producers remain fences. An attached helper may likewise root that relation in
+its actual `self` receiver. An exact member projection may follow the helper
+result before one or more indexes: the suffix composes first, the first index
+coarsens to that nearest collection, and
 later indexes or members are absorbed; each index expression independently
 satisfies the same bounded-call rule.
 Recursive or opaque free/attached collection
