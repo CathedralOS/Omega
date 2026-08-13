@@ -1757,12 +1757,12 @@ fn lower_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    if !is_branch_free_structural_scalar_expression(
+    if !is_structural_scalar_return_expression(
         &expression,
         scalar_parameter_count,
         plan.bindings.len(),
     ) {
-        return unsupported("structural scalar return is not one branch-free local expression");
+        return unsupported("structural scalar return is outside its checked value/control slice");
     }
     if expression.scalar_type() != result_type {
         return unsupported(
@@ -1776,12 +1776,59 @@ fn lower_structural_scalar_return_machine(
             .map(|value| value.scalar_type)
             .collect::<Vec<_>>(),
     )?;
-    let value = emit_direct_expression(
-        &expression,
-        &scalar_values,
-        &mut next_value,
-        &mut operations,
-    );
+    let blocks = if let LoweredDirectExpression::Boolean { expression } = &expression
+        && contains_short_circuit(expression)
+    {
+        let entry_operation_count = operations.operations.len();
+        let decision = lower_boolean_value_decision(expression);
+        let mut next_edge = 1_u64;
+        let (mut root, mut children) = emit_inlined_boolean_value_blocks(
+            &decision,
+            &scalar_values,
+            Vec::new(),
+            LoweredBooleanDecisionExit::Return,
+            block_id(1),
+            block_id(2),
+            &mut next_value,
+            &mut next_edge,
+            &mut operations,
+        );
+        let mut entry_operations = operations.operations[..entry_operation_count].to_vec();
+        entry_operations.extend(root.operations);
+        root.operations = entry_operations;
+        let mut blocks = Vec::with_capacity(1_usize.checked_add(children.len()).ok_or(
+            LoweringError::Unsupported("structural scalar return block count exceeds usize"),
+        )?);
+        blocks.push(root);
+        blocks.append(&mut children);
+        for block in &mut blocks {
+            if let Terminator::Return {
+                trivial_affine_discards,
+                ..
+            } = &mut block.terminator
+            {
+                *trivial_affine_discards = cleanup.clone();
+            }
+        }
+        blocks
+    } else {
+        let value = emit_direct_expression(
+            &expression,
+            &scalar_values,
+            &mut next_value,
+            &mut operations,
+        );
+        vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: operations.operations,
+            terminator: Terminator::Return {
+                edge: edge_id(1),
+                value,
+                trivial_affine_discards: cleanup,
+            },
+        }]
+    };
     let result = ValueDeclaration {
         id: value_id(next_value),
         scalar_type: result_type,
@@ -1808,16 +1855,7 @@ fn lower_structural_scalar_return_machine(
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
-        blocks: vec![Block {
-            id: block_id(1),
-            parameters: Vec::new(),
-            operations: operations.operations,
-            terminator: Terminator::Return {
-                edge: edge_id(1),
-                value,
-                trivial_affine_discards: cleanup,
-            },
-        }],
+        blocks,
         contract: MachineContract {
             id: contract_id(1),
             crash_routes: Vec::new(),
@@ -1842,6 +1880,59 @@ fn lower_structural_scalar_return_machine(
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
+}
+
+fn is_structural_scalar_return_expression(
+    expression: &LoweredDirectExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    match expression {
+        LoweredDirectExpression::Boolean { expression } => {
+            is_structural_boolean_return_expression(expression, scalar_parameters, available_locals)
+        }
+        expression => is_branch_free_structural_integer_expression(
+            expression,
+            scalar_parameters,
+            available_locals,
+        ),
+    }
+}
+
+fn is_structural_boolean_return_expression(
+    expression: &LoweredBooleanReturnExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. } => true,
+        LoweredBooleanReturnExpression::Not { operand } => {
+            is_structural_boolean_return_expression(operand, scalar_parameters, available_locals)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right }
+        | LoweredBooleanReturnExpression::And { left, right }
+        | LoweredBooleanReturnExpression::Or { left, right } => {
+            is_structural_boolean_return_expression(left, scalar_parameters, available_locals)
+                && is_structural_boolean_return_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
+        }
+        LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
+            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_integer_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
+        }
+        LoweredBooleanReturnExpression::Parameter { position } => *position < scalar_parameters,
+        LoweredBooleanReturnExpression::Local { position } => {
+            *position >= scalar_parameters
+                && *position < scalar_parameters.saturating_add(available_locals)
+        }
+    }
 }
 
 fn is_branch_free_structural_integer_expression(
@@ -9811,7 +9902,7 @@ mod tests {
         assert!(matches!(
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
-                "structural scalar return is not one branch-free local expression"
+                "structural scalar return is outside its checked value/control slice"
             ))
         ));
     }
@@ -9999,7 +10090,7 @@ mod tests {
     }
 
     #[test]
-    fn structural_scalar_return_emits_closed_branch_free_boolean_before_cleanup() {
+    fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
         let mut checked = hard_root_checked_fixture();
         install_structural_scalar_return_fixture(&mut checked);
         checked
@@ -10069,16 +10160,83 @@ mod tests {
             lowered.semantic_module
         );
 
-        checked.facts.values.scalar_expressions.expressions[0].expression =
-            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-                left: Box::new(CheckedBooleanExpression::Constant(true)),
-                right: Box::new(CheckedBooleanExpression::Constant(false)),
-            }));
+        let plan = &mut checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines[0];
+        plan.bindings = vec![psi_checked_trees::CheckedScalarBinding {
+            statement_ordinal: 0,
+            primitive_type: PrimitiveType::Bool,
+            value: CheckedScalarBindingValue::Expression,
+        }];
+        plan.return_statement_ordinal = 1;
+        checked.facts.values.scalar_expressions.expressions = vec![
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: plan.state,
+                statement_ordinal: 0,
+                role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::Constant(true),
+                )),
+            },
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: plan.state,
+                statement_ordinal: 1,
+                role: CheckedScalarExpressionRole::Return,
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::And {
+                        left: Box::new(CheckedBooleanExpression::Local { position: 0 }),
+                        right: Box::new(CheckedBooleanExpression::Constant(false)),
+                    },
+                )),
+            },
+        ];
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("short-circuit Boolean leaves should each perform exact affine cleanup");
+        let blocks = &lowered.semantic_module.machines[0].blocks;
+        assert_eq!(blocks.len(), 5);
         assert!(matches!(
-            lower_machine(&checked, "example::Root::enter"),
-            Err(LoweringError::Unsupported(
-                "structural scalar return is not one branch-free local expression"
-            ))
+            blocks[0].operations.first(),
+            Some(Operation {
+                kind: OperationKind::BooleanConstant { value: true },
+                ..
+            })
         ));
+        let mut return_count = 0;
+        for block in blocks {
+            match &block.terminator {
+                Terminator::Return {
+                    trivial_affine_discards,
+                    ..
+                } => {
+                    return_count += 1;
+                    assert_eq!(trivial_affine_discards, &[place_id(2), place_id(1)]);
+                }
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    assert!(when_true.trivial_affine_discards.is_empty());
+                    assert!(when_false.trivial_affine_discards.is_empty());
+                }
+                _ => panic!("short-circuit return emits only decisions and scalar leaves"),
+            }
+        }
+        assert_eq!(return_count, 3);
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("short-circuit cleanup frontiers should verify on every path");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("short-circuit structural cleanup should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("short-circuit structural cleanup should decode canonically"),
+            lowered.semantic_module
+        );
     }
 }

@@ -205,13 +205,16 @@ row carries that partition, the exact structural signature, local types and
 statement coordinates, scalar result carrier, return coordinate, and
 reverse-declaration cleanup positions. Production revalidates the partition and
 the dense scalar/local namespace, materializes expressions in order,
-reconstructs any exact-operation proofs before the return edge, resolves cleanup
-positions to structural places, and emits the existing verified scalar
-`Return`. Short-circuit Boolean operators remain fenced because their synthetic
-control edges would require path-specific structural cleanup placement. Calls,
-mutable or non-scalar locals, contracts, claims, effects, and multi-state control
-also remain outside this source slice; structural custody is never represented
-as a scalar parameter.
+reconstructs any exact-operation proofs before the return edge, and resolves
+cleanup positions to structural places. A final short-circuit Boolean return is
+expanded into explicit decision blocks: internal conditional edges preserve the
+unchanged structural frontier, and every terminal value leaf carries the same
+checked complete cleanup list. The verifier reconstructs that requirement on
+each path. Short-circuit local initializers remain fenced until their
+continuation/convergence stage also carries an explicit frontier. Calls, mutable
+or non-scalar locals, contracts, claims, effects, and multi-state control remain
+outside this source slice; structural custody is never represented as a scalar
+parameter.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

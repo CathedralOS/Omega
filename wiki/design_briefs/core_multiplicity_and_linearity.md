@@ -204,9 +204,12 @@ cover every authored parameter exactly once. The producer rechecks that
 partition, every local coordinate and carrier, the return, the structural
 signature, and the cleanup row before assigning terminal identities, then
 reconstructs exact-operation proofs before publication and performs
-reverse-declaration cleanup on the return edge. Calls, mutable or non-scalar
-locals, short-circuit Boolean forms, claims, and richer exits remain fail-closed
-rather than weakening the frontier model.
+reverse-declaration cleanup on the return edge. Final short-circuit Boolean
+returns preserve the full frontier across internal decisions and repeat that
+exact cleanup on every terminal value leaf, which the verifier checks
+independently. Calls, mutable or non-scalar locals, short-circuit local
+initializers, claims, and richer exits remain fail-closed rather than weakening
+the frontier model.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

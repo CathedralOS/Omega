@@ -361,12 +361,44 @@ fn structural_scalar_return_retains_interleaved_scalar_parameter_map() {
 }
 
 #[test]
-fn structural_scalar_return_rejects_short_circuit_control() {
+fn structural_scalar_return_retains_short_circuit_return_cleanup() {
     let checked = checked(
         r#"
         data Token { value: i32; }
         data Root {}
         machine Root::measure(token: Token) -> bool { true && false }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("short-circuit return should retain cleanup for every terminal leaf");
+    assert_eq!(
+        plan.result_type,
+        psi_typed_trees::types::PrimitiveType::Bool
+    );
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+}
+
+#[test]
+fn structural_scalar_return_rejects_short_circuit_local_initializer() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token) -> bool
+        {
+            let flag: bool = true && false;
+            flag
+        }
         "#,
     );
     let machine = checked
@@ -382,6 +414,6 @@ fn structural_scalar_return_rejects_short_circuit_control() {
             .terminal_structural_scalar_returns
             .for_machine(machine)
             .is_none(),
-        "short-circuit control must not publish a branch-free cleanup plan"
+        "short-circuit local initialization needs an explicit continuation stage"
     );
 }
