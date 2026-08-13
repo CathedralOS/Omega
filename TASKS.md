@@ -204,13 +204,13 @@ Remaining:
 
   The bounded whole-root nominal cleanup slice is complete: one root-only Unit
   machine with exactly one claim-free, unqualified affine parameter whose
-  record is empty or has up to two relevant Boolean/integer fields invokes its exact
+  record is empty or contains only relevant Boolean/integer fields invokes its exact
   empty attached `T::drop`. Checked production, canonical terminal encoding,
   independent verification, interpretation, and fixed fuel preserve the whole
   receiver and charge both edges. Omega assigns a nonempty receiver its
   ordinary ABI home while retaining parameter, attachment, and cleanup identity
   through all five object/image/install paths; the empty drop body adds no
-  cleanup bytes. Wider-than-two/nested receivers, executable drop bodies, ordered
+  cleanup bytes. Nested/erased receivers, executable drop bodies, ordered
   multiple cleanups, locals, claims, qualifications, contracts, and non-root
   edges remain fenced.
 
@@ -432,7 +432,7 @@ reach or trust, and private proof improvements do not change public identity.
   one equal-frontier diamond. One direct-field partial-record transfer now
   preserves and disposes its exact residual sibling through interpretation and
   all five native artifact paths. One whole affine parameter whose record is
-  empty or has up to two relevant Boolean/integer fields now invokes an exact empty
+  empty or contains only relevant Boolean/integer fields now invokes an exact empty
   attached nominal cleanup through interpretation, fuel, and all five native
   artifact paths. Add wider/executable nominal cleanup,
   ordered cleanup lists, contextual cleanup-contract checking,
