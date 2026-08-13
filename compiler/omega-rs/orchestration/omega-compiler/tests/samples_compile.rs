@@ -24,6 +24,9 @@
 //!  * `algorithm_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated algorithms cohort has the same exact selection and direct-
 //!    lowering guarantees, with no legacy staging adapter.
+//!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
+//!    migrated interpreter cohort likewise lowers directly for every hosted
+//!    target without legacy staging.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -80,6 +83,14 @@ const EXPLICIT_ENTRY_ALGORITHM_SAMPLES: &[&str] = &[
     "longest_run",
     "maze_flood",
     "sort_visualizer",
+];
+const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
+    "calculator",
+    "calculator_rpn",
+    "rpn_calculator",
+    "stack_calculator",
+    "stack_vm",
+    "token_interpreter",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -520,6 +531,61 @@ fn algorithm_samples_compile_from_authored_program_entry_bindings() {
             checked.selected_program_entry_machine(),
             None,
             "checked-only algorithm sample {sample} must not select a storage root"
+        );
+    }
+}
+
+#[test]
+fn interpreter_samples_compile_from_authored_program_entry_bindings() {
+    for sample in EXPLICIT_ENTRY_INTERPRETER_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/interpreters")
+            .join(sample)
+            .join("main.omg");
+        for target in HOSTED_SAMPLE_TARGETS {
+            let checked =
+                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
+                    panic!(
+                        "interpreter sample {sample} should select its authored {target} entry: \
+                         {diagnostics:#?}"
+                    )
+                });
+            assert_eq!(
+                checked.selected_program_entry_machine(),
+                Some("Main::main"),
+                "interpreter sample {sample} must select its authored Main::main binding for \
+                 {target}"
+            );
+
+            let build_dir = std::env::temp_dir().join(format!(
+                "omega-authored-interpreter-entry-{sample}-{target}-{}",
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&build_dir);
+            compile_program(CompileOptions {
+                root_path: main_path.clone(),
+                build_dir: Some(build_dir.clone()),
+                target_name: Some((*target).to_owned()),
+                write_output: false,
+            })
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "interpreter sample {sample} should lower directly for {target} without a \
+                     staged entry: {diagnostics:#?}"
+                )
+            });
+            let _ = fs::remove_dir_all(build_dir);
+        }
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "interpreter sample {sample} should remain entry-agnostic when checked: \
+                 {diagnostics:#?}"
+            )
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            None,
+            "checked-only interpreter sample {sample} must not select a storage root"
         );
     }
 }
