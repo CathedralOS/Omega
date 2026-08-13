@@ -3768,6 +3768,22 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         &mut matrix[write_index(first)][write_index(second)]
     }
 
+    machine return_slice_view_repeated_call_index<'matrix, 'first, 'second>(
+        matrix: &'matrix mut [[u64; 2]; 2],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'matrix mut u64 {
+        &mut matrix.as_mut_slice()[write_index(first)][write_index(second)]
+    }
+
+    machine return_deep_slice_view_repeated_call_index(
+        matrix: &mut [[u64; 2]; 2]
+    ) -> &mut u64 {
+        &mut matrix.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ][make_index()]
+    }
+
     machine return_deep_repeated_call_index(
         matrix: &mut [[u64; 2]; 2]
     ) -> &mut u64 {
@@ -3838,6 +3854,21 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 1;
     }
 
+    machine Main::slice_view_repeated_call_index_result(&mut self) {
+        let alias: &mut u64 = return_slice_view_repeated_call_index(
+            &mut self.matrix,
+            &mut self.value,
+            &mut self.other_value
+        );
+        alias = 1;
+    }
+
+    machine Main::deep_slice_view_repeated_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_deep_slice_view_repeated_call_index(&mut self.matrix);
+        alias = 1;
+    }
+
     machine Main::deep_repeated_call_index_result(&mut self) {
         let alias: &mut u64 = return_deep_repeated_call_index(&mut self.matrix);
         alias = 1;
@@ -3888,6 +3919,10 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::repeated_call_index_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
+        (
+            "Main::slice_view_repeated_call_index_result",
+            vec!["self.matrix", "self.other_value", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -3917,6 +3952,7 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         "Main::deep_call_index_result",
         "Main::deep_repeated_call_index_result",
         "Main::deep_slice_view_call_index_result",
+        "Main::deep_slice_view_repeated_call_index_result",
         "Main::recursive_call_index_result",
         "Main::recursive_slice_view_call_index_result",
     ] {
@@ -4033,6 +4069,21 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 1;
     }
 
+    machine Main::slice_view_repeated_call_index_alias(&mut self) {
+        let alias: &mut u64 =
+            &mut self.matrix.as_mut_slice()[write_index(&mut self.value)][
+                write_index(&mut self.other_value)
+            ];
+        alias = 1;
+    }
+
+    machine Main::deep_slice_view_repeated_call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut self.matrix.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ][make_index()];
+        alias = 1;
+    }
+
     machine Main::call_index_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut self.other_cells[make_index()];
@@ -4117,6 +4168,22 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 1;
     }
 
+    machine Main::slice_view_repeated_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_matrix.as_mut_slice()[
+            write_index(&mut self.value)
+        ][write_index(&mut self.other_value)];
+        alias = 1;
+    }
+
+    machine Main::deep_slice_view_repeated_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_matrix.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ][make_index()];
+        alias = 1;
+    }
+
     machine Main::deep_repeated_call_index_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut self.other_matrix[
@@ -4170,6 +4237,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::repeated_call_index_alias",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
+        (
+            "Main::slice_view_repeated_call_index_alias",
+            vec!["self.matrix", "self.other_value", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -4198,6 +4269,7 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     for name in [
         "Main::deep_call_index_alias",
         "Main::deep_slice_view_call_index_alias",
+        "Main::deep_slice_view_repeated_call_index_alias",
         "Main::recursive_call_index_alias",
         "Main::recursive_slice_view_call_index_alias",
     ] {
@@ -4244,6 +4316,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::repeated_call_index_alias_rebind",
             vec!["self.other_matrix", "self.other_value", "self.value"],
         ),
+        (
+            "Main::slice_view_repeated_call_index_alias_rebind",
+            vec!["self.other_matrix", "self.other_value", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -4272,6 +4348,7 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     for name in [
         "Main::deep_call_index_alias_rebind",
         "Main::deep_slice_view_call_index_alias_rebind",
+        "Main::deep_slice_view_repeated_call_index_alias_rebind",
         "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
         "Main::recursive_slice_view_call_index_alias_rebind",
