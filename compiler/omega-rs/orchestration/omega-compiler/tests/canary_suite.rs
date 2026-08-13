@@ -16936,17 +16936,11 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "interpreter dispatches the adapter");
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-adapter-dispatch-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("adapter-dispatch canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_hosted_main_preserving_build(&canary, &scratch, native_hosted_target())
+        .expect("adapter-dispatch canary should compile natively");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("adapter-dispatch canary should run");
     assert_eq!(
@@ -16954,7 +16948,7 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
         Some(70),
         "native dispatches the adapter"
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -17035,19 +17029,13 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
         outcome.error
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-selected-provider-adapter-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("selected-provider adapter canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_hosted_main_preserving_build(&canary, &scratch, native_hosted_target())
+        .expect("selected-provider adapter canary should compile natively");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("selected-provider adapter canary should run");
     assert_eq!(
@@ -17055,7 +17043,7 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
         Some(70),
         "native dispatch must use only the selected SecondProvider adapter"
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -46696,16 +46684,20 @@ fn fail_canary(path: &str) -> PathBuf {
 }
 
 fn hosted_main_program_entry_build(target: &str) -> String {
-    let root_owner = match target {
+    let root_owner = hosted_program_entry_owner(target);
+    format!(
+        "target {target} {{\n}}\n\nmachine build(b: &mut Build) {{\n    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+    )
+}
+
+fn hosted_program_entry_owner(target: &str) -> &'static str {
+    match target {
         "windows_x64" => "windows_x86_64",
         "linux_x64" => "linux_x86_64",
         "macos_arm64" => "macos_arm64",
         "linux_arm64" => "linux_arm64",
         _ => panic!("no hosted ProgramEntry root owner for target `{target}`"),
-    };
-    format!(
-        "target {target} {{\n}}\n\nmachine build(b: &mut Build) {{\n    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
-    )
+    }
 }
 
 fn compile_single_file_hosted_main(
@@ -46744,6 +46736,40 @@ fn compile_hosted_main(
         hosted_main_program_entry_build(target),
     )
     .expect("write exact hosted ProgramEntry binding");
+    production_compile(CompileOptions {
+        root_path: source.join("main.omg"),
+        build_dir: Some(scratch.join("out")),
+        target_name: Some(target.into()),
+        write_output: true,
+    })
+}
+
+fn compile_hosted_main_preserving_build(
+    canary: &Path,
+    scratch: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let _ = fs::remove_dir_all(scratch);
+    let source = scratch.join("source");
+    copy_dir_recursive(canary, &source).expect("copy hosted canary source tree");
+
+    let build_path = source.join("build.omg");
+    let mut build = fs::read_to_string(&build_path).expect("read fixture build machine");
+    assert!(
+        !build.contains("b.roots.bind("),
+        "fixture build must not already bind a ProgramEntry root"
+    );
+    let build_close = build
+        .rfind('}')
+        .expect("fixture build machine should have a closing brace");
+    let root_owner = hosted_program_entry_owner(target);
+    build.insert_str(
+        build_close,
+        &format!("    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n"),
+    );
+    fs::write(build_path, format!("target {target} {{\n}}\n\n{build}"))
+        .expect("add exact hosted ProgramEntry binding to fixture build");
+
     production_compile(CompileOptions {
         root_path: source.join("main.omg"),
         build_dir: Some(scratch.join("out")),
