@@ -187,7 +187,7 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
 /// Complete checked input for the first terminal structural-control producer.
 /// This deliberately supports only claim-free affine, Unit-returning attached
 /// graphs whose states return naturally, unconditionally transfer whole
-/// parameters, or have one state select two independent whole-parameter
+/// parameters, or have at most two states select independent whole-parameter
 /// successors from one retained Boolean scalar input. Ordinary successor edges may also forward
 /// direct primitive scalar inputs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

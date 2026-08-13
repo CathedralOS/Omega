@@ -346,7 +346,7 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
 }
 
 #[test]
-fn structural_unit_conditional_may_follow_an_unconditional_prefix() {
+fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
     let supported = checked(
         r#"
         data Token { value: i32; }
@@ -398,7 +398,7 @@ fn structural_unit_conditional_may_follow_an_unconditional_prefix() {
         }
     ));
 
-    let rejected = checked(
+    let nested = checked(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -432,6 +432,79 @@ fn structural_unit_conditional_may_follow_an_unconditional_prefix() {
         }
         "#,
     );
+    let machine = nested
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    let plan = nested
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("one nested conditional should compose");
+    assert_eq!(
+        plan.states
+            .iter()
+            .filter(|state| matches!(
+                state.terminator,
+                psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
+            ))
+            .count(),
+        2
+    );
+
+    let rejected = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(
+            first: Token,
+            second: Token,
+            third: Token,
+            fourth: Token,
+            choose_first: bool,
+            choose_second: bool,
+            choose_third: bool,
+            value: i32
+        ) {
+            transition choose_first {
+                true -> keep_first(first, value)
+                _ -> decide_second(second, third, fourth, choose_second, choose_third, value)
+            }
+            state decide_second(
+                second: Token,
+                third: Token,
+                fourth: Token,
+                choose_second: bool,
+                choose_third: bool,
+                value: i32
+            ) {
+                transition choose_second {
+                    true -> keep_second(second, value)
+                    _ -> decide_third(third, fourth, choose_third, value)
+                }
+            }
+            state decide_third(
+                third: Token,
+                fourth: Token,
+                choose_third: bool,
+                value: i32
+            ) {
+                transition choose_third {
+                    true -> keep_third(third, value)
+                    _ -> keep_fourth(fourth, value)
+                }
+            }
+            state keep_first(first: Token, value: i32) {}
+            state keep_second(second: Token, value: i32) {}
+            state keep_third(third: Token, value: i32) {}
+            state keep_fourth(fourth: Token, value: i32) {}
+        }
+        "#,
+    );
     let machine = rejected
         .machines()
         .iter()
@@ -445,7 +518,7 @@ fn structural_unit_conditional_may_follow_an_unconditional_prefix() {
             .terminal_structural_unit_controls
             .for_machine(machine)
             .is_none(),
-        "multiple conditional states remain outside the bounded topology slice"
+        "a third conditional state remains outside the bounded topology slice"
     );
 }
 
