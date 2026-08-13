@@ -191,8 +191,9 @@ Current ownership is:
   may contain one or more indexes whose non-rebinding direct-call trees are
   independently complete through depth two; the first index fixes the
   collection-coarse write, later indexes are absorbing, and every index-call
-  write remains published. Deeper,
-  binding-reborrow, recursive, or opaque indexed targets remain fences. The
+  write remains published. A transparent helper result supplies its collection
+  origin without an intermediate binding. Deeper or binding-reborrow index
+  trees and recursive or opaque collection producers remain fences. The
   bounded indexed target and bounded non-reference value tree may coexist on
   one assignment; their frames compose independently, while either side
   exceeding its rail fences the relation. Other ordinary exact frames remain
