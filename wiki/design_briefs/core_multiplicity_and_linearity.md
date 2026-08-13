@@ -208,11 +208,11 @@ reverse-declaration cleanup on the return edge. Final short-circuit Boolean
 returns preserve the full frontier across internal decisions and repeat that
 exact cleanup on every terminal value leaf, which the verifier checks
 independently. Calls, mutable or non-scalar locals, short-circuit local
-initializers beyond the exact sole-Boolean-local case, claims, and richer exits
-remain fail-closed rather than weakening the frontier model. That sole-local
-case preserves custody through every decision edge, carries the Boolean value
-to one typed convergence parameter, and performs cleanup only on the subsequent
-branch-free return.
+initializers beyond one final Boolean stage, claims, and richer exits remain
+fail-closed rather than weakening the frontier model. A branch-free primitive
+prefix may dominate that stage; it preserves custody through every decision
+edge, carries the Boolean value to one typed convergence parameter, and performs
+cleanup only on the subsequent branch-free return.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
