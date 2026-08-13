@@ -196,18 +196,20 @@ typed custody crosses Omega's five native artifact pipelines without runtime
 bytes. Nonempty, mutable, qualified, content-bearing, nominal-cleanup, and
 post-effect locals remain fenced.
 
-The first nominal-cleanup slice accepts one root-only, one-state Unit machine
-with exactly one claim-free, unqualified affine parameter of an empty record
-type and its exact empty attached `T::drop(&mut self)` machine. The return names
-the whole place, type, and cleanup-machine identity. Verification reconstructs
-that attachment and empty closure; interpretation charges the caller edge,
-enters the cleanup machine, and charges its return edge without replaying the
-caller. Fixed fuel composes both edges. Omega erases the empty value from ABI
-locations while preserving its semantic parameter, attachment, and cleanup
-ledger through all five native object, image, and installation paths. The
-cleanup adds no native bytes. Nonempty receivers, executable drop bodies,
-multiple ordered cleanup actions, claims, qualifications, locals, and non-root
-edges remain fenced.
+The bounded nominal-cleanup slice accepts one root-only, one-state Unit machine
+with exactly one claim-free, unqualified affine parameter whose record is empty
+or has exactly one relevant Terminal-supported Boolean/integer field, plus its
+exact empty attached `T::drop(&mut self)` machine. The return names the whole
+place, type, and cleanup-machine identity. Verification reconstructs that
+attachment and empty closure; interpretation retains the whole receiver,
+charges the caller edge, enters the cleanup machine, and charges its return edge
+without replaying the caller. Fixed fuel composes both edges. Omega erases an
+empty value or assigns the one-field value its ordinary ABI home while
+preserving its semantic parameter, attachment, and cleanup ledger through all
+five native object, image, and installation paths. The empty cleanup body adds
+no native bytes. Wider/nested receivers, executable drop bodies, multiple
+ordered cleanup actions, claims, qualifications, locals, and non-root edges
+remain fenced.
 
 An unconditional jump and each ordered conditional successor may carry an
 independent canonical reverse-declaration subset of the same eligible
