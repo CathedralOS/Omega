@@ -2403,53 +2403,67 @@ fn valid_nominal_cleanup_requirements(
     target: &TerminalMachine,
     cleanup: &psi_terminal::NominalAffineCleanup,
 ) -> bool {
-    match target.contract.requires.as_slice() {
-        [] => cleanup.cleanup_receiver.is_none() && cleanup.requirement_obligations.is_empty(),
-        [
-            Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::BooleanField { root, field }),
-        ] => {
-            let Some(receiver) = cleanup.cleanup_receiver else {
-                return false;
-            };
-            if receiver != *root
-                || cleanup.requirement_obligations.len() != 1
-                || module
-                    .machines
-                    .iter()
-                    .flat_map(|machine| &machine.structural_places)
-                    .any(|place| place.id == receiver)
-                || module.machines.iter().any(|machine| {
-                    machine.blocks.iter().any(|block| {
-                        matches!(
-                            &block.terminator,
-                            Terminator::ReturnUnitNominalAffine { cleanups, .. }
-                                if cleanups.iter().any(|candidate| {
-                                    candidate.cleanup_machine != target.id
-                                        && candidate.cleanup_receiver == Some(receiver)
-                                })
-                        )
-                    })
-                })
-            {
-                return false;
-            }
-            module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == cleanup.structural_type)
-                .and_then(|declaration| match &declaration.shape {
-                    StructuralTypeShape::Record { fields } => {
-                        fields.iter().find(|candidate| candidate.id == *field)
-                    }
-                    StructuralTypeShape::FixedArray { .. } => None,
-                })
-                .is_some_and(|field| {
-                    !field.relevance.is_erased()
-                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
-                })
-        }
-        _ => false,
+    if target.contract.requires.is_empty() {
+        return cleanup.cleanup_receiver.is_none() && cleanup.requirement_obligations.is_empty();
     }
+
+    let Some(receiver) = cleanup.cleanup_receiver else {
+        return false;
+    };
+    if cleanup.requirement_obligations.len() != target.contract.requires.len()
+        || module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.structural_places)
+            .any(|place| place.id == receiver)
+        || module.machines.iter().any(|machine| {
+            machine.blocks.iter().any(|block| {
+                matches!(
+                    &block.terminator,
+                    Terminator::ReturnUnitNominalAffine { cleanups, .. }
+                        if cleanups.iter().any(|candidate| {
+                            candidate.cleanup_machine != target.id
+                                && candidate.cleanup_receiver == Some(receiver)
+                        })
+                )
+            })
+        })
+    {
+        return false;
+    }
+
+    let Some(fields) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == cleanup.structural_type)
+        .and_then(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } => Some(fields),
+            StructuralTypeShape::FixedArray { .. } => None,
+        })
+    else {
+        return false;
+    };
+    let mut previous_field_bytes = None;
+    for requirement in &target.contract.requires {
+        let Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::BooleanField { root, field }) =
+            requirement
+        else {
+            return false;
+        };
+        let field_bytes = field.get().to_le_bytes();
+        if *root != receiver
+            || previous_field_bytes.is_some_and(|previous| previous >= field_bytes)
+            || !fields.iter().any(|candidate| {
+                candidate.id == *field
+                    && !candidate.relevance.is_erased()
+                    && candidate.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+            })
+        {
+            return false;
+        }
+        previous_field_bytes = Some(field_bytes);
+    }
+    true
 }
 
 fn validate_unit_call_contract_places(

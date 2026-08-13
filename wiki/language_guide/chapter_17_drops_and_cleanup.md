@@ -259,14 +259,15 @@ particular edge. Every `requires` clause on `drop` must be established there.
 A value may therefore be automatically droppable in one state and require an
 explicit consumer or fact-preserving transfer in another.
 
-The implemented root-return subset currently proves one direct relevant
-Boolean receiver-field requirement on an empty `drop` body from the matching
-caller requirement. For example, `requires self.ready` is available for
-automatic cleanup at a Unit return whose caller establishes
-`requires token.ready`. Psi records and independently replays that exact
-receiver substitution in the proof artifact; it is not a native argument or
-Omega runtime contract. Other predicates, multiple cleanup requirements, and
-facts changed by a nonempty body remain outside this bounded subset.
+The implemented root-return subset currently proves a finite canonical set of
+direct relevant Boolean receiver-field requirements on an empty `drop` body
+from matching caller facts. For example, `requires self.ready, self.armed` is
+available for automatic cleanup at a Unit return whose caller establishes both
+facts for `token`; unrelated supported caller facts do not need to appear in
+the `drop` contract. Psi records and independently replays every exact receiver
+substitution in the proof artifact; none is a native argument or Omega runtime
+contract. Other predicates, facts changed by a nonempty body, and multiple
+contextual cleanup roots remain outside this bounded subset.
 
 Diagnostics name both the edge and the missing cleanup premise:
 

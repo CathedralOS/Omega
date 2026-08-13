@@ -14,13 +14,13 @@ use psi_checked_trees::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitBoundaryMachinePlan,
     CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
-    ContractProofFactOwner,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
+    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
@@ -1699,6 +1699,13 @@ fn build_nominal_affine_unit_cleanup_machine(
     {
         return None;
     }
+    let caller_requirements = nominal_cleanup_caller_boolean_requirements(
+        program,
+        facts,
+        machine,
+        state,
+        source_parameters,
+    )?;
     let mut cleanups = Vec::with_capacity(source_parameters.len());
     for (source_parameter, checked_parameter) in
         source_parameters.iter().zip(&structural_parameters).rev()
@@ -1768,28 +1775,19 @@ fn build_nominal_affine_unit_cleanup_machine(
             cleanup_state,
             cleanup_receiver,
         )?;
-        if cleanup_requirements.len() > 1 {
-            return None;
-        }
-        if !nominal_cleanup_requirements_proved_by_caller(
-            program,
-            facts,
-            machine,
-            state,
-            source_parameter,
+        if let Some(missing) = nominal_cleanup_missing_requirement(
+            checked_parameter.position,
+            &caller_requirements,
             &cleanup_requirements,
         ) {
-            if let [requirement] = cleanup_requirements.as_slice() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove automatic cleanup requires at Unit return edge from {} state {} after statement 0: {}.{} == {} required by {}",
-                    crate::labels::machine_name(program, machine.symbol),
-                    crate::labels::symbol_name(program, state.symbol),
-                    source_parameter.name.as_str(),
-                    requirement.field_identity,
-                    requirement.expected,
-                    crate::labels::machine_name(program, cleanup_machine.symbol),
-                )));
-            }
+            diagnostics.push(nominal_cleanup_missing_requirement_diagnostic(
+                program,
+                machine,
+                state,
+                source_parameter,
+                cleanup_machine,
+                missing,
+            ));
             return None;
         }
         let cleanup_statements = program
@@ -1900,6 +1898,7 @@ fn build_nominal_affine_unit_cleanup_machine(
                 trivial_affine_discards: Vec::new(),
             }],
         },
+        caller_requirements,
         cleanups,
     })
 }
@@ -1913,7 +1912,7 @@ fn nominal_cleanup_boolean_requirements(
 ) -> Option<Vec<CheckedUnitNominalAffineCleanupRequirementPlan>> {
     let checked_requires =
         checked_requires_expressions(program, facts, cleanup_machine.symbol, cleanup_state.symbol)?;
-    checked_requires
+    let requirements = checked_requires
         .into_iter()
         .map(|expression| {
             direct_true_boolean_field_requirement(
@@ -1923,38 +1922,104 @@ fn nominal_cleanup_boolean_requirements(
                 expression,
             )
         })
-        .collect()
+        .collect::<Option<Vec<_>>>()?;
+    Some(canonical_nominal_cleanup_requirements(requirements))
 }
 
-fn nominal_cleanup_requirements_proved_by_caller(
+fn nominal_cleanup_caller_boolean_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
     caller_machine: &psi_typed_trees::machine::Machine,
     caller_state: &psi_typed_trees::state::State,
-    source_parameter: &StateParameter,
-    required: &[CheckedUnitNominalAffineCleanupRequirementPlan],
-) -> bool {
+    source_parameters: &[StateParameter],
+) -> Option<Vec<CheckedUnitNominalAffineCallerRequirementPlan>> {
     // This producer is fenced to an empty one-state body, so the checked entry
     // requirement is preserved unchanged at its sole Unit return edge. Wider
     // bodies must instead consult the path-specific exit contexts.
-    let Some(caller_requires) =
-        checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)
-    else {
-        return false;
-    };
-    caller_requires.len() == required.len()
-        && caller_requires
-            .iter()
-            .zip(required)
-            .all(|(&expression, requirement)| {
-                direct_true_boolean_field_requirement(
-                    program,
-                    caller_state.symbol,
-                    source_parameter,
-                    expression,
-                )
-                .is_some_and(|caller| caller == *requirement)
+    let caller_requires =
+        checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
+    let mut requirements = caller_requires
+        .into_iter()
+        .map(|expression| {
+            source_parameters.iter().enumerate().find_map(
+                |(source_parameter_index, source_parameter)| {
+                    let source_parameter_index = u32::try_from(source_parameter_index).ok()?;
+                    direct_true_boolean_field_requirement(
+                        program,
+                        caller_state.symbol,
+                        source_parameter,
+                        expression,
+                    )
+                    .map(|requirement| {
+                        CheckedUnitNominalAffineCallerRequirementPlan {
+                            source_parameter_index,
+                            field_identity: requirement.field_identity,
+                            expected: requirement.expected,
+                        }
+                    })
+                },
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    requirements.sort_by(|left, right| {
+        left.source_parameter_index
+            .cmp(&right.source_parameter_index)
+            .then(left.field_identity.cmp(&right.field_identity))
+            .then(left.expected.cmp(&right.expected))
+    });
+    requirements.dedup();
+    Some(requirements)
+}
+
+fn nominal_cleanup_missing_requirement(
+    source_parameter_index: u32,
+    caller_requirements: &[CheckedUnitNominalAffineCallerRequirementPlan],
+    required: &[CheckedUnitNominalAffineCleanupRequirementPlan],
+) -> Option<CheckedUnitNominalAffineCleanupRequirementPlan> {
+    required
+        .iter()
+        .find(|requirement| {
+            !caller_requirements.iter().any(|caller| {
+                caller.source_parameter_index == source_parameter_index
+                    && caller.field_identity == requirement.field_identity
+                    && caller.expected == requirement.expected
             })
+        })
+        .cloned()
+}
+
+fn canonical_nominal_cleanup_requirements(
+    mut requirements: Vec<CheckedUnitNominalAffineCleanupRequirementPlan>,
+) -> Vec<CheckedUnitNominalAffineCleanupRequirementPlan> {
+    requirements.sort_by(|left, right| {
+        left.field_identity
+            .cmp(&right.field_identity)
+            .then(left.expected.cmp(&right.expected))
+    });
+    requirements.dedup();
+    requirements
+}
+
+fn nominal_cleanup_missing_requirement_diagnostic(
+    program: &TypedTrees,
+    caller_machine: &psi_typed_trees::machine::Machine,
+    caller_state: &psi_typed_trees::state::State,
+    source_parameter: &StateParameter,
+    cleanup_machine: &psi_typed_trees::machine::Machine,
+    missing: CheckedUnitNominalAffineCleanupRequirementPlan,
+) -> Diagnostic {
+    let edge = format!(
+        "automatic cleanup requires at Unit return edge from {} state {} after statement 0",
+        crate::labels::machine_name(program, caller_machine.symbol),
+        crate::labels::symbol_name(program, caller_state.symbol),
+    );
+    Diagnostic::error(format!(
+        "cannot prove {edge}: missing {}.{} == {} required by {}",
+        source_parameter.name.as_str(),
+        missing.field_identity,
+        missing.expected,
+        crate::labels::machine_name(program, cleanup_machine.symbol),
+    ))
 }
 
 fn checked_requires_expressions(

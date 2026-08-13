@@ -218,8 +218,10 @@ Remaining:
   all five object/image/install paths. Empty drops add no call; each accepted
   executable form emits a call owned by its exact edge/action ordinal before
   return teardown and retains source-ordered operation-owned helper custody.
-  Nested/erased receivers, wider body shapes, locals, claims,
-  qualifications, contracts, and non-root edges remain fenced.
+  One-root empty bodies additionally admit the finite direct-Boolean
+  contextual contract subset described under CML4. Nested/erased receivers,
+  wider body shapes, locals, claims, qualifications, other contract forms,
+  contextual multi-root cleanup, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
@@ -450,14 +452,16 @@ reach or trust, and private proof improvements do not change public identity.
   interpretation, fuel, and every native artifact path. They may share a
   target, and every action may use the bounded executable body, including a
   shared cleanup target or helper; native calls retain exact edge/action
-  ordinals. One root-only contextual subset additionally accepts one direct
-  relevant Boolean receiver-field `requires` clause when the exact caller
-  requirement proves it at the Unit return edge. Terminal Psi retains the
-  proof-only receiver substitution and obligation, independently verifies the
+  ordinals. One root-only contextual subset additionally accepts a finite
+  canonical set of direct relevant Boolean receiver-field `requires` clauses
+  when the caller's canonical Boolean fact set proves every one at the Unit
+  return edge; unrelated supported caller facts remain available. Terminal Psi
+  retains each proof-only receiver substitution and positional obligation,
+  independently verifies the
   source-produced semantic/proof artifact, and removes proof metadata before
   all five Omega runtime carriers. Missing premises reject with an edge- and
-  cleanup-specific diagnostic. Extend contextual cleanup contracts beyond this
-  Boolean/empty-body subset; add wider structural partial-value cleanup,
+  cleanup-specific diagnostic. Extend contextual cleanup beyond this
+  direct-Boolean, empty-body, one-root subset; add wider structural partial-value cleanup,
   repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
