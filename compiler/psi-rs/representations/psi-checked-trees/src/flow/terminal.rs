@@ -260,6 +260,10 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Dense scalar input order with each entry's original source position.
+    /// Together with `structural_parameters`, this must exactly partition the
+    /// authored state-parameter positions.
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     /// Immutable primitive bindings evaluated in source order. Initializer
     /// expressions remain in `CheckedScalarExpressionPlans` at the binding's
     /// exact statement coordinate.
@@ -267,6 +271,12 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedStructuralScalarParameterPlan {
+    pub source_position: u32,
+    pub primitive_type: PrimitiveType,
 }
 
 /// Source-handle-free plans for the first general structural/Unit terminal

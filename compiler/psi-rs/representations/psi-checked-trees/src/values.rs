@@ -147,10 +147,14 @@ pub enum CheckedScalarExpressionRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
+    /// Dense position in the consuming plan's scalar parameter namespace. A
+    /// mixed structural/scalar producer must separately retain the authored
+    /// source-position partition.
     Parameter {
         position: usize,
         primitive_type: psi_typed_trees::types::PrimitiveType,
     },
+    /// Dense position after scalar parameters and earlier primitive locals.
     Local {
         position: usize,
         primitive_type: psi_typed_trees::types::PrimitiveType,

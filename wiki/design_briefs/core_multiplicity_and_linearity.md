@@ -197,14 +197,16 @@ one-state source slice now evaluates an ordered prefix of immutable primitive
 locals and a return through checked branch-free scalar expressions. Integer
 work uses landed literals and the terminal integer vocabulary; Boolean work uses
 constants, negation, equality, and integer comparisons. Expressions may name
-only already materialized locals: structural state parameters remain outside
-the scalar namespace. The producer rechecks every local coordinate and carrier,
-the return, the structural signature, and the cleanup row before assigning
-terminal places, then reconstructs exact-operation proofs before publication
-and performs reverse-declaration cleanup on the return edge. Calls, mutable or
-non-scalar locals, short-circuit Boolean forms, mixed scalar/structural parameter
-namespaces, claims, and richer exits remain fail-closed rather than weakening
-the frontier model.
+primitive state parameters and already materialized locals. A retained source-
+position partition maps primitive inputs into the dense scalar namespace and
+keeps affine custody in the disjoint structural namespace; the two maps must
+cover every authored parameter exactly once. The producer rechecks that
+partition, every local coordinate and carrier, the return, the structural
+signature, and the cleanup row before assigning terminal identities, then
+reconstructs exact-operation proofs before publication and performs
+reverse-declaration cleanup on the return edge. Calls, mutable or non-scalar
+locals, short-circuit Boolean forms, claims, and richer exits remain fail-closed
+rather than weakening the frontier model.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

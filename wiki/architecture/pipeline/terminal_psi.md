@@ -197,18 +197,21 @@ primitive locals followed by one return expression. Every initializer and the
 return are checked branch-free expressions: explicitly landed integer literals,
 terminal integer operations and casts, Boolean constants, negation, equality,
 comparisons, and references to already materialized scalar locals. State
-parameters never enter this scalar namespace. The checked row carries the exact
-structural signature, local types and statement coordinates, scalar result
-carrier, return coordinate, and reverse-declaration cleanup positions.
-Production revalidates the prefix and its dense local namespace, materializes it
-in order, reconstructs any exact-operation proofs before the return edge,
-resolves cleanup positions to structural places, and emits the existing verified
-scalar `Return`. Short-circuit Boolean operators remain fenced because their
-synthetic control edges would require path-specific structural cleanup
-placement. Calls, mutable or non-scalar locals, mixed scalar/structural parameter
-namespaces, contracts, claims, effects, and multi-state control also remain
-outside this source slice; none is represented by smuggling structural custody
-through scalar parameters.
+parameters are partitioned explicitly: primitive inputs receive dense scalar
+positions plus retained authored positions, while affine custody retains its
+separate structural positions. Their authored-position maps must be disjoint and
+complete. Locals follow the scalar inputs in the value namespace. The checked
+row carries that partition, the exact structural signature, local types and
+statement coordinates, scalar result carrier, return coordinate, and
+reverse-declaration cleanup positions. Production revalidates the partition and
+the dense scalar/local namespace, materializes expressions in order,
+reconstructs any exact-operation proofs before the return edge, resolves cleanup
+positions to structural places, and emits the existing verified scalar
+`Return`. Short-circuit Boolean operators remain fenced because their synthetic
+control edges would require path-specific structural cleanup placement. Calls,
+mutable or non-scalar locals, contracts, claims, effects, and multi-state control
+also remain outside this source slice; structural custody is never represented
+as a scalar parameter.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

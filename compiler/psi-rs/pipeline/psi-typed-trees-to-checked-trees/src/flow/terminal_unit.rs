@@ -3,12 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedStructuralControlTransferPlan,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
@@ -208,6 +209,20 @@ fn build_structural_scalar_return_machine(
     {
         return None;
     }
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters, scalar_parameters) =
+        structural_scalar_signature(program, shapes, machine, state, &binders)?;
+    if structural_parameters.is_empty()
+        || structural_parameters.len() + scalar_parameters.len()
+            != program.state_parameters(state).len()
+        || structural_parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.multiplicity != Multiplicity::Affine
+                || !parameter.qualifications.is_empty()
+        })
+    {
+        return None;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let binding_count = statements
         .iter()
@@ -231,13 +246,16 @@ fn build_structural_scalar_return_machine(
                 statement_ordinal,
                 CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
             )?;
-            is_branch_free_structural_scalar_expression(expression, statement_index).then_some(
-                CheckedScalarBinding {
-                    statement_ordinal,
-                    primitive_type,
-                    value: CheckedScalarBindingValue::Expression,
-                },
+            is_branch_free_structural_scalar_expression(
+                expression,
+                scalar_parameters.len(),
+                statement_index,
             )
+            .then_some(CheckedScalarBinding {
+                statement_ordinal,
+                primitive_type,
+                value: CheckedScalarBindingValue::Expression,
+            })
         })
         .collect::<Option<Vec<_>>>()?;
     let [StatementNode::Expression(_)] = &statements[binding_count..] else {
@@ -251,21 +269,9 @@ fn build_structural_scalar_return_machine(
             return_statement_ordinal,
             CheckedScalarExpressionRole::Return,
         )?,
+        scalar_parameters.len(),
         binding_count,
     ) {
-        return None;
-    }
-    let binders = machine_binders(program, machine);
-    let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
-    if structural_parameters.is_empty()
-        || structural_parameters.len() != program.state_parameters(state).len()
-        || structural_parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.multiplicity != Multiplicity::Affine
-                || !parameter.qualifications.is_empty()
-        })
-    {
         return None;
     }
     Some(CheckedStructuralScalarReturnMachinePlan {
@@ -273,6 +279,7 @@ fn build_structural_scalar_return_machine(
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
+        scalar_parameters,
         bindings,
         result_type,
         return_statement_ordinal,
@@ -291,58 +298,96 @@ fn build_structural_scalar_return_machine(
 
 fn is_branch_free_structural_integer_expression(
     expression: &CheckedScalarExpression,
+    scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
     match expression {
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
-            is_branch_free_structural_integer_expression(left, available_locals)
-                && is_branch_free_structural_integer_expression(right, available_locals)
+            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_integer_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
-            is_branch_free_structural_integer_expression(operand, available_locals)
+            is_branch_free_structural_integer_expression(
+                operand,
+                scalar_parameters,
+                available_locals,
+            )
         }
-        CheckedScalarExpression::Local { position, .. } => *position < available_locals,
-        CheckedScalarExpression::Parameter { .. } | CheckedScalarExpression::Boolean(_) => false,
+        CheckedScalarExpression::Parameter { position, .. } => *position < scalar_parameters,
+        CheckedScalarExpression::Local { position, .. } => {
+            *position >= scalar_parameters
+                && *position < scalar_parameters.saturating_add(available_locals)
+        }
+        CheckedScalarExpression::Boolean(_) => false,
     }
 }
 
 fn is_branch_free_structural_scalar_expression(
     expression: &CheckedScalarExpression,
+    scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
     match expression {
         CheckedScalarExpression::Boolean(expression) => {
-            is_branch_free_structural_boolean_expression(expression, available_locals)
+            is_branch_free_structural_boolean_expression(
+                expression,
+                scalar_parameters,
+                available_locals,
+            )
         }
-        expression => is_branch_free_structural_integer_expression(expression, available_locals),
+        expression => is_branch_free_structural_integer_expression(
+            expression,
+            scalar_parameters,
+            available_locals,
+        ),
     }
 }
 
 fn is_branch_free_structural_boolean_expression(
     expression: &psi_checked_trees::CheckedBooleanExpression,
+    scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
     match expression {
         psi_checked_trees::CheckedBooleanExpression::Constant(_) => true,
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
-            is_branch_free_structural_boolean_expression(operand, available_locals)
+            is_branch_free_structural_boolean_expression(
+                operand,
+                scalar_parameters,
+                available_locals,
+            )
         }
         psi_checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-            is_branch_free_structural_boolean_expression(left, available_locals)
-                && is_branch_free_structural_boolean_expression(right, available_locals)
+            is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_boolean_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
         }
         psi_checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
-            is_branch_free_structural_integer_expression(left, available_locals)
-                && is_branch_free_structural_integer_expression(right, available_locals)
+            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_integer_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
+        }
+        psi_checked_trees::CheckedBooleanExpression::Parameter { position } => {
+            *position < scalar_parameters
         }
         psi_checked_trees::CheckedBooleanExpression::Local { position } => {
-            *position < available_locals
+            *position >= scalar_parameters
+                && *position < scalar_parameters.saturating_add(available_locals)
         }
-        psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
-        | psi_checked_trees::CheckedBooleanExpression::And { .. }
+        psi_checked_trees::CheckedBooleanExpression::And { .. }
         | psi_checked_trees::CheckedBooleanExpression::Or { .. } => false,
     }
 }
@@ -995,6 +1040,74 @@ fn structural_signature(
         });
     }
     Some((attachment_type_identity, structural_parameters))
+}
+
+fn structural_scalar_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<(
+    String,
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    let parameters = program.state_parameters(state);
+    let attached_name = machine.attached_data.as_ref()?;
+    let attached = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *attached_name)?;
+    let attachment_type_identity = shapes.add_attached_data(attached, binders)?;
+    let attachment_multiplicity = attached.properties.multiplicity;
+    let mut structural_parameters = Vec::new();
+    let mut scalar_parameters = Vec::new();
+    for (position, parameter) in parameters.iter().enumerate() {
+        let source_position = u32::try_from(position).ok()?;
+        if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference) {
+            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                return None;
+            }
+            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                source_position,
+                primitive_type,
+            });
+            continue;
+        }
+        if parameter.is_const {
+            return None;
+        }
+        if parameter.is_self && is_reference(program, parameter.type_reference) {
+            continue;
+        }
+        if is_reference(program, parameter.type_reference) {
+            return None;
+        }
+        let type_identity = if parameter.is_self {
+            attachment_type_identity.clone()
+        } else {
+            shapes.add_type(parameter.type_reference, binders, &[])?
+        };
+        let qualifications =
+            parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
+        structural_parameters.push(CheckedUnitStructuralParameterPlan {
+            position: source_position,
+            is_self: parameter.is_self,
+            type_identity,
+            multiplicity: if parameter.is_self {
+                attachment_multiplicity
+            } else {
+                crate::checks::type_multiplicity(program, parameter.type_reference)
+            },
+            qualifications,
+        });
+    }
+    Some((
+        attachment_type_identity,
+        structural_parameters,
+        scalar_parameters,
+    ))
 }
 
 fn entry_claims(
