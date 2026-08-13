@@ -45,27 +45,34 @@ pub struct TerminalPsiProvenance {
 /// Semantic owner of one in-module native call site.
 ///
 /// Ordinary calls are owned by terminal-Psi operations. An executable nominal
-/// cleanup is different: invoking the attached cleanup machine is work of the
-/// selected ownership edge, so it must retain that edge identity rather than
-/// fabricating an [`OperationId`].
+/// cleanup is different: invoking the attached cleanup machine is work of one
+/// exact ordered action on the selected ownership edge, so it must retain both
+/// identities rather than fabricating an [`OperationId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalCallSiteOwner {
     Operation(OperationId),
-    Edge(EdgeId),
+    CleanupAction { edge: EdgeId, action_ordinal: u32 },
 }
 
 impl TerminalCallSiteOwner {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Operation(operation) => Some(operation),
-            Self::Edge(_) => None,
+            Self::CleanupAction { .. } => None,
         }
     }
 
     pub const fn edge(self) -> Option<EdgeId> {
         match self {
             Self::Operation(_) => None,
-            Self::Edge(edge) => Some(edge),
+            Self::CleanupAction { edge, .. } => Some(edge),
+        }
+    }
+
+    pub const fn cleanup_action_ordinal(self) -> Option<u32> {
+        match self {
+            Self::Operation(_) => None,
+            Self::CleanupAction { action_ordinal, .. } => Some(action_ordinal),
         }
     }
 }
@@ -665,7 +672,7 @@ mod tests {
     use psi_core::{EdgeId, OperationId};
 
     #[test]
-    fn call_site_owner_preserves_disjoint_operation_and_edge_identities() {
+    fn call_site_owner_preserves_disjoint_operation_and_cleanup_action_identities() {
         let operation = OperationId::new(7).expect("nonzero operation");
         let edge = EdgeId::new(7).expect("nonzero edge");
 
@@ -673,9 +680,14 @@ mod tests {
         assert_eq!(operation_owner.operation(), Some(operation));
         assert_eq!(operation_owner.edge(), None);
 
-        let edge_owner = TerminalCallSiteOwner::Edge(edge);
+        let edge_owner = TerminalCallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal: 3,
+        };
         assert_eq!(edge_owner.operation(), None);
         assert_eq!(edge_owner.edge(), Some(edge));
+        assert_eq!(edge_owner.cleanup_action_ordinal(), Some(3));
+        assert_eq!(operation_owner.cleanup_action_ordinal(), None);
         assert_ne!(operation_owner, edge_owner);
     }
 }

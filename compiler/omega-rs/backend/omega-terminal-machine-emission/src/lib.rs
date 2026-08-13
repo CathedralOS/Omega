@@ -808,10 +808,34 @@ fn emit_unit_body(
                     return Err(EmissionError::UnsupportedAggregatePlacement);
                 }
                 edge_site = Some(*psi_edge);
-                if nominal_cleanups.len() == 1 {
-                    let cleanup = nominal_cleanups[0];
-                    if executable_nominal_cleanup(cleanup, functions)? {
-                        let owner = TerminalCallSiteOwner::Edge(*psi_edge);
+                let nominal_execution = nominal_cleanups
+                    .iter()
+                    .enumerate()
+                    .map(|(action_ordinal, cleanup)| {
+                        Ok((
+                            u32::try_from(action_ordinal)
+                                .map_err(|_| EmissionError::UnsupportedAggregatePlacement)?,
+                            *cleanup,
+                            executable_nominal_cleanup(cleanup, functions)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, EmissionError>>()?;
+                if nominal_execution.len() == 2
+                    && nominal_execution
+                        .iter()
+                        .filter(|(_, _, executable)| *executable)
+                        .count()
+                        > 1
+                {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                }
+                for (action_ordinal, cleanup, executable) in nominal_execution {
+                    if executable {
+                        let owner = TerminalCallSiteOwner::CleanupAction {
+                            edge: *psi_edge,
+                            action_ordinal,
+                        };
+                        let call_code_offset = bytes.len();
                         match target.architecture {
                             Architecture::X86_64 => {
                                 emit_x86_64_unit_call(
@@ -841,17 +865,9 @@ fn emit_unit_body(
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
                             operation_ordinal,
-                            code_offset,
-                            byte_count: bytes.len() - code_offset,
+                            code_offset: call_code_offset,
+                            byte_count: bytes.len() - call_code_offset,
                         });
-                    }
-                } else if nominal_cleanups.len() == 2 {
-                    for cleanup in &nominal_cleanups {
-                        if executable_nominal_cleanup(cleanup, functions)? {
-                            return Err(EmissionError::InvalidNominalCleanupTarget(
-                                cleanup.cleanup_machine,
-                            ));
-                        }
                     }
                 }
                 match target.architecture {
@@ -5782,6 +5798,133 @@ mod tests {
         )
     }
 
+    fn two_nominal_one_executable_plan(
+        target: NativeTarget,
+        executable_action_ordinal: u32,
+    ) -> (TerminalTargetOperationPlan, EdgeId, MachineId) {
+        let (mut plan, root_return, _, cleanup_machine, empty_cleanup_machine) =
+            executable_nominal_cleanup_plan(target);
+        let receiver_type = plan.functions[1].attachment.expect("receiver attachment");
+        plan.functions[2].attachment = Some(receiver_type);
+
+        let TerminalTargetOperation::UnitBody(root_body) = &mut plan.functions[0].operation else {
+            unreachable!("root remains Unit")
+        };
+        let first_parameter = root_body.parameters[0].clone();
+        let second_place = PlaceId::new(2).expect("second receiver place");
+        let two_parameter_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![first_parameter.shape, first_parameter.shape],
+                result: None,
+            },
+        )
+        .expect("two receiver ABI");
+        root_body.call_plan = two_parameter_plan.clone();
+        root_body.parameters[0].placement = two_parameter_plan.parameters[0].clone();
+        root_body
+            .parameters
+            .push(TerminalTargetStructuralParameter {
+                place: second_place,
+                placement: two_parameter_plan.parameters[1].clone(),
+                ..first_parameter.clone()
+            });
+        let cleanup_for = |place, cleanup_machine| NominalAffineCleanup {
+            place,
+            structural_type: receiver_type,
+            cleanup_machine,
+        };
+        let actions = match executable_action_ordinal {
+            0 => vec![
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup_for(
+                    second_place,
+                    cleanup_machine,
+                )),
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup_for(
+                    first_parameter.place,
+                    empty_cleanup_machine,
+                )),
+            ],
+            1 => vec![
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup_for(
+                    second_place,
+                    empty_cleanup_machine,
+                )),
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup_for(
+                    first_parameter.place,
+                    cleanup_machine,
+                )),
+            ],
+            _ => unreachable!("test action ordinal is bounded"),
+        };
+        let TerminalTargetUnitOperation::Return {
+            cleanup_actions, ..
+        } = &mut root_body.operations[0]
+        else {
+            unreachable!("root remains a direct return")
+        };
+        *cleanup_actions = actions;
+        (plan, root_return, cleanup_machine)
+    }
+
+    #[test]
+    fn two_nominal_cleanups_emit_the_exact_executable_action_owner() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            for executable_action_ordinal in 0..=1 {
+                let (plan, edge, cleanup_machine) =
+                    two_nominal_one_executable_plan(target, executable_action_ordinal);
+                let emitted =
+                    emit_machine_code(&plan).expect("exactly one executable nominal cleanup emits");
+                let root = &emitted.functions[0];
+                assert_eq!(root.internal_calls.len(), 1);
+                assert_eq!(root.internal_unit_calls.len(), 1);
+                let expected_owner = TerminalCallSiteOwner::CleanupAction {
+                    edge,
+                    action_ordinal: executable_action_ordinal,
+                };
+                assert_eq!(root.internal_calls[0].owner, expected_owner);
+                assert_eq!(root.internal_unit_calls[0].owner, expected_owner);
+                assert_eq!(root.internal_calls[0].target, cleanup_machine);
+                assert_eq!(root.internal_unit_calls[0].target, cleanup_machine);
+            }
+        }
+
+        let (mut both_empty, _, _) = two_nominal_one_executable_plan(NativeTarget::linux_x64(), 0);
+        let TerminalTargetOperation::UnitBody(cleanup_body) =
+            &mut both_empty.functions[1].operation
+        else {
+            unreachable!("cleanup remains Unit")
+        };
+        cleanup_body.operations.remove(0);
+        let emitted = emit_machine_code(&both_empty).expect("two empty cleanups remain admitted");
+        assert!(emitted.functions[0].internal_calls.is_empty());
+        assert!(emitted.functions[0].internal_unit_calls.is_empty());
+
+        let (mut both_executable, _, cleanup_machine) =
+            two_nominal_one_executable_plan(NativeTarget::linux_x64(), 0);
+        let TerminalTargetOperation::UnitBody(root_body) =
+            &mut both_executable.functions[0].operation
+        else {
+            unreachable!("root remains Unit")
+        };
+        let TerminalTargetUnitOperation::Return {
+            cleanup_actions, ..
+        } = &mut root_body.operations[0]
+        else {
+            unreachable!("root remains a direct return")
+        };
+        let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(second) =
+            &mut cleanup_actions[1]
+        else {
+            unreachable!("second action remains nominal")
+        };
+        second.cleanup_machine = cleanup_machine;
+        assert!(matches!(
+            emit_machine_code(&both_executable),
+            Err(EmissionError::UnsupportedAggregatePlacement)
+        ));
+    }
+
     fn assert_two_call_nominal_cleanup(target: NativeTarget) {
         let (plan, root_return, operations, cleanup_machine, helpers) =
             two_call_executable_nominal_cleanup_plan(target);
@@ -5790,7 +5933,10 @@ mod tests {
         assert_eq!(root.internal_calls.len(), 1);
         assert_eq!(
             root.internal_calls[0].owner,
-            TerminalCallSiteOwner::Edge(root_return)
+            TerminalCallSiteOwner::CleanupAction {
+                edge: root_return,
+                action_ordinal: 0,
+            }
         );
         assert_eq!(root.internal_calls[0].target, cleanup_machine);
         let drop = &emitted.functions[1];
@@ -5838,7 +5984,13 @@ mod tests {
         let [relocation] = root.internal_calls.as_slice() else {
             panic!("root has exactly one executable cleanup call")
         };
-        assert_eq!(relocation.owner, TerminalCallSiteOwner::Edge(root_return));
+        assert_eq!(
+            relocation.owner,
+            TerminalCallSiteOwner::CleanupAction {
+                edge: root_return,
+                action_ordinal: 0,
+            }
+        );
         assert_eq!(relocation.target, cleanup_machine);
         assert_eq!(root.bytes[relocation.offset - 1], 0xe8);
         assert_eq!(
@@ -5882,7 +6034,13 @@ mod tests {
         let [relocation] = root.internal_calls.as_slice() else {
             panic!("root has exactly one executable cleanup call")
         };
-        assert_eq!(relocation.owner, TerminalCallSiteOwner::Edge(root_return));
+        assert_eq!(
+            relocation.owner,
+            TerminalCallSiteOwner::CleanupAction {
+                edge: root_return,
+                action_ordinal: 0,
+            }
+        );
         assert_eq!(relocation.target, cleanup_machine);
         assert_eq!(
             &root.bytes[relocation.offset..relocation.offset + 4],

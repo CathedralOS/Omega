@@ -83,6 +83,28 @@ const TWO_EMPTY_NOMINAL_AFFINE_SOURCE: &str = r#"
     machine Root::enter(first: Token, second: Token) {}
 "#;
 
+const FIRST_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data First { value: u32; }
+    machine First::drop(&mut self) { Helper::touch(); }
+    data Second { value: u64; }
+    machine Second::drop(&mut self) {}
+    data Root {}
+    machine Root::enter(first: First, second: Second) {}
+"#;
+
+const SECOND_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data First { value: u32; }
+    machine First::drop(&mut self) {}
+    data Second { value: u64; }
+    machine Second::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::enter(first: First, second: Second) {}
+"#;
+
 fn verified_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -160,6 +182,27 @@ fn two_empty_nominal_affine_plan()
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode two nominal proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified two nominal artifact enters Omega")
+}
+
+fn two_nominal_one_executable_plan(
+    source: &str,
+) -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize executable nominal-list source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse executable nominal-list source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve executable nominal-list source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type executable nominal-list source");
+    let checked = lower_typed_trees(typed).expect("check executable nominal-list source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower executable nominal-list Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode executable nominal-list semantics");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode executable nominal-list proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified executable nominal-list artifact enters Omega")
 }
 
 #[test]
@@ -658,6 +701,115 @@ fn two_empty_nominal_cleanups_are_reverse_ordered_and_call_free_on_all_targets()
 }
 
 #[test]
+fn one_executable_nominal_cleanup_action_retains_its_exact_ordinal_on_all_targets() {
+    for (source, executable_action_ordinal) in [
+        (SECOND_EXECUTABLE_NOMINAL_AFFINE_SOURCE, 0_u32),
+        (FIRST_EXECUTABLE_NOMINAL_AFFINE_SOURCE, 1_u32),
+    ] {
+        let plan = two_nominal_one_executable_plan(source);
+        let caller_machine = plan.entry;
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("entry caller remains present");
+        let cleanup_actions = caller
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                    cleanup_actions,
+                    ..
+                } => Some(cleanup_actions.clone()),
+                _ => None,
+            })
+            .expect("entry return retains cleanup actions");
+        assert_eq!(cleanup_actions.len(), 2);
+        let TerminalAffineCleanupAction::InvokeNominal(executable_cleanup) =
+            cleanup_actions[usize::try_from(executable_action_ordinal).unwrap()]
+        else {
+            unreachable!("both ordered actions remain nominal")
+        };
+
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let target_plan = lower_to_target_operations(&plan, target).unwrap();
+            let assigned = assign_registers(&target_plan).unwrap();
+            let machine = emit_machine_code(&assigned).unwrap();
+            let emitted = machine
+                .functions
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap();
+            let emitted_cleanup = emitted.unit_affine_cleanup.as_ref().unwrap();
+            assert_eq!(emitted_cleanup.actions, cleanup_actions);
+            let [cleanup_call] = emitted.internal_unit_calls.as_slice() else {
+                panic!("exactly one ordered cleanup action emits a call for {target:?}")
+            };
+            let expected_owner = TerminalCallSiteOwner::CleanupAction {
+                edge: emitted_cleanup.psi_edge,
+                action_ordinal: executable_action_ordinal,
+            };
+            assert_eq!(cleanup_call.owner, expected_owner);
+            assert_eq!(cleanup_call.target, executable_cleanup.cleanup_machine);
+            assert!(emitted.internal_calls.iter().any(|call| {
+                call.owner == expected_owner && call.target == executable_cleanup.cleanup_machine
+            }));
+
+            let mut forged = machine.clone();
+            let forged_caller = forged
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == caller_machine)
+                .unwrap();
+            let forged_owner = TerminalCallSiteOwner::CleanupAction {
+                edge: emitted_cleanup.psi_edge,
+                action_ordinal: 1 - executable_action_ordinal,
+            };
+            forged_caller.internal_calls[0].owner = forged_owner;
+            forged_caller.internal_unit_calls[0].owner = forged_owner;
+            assert!(build_terminal_object_artifact(&forged).is_err());
+
+            let object = build_terminal_object_artifact(&machine).unwrap();
+            let image = emit_terminal_executable_image(&object, 3).unwrap();
+            let installation =
+                build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
+                    .unwrap();
+            let installed_call = installation
+                .internal_unit_calls()
+                .iter()
+                .find(|call| call.machine == caller_machine)
+                .expect("installed caller cleanup call");
+            assert_eq!(installed_call.custody.owner, expected_owner);
+            validate_terminal_installation_record(&installation, &image).unwrap();
+            let bytes = encode_terminal_installation_record(&installation).unwrap();
+            let mut owner_encoding = vec![2, 0, 0, 0];
+            owner_encoding.extend_from_slice(&emitted_cleanup.psi_edge.get().to_le_bytes());
+            owner_encoding.extend_from_slice(&executable_action_ordinal.to_le_bytes());
+            owner_encoding.extend_from_slice(&0_u32.to_le_bytes());
+            let owner_offset = bytes
+                .windows(owner_encoding.len())
+                .position(|window| window == owner_encoding)
+                .expect("installation encodes the exact cleanup-action owner");
+            let mut forged_ordinal = bytes.clone();
+            let ordinal_offset = owner_offset + 12;
+            forged_ordinal[ordinal_offset..ordinal_offset + 4]
+                .copy_from_slice(&(1 - executable_action_ordinal).to_le_bytes());
+            assert!(decode_terminal_installation_record(&forged_ordinal).is_err());
+            assert_eq!(
+                decode_terminal_installation_record(&bytes),
+                Ok(installation)
+            );
+        }
+    }
+}
+
+#[test]
 fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
     let plan = nominal_affine_plan();
     let caller_machine = plan.entry;
@@ -759,7 +911,13 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         let cleanup_call = emitted
             .internal_unit_calls
             .iter()
-            .find(|call| call.owner == TerminalCallSiteOwner::Edge(emitted_cleanup.psi_edge))
+            .find(|call| {
+                call.owner
+                    == TerminalCallSiteOwner::CleanupAction {
+                        edge: emitted_cleanup.psi_edge,
+                        action_ordinal: 0,
+                    }
+            })
             .expect("cleanup edge owns one native Unit call");
         assert_eq!(cleanup_call.target, cleanup.cleanup_machine);
         assert!(cleanup_call.arguments.is_empty());
