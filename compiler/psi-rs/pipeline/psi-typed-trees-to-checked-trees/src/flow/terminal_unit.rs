@@ -8,19 +8,20 @@ use psi_checked_trees::{
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitEntryClaimPlan, CheckedUnitNominalAffineCallerRequirementPlan,
+    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
@@ -795,52 +796,45 @@ fn build_structural_scalar_return_machine(
         state,
     )?;
     let source_state_parameters = program.state_parameters(state);
-    let nominal_positions = whole_discards
-        .iter()
-        .filter(|(_, position)| {
-            source_state_parameters
-                .get(*position as usize)
-                .is_some_and(|parameter| {
-                    type_graph_requires_nominal_drop(program, parameter.type_reference)
-                })
-        })
-        .collect::<Vec<_>>();
-    let (trivial_affine_discard_parameter_positions, nominal_cleanups) = if nominal_positions
-        .is_empty()
-    {
-        (
-            whole_discards
-                .into_iter()
-                .map(|(_, position)| position)
-                .collect(),
-            Vec::new(),
-        )
-    } else {
-        if nominal_positions.len() != whole_discards.len()
-            || structural_parameters.len() != source_state_parameters.len()
+    let has_nominal_cleanup = whole_discards.iter().any(|(_, position)| {
+        source_state_parameters
+            .get(*position as usize)
+            .is_some_and(|parameter| {
+                type_graph_requires_nominal_drop(program, parameter.type_reference)
+            })
+    });
+    if has_nominal_cleanup
+        && (structural_parameters.len() != source_state_parameters.len()
             || structural_parameters.len() != whole_discards.len()
             || !scalar_parameters.is_empty()
             || !bindings.is_empty()
-            || !program.state_contracts(state).is_empty()
-        {
-            return None;
-        }
-        let cleanups = whole_discards
-            .iter()
-            .map(|(_, position)| {
-                let source_parameter = source_state_parameters.get(*position as usize)?;
-                let checked_parameter = structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.position == *position)?;
-                if source_parameter.is_self
+            || !program.state_contracts(state).is_empty())
+    {
+        return None;
+    }
+    let cleanup_actions = whole_discards
+        .iter()
+        .map(|(_, position)| {
+            let source_parameter = source_state_parameters.get(*position as usize)?;
+            let checked_parameter = structural_parameters
+                .iter()
+                .find(|parameter| parameter.position == *position)?;
+            if has_nominal_cleanup
+                && (source_parameter.is_self
                     || source_parameter.is_const
                     || source_parameter.is_mutable
                     || checked_parameter.is_self
                     || checked_parameter.multiplicity != Multiplicity::Affine
-                    || !checked_parameter.qualifications.is_empty()
-                {
-                    return None;
-                }
+                    || !checked_parameter.qualifications.is_empty())
+            {
+                return None;
+            }
+            if !type_graph_requires_nominal_drop(program, source_parameter.type_reference) {
+                return Some(CheckedStructuralScalarReturnCleanupAction::DiscardRoot(
+                    *position,
+                ));
+            }
+            let nominal_cleanup = (|| {
                 let TypeReferenceNode::Named {
                     symbol: parameter_data_symbol,
                     ..
@@ -895,10 +889,12 @@ fn build_structural_scalar_return_machine(
                     cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
                     requirements: Vec::new(),
                 })
-            })
-            .collect::<Option<Vec<_>>>()?;
-        (Vec::new(), cleanups)
-    };
+            })()?;
+            Some(CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                nominal_cleanup,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -908,8 +904,7 @@ fn build_structural_scalar_return_machine(
         bindings,
         result_type,
         return_statement_ordinal,
-        trivial_affine_discard_parameter_positions,
-        nominal_cleanups,
+        cleanup_actions,
     })
 }
 

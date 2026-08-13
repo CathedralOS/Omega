@@ -8,6 +8,20 @@ fn checked(source: &str) -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+fn scalar_discard_positions(
+    plan: &psi_checked_trees::CheckedStructuralScalarReturnMachinePlan,
+) -> Vec<u32> {
+    plan.cleanup_actions
+        .iter()
+        .filter_map(|action| match action {
+            psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(
+                position,
+            ) => Some(*position),
+            psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_) => None,
+        })
+        .collect()
+}
+
 fn machine_and_entry_state(
     checked: &psi_checked_trees::CheckedTrees,
     machine_name: &str,
@@ -654,7 +668,7 @@ fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
     assert_eq!(plan.structural_parameters.len(), 2);
     assert_eq!(plan.result_type, psi_typed_trees::types::PrimitiveType::I32);
     assert_eq!(plan.return_statement_ordinal, 0);
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [1, 0]);
+    assert_eq!(scalar_discard_positions(plan), [1, 0]);
 }
 
 #[test]
@@ -678,7 +692,7 @@ fn attached_closed_integer_expression_retains_exact_structural_cleanup() {
         .terminal_structural_scalar_returns
         .for_machine(machine)
         .expect("closed integer expression should compose with structural cleanup");
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+    assert_eq!(scalar_discard_positions(plan), [0]);
 }
 
 #[test]
@@ -706,7 +720,7 @@ fn attached_closed_branch_free_boolean_retains_exact_structural_cleanup() {
         plan.result_type,
         psi_typed_trees::types::PrimitiveType::Bool
     );
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+    assert_eq!(scalar_discard_positions(plan), [0]);
 }
 
 #[test]
@@ -739,7 +753,7 @@ fn attached_branch_free_scalar_locals_retain_exact_structural_cleanup() {
     assert_eq!(plan.bindings[0].statement_ordinal, 0);
     assert_eq!(plan.bindings[1].statement_ordinal, 1);
     assert_eq!(plan.return_statement_ordinal, 2);
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+    assert_eq!(scalar_discard_positions(plan), [0]);
 }
 
 #[test]
@@ -777,7 +791,7 @@ fn structural_scalar_return_retains_interleaved_scalar_parameter_map() {
     assert_eq!(plan.scalar_parameters.len(), 2);
     assert_eq!(plan.scalar_parameters[0].source_position, 1);
     assert_eq!(plan.scalar_parameters[1].source_position, 3);
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [2, 0]);
+    assert_eq!(scalar_discard_positions(plan), [2, 0]);
 }
 
 #[test]
@@ -805,7 +819,7 @@ fn structural_scalar_return_retains_short_circuit_return_cleanup() {
         plan.result_type,
         psi_typed_trees::types::PrimitiveType::Bool
     );
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+    assert_eq!(scalar_discard_positions(plan), [0]);
 }
 
 #[test]
@@ -846,7 +860,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
             .all(|binding| binding.primitive_type == psi_typed_trees::types::PrimitiveType::Bool)
     );
     assert_eq!(plan.return_statement_ordinal, 7);
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+    assert_eq!(scalar_discard_positions(plan), [0]);
 
     let composed = checked(
         r#"
@@ -875,7 +889,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         .expect("repeated local decisions may feed one final short-circuit return");
     assert_eq!(plan.bindings.len(), 3);
     assert_eq!(plan.return_statement_ordinal, 3);
-    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+    assert_eq!(scalar_discard_positions(plan), [0]);
 
     let rejected = checked(
         r#"

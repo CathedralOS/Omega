@@ -228,14 +228,15 @@ Remaining:
 
   Scalar return edges now use the same ordered cleanup-action vocabulary. The
   source-produced nominal branch accepts a finite nonempty list of direct,
-  claim-free affine parameters, no scalar inputs or locals, an immediate closed
-  scalar result, and the same empty or bounded zero-argument helper-call `drop`
-  body for each root. Distinct or shared cleanup targets run in reverse authored
-  parameter order after result materialization through verification,
-  interpretation, fixed fuel, and all five Omega object/image/install paths.
-  Mixed trivial/nominal roots, contextual scalar cleanup, nested nominal
-  ownership, and wider scalar bodies remain to be added as complete vertical
-  slices.
+  claim-free affine parameters that may freely mix no-code and nominal roots,
+  no scalar inputs or locals, an immediate closed scalar result, and the same
+  empty or bounded zero-argument helper-call `drop` body for each nominal root.
+  Every action runs in reverse authored parameter order after result
+  materialization through verification, interpretation, fixed fuel, and all
+  five Omega object/image/install paths; nominal targets may be distinct or
+  shared and no-code actions retain their exact positions without emitting
+  instructions. Contextual scalar cleanup, nested nominal ownership, and wider
+  scalar bodies remain to be added as complete vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine

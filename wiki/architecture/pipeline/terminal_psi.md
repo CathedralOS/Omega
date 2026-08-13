@@ -298,15 +298,16 @@ Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
 One narrower nominal branch admits a finite nonempty list of direct affine
-structural parameters, no scalar inputs or locals, no authored contract, and
-one immediate supported scalar result. After materializing that result, its
-return edge invokes every parameter's exact attached `drop` in reverse authored
-order; targets may be distinct or shared, and each drop may be empty or contain
-the bounded source-ordered zero-argument helper-call body accepted by the Unit
-nominal slice. Terminal production retains the cleanup targets and helpers in
-the same closed module. Contextual cleanup requirements, nested nominal
-ownership, projections, and wider mixed cleanup/control shapes still fail
-closed.
+structural parameters that may mix no-code and nominal roots, no scalar inputs
+or locals, no authored contract, and one immediate supported scalar result.
+After materializing that result, its return edge executes the complete cleanup
+stream in reverse authored order. No-code roots retain their exact position
+without invoking a machine; nominal targets may be distinct or shared, and
+each drop may be empty or contain the bounded source-ordered zero-argument
+helper-call body accepted by the Unit nominal slice. Terminal production
+retains the cleanup targets and helpers in the same closed module. Contextual
+cleanup requirements, nested nominal ownership, projections, and wider
+cleanup/control shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -460,8 +461,8 @@ composes every nominal invocation. Omega preserves the same action order and
 call ownership through target assignment, all five machine emitters, object and
 image custody, and canonical installation; no-code actions emit no target
 instruction. Current source production covers the wider trivial-discard scalar
-slice plus the finite all-nominal, closed-result branch described above; mixed
-trivial/nominal roots and contextual scalar cleanup remain fenced.
+slice plus the finite mixed no-code/nominal, closed-result branch described
+above; contextual scalar cleanup remains fenced.
 
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends

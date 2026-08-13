@@ -299,12 +299,16 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub bindings: Vec<CheckedScalarBinding>,
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
-    pub trivial_affine_discard_parameter_positions: Vec<u32>,
-    /// Attached nominal cleanups invoked after scalar result materialization,
-    /// in reverse authored parameter order. The first scalar-return slice
-    /// admits either this complete all-nominal root list or the complete
-    /// trivial-discard list above; mixed cleanup frontiers remain fenced.
-    pub nominal_cleanups: Vec<CheckedUnitNominalAffineCleanupPlan>,
+    /// Complete post-result cleanup stream in reverse authored parameter
+    /// order. Keeping trivial and nominal actions in one list prevents either
+    /// representation or a later producer from losing their relative order.
+    pub cleanup_actions: Vec<CheckedStructuralScalarReturnCleanupAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStructuralScalarReturnCleanupAction {
+    DiscardRoot(u32),
+    InvokeNominal(CheckedUnitNominalAffineCleanupPlan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
