@@ -9124,20 +9124,13 @@ stderr:
 #[test]
 fn runtime_machine_indexed_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_machine_indexed_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-machine-indexed-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine indexed arg canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("machine indexed arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("machine indexed arg canary should run");
 
@@ -9151,7 +9144,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // The STRUCT-FIELD face: `self.report(self.cells[self.k].v)` -- an
@@ -9159,20 +9152,13 @@ stderr:
 #[test]
 fn runtime_machine_indexed_struct_field_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_machine_indexed_struct_field_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-machine-indexed-sfa-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine indexed struct field arg canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("machine indexed struct field arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("machine indexed struct field arg canary should run");
 
@@ -9186,7 +9172,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A FRAME-resident (by-value param) inline array read at a RUNTIME index
