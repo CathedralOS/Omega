@@ -41,18 +41,18 @@ declared service reach, but automatic cleanup is always:
 - free of abort, trap, or another abnormal outcome.
 
 The implemented terminal subset is deliberately narrower. A root-only Unit
-return may invoke attached `drop` for one to three whole claim-free, unqualified
-affine records that are empty or contain only relevant Boolean or integer
-fields. Multiple cleanups run in reverse parameter declaration order and may share
-one cleanup machine because the actions own different places. Each body may
-contain up to three source-ordered ordinary zero-argument calls to mutually
+return may invoke attached `drop` for a finite nonempty list of whole
+claim-free, unqualified affine records that are empty or contain only relevant
+Boolean or integer fields. Multiple cleanups run in reverse parameter
+declaration order and may share one cleanup machine because the actions own
+different places. Each body may
+contain a finite source-ordered list of ordinary zero-argument calls to mutually
 distinct exact-empty attached helpers; different bodies may share helpers. Psi
 preserves each whole receiver and executes
 the complete ordered list. Omega represents all return cleanup as one ordered
 action stream, assigns nonempty receivers their ordinary ABI homes, and emits
 only executable cleanup calls while retaining exact edge/action and helper
-operation custody. Four-or-more-call bodies or lists and nested or erased
-receivers remain pending engineering work under
+operation custody. Wider body shapes and nested or erased receivers remain pending engineering work under
 the rules below.
 
 A release that waits, suspends, may fail, or promises protocol completion is an
