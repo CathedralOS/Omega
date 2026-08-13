@@ -3256,19 +3256,6 @@ fn lower_nominal_structural_scalar_return_machine(
                 plan.bindings.len(),
             )
     );
-    if nominal_short_circuit_return
-        && (!plan.caller_requirements.is_empty()
-            || cleanup_actions.iter().any(|action| {
-                matches!(
-                    action,
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                        if cleanup.cleanup_receiver.is_some()
-                            || !cleanup.requirement_obligations.is_empty()
-                )
-            }))
-    {
-        return unsupported("nominal scalar Boolean decision cleanup is not proof-free");
-    }
     if !is_branch_free_structural_scalar_expression(
         &expression,
         scalar_parameter_count,
@@ -3345,6 +3332,23 @@ fn lower_nominal_structural_scalar_return_machine(
         )?);
         blocks.push(root);
         blocks.append(&mut children);
+        let mut first_return = true;
+        // Cleanup obligations are edge-local semantic events. Keep the first
+        // leaf's already-verified stream, then clone its proof for each later
+        // leaf under fresh identities beyond every operation-derived goal.
+        let mut next_cleanup_obligation =
+            operations
+                .next_identity
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "nominal scalar Boolean cleanup obligation identity space is exhausted",
+                ))?;
+        let original_evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .map(|evidence| (evidence.obligation, evidence.clone()))
+            .collect::<BTreeMap<_, _>>();
         for block in &mut blocks {
             if let Terminator::Return {
                 cleanup_actions: leaf_cleanup,
@@ -3352,6 +3356,42 @@ fn lower_nominal_structural_scalar_return_machine(
             } = &mut block.terminator
             {
                 *leaf_cleanup = cleanup_actions.clone();
+                if first_return {
+                    first_return = false;
+                    continue;
+                }
+                for action in leaf_cleanup {
+                    let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
+                        continue;
+                    };
+                    for obligation in &mut cleanup.requirement_obligations {
+                        let mut evidence = original_evidence.get(obligation).cloned().ok_or(
+                            LoweringError::Unsupported(
+                                "nominal scalar Boolean cleanup evidence is absent",
+                            ),
+                        )?;
+                        let identity = next_cleanup_obligation;
+                        next_cleanup_obligation = next_cleanup_obligation.checked_add(1).ok_or(
+                            LoweringError::Unsupported(
+                                "nominal scalar Boolean cleanup obligation identity space is exhausted",
+                            ),
+                        )?;
+                        let leaf_obligation = obligation_id(identity);
+                        evidence.obligation = leaf_obligation;
+                        let EvidenceRoute::CertificateDerived(certificate) = &mut evidence.route
+                        else {
+                            return unsupported(
+                                "nominal scalar Boolean cleanup evidence route drifted",
+                            );
+                        };
+                        certificate.identity =
+                            EvidenceIdentity::new(identity).ok_or(LoweringError::Unsupported(
+                                "nominal scalar Boolean cleanup evidence identity is invalid",
+                            ))?;
+                        *obligation = leaf_obligation;
+                        lowered.proof_bundle.evidence.push(evidence);
+                    }
+                }
             }
         }
         blocks

@@ -1383,6 +1383,7 @@ dependencies = [
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-fixed-fuel",
  "psi-terminal-fuel",
  "psi-terminal-interpreter",
  "psi-terminal-verifier",

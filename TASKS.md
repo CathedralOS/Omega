@@ -244,9 +244,8 @@ Remaining:
   claim-free affine parameters that may freely mix no-code and nominal roots,
   a finite set of direct primitive scalar inputs interleaved at authored
   parameter positions, a finite source-ordered prefix of immutable branch-free
-  primitive locals, and either one branch-free scalar result or one proof-free
-  top-level Boolean `&&`/`||` whose operands are branch-free over those inputs
-  and locals,
+  primitive locals, and either one branch-free scalar result or one top-level
+  Boolean `&&`/`||` whose operands are branch-free over those inputs and locals,
   and the same empty or bounded zero-argument helper-call `drop` body for each nominal
   root. Checked plans retain the complete authored parameter partition while
   terminal Psi gives scalar values and structural places independent dense
@@ -267,9 +266,9 @@ Remaining:
   through all five targets. The bounded Boolean form retains two decisions and
   three distinct return edges; every leaf owns the same complete cleanup
   stream, and native artifacts retain three edge-specific cleanup intervals.
-  Contextual/proof-bearing Boolean cleanup, short-circuit locals, nested or
-  repeated decisions, calls, effects, nested nominal ownership, and wider
-  scalar bodies remain to be added as complete vertical slices.
+  Contextual short-circuit locals, nested or repeated decisions, calls, effects,
+  nested nominal ownership, and wider scalar bodies remain to be added as
+  complete vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine

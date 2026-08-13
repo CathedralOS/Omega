@@ -862,9 +862,6 @@ fn build_structural_scalar_return_machine(
         }
         Vec::new()
     };
-    if return_is_one_short_circuit_boolean && !caller_requirements.is_empty() {
-        return None;
-    }
     let cleanup_actions = whole_discards
         .iter()
         .map(|(_, position)| {

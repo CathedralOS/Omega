@@ -302,8 +302,8 @@ structural parameters that may mix no-code and nominal roots, a finite set of
 direct primitive scalar inputs interleaved at authored parameter positions,
 and no authored contract beyond the direct-Boolean contextual subset below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
-and either one branch-free scalar result or one proof-free top-level Boolean
-`&&`/`||` whose operands are branch-free over the inputs and locals. Checked plans
+and either one branch-free scalar result or one top-level Boolean `&&`/`||`
+whose operands are branch-free over the inputs and locals. Checked plans
 retain the complete authored parameter partition; terminal Psi gives scalar
 values and structural places independent dense namespaces. Terminal production
 materializes the input-dependent local and result operations in
@@ -326,9 +326,9 @@ calls in an exact lifetime frame; object construction validates the frame,
 stores, loads, calls, and stack ceiling from emitted bytes. The bounded Boolean
 form instead retains three edge-specific cleanup intervals and validates the
 result and return-link lifetime independently on every native path.
-Contextual/proof-bearing Boolean cleanup, short-circuit locals, nested or
-repeated decisions, calls, effects, nested nominal ownership, projections, and
-wider cleanup shapes still fail closed.
+Contextual short-circuit locals, nested or repeated decisions, calls, effects,
+nested nominal ownership, projections, and wider cleanup shapes still fail
+closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

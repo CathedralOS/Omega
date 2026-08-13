@@ -290,13 +290,15 @@ fn source_scalar_result_precedes_nominal_cleanup_through_all_native_artifacts() 
 }
 
 #[test]
-fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts() {
+fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts() {
     let source = r#"
         data Helper {}
         machine Helper::touch() {}
 
-        data Token { value: u64; }
-        machine Token::drop(&mut self) { Helper::touch(); }
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        { Helper::touch(); }
         data Plain { observed: bool; }
 
         data Root {}
@@ -306,6 +308,7 @@ fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts()
             plain: Plain,
             right: bool
         ) -> bool
+        requires token.ready, plain.observed
         {
             let inverted: bool = !right;
             left && inverted
@@ -329,6 +332,8 @@ fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts()
         .iter()
         .find(|machine| machine.id == entry_machine)
         .expect("bounded Boolean cleanup entry");
+    assert_eq!(entry.contract.requires.len(), 2);
+    let mut return_obligations = Vec::new();
     let return_edges = entry
         .blocks
         .iter()
@@ -338,13 +343,18 @@ fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts()
                 cleanup_actions,
                 ..
             } => {
-                assert!(matches!(
-                    cleanup_actions.as_slice(),
-                    [
-                        TerminalAffineCleanupAction::DiscardRoot(_),
-                        TerminalAffineCleanupAction::InvokeNominal(_),
-                    ]
-                ));
+                let [
+                    TerminalAffineCleanupAction::DiscardRoot(_),
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup),
+                ] = cleanup_actions.as_slice()
+                else {
+                    panic!("every Boolean leaf retains contextual nominal cleanup")
+                };
+                assert!(cleanup.cleanup_receiver.is_some());
+                let [obligation] = cleanup.requirement_obligations.as_slice() else {
+                    panic!("every Boolean leaf owns one contextual obligation")
+                };
+                return_obligations.push(*obligation);
                 Some(*edge)
             }
             _ => None,
@@ -359,7 +369,15 @@ fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts()
             .len(),
         3
     );
-    assert!(lowered.proof_bundle.evidence.is_empty());
+    assert_eq!(
+        return_obligations
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        3
+    );
+    assert_eq!(lowered.proof_bundle.evidence.len(), 3);
     drop(checked);
     drop(lowered);
 
@@ -435,13 +453,15 @@ fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts()
                 .collect()
         );
         for record in &emitted_entry.scalar_control_affine_cleanups {
-            assert!(matches!(
-                record.cleanup.actions.as_slice(),
-                [
-                    TerminalAffineCleanupAction::DiscardRoot(_),
-                    TerminalAffineCleanupAction::InvokeNominal(_),
-                ]
-            ));
+            let [
+                TerminalAffineCleanupAction::DiscardRoot(_),
+                TerminalAffineCleanupAction::InvokeNominal(cleanup),
+            ] = record.cleanup.actions.as_slice()
+            else {
+                panic!("each emitted edge retains the contextual cleanup action")
+            };
+            assert!(cleanup.cleanup_receiver.is_none());
+            assert!(cleanup.requirement_obligations.is_empty());
             assert!(record.cleanup.byte_count > 0);
         }
 
