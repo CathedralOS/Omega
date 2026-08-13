@@ -13007,20 +13007,13 @@ fn runtime_const_array_length_exit_canary_runs() {
     // read back if layout sized the field as 16 elements -- identically to a
     // written `[i64; 16]`. Exits 70 only when both ends hold their values.
     let canary = pass_canary("comptime/runtime_const_array_length_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-const-array-length-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("const array length canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("const array length canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("const array length canary should run");
 
@@ -13032,7 +13025,7 @@ fn runtime_const_array_length_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
