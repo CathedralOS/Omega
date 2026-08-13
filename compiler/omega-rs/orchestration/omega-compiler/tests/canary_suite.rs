@@ -12479,19 +12479,12 @@ fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     // field including the nested ones equals the original. Exits 70 on a
     // full match.
     let canary = pass_canary("wire/runtime_wire_roundtrip_nested_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire nested roundtrip canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire nested roundtrip canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire nested roundtrip canary should run");
 
@@ -12503,7 +12496,7 @@ fn runtime_wire_roundtrip_nested_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12514,20 +12507,13 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
     // cursor lands one byte before the declared end bound (walk in the
     // canary header). Exits 70 on the failure path.
     let canary = pass_canary("wire/runtime_wire_decode_rejects_bad_nested_length_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-wire-nested-length-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire bad-nested-length canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire bad-nested-length canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire bad-nested-length canary should run");
 
@@ -12539,7 +12525,7 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12552,20 +12538,12 @@ fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
     // a fresh value: ok = true, read = 10, both live elements and intrinsic
     // length round-trip. Exits 70 on a full match.
     let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-repeated-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-repeated-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire repeated roundtrip canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire repeated roundtrip canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire repeated roundtrip canary should run");
 
@@ -12577,7 +12555,7 @@ fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12591,22 +12569,15 @@ fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
     // without reading out of bounds. Exits 70 when both decodes report
     // failure (walk in the canary header).
     let canary = pass_canary("wire/runtime_wire_decode_rejects_repeated_overflow_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-wire-repeated-overflow-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire repeated overflow canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire repeated overflow canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire repeated overflow canary should run");
 
@@ -12618,7 +12589,7 @@ fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12628,20 +12599,12 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     // first expected byte and the failure flag is sticky. The canary exits 70
     // on the failure path (`ok` = false).
     let canary = pass_canary("wire/runtime_wire_decode_rejects_wrong_era_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-wrong-era-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-wire-wrong-era-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire wrong-era canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wire wrong-era canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wire wrong-era canary should run");
 
@@ -12653,7 +12616,7 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
