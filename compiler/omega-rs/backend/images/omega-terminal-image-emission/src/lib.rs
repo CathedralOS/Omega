@@ -1016,31 +1016,37 @@ fn validate_unit_affine_cleanup(
             || parameter_type.is_none()
             || residuals.iter().any(|residual| {
                 Some(residual.place) != residual_root
-                    || !matches!(residual.path.as_slice(),
-                        [psi_terminal::StructuralPathSegment::Field(identity)]
-                            if !identity.is_empty())
+                    || residual.path.is_empty()
+                    || residual.path.iter().any(|segment| {
+                        !matches!(segment,
+                            psi_terminal::StructuralPathSegment::Field(identity)
+                                if !identity.is_empty())
+                    })
                     || parameter_type == Some(residual.structural_type)
             })
-            || residuals
-                .iter()
-                .map(|residual| residual.path.as_slice())
-                .collect::<std::collections::BTreeSet<_>>()
-                .len()
-                != residuals.len()
+            || residuals.iter().enumerate().any(|(index, residual)| {
+                residuals[..index].iter().any(|earlier| {
+                    residual.path.starts_with(&earlier.path)
+                        || earlier.path.starts_with(&residual.path)
+                })
+            })
             || moved_paths.is_empty()
             || moved_paths.iter().any(|path| {
-                !matches!(path, [psi_terminal::StructuralPathSegment::Field(identity)]
-                    if !identity.is_empty())
-                    || residuals
-                        .iter()
-                        .any(|residual| residual.path.as_slice() == *path)
+                path.is_empty()
+                    || path.iter().any(|segment| {
+                        !matches!(segment,
+                            psi_terminal::StructuralPathSegment::Field(identity)
+                                if !identity.is_empty())
+                    })
+                    || residuals.iter().any(|residual| {
+                        path.starts_with(&residual.path) || residual.path.starts_with(path)
+                    })
             })
-            || moved_paths
-                .iter()
-                .copied()
-                .collect::<std::collections::BTreeSet<_>>()
-                .len()
-                != moved_paths.len()
+            || moved_paths.iter().enumerate().any(|(index, path)| {
+                moved_paths[..index]
+                    .iter()
+                    .any(|earlier| path.starts_with(earlier) || earlier.starts_with(path))
+            })
     } else {
         let nominal = cleanup
             .actions
@@ -1656,8 +1662,14 @@ fn validate_internal_unit_call_custody(
                                     != Some(u64::from(argument.source.shape.byte_size))
                                 || argument.source.shape.alignment != argument.shape.alignment
                         }
-                        [psi_terminal::StructuralPathSegment::Field(identity)] => {
-                            identity.is_empty()
+                        path @ [psi_terminal::StructuralPathSegment::Field(_), ..]
+                            if path.iter().all(|segment| {
+                                matches!(segment,
+                                    psi_terminal::StructuralPathSegment::Field(identity)
+                                        if !identity.is_empty())
+                            }) =>
+                        {
+                            path.is_empty()
                                 || argument.root_structural_type == argument.structural_type
                                 || argument.fixed_array_length.is_some()
                                 || argument.element_stride.is_some()
@@ -1675,14 +1687,15 @@ fn validate_internal_unit_call_custody(
             let Some(argument) = custody.arguments.get(*index) else {
                 return true;
             };
-            argument.path.len() != 1
+            argument.path.is_empty()
                 || affine_cleanup.is_none_or(|cleanup| {
                     !cleanup.actions.iter().any(|action| {
                         matches!(action,
                             psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
                                 if residual.place == argument.place
-                                    && residual.path.len() == 1
-                                    && residual.path != argument.path
+                                    && !residual.path.is_empty()
+                                    && !residual.path.starts_with(&argument.path)
+                                    && !argument.path.starts_with(&residual.path)
                                     && residual.structural_type
                                         != argument.root_structural_type)
                     })

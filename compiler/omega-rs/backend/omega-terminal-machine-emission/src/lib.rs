@@ -787,7 +787,7 @@ fn emit_unit_body(
                             _ => None,
                         })
                         .flatten()
-                        .filter(|copy| Some(copy.place) == residual_root && copy.path.len() == 1)
+                        .filter(|copy| Some(copy.place) == residual_root)
                         .map(|copy| copy.path.as_slice())
                         .collect::<Vec<_>>();
                     cleanup_actions.get(..expected_local_actions.len())
@@ -799,9 +799,12 @@ fn emit_unit_body(
                         })
                         && residuals.iter().all(|residual| {
                             Some(residual.place) == residual_root
-                                && matches!(residual.path.as_slice(),
-                                    [psi_terminal::StructuralPathSegment::Field(identity)]
-                                        if !identity.is_empty())
+                                && !residual.path.is_empty()
+                                && residual.path.iter().all(|segment| {
+                                    matches!(segment,
+                                        psi_terminal::StructuralPathSegment::Field(identity)
+                                            if !identity.is_empty())
+                                })
                                 && body.parameters.iter().any(|parameter| {
                                     parameter.place == residual.place
                                         && parameter.multiplicity
@@ -809,26 +812,30 @@ fn emit_unit_body(
                                         && parameter.structural_type != residual.structural_type
                                 })
                         })
-                        && residuals
-                            .iter()
-                            .map(|residual| residual.path.as_slice())
-                            .collect::<std::collections::BTreeSet<_>>()
-                            .len()
-                            == residuals.len()
+                        && residuals.iter().enumerate().all(|(index, residual)| {
+                            residuals[..index].iter().all(|earlier| {
+                                !residual.path.starts_with(&earlier.path)
+                                    && !earlier.path.starts_with(&residual.path)
+                            })
+                        })
                         && !moved_paths.is_empty()
                         && moved_paths.iter().all(|moved| {
-                            matches!(moved, [psi_terminal::StructuralPathSegment::Field(identity)]
-                                if !identity.is_empty())
-                                && residuals
-                                    .iter()
-                                    .all(|residual| residual.path.as_slice() != *moved)
+                            !moved.is_empty()
+                                && moved.iter().all(|segment| {
+                                    matches!(segment,
+                                        psi_terminal::StructuralPathSegment::Field(identity)
+                                            if !identity.is_empty())
+                                })
+                                && residuals.iter().all(|residual| {
+                                    !moved.starts_with(&residual.path)
+                                        && !residual.path.starts_with(moved)
+                                })
                         })
-                        && moved_paths
-                            .iter()
-                            .copied()
-                            .collect::<std::collections::BTreeSet<_>>()
-                            .len()
-                            == moved_paths.len()
+                        && moved_paths.iter().enumerate().all(|(index, moved)| {
+                            moved_paths[..index].iter().all(|earlier| {
+                                !moved.starts_with(earlier) && !earlier.starts_with(moved)
+                            })
+                        })
                 } || (expected_local_prefix.is_empty()
                     && !nominal_cleanups.is_empty()
                     && nominal_cleanups.len() == cleanup_actions.len()
