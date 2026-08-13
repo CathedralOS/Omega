@@ -12,17 +12,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPropositionBinderArgumentKind,
-    CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedScalarBindingValue,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralReturnMachinePlan,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
-    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitBoundaryMachinePlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
+    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
@@ -51,15 +52,16 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
-    MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -1541,6 +1543,22 @@ fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    let mut nominal_matches = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+        .iter()
+        .filter(|plan| plan.machine.machine == selection.machine);
+    if let Some(plan) = nominal_matches.next() {
+        if nominal_matches.next().is_some() {
+            return unsupported("nominal affine Unit cleanup plan is duplicated");
+        }
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("nominal affine Unit cleanup requires an attached signature");
+        }
+        return lower_nominal_affine_unit_cleanup_machine(checked, plan);
+    }
     let mut partial_matches = checked
         .facts
         .flow
@@ -3274,6 +3292,253 @@ fn lower_structural_type_plans(
     Ok((declarations, type_ids))
 }
 
+fn lower_nominal_affine_unit_cleanup_machine(
+    checked: &CheckedTrees,
+    nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let plan = &nominal.machine;
+    if checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .any(|candidate| candidate.machine == plan.machine)
+    {
+        return unsupported("nominal affine Unit machine is also published in the trivial lane");
+    }
+    let [parameter] = plan.structural_parameters.as_slice() else {
+        return unsupported("nominal affine Unit cleanup requires one structural parameter");
+    };
+    let [
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index,
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+        },
+    ] = plan.operations.as_slice()
+    else {
+        return unsupported("nominal affine Unit cleanup operation sequence drifted");
+    };
+    if parameter.position != 0
+        || parameter.is_self
+        || parameter.multiplicity != Multiplicity::Affine
+        || !parameter.qualifications.is_empty()
+        || !plan.trivial_affine_locals.is_empty()
+        || !plan.entry_claims.is_empty()
+        || !plan.body_qualifications.is_empty()
+        || *statement_index != 0
+        || !trivial_affine_local_discard_ordinals.is_empty()
+        || !trivial_affine_discards.is_empty()
+        || nominal.cleanup.source_parameter_index != 0
+        || nominal.cleanup.type_identity != parameter.type_identity
+        || nominal.cleanup.cleanup_machine == plan.machine
+        || nominal.cleanup.cleanup_contract_fingerprint == 0
+    {
+        return unsupported("nominal affine Unit cleanup signature or coordinates drifted");
+    }
+
+    let nominal_types = &checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types;
+    if nominal_types
+        .iter()
+        .any(|candidate| candidate.identity.is_empty())
+        || nominal_types.iter().enumerate().any(|(index, candidate)| {
+            nominal_types[..index]
+                .iter()
+                .any(|earlier| earlier.identity == candidate.identity)
+        })
+    {
+        return unsupported("nominal affine Unit structural types are empty or duplicated");
+    }
+    for identity in [&plan.attachment_type_identity, &parameter.type_identity] {
+        let shape = nominal_types
+            .iter()
+            .find(|candidate| candidate.identity == **identity)
+            .ok_or(LoweringError::Unsupported(
+                "nominal affine Unit type is absent from its checked shapes",
+            ))?;
+        if !matches!(
+            &shape.shape,
+            CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+        ) {
+            return unsupported("nominal affine Unit structural type is not an empty record");
+        }
+    }
+
+    let cleanup_target = unique_unit_machine(
+        &checked.facts.flow.terminal_unit_effects,
+        nominal.cleanup.cleanup_machine,
+    )?;
+    let cleanup_contract = checked
+        .facts
+        .contract_plans
+        .for_machine(nominal.cleanup.cleanup_machine)
+        .ok_or(LoweringError::Unsupported(
+            "nominal cleanup target is missing its checked contract identity",
+        ))?;
+    let [
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: cleanup_statement_index,
+            trivial_affine_local_discard_ordinals: cleanup_local_discards,
+            trivial_affine_discards: cleanup_parameter_discards,
+        },
+    ] = cleanup_target.operations.as_slice()
+    else {
+        return unsupported("nominal cleanup target operation sequence drifted");
+    };
+    if cleanup_target.state != nominal.cleanup.cleanup_state
+        || cleanup_target.contract_fingerprint != nominal.cleanup.cleanup_contract_fingerprint
+        || cleanup_contract.fingerprint != nominal.cleanup.cleanup_contract_fingerprint
+        || cleanup_target.attachment_type_identity != nominal.cleanup.type_identity
+        || !cleanup_target.structural_parameters.is_empty()
+        || !cleanup_target.trivial_affine_locals.is_empty()
+        || !cleanup_target.entry_claims.is_empty()
+        || !cleanup_target.body_qualifications.is_empty()
+        || *cleanup_statement_index != 0
+        || !cleanup_local_discards.is_empty()
+        || !cleanup_parameter_discards.is_empty()
+    {
+        return unsupported("nominal cleanup target identity or empty signature drifted");
+    }
+
+    // Cleanup is an explicit additional closure root because it is executable
+    // edge work, not a source-authored ordinary call operation.
+    let mut staged = checked.clone();
+    let staged_unit = &mut staged.facts.flow.terminal_unit_effects;
+    for shape in nominal_types {
+        match staged_unit
+            .structural_types
+            .iter()
+            .find(|candidate| candidate.identity == shape.identity)
+        {
+            Some(existing) if existing != shape => {
+                return unsupported(
+                    "nominal affine Unit structural type conflicts with its cleanup closure",
+                );
+            }
+            Some(_) => {}
+            None => staged_unit.structural_types.push(shape.clone()),
+        }
+    }
+    staged_unit.machines.push(plan.clone());
+    let closure = checked_unit_call_closure_including(
+        &staged,
+        plan.machine,
+        &[nominal.cleanup.cleanup_machine],
+    )?;
+    if closure.as_slice() != [plan.machine, nominal.cleanup.cleanup_machine] {
+        return unsupported("nominal cleanup target closure is not the exact two-machine graph");
+    }
+    let cleanup_machine = machine_id(dense_identity(1)?);
+    let mut lowered = lower_attached_unit_closure_including(
+        &staged,
+        plan.machine,
+        &[nominal.cleanup.cleanup_machine],
+    )?;
+    let type_ids = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .collect::<Vec<_>>();
+    let cleanup_type = lookup_type_id(&type_ids, &nominal.cleanup.type_identity)?;
+
+    let cleanup_terminal = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup_machine)
+        .ok_or(LoweringError::Unsupported(
+            "nominal cleanup target was not retained in the terminal closure",
+        ))?;
+    let [cleanup_block] = cleanup_terminal.blocks.as_slice() else {
+        return unsupported("nominal cleanup target terminal control drifted");
+    };
+    if cleanup_terminal.attachment != Some(cleanup_type)
+        || !cleanup_terminal.parameters.is_empty()
+        || !cleanup_terminal.structural_parameters.is_empty()
+        || cleanup_terminal.result != TerminalMachineResult::Unit
+        || !cleanup_terminal.structural_places.is_empty()
+        || !cleanup_terminal.entry_claims.is_empty()
+        || !cleanup_terminal.published_service_ceiling.is_empty()
+        || !cleanup_terminal.content_entry_claims.is_empty()
+        || !cleanup_terminal.content_identity_reshuffles.is_empty()
+        || !cleanup_terminal.content_partition_compositions.is_empty()
+        || !cleanup_block.operations.is_empty()
+        || !matches!(
+            &cleanup_block.terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards.is_empty()
+        )
+        || !cleanup_terminal.contract.crash_routes.is_empty()
+        || !cleanup_terminal.contract.requires.is_empty()
+        || !cleanup_terminal.contract.ensures.is_empty()
+    {
+        return unsupported("nominal cleanup target terminal machine is not exact and empty");
+    }
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .ok_or(LoweringError::Unsupported(
+            "nominal affine Unit entry machine was not lowered",
+        ))?;
+    let [terminal_parameter] = entry.structural_parameters.as_slice() else {
+        return unsupported("nominal affine Unit terminal parameter drifted");
+    };
+    if entry.attachment != Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?)
+        || !entry.parameters.is_empty()
+        || entry.result != TerminalMachineResult::Unit
+        || entry.structural_places.len() != 1
+        || !entry.entry_claims.is_empty()
+        || !entry.published_service_ceiling.is_empty()
+        || !entry.content_entry_claims.is_empty()
+        || !entry.content_identity_reshuffles.is_empty()
+        || !entry.content_partition_compositions.is_empty()
+        || !entry.contract.crash_routes.is_empty()
+        || !entry.contract.requires.is_empty()
+        || !entry.contract.ensures.is_empty()
+        || terminal_parameter.structural_type != cleanup_type
+        || terminal_parameter.multiplicity != StructuralMultiplicity::Affine
+        || !terminal_parameter.qualifications.is_empty()
+    {
+        return unsupported("nominal affine Unit terminal parameter identity drifted");
+    }
+    let [block] = entry.blocks.as_mut_slice() else {
+        return unsupported("nominal affine Unit terminal control drifted");
+    };
+    if block.id != entry.entry || !block.parameters.is_empty() || !block.operations.is_empty() {
+        return unsupported("nominal affine Unit terminal control is not exact and empty");
+    }
+    let Terminator::ReturnUnit {
+        edge,
+        trivial_affine_discards: lowered_trivial_discards,
+    } = &block.terminator
+    else {
+        return unsupported("nominal affine Unit terminal return drifted");
+    };
+    if !lowered_trivial_discards.is_empty() {
+        return unsupported("nominal affine Unit return acquired trivial cleanup");
+    }
+    block.terminator = Terminator::ReturnUnitNominalAffine {
+        edge: *edge,
+        cleanup: NominalAffineCleanup {
+            place: terminal_parameter.place,
+            structural_type: cleanup_type,
+            cleanup_machine,
+        },
+    };
+    Ok(lowered)
+}
+
 fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
@@ -3471,8 +3736,16 @@ fn lower_attached_unit_closure(
     checked: &CheckedTrees,
     entry: psi_symbols::SymbolHandle,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    lower_attached_unit_closure_including(checked, entry, &[])
+}
+
+fn lower_attached_unit_closure_including(
+    checked: &CheckedTrees,
+    entry: psi_symbols::SymbolHandle,
+    additional_roots: &[psi_symbols::SymbolHandle],
+) -> Result<LoweredTerminalPsi, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let closure = checked_unit_call_closure(checked, entry)?;
+    let closure = checked_unit_call_closure_including(checked, entry, additional_roots)?;
     reject_recursive_unit_closure(plans, &closure)?;
 
     let mut boundaries = Vec::<(&CheckedUnitBoundaryMachinePlan, String)>::new();
@@ -4028,12 +4301,19 @@ fn lower_attached_unit_closure(
     })
 }
 
-fn checked_unit_call_closure(
+fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
     entry: psi_symbols::SymbolHandle,
+    additional_roots: &[psi_symbols::SymbolHandle],
 ) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut closure = vec![entry];
+    for root in additional_roots {
+        if closure.contains(root) {
+            return unsupported("attached Unit closure contains a duplicate explicit root");
+        }
+        closure.push(*root);
+    }
     let mut next = 0_usize;
     while let Some(machine_symbol) = closure.get(next).copied() {
         next += 1;
@@ -9555,6 +9835,192 @@ mod tests {
 
     fn unit_claim(machine: SymbolHandle, state: SymbolHandle) -> PermissionClaimIdentity {
         unit_claim_at(machine, state, 0)
+    }
+
+    fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
+        let source = r#"
+            data Token {}
+            machine Token::drop(&mut self) {}
+            data Root {}
+            machine Root::enter(token: Token) {}
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        lower_typed_trees(typed).expect("check")
+    }
+
+    #[test]
+    fn nominal_affine_unit_cleanup_lowers_exact_target_into_terminal_closure() {
+        let checked = nominal_affine_unit_checked_fixture();
+        let [plan] = checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines
+            .as_slice()
+        else {
+            panic!("expected one checked nominal-cleanup plan")
+        };
+        let lowered = lower_nominal_affine_unit_cleanup_machine(&checked, plan)
+            .expect("strict checked nominal cleanup should lower in memory");
+        assert_eq!(
+            lowered.semantic_module.machines.len(),
+            2,
+            "cleanup target must be retained as executable closure work"
+        );
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .expect("terminal entry");
+        let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator
+        else {
+            panic!("nominal cleanup requires its distinct terminal return")
+        };
+        assert_eq!(cleanup.place, entry.structural_parameters[0].place);
+        assert_eq!(
+            cleanup.structural_type,
+            entry.structural_parameters[0].structural_type
+        );
+        let target = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == cleanup.cleanup_machine)
+            .expect("terminal cleanup target");
+        assert_eq!(target.attachment, Some(cleanup.structural_type));
+        assert!(target.structural_parameters.is_empty());
+        assert!(target.blocks[0].operations.is_empty());
+        assert!(matches!(
+            &target.blocks[0].terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards.is_empty()
+        ));
+        psi_terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("independent verifier accepts exact nominal cleanup closure");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("verified nominal cleanup should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("canonical nominal cleanup should decode"),
+            lowered.semantic_module
+        );
+
+        let entry_name = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .find(|selection| selection.machine == plan.machine.machine)
+            .expect("nominal cleanup terminal selection")
+            .name
+            .clone();
+        let public = lower_machine(&checked, &entry_name)
+            .expect("source nominal cleanup should cross the public lowering entry");
+        assert!(matches!(
+            public.semantic_module.machines[0].blocks[0].terminator,
+            Terminator::ReturnUnitNominalAffine { .. }
+        ));
+    }
+
+    #[test]
+    fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
+        let checked = nominal_affine_unit_checked_fixture();
+        let original = checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines[0]
+            .clone();
+
+        let mut stale = original.clone();
+        stale.cleanup.source_parameter_index = 1;
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "nominal affine Unit cleanup signature or coordinates drifted"
+            ))
+        ));
+
+        let mut stale = original.clone();
+        stale.cleanup.cleanup_contract_fingerprint ^= 1;
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "nominal cleanup target identity or empty signature drifted"
+            ))
+        ));
+
+        let mut stale_checked = nominal_affine_unit_checked_fixture();
+        let mut stale_plan = stale_checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines[0]
+            .clone();
+        let cleanup_target = stale_checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|machine| machine.machine == stale_plan.cleanup.cleanup_machine)
+            .expect("cleanup target plan");
+        cleanup_target.contract_fingerprint ^= 1;
+        stale_plan.cleanup.cleanup_contract_fingerprint = cleanup_target.contract_fingerprint;
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
+            Err(LoweringError::Unsupported(
+                "nominal cleanup target identity or empty signature drifted"
+            ))
+        ));
+
+        let mut stale_checked = nominal_affine_unit_checked_fixture();
+        let stale_plan = stale_checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines[0]
+            .clone();
+        let cleanup_identity = stale_plan.cleanup.type_identity.clone();
+        let shape = stale_checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == cleanup_identity)
+            .expect("nominal cleanup shape");
+        shape.shape = CheckedUnitStructuralTypeShape::FixedArray {
+            element_type_identity: cleanup_identity,
+            length: 1,
+        };
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
+            Err(LoweringError::Unsupported(
+                "nominal affine Unit structural type is not an empty record"
+            ))
+        ));
+
+        let mut stale_checked = nominal_affine_unit_checked_fixture();
+        stale_checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .push(original.machine.clone());
+        assert!(matches!(
+            lower_nominal_affine_unit_cleanup_machine(&stale_checked, &original),
+            Err(LoweringError::Unsupported(
+                "nominal affine Unit machine is also published in the trivial lane"
+            ))
+        ));
     }
 
     fn partial_affine_unit_checked_fixture() -> CheckedTrees {

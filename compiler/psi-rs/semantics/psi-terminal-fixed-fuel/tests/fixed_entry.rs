@@ -6,12 +6,12 @@ use psi_core::{
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContractClause,
-    CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract, Operation,
-    OperationKind, OperationResult, ServiceDeclaration, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, ServiceDeclaration,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -64,6 +64,86 @@ fn unit_return_is_one_normal_edge_unit() {
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].end_edge(), edge_id(900));
     assert_eq!(segments[0].ceiling_units(), 1);
+}
+
+#[test]
+fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
+    let structural_type = structural_type_id(900);
+    let source = place_id(900);
+    let cleanup_machine = machine_id(901);
+    let mut module = unit_fixture();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    }];
+    let caller = &mut module.machines[0];
+    caller.structural_parameters = vec![StructuralParameterDeclaration {
+        place: source,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+    }];
+    caller.structural_places = vec![StructuralPlaceDeclaration {
+        id: source,
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    caller.blocks[0].terminator = Terminator::ReturnUnitNominalAffine {
+        edge: edge_id(900),
+        cleanup: NominalAffineCleanup {
+            place: source,
+            structural_type,
+            cleanup_machine,
+        },
+    };
+    module.machines.push(TerminalMachine {
+        id: cleanup_machine,
+        attachment: Some(structural_type),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(901),
+        blocks: vec![Block {
+            id: block_id(901),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(901),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(901),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    });
+
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("nominal cleanup module verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(900))
+            .expect("nominal cleanup has an exact fixed bound")
+            .ceiling_units(),
+        2,
+        "the caller edge and cleanup-machine edge are both charged"
+    );
 }
 
 #[test]

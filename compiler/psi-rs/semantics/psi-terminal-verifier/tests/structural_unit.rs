@@ -8,18 +8,59 @@ use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
-    ServiceDeclaration, StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    CrashRouteGuard, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
     validate_module, verify_module,
 };
+
+#[test]
+fn exact_empty_nominal_affine_cleanup_validates() {
+    validate_module(&nominal_affine_module()).expect("exact empty nominal cleanup should validate");
+}
+
+#[test]
+fn nominal_affine_cleanup_rejects_forged_target_and_nonempty_type() {
+    let mut wrong_attachment = nominal_affine_module();
+    wrong_attachment.machines[1].attachment = None;
+    assert!(matches!(
+        validate_module(&wrong_attachment),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut target_parameter = nominal_affine_module();
+    target_parameter.machines[1]
+        .parameters
+        .push(ValueDeclaration {
+            id: value_id(1),
+            scalar_type: ScalarType::Boolean,
+        });
+    assert!(matches!(
+        validate_module(&target_parameter),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut nonempty = nominal_affine_module();
+    nonempty.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            identity: "value".into(),
+            id: psi_core::StructuralFieldId::new(1).unwrap(),
+            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+        }],
+    };
+    assert!(matches!(
+        validate_module(&nonempty),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
 
 #[test]
 fn hard_root_unit_slice_validates_and_verifies() {
@@ -1925,6 +1966,84 @@ fn partial_affine_field_module() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![caller, callee],
+    }
+}
+
+fn nominal_affine_module() -> TerminalModule {
+    let token = StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    let caller = TerminalMachine {
+        id: machine_id(1),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: place_id(1),
+            position: 0,
+            is_self: false,
+            structural_type: token.id,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        }],
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![structural_place(place_id(1))],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnitNominalAffine {
+                edge: edge_id(1),
+                cleanup: NominalAffineCleanup {
+                    place: place_id(1),
+                    structural_type: token.id,
+                    cleanup_machine: machine_id(2),
+                },
+            },
+        }],
+        contract: empty_contract(contract_id(1)),
+    };
+    let cleanup = TerminalMachine {
+        id: machine_id(2),
+        attachment: Some(token.id),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(2),
+        blocks: vec![Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(2),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(2)),
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: caller.id,
+        structural_types: vec![token],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![caller, cleanup],
     }
 }
 

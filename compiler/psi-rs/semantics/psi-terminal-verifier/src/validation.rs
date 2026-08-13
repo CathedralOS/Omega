@@ -1627,6 +1627,7 @@ fn validate_machine(
         .collect::<BTreeSet<_>>();
     validate_crash_frontiers(module, machine, &context, &requires_values)?;
     validate_partial_affine_cleanup_shape(module, machine, machines)?;
+    validate_nominal_affine_cleanup_shape(module, machine, machines)?;
     let mut ensures_values = requires_values.clone();
     if let Some(result) = machine.result.scalar() {
         ensures_values.insert(result.id);
@@ -2088,6 +2089,96 @@ fn validate_partial_affine_cleanup_shape(
             != [moved_identity.as_str(), residual_identity.as_str()]
                 .into_iter()
                 .collect()
+    {
+        return Err(invalid(block.id));
+    }
+    Ok(())
+}
+
+fn validate_nominal_affine_cleanup_shape(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let nominal_returns = machine
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::ReturnUnitNominalAffine { cleanup, .. } => Some((block, cleanup)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if nominal_returns.is_empty() {
+        return Ok(());
+    }
+    let invalid = |block: BlockId| ModuleError::InvalidNominalAffineCleanup {
+        machine: machine.id,
+        block,
+    };
+    let [(block, cleanup)] = nominal_returns.as_slice() else {
+        return Err(invalid(machine.entry));
+    };
+    let [parameter] = machine.structural_parameters.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    if machine.result != TerminalMachineResult::Unit
+        || module.entry != machine.id
+        || machine.blocks.len() != 1
+        || block.id != machine.entry
+        || !block.parameters.is_empty()
+        || !block.operations.is_empty()
+        || machine.parameters.len() != 0
+        || machine.structural_places.len() != 1
+        || parameter.place != cleanup.place
+        || parameter.structural_type != cleanup.structural_type
+        || parameter.multiplicity != StructuralMultiplicity::Affine
+        || parameter.is_self
+        || !parameter.qualifications.is_empty()
+        || !machine.entry_claims.is_empty()
+        || !machine.published_service_ceiling.is_empty()
+        || !machine.content_entry_claims.is_empty()
+        || !machine.content_identity_reshuffles.is_empty()
+        || !machine.content_partition_compositions.is_empty()
+        || !machine.contract.crash_routes.is_empty()
+        || !machine.contract.requires.is_empty()
+        || !machine.contract.ensures.is_empty()
+    {
+        return Err(invalid(block.id));
+    }
+    let Some(source_type) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == cleanup.structural_type)
+    else {
+        return Err(invalid(block.id));
+    };
+    if !matches!(&source_type.shape, StructuralTypeShape::Record { fields } if fields.is_empty()) {
+        return Err(invalid(block.id));
+    }
+    let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
+        return Err(invalid(block.id));
+    };
+    let [target_block] = target.blocks.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    if target.id == machine.id
+        || target.attachment != Some(cleanup.structural_type)
+        || target.result != TerminalMachineResult::Unit
+        || !target.parameters.is_empty()
+        || !target.structural_parameters.is_empty()
+        || !target.structural_places.is_empty()
+        || !target.entry_claims.is_empty()
+        || !target.published_service_ceiling.is_empty()
+        || !target.content_entry_claims.is_empty()
+        || !target.content_identity_reshuffles.is_empty()
+        || !target.content_partition_compositions.is_empty()
+        || target.entry != target_block.id
+        || !target_block.parameters.is_empty()
+        || !target_block.operations.is_empty()
+        || !matches!(target_block.terminator, Terminator::ReturnUnit { ref trivial_affine_discards, .. } if trivial_affine_discards.is_empty())
+        || !target.contract.crash_routes.is_empty()
+        || !target.contract.requires.is_empty()
+        || !target.contract.ensures.is_empty()
     {
         return Err(invalid(block.id));
     }
@@ -3589,6 +3680,7 @@ fn validate_structural_frontier(
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
@@ -3896,6 +3988,23 @@ fn validate_structural_frontier(
                     });
                 }
             }
+            Terminator::ReturnUnitNominalAffine { cleanup, .. } => {
+                if frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(cleanup.place))
+                    || frontier.owned_places.remove(&cleanup.place)
+                        != Some(StructuralMultiplicity::Affine)
+                    || !frontier.moved_direct_fields.is_empty()
+                    || !frontier.claims.is_empty()
+                    || !frontier.owned_places.is_empty()
+                {
+                    return Err(ModuleError::InvalidNominalAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+            }
             Terminator::Return {
                 trivial_affine_discards,
                 ..
@@ -4107,6 +4216,7 @@ fn validate_control_flow(
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
@@ -4288,7 +4398,8 @@ fn validate_control_flow(
                     });
                 }
             }
-            Terminator::ReturnUnitPartialAffine { .. } => {
+            Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. } => {
                 if !matches!(machine.result, TerminalMachineResult::Unit) {
                     return Err(ModuleError::UnitReturnFromScalarMachine {
                         machine: machine.id,
@@ -4999,6 +5110,10 @@ pub enum ContractClauseKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
     InvalidPartialAffineCleanup {
+        machine: MachineId,
+        block: BlockId,
+    },
+    InvalidNominalAffineCleanup {
         machine: MachineId,
         block: BlockId,
     },

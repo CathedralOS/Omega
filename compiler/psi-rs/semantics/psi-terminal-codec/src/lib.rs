@@ -36,8 +36,8 @@ use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    CrashRouteGuard, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
@@ -52,7 +52,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 2;
+const FORMAT_MARKER: u16 = 3;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -577,6 +577,34 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             validate_operation_foundation(module, machine, operation)?;
         }
         for block in &machine.blocks {
+            if let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &block.terminator {
+                if !matches!(machine.result, TerminalMachineResult::Unit) {
+                    return malformed("nominal affine cleanup requires a Unit result");
+                }
+                let Some(parameter) = machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == cleanup.place)
+                else {
+                    return malformed("nominal affine cleanup root is not a structural parameter");
+                };
+                if parameter.multiplicity != StructuralMultiplicity::Affine
+                    || !parameter.qualifications.is_empty()
+                    || machine
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == cleanup.place)
+                {
+                    return malformed(
+                        "nominal affine cleanup is not a claim-free qualified-free affine root",
+                    );
+                }
+                if parameter.structural_type != cleanup.structural_type {
+                    return malformed(
+                        "nominal affine cleanup type does not match its structural parameter",
+                    );
+                }
+            }
             let Terminator::ReturnUnitPartialAffine {
                 trivial_affine_discards,
                 residual_affine_discards,
@@ -1938,6 +1966,13 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 encode_structural_path(writer, "partial affine discard path", &discard.path)?;
                 writer.id(discard.structural_type);
             }
+        }
+        Terminator::ReturnUnitNominalAffine { edge, cleanup } => {
+            writer.u8(8);
+            writer.id(*edge);
+            writer.id(cleanup.place);
+            writer.id(cleanup.structural_type);
+            writer.id(cleanup.cleanup_machine);
         }
         Terminator::ReturnStructural {
             edge,
@@ -3303,6 +3338,14 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                     structural_type: reader.id("StructuralTypeId")?,
                 })
             })?,
+        },
+        8 => Terminator::ReturnUnitNominalAffine {
+            edge: reader.id("EdgeId")?,
+            cleanup: NominalAffineCleanup {
+                place: reader.id("PlaceId")?,
+                structural_type: reader.id("StructuralTypeId")?,
+                cleanup_machine: reader.id("MachineId")?,
+            },
         },
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     };

@@ -260,6 +260,7 @@ pub fn derive_fixed_safe_point_segments(
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => {}
         }
@@ -462,6 +463,20 @@ fn outcome_bounds_from(
             ),
             crashed: None,
         },
+        (Terminator::ReturnUnitNominalAffine { cleanup, .. }, Some(prefix)) => {
+            maximum_machine_outcomes(
+                cleanup.cleanup_machine,
+                machines,
+                schedule,
+                memoized_machines,
+                active_machines,
+            )?
+            .with_prefix(
+                prefix
+                    .checked_add(terminator_units)
+                    .ok_or(FixedFuelError::BoundOverflow)?,
+            )?
+        }
         (Terminator::Crash { .. }, Some(prefix)) => OutcomeBounds {
             returned: None,
             crashed: Some(
@@ -609,6 +624,12 @@ fn derive_segment_bound(
                 });
             }
             Terminator::ReturnUnitPartialAffine { edge, .. } => {
+                return Err(FixedFuelError::SegmentEndNotReached {
+                    requested: end_edge,
+                    reached_terminal: edge,
+                });
+            }
+            Terminator::ReturnUnitNominalAffine { edge, .. } => {
                 return Err(FixedFuelError::SegmentEndNotReached {
                     requested: end_edge,
                     reached_terminal: edge,

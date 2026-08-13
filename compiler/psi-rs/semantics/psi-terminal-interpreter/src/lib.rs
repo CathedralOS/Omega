@@ -252,6 +252,10 @@ struct LiveClaim {
 enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
+    NominalCleanup {
+        place: PlaceId,
+        value: TerminalStructuralValue,
+    },
 }
 
 impl TerminalExecution {
@@ -1193,6 +1197,68 @@ impl TerminalExecution {
                 .terminator
                 .clone();
             match &terminator {
+                Terminator::ReturnUnitNominalAffine { cleanup, .. } => {
+                    let machine = self.machines.get(&self.current_machine).ok_or(
+                        TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                    )?;
+                    if machine.result != TerminalMachineResult::Unit
+                        || has_live_linear_claims(&self.live_claims)
+                        || !self.live_claims.is_empty()
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    let value = self.structural_values.get(&cleanup.place).cloned().ok_or(
+                        TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
+                    )?;
+                    if value.structural_type != cleanup.structural_type
+                        || self.live_affine_frontier
+                            != [StructuralAffineDiscard {
+                                place: cleanup.place,
+                                path: Vec::new(),
+                                structural_type: cleanup.structural_type,
+                            }]
+                            .into_iter()
+                            .collect()
+                    {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                    if let Err(error) = meter.charge_terminator(&terminator) {
+                        return meter_status(error);
+                    }
+                    let value = self
+                        .structural_values
+                        .remove(&cleanup.place)
+                        .expect("validated nominal cleanup root remains live through edge charge");
+                    if !self.structural_values.is_empty() {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                    let callee = self.machines.get(&cleanup.cleanup_machine).cloned().ok_or(
+                        TerminalInterpretError::VerifiedCallTargetMissing(cleanup.cleanup_machine),
+                    )?;
+                    self.call_stack.push(SuspendedCall {
+                        blocks: std::mem::take(&mut self.blocks),
+                        values: std::mem::take(&mut self.values),
+                        structural_values: std::mem::take(&mut self.structural_values),
+                        live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
+                        live_claims: std::mem::take(&mut self.live_claims),
+                        current_machine: self.current_machine,
+                        current: self.current,
+                        next_operation: self.next_operation,
+                        result: SuspendedCallResult::NominalCleanup {
+                            place: cleanup.place,
+                            value,
+                        },
+                    });
+                    self.blocks = callee.blocks;
+                    self.values = BTreeMap::new();
+                    self.structural_values = BTreeMap::new();
+                    self.live_affine_frontier = BTreeSet::new();
+                    self.live_claims = BTreeMap::new();
+                    self.current_machine = cleanup.cleanup_machine;
+                    self.current = callee.entry;
+                    self.next_operation = 0;
+                    continue;
+                }
                 Terminator::ReturnUnitPartialAffine {
                     trivial_affine_discards,
                     residual_affine_discards,
@@ -1437,9 +1503,7 @@ impl TerminalExecution {
                         remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     if let Some(caller) = self.call_stack.pop() {
-                        if !matches!(caller.result, SuspendedCallResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
+                        let result = caller.result;
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
@@ -1448,6 +1512,27 @@ impl TerminalExecution {
                         self.current_machine = caller.current_machine;
                         self.current = caller.current;
                         self.next_operation = caller.next_operation;
+                        match result {
+                            SuspendedCallResult::Unit => {}
+                            SuspendedCallResult::NominalCleanup { place, value } => {
+                                if !self.structural_values.is_empty()
+                                    || !self.live_affine_frontier.remove(&StructuralAffineDiscard {
+                                        place,
+                                        path: Vec::new(),
+                                        structural_type: value.structural_type,
+                                    })
+                                    || !self.live_affine_frontier.is_empty()
+                                {
+                                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                                }
+                                let result = TerminalExecutionResult::Unit;
+                                self.result = Some(result.clone());
+                                return Ok(TerminalExecutionStatus::Complete(result));
+                            }
+                            SuspendedCallResult::Scalar(_) => {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                        }
                         continue;
                     }
                     let result = TerminalExecutionResult::Unit;

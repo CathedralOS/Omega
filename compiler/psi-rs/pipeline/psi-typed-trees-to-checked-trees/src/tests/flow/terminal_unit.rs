@@ -245,6 +245,149 @@ fn no_code_unit_and_scalar_returns_reject_reachable_nominal_cleanup() {
         "scalar return must not erase nested generic nominal cleanup"
     );
 }
+
+#[test]
+fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discard() {
+    let checked = checked(
+        r#"
+        data Token {}
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let drop = machine_named(&checked, "drop");
+
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(enter)
+            .is_none(),
+        "nominal cleanup must not leak through the trivial-discard lane"
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("exact empty nominal-cleanup plan");
+    assert_eq!(plan.machine.structural_parameters.len(), 1);
+    assert_eq!(
+        plan.machine.structural_parameters[0].multiplicity,
+        Multiplicity::Affine
+    );
+    assert!(
+        plan.machine.structural_parameters[0]
+            .qualifications
+            .is_empty()
+    );
+    assert!(plan.machine.entry_claims.is_empty());
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 0,
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+        }] if trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+    assert_eq!(plan.cleanup.source_parameter_index, 0);
+    assert_eq!(
+        plan.cleanup.type_identity,
+        plan.machine.structural_parameters[0].type_identity
+    );
+    assert_eq!(plan.cleanup.cleanup_machine, drop);
+    assert_eq!(
+        plan.cleanup.cleanup_state,
+        checked.machine_states(
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == drop)
+                .expect("drop machine"),
+        )[0]
+        .symbol
+    );
+    let token_shape = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == plan.cleanup.type_identity)
+        .expect("cleanup type shape");
+    assert!(record_fields(token_shape).is_empty());
+}
+
+#[test]
+fn empty_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Token {}
+        machine Token::drop(&mut self) {}
+        data Nonempty { value: u64; }
+        machine Nonempty::drop(&mut self) {}
+        data Generic<T> {}
+        machine Generic::drop(&mut self) {}
+        data Wrapper { token: Token; }
+        data Sink { marker: u64; }
+        machine Sink::take(token: Token) {}
+
+        data Root {}
+        machine Root::exact(token: Token) {}
+        machine Root::two(first: Token, second: Token) {}
+        machine Root::with_local(token: Token) {
+            let local: Empty = Empty {};
+        }
+        machine Root::with_call(token: Token) {
+            Sink::take(token);
+        }
+        machine Root::with_contract(token: Token)
+        ensures true
+        {}
+        machine Root::nonempty(value: Nonempty) {}
+        machine Root::generic(value: Generic<u64>) {}
+        machine Root::nested(value: Wrapper) {}
+
+        data NonemptyRoot { marker: u64; }
+        machine NonemptyRoot::attached_nonempty(token: Token) {}
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_nominal_affine_unit_cleanups;
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "exact"))
+            .is_some()
+    );
+    for machine in [
+        "two",
+        "with_local",
+        "with_call",
+        "with_contract",
+        "nonempty",
+        "generic",
+        "nested",
+        "attached_nonempty",
+    ] {
+        assert!(
+            plans
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside the exact nominal-cleanup slice"
+        );
+    }
+    assert_eq!(
+        plans.machines.len(),
+        1,
+        "rejected candidates must not leave partial cleanup plans"
+    );
+}
 use psi_checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
