@@ -645,6 +645,87 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_nested_erased_fields_are_exact_and_storage_free() {
+    let main_path = write_program(
+        "source-owned-nested-erased-field",
+        r#"
+use omega::language::core::layout;
+
+data Whole { entries: [FieldEntry; 64]; }
+machine Whole::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 16, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data Certified {
+    left: u16;
+    proof [erased]: Evidence;
+    right: u32;
+}
+data Envelope { certified: Certified; }
+machine make_envelope() -> Envelope {
+    Envelope {
+        certified: Certified {
+            left: 258,
+            proof: Evidence::Only,
+            right: 100992003,
+        },
+    }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked =
+        compile_to_checked(&main_path, None).expect("nested erased field producer should check");
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
+        .expect("the nested record should retain one relevant whole-field extent");
+    let mut bytes = [0xa5; 16];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_envelope",
+        "Envelope",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("nested erased evidence should remain semantic and storage-free");
+    assert_eq!(&bytes[4..12], &[2, 1, 0, 0, 3, 4, 5, 6]);
+    assert!(bytes[..4].iter().chain(&bytes[12..]).all(|byte| *byte == 0));
+
+    let missing_erased = BuildTimeValue::Struct {
+        type_name: "Envelope".to_owned(),
+        fields: vec![(
+            "certified".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "Certified".to_owned(),
+                fields: vec![
+                    ("left".to_owned(), BuildTimeValue::Int(258)),
+                    ("forged".to_owned(), BuildTimeValue::Int(0)),
+                    ("right".to_owned(), BuildTimeValue::Int(100992003)),
+                ],
+            },
+        )],
+    };
+    let mut unchanged = [0x5a; 16];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Envelope",
+        &report,
+        &missing_erased,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("an unknown same-count field cannot replace erased evidence");
+    assert!(error.0.contains("no field `proof`"));
+    assert_eq!(unchanged, [0x5a; 16]);
+}
+
+#[test]
 fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
     let main_path = write_program(
         "typed-owned-negative-u64",
