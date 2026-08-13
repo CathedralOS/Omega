@@ -128,7 +128,8 @@ Owners:
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
-  this fixed subset; sums wait for settled placement vocabulary.
+  this fixed subset. Sum materialization is design-blocked on the unsettled
+  tagged-case placement vocabulary.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
@@ -568,6 +569,10 @@ These entries are pointers, not duplicate specifications.
   `ROOT-INTRODUCTION-AND-BACKING` is blocked on owner Q3.
 - **WRITE-ONLY-MEMORY-VIEW:** the Q4 portion of `ENT2c` is blocked on its core
   representation, source form, and transition to readable initialized content.
+- **CALLBACK-PARAMETER-REQUIREMENT:** the Q5 portion of `ENT4` is blocked on the
+  source form and checked identity for one exact static callback requirement.
+- **SUM-MATERIALIZATION:** blocked on the tagged-case placement vocabulary in
+  `wiki/language_guide/appendix_open_questions.md`.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
@@ -584,6 +589,8 @@ These entries are pointers, not duplicate specifications.
   obligation-reconstruction assurance route in owner Q7. The Rust verifier and
   proof kernel remain usable, but kernel acceptance alone does not close trust
   in the reconstructed obligation set.
+- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** blocked on the source contract and
+  checked representation in owner Q8.
 
 ## Platform-gated verification
 
