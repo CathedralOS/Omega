@@ -16292,17 +16292,11 @@ fn runtime_deep_nested_field_exit_canary_runs() {
     // A 5-level nested field chain (self.l1.l2.l3.l4.v) written and read back; offsets must compose
     // through every level. v + w = 30 + 40 = 70 (a sibling `tag` decoy discriminates the offsets).
     let canary = pass_canary("data/runtime_deep_nested_field_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("deep nested field canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("deep nested field canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("deep nested field canary should run");
     assert_eq!(
@@ -16312,7 +16306,7 @@ fn runtime_deep_nested_field_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16320,17 +16314,11 @@ fn runtime_struct_value_copy_exit_canary_runs() {
     // Struct assignment is a value copy, not an alias: copy a->b, mutate a, b stays unchanged;
     // same between array-of-structs elements. Both sums stay 14 -> exit 70.
     let canary = pass_canary("data/runtime_struct_value_copy_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("struct value copy canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("struct value copy canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("struct value copy canary should run");
     assert_eq!(
@@ -16340,7 +16328,7 @@ fn runtime_struct_value_copy_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16360,18 +16348,11 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("whole-struct mutation copy canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("whole-struct mutation copy canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("whole-struct mutation copy canary should run");
 
@@ -16385,28 +16366,20 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-data-properties-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("data properties canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("data properties canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("data properties canary should run");
 
@@ -16418,7 +16391,7 @@ fn runtime_data_properties_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16432,20 +16405,12 @@ fn case_first_payload_zero_established_canary_compiles() {
 #[test]
 fn compound_assignment_exit_canary_runs() {
     let canary = pass_canary("operators/compound_assignment_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-compound-assignment-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("compound assignment canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("compound assignment canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("compound assignment canary should run");
 
@@ -16457,28 +16422,20 @@ fn compound_assignment_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_chained_field_mutation_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-chained-field-mutation-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("chained field mutation canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("chained field mutation canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("chained field mutation canary should run");
 
@@ -16490,28 +16447,20 @@ fn runtime_chained_field_mutation_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_comparison_guard_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_comparison_guard_signedness_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-comparison-guard-signedness-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("comparison guard signedness canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("comparison guard signedness canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("comparison guard signedness canary should run");
 
@@ -16523,28 +16472,20 @@ fn runtime_comparison_guard_signedness_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_comparison_value_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_comparison_value_signedness_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-comparison-value-signedness-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("comparison value signedness canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("comparison value signedness canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("comparison value signedness canary should run");
 
@@ -16556,26 +16497,18 @@ fn runtime_comparison_value_signedness_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_min_max_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_min_max_signedness_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-min-max-signedness-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("min/max signedness canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("min/max signedness canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("min/max signedness canary should run");
 
@@ -16587,26 +16520,18 @@ fn runtime_min_max_signedness_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_unsigned_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_division_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-division-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("unsigned division canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned division canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("unsigned division canary should run");
 
@@ -16618,7 +16543,7 @@ fn runtime_unsigned_division_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
