@@ -20072,17 +20072,11 @@ fn runtime_particle_system_exit_canary_runs() {
     // A 2D particle system over an array of structs: runtime-indexed struct-field reads
     // and writes, integrating pos += vel each step. Self-checks three cells -> exit 70.
     let canary = pass_canary("structs/runtime_particle_system_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-particle-system-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("particle system canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("particle system canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("particle system canary should run");
     assert_eq!(
@@ -20092,7 +20086,7 @@ fn runtime_particle_system_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20102,21 +20096,14 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
     // inner struct's fields mid-loop, interleaving the outer span). Fixed with
     // reserve-then-set. This canary self-checks the constructed nested fields.
     let canary = pass_canary("structs/runtime_nested_struct_construction_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-nested-struct-construct-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested struct construction canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested struct construction canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested struct construction canary should run");
 
@@ -20128,7 +20115,7 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20138,19 +20125,13 @@ fn runtime_cross_machine_substate_name_exit_canary_runs() {
     // name and run the other machine's body. read_at(4) must return table[4]=60 even after
     // pick(2) (whose try1 yields a literal) runs -> exit 70. (Was an interp miscompile.)
     let canary = pass_canary("calls/runtime_cross_machine_substate_name_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-cross-machine-substate-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cross-machine substate-name canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cross-machine substate-name canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cross-machine substate-name canary should run");
     assert_eq!(
@@ -20160,7 +20141,7 @@ fn runtime_cross_machine_substate_name_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20169,16 +20150,10 @@ fn runtime_value_call_to_array_element_exit_canary_runs() {
     // element: triple(14)=42 lands at arr[2] with neighbours untouched -> exit 70. The working
     // write-side contrast to the value-call dispatch-position drop and the multi-call shared slot.
     let canary = pass_canary("calls/runtime_value_call_to_array_element_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-vc-array-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call to array element canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-vc-array-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value-call to array element canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value-call to array element canary should run");
     assert_eq!(
@@ -20188,7 +20163,7 @@ fn runtime_value_call_to_array_element_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20197,17 +20172,10 @@ fn runtime_computed_transition_args_exit_canary_runs() {
     // arguments materialize correctly. chk(7+3, 7-3, 300 as u8) sees sum=10, diff=4, byte=44
     // -> exit 70. The working contrast to the value-call-as-transition-arg silent drop.
     let canary = pass_canary("calls/runtime_computed_transition_args_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed transition args canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("computed transition args canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("computed transition args canary should run");
     assert_eq!(
@@ -20217,7 +20185,7 @@ fn runtime_computed_transition_args_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20226,17 +20194,11 @@ fn runtime_struct_by_value_param_exit_canary_runs() {
     // positional weights. decode(Coeffs{1,2,3}) = 1*100 + 2*10 + 3 = 123 -> exit 70. Pins
     // the working envelope around task #15 (scalar fields of a by-value struct param resolve).
     let canary = pass_canary("calls/runtime_struct_by_value_param_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("struct by-value param canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("struct by-value param canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("struct by-value param canary should run");
     assert_eq!(
@@ -20246,7 +20208,7 @@ fn runtime_struct_by_value_param_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20255,19 +20217,13 @@ fn runtime_value_call_composition_exit_canary_runs() {
     // add_ten(5)=15, double(15)=30, minus_five(30)=25 -> exit 70. (Sequential binding; the
     // nested form f(g(x)) is a clean error today, documented in the canary.)
     let canary = pass_canary("calls/runtime_value_call_composition_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-value-call-composition-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value call composition canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value call composition canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value call composition canary should run");
     assert_eq!(
@@ -20277,7 +20233,7 @@ fn runtime_value_call_composition_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20286,17 +20242,11 @@ fn runtime_struct_value_call_exit_canary_runs() {
     // value-call return-type map alongside scalars and sum-type returns. stats(7,3) returns
     // a record whose two independently-computed fields are 10 and 4 -> exit 70.
     let canary = pass_canary("calls/runtime_struct_value_call_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("struct value call canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("struct value call canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("struct value call canary should run");
     assert_eq!(
@@ -20306,7 +20256,7 @@ fn runtime_struct_value_call_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20316,17 +20266,11 @@ fn runtime_option_value_call_exit_canary_runs() {
     // [5,-3,7] yields two present values and one absent; the present values sum to 12 and
     // one absent is counted -> exit 70.
     let canary = pass_canary("calls/runtime_option_value_call_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("option value call canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("option value call canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("option value call canary should run");
     assert_eq!(
@@ -20336,7 +20280,7 @@ fn runtime_option_value_call_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20345,16 +20289,10 @@ fn runtime_result_match_exit_canary_runs() {
     // conditionally, then matched and handled in a loop. Safe-dividing 10/2, 7/0, 20/4
     // sums the Ok values to 10 and counts 1 Err -> exit 70.
     let canary = pass_canary("errors/runtime_result_match_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-result-match-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("result match canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-result-match-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("result match canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("result match canary should run");
     assert_eq!(
@@ -20364,7 +20302,7 @@ fn runtime_result_match_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
