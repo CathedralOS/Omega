@@ -753,6 +753,17 @@ fn encode_typed_owned_record(
             members.len()
         )));
     }
+    for member in members {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            unreachable!("sum cases rejected above")
+        };
+        if !supplied.contains_key(field.name.as_str()) {
+            return Err(MaterializationDiagnostic(format!(
+                "typed owned record `{name}` has no field `{}`",
+                field.name
+            )));
+        }
+    }
 
     visiting.push(data.symbol);
     let result = (|| {
