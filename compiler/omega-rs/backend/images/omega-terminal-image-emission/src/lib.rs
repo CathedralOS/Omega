@@ -358,7 +358,9 @@ pub fn build_terminal_object_artifact(
                 TerminalCallSiteOwner::Operation(operation) => {
                     function.provenance.operations.contains(&operation)
                 }
-                TerminalCallSiteOwner::Edge(edge) => function.provenance.edges.contains(&edge),
+                TerminalCallSiteOwner::CleanupAction { edge, .. } => {
+                    function.provenance.edges.contains(&edge)
+                }
             };
             if !owner_in_provenance {
                 return Err(TerminalObjectError::InternalCallOperationNotInProvenance {
@@ -829,10 +831,12 @@ pub fn build_terminal_object_artifact(
                         operation_identity: operation.get(),
                     }
                 }
-                TerminalCallSiteOwner::Edge(edge) => RelocationOrigin::SemanticEdge {
-                    function_symbol_handle: emitted.symbol,
-                    edge_identity: edge.get(),
-                },
+                TerminalCallSiteOwner::CleanupAction { edge, .. } => {
+                    RelocationOrigin::SemanticEdge {
+                        function_symbol_handle: emitted.symbol,
+                        edge_identity: edge.get(),
+                    }
+                }
             };
             relocations.push_record(RelocationRecord {
                 origin,
@@ -1020,29 +1024,53 @@ fn validate_unit_affine_cleanup(
                 })
         {
             true
-        } else if nominal.len() == 1 {
-            let (cleanup_function, body_exact) = exact_nominal_target(nominal[0]);
-            let executable =
-                cleanup_function.is_some_and(|function| !function.internal_unit_calls.is_empty());
-            let matching_edge_calls = internal_unit_calls
+        } else {
+            let targets = nominal
+                .iter()
+                .map(|nominal| exact_nominal_target(nominal))
+                .collect::<Vec<_>>();
+            let executable_ordinals = targets
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, (function, _))| {
+                    function
+                        .is_some_and(|function| !function.internal_unit_calls.is_empty())
+                        .then_some(ordinal)
+                })
+                .collect::<Vec<_>>();
+            let cleanup_calls = internal_unit_calls
                 .iter()
                 .filter(|call| {
-                    call.owner == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
-                        && call.target == nominal[0].cleanup_machine
-                        && call.arguments.is_empty()
-                        && call.claim_transfers.is_empty()
-                        && call.code_offset == cleanup.code_offset
+                    matches!(
+                        call.owner,
+                        TerminalCallSiteOwner::CleanupAction { edge, .. }
+                            if edge == cleanup.psi_edge
+                    )
                 })
-                .count();
-            !body_exact || matching_edge_calls != usize::from(executable)
-        } else {
-            nominal.iter().any(|nominal| {
-                let (function, body_exact) = exact_nominal_target(nominal);
-                !body_exact
-                    || function.is_some_and(|function| !function.internal_unit_calls.is_empty())
-            }) || internal_unit_calls
-                .iter()
-                .any(|call| call.owner == TerminalCallSiteOwner::Edge(cleanup.psi_edge))
+                .collect::<Vec<_>>();
+            targets.iter().any(|(_, body_exact)| !body_exact)
+                || (nominal.len() == 2 && executable_ordinals.len() > 1)
+                || cleanup_calls.len() != executable_ordinals.len()
+                || executable_ordinals.iter().any(|ordinal| {
+                    let Ok(action_ordinal) = u32::try_from(*ordinal) else {
+                        return true;
+                    };
+                    cleanup_calls
+                        .iter()
+                        .filter(|call| {
+                            call.owner
+                                == TerminalCallSiteOwner::CleanupAction {
+                                    edge: cleanup.psi_edge,
+                                    action_ordinal,
+                                }
+                                && call.target == nominal[*ordinal].cleanup_machine
+                                && call.arguments.is_empty()
+                                && call.claim_transfers.is_empty()
+                                && call.code_offset == cleanup.code_offset
+                        })
+                        .count()
+                        != 1
+                })
         }
     };
     if cleanup.byte_count == 0
@@ -1360,12 +1388,17 @@ fn validate_internal_unit_call_custody(
                         .count()
                         == 1
             }
-            TerminalCallSiteOwner::Edge(edge) => {
+            TerminalCallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
                 let Some(cleanup) = affine_cleanup else {
                     return Err(invalid());
                 };
-                let [psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)] =
-                    cleanup.actions.as_slice()
+                let Some(psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)) =
+                    usize::try_from(action_ordinal)
+                        .ok()
+                        .and_then(|ordinal| cleanup.actions.get(ordinal))
                 else {
                     return Err(invalid());
                 };

@@ -413,7 +413,10 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
     assert_eq!(caller.unit_call_stacks.len(), 1);
     assert_eq!(
         caller.unit_call_stacks[0].owner,
-        TerminalCallSiteOwner::Edge(cleanup_edge)
+        TerminalCallSiteOwner::CleanupAction {
+            edge: cleanup_edge,
+            action_ordinal: 0,
+        }
     );
     assert_eq!(caller.unit_call_stacks[0].target, machine_id(1));
     assert_eq!(caller.unit_call_stacks[0].caller_live_bytes, 16);
@@ -474,7 +477,10 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
         .expect("installed cleanup call");
     assert_eq!(
         installed.custody.owner,
-        TerminalCallSiteOwner::Edge(cleanup_edge)
+        TerminalCallSiteOwner::CleanupAction {
+            edge: cleanup_edge,
+            action_ordinal: 0,
+        }
     );
     assert!(installed.custody.arguments.is_empty());
     assert!(installed.custody.claim_transfers.is_empty());
@@ -1351,7 +1357,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "e350b93c853a97208bb6d800855b6d3d8ad8a5da8e26210d2f84a1eb8f140d2f"
+        "2ae1074e103f1569859d826eff483e70856a7673ed58c8de456264f6b5f1e343"
     );
 
     let mut changed_plan = plan;
@@ -1374,10 +1380,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&16_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&17_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(16))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(17))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -2530,7 +2536,10 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 }],
                 scalar_stack: None,
                 internal_calls: vec![TerminalInternalCallRelocation {
-                    owner: TerminalCallSiteOwner::Edge(edge_id(3)),
+                    owner: TerminalCallSiteOwner::CleanupAction {
+                        edge: edge_id(3),
+                        action_ordinal: 0,
+                    },
                     target: machine_id(1),
                     unit_stack: Some(TerminalUnitCallStackEvidence {
                         outbound: Some(stack_pair),
@@ -2539,7 +2548,10 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                     offset: 5,
                 }],
                 internal_unit_calls: vec![TerminalInternalUnitCallRecord {
-                    owner: TerminalCallSiteOwner::Edge(edge_id(3)),
+                    owner: TerminalCallSiteOwner::CleanupAction {
+                        edge: edge_id(3),
+                        action_ordinal: 0,
+                    },
                     target: machine_id(1),
                     arguments: Vec::new(),
                     claim_transfers: Vec::new(),

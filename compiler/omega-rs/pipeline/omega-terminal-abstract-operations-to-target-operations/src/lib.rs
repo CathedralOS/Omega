@@ -2056,6 +2056,7 @@ fn lower_unit_function(
                             function.machine,
                         ));
                     }
+                    let mut executable_cleanup_count = 0_usize;
                     for cleanup in &nominal_cleanups {
                         let Some(cleanup_function) =
                             functions.get(&cleanup.cleanup_machine).copied()
@@ -2080,26 +2081,19 @@ fn lower_unit_function(
                                 function.machine,
                             ));
                         }
-                        if nominal_cleanups.len() == 2 {
-                            if !matches!(cleanup_function.operations.as_slice(),
-                                [TerminalAbstractOperation::ReturnUnit {
-                                    cleanup_actions,
-                                    ..
-                                }] if cleanup_actions.is_empty())
-                            {
-                                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                                    function.machine,
-                                ));
-                            }
-                            continue;
-                        }
-                        validate_bounded_nominal_cleanup_body(
+                        executable_cleanup_count +=
+                            usize::from(validate_bounded_nominal_cleanup_body(
+                                function.machine,
+                                cleanup,
+                                cleanup_function,
+                                functions,
+                                structural_types,
+                            )?);
+                    }
+                    if nominal_cleanups.len() == 2 && executable_cleanup_count > 1 {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
                             function.machine,
-                            cleanup,
-                            cleanup_function,
-                            functions,
-                            structural_types,
-                        )?;
+                        ));
                     }
                 }
                 if !nominal_cleanups.is_empty()
@@ -2179,7 +2173,7 @@ fn validate_bounded_nominal_cleanup_body(
     cleanup_function: &TerminalAbstractFunction,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<(), LoweringError> {
+) -> Result<bool, LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(caller);
     let Some((cleanup_return, helper_calls)) = cleanup_function.operations.split_last() else {
         return Err(invalid());
@@ -2221,6 +2215,7 @@ fn validate_bounded_nominal_cleanup_body(
     {
         return Err(invalid());
     }
+    let executable = !helper_sites.is_empty();
     for (_, helper_machine) in helper_sites {
         let helper = functions
             .get(&helper_machine)
@@ -2254,7 +2249,7 @@ fn validate_bounded_nominal_cleanup_body(
             return Err(invalid());
         }
     }
-    Ok(())
+    Ok(executable)
 }
 
 fn structural_shape(
@@ -4733,8 +4728,145 @@ mod tests {
     use psi_terminal::{
         BoundaryMachineDeclaration, SemanticFingerprint, StructuralFieldDeclaration,
         StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+        TerminalPsiIdentity, VocabularyMarker,
     };
+
+    #[test]
+    fn two_nominal_cleanups_admit_at_most_one_bounded_executable_body() {
+        let caller = MachineId::new(1).unwrap();
+        let executable_cleanup = MachineId::new(2).unwrap();
+        let empty_cleanup = MachineId::new(3).unwrap();
+        let helper = MachineId::new(4).unwrap();
+        let receiver_type = StructuralTypeId::new(1).unwrap();
+        let helper_type = StructuralTypeId::new(2).unwrap();
+        let first_place = PlaceId::new(1).unwrap();
+        let second_place = PlaceId::new(2).unwrap();
+        let block = |machine: MachineId| BlockId::new(machine.get()).unwrap();
+        let return_unit = |edge| TerminalAbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            cleanup_actions: Vec::new(),
+        };
+        let unit_function = |machine, attachment, operations| TerminalAbstractFunction {
+            machine,
+            attachment,
+            entry: block(machine),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalAbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![
+                omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                    block: block(machine),
+                    operation_offset: 0,
+                },
+            ],
+            operations,
+        };
+        let cleanup = |place, cleanup_machine| psi_terminal::NominalAffineCleanup {
+            place,
+            structural_type: receiver_type,
+            cleanup_machine,
+        };
+        let caller_parameters = [first_place, second_place]
+            .into_iter()
+            .enumerate()
+            .map(|(position, place)| StructuralParameterDeclaration {
+                place,
+                position: u32::try_from(position).unwrap(),
+                is_self: false,
+                structural_type: receiver_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let executable_call = TerminalAbstractOperation::CallUnit {
+            psi_operation: OperationId::new(1).unwrap(),
+            callee: helper,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+        };
+        let mut plan = TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: caller,
+            structural_types: vec![
+                StructuralTypeDeclaration {
+                    id: receiver_type,
+                    identity: "Receiver".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                            )),
+                        }],
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: helper_type,
+                    identity: "Helper".into(),
+                    shape: StructuralTypeShape::Record { fields: Vec::new() },
+                },
+            ],
+            boundary_machines: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    structural_parameters: caller_parameters,
+                    ..unit_function(
+                        caller,
+                        None,
+                        vec![TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: EdgeId::new(1).unwrap(),
+                            cleanup_actions: vec![
+                                TerminalAffineCleanupAction::InvokeNominal(cleanup(
+                                    second_place,
+                                    executable_cleanup,
+                                )),
+                                TerminalAffineCleanupAction::InvokeNominal(cleanup(
+                                    first_place,
+                                    empty_cleanup,
+                                )),
+                            ],
+                        }],
+                    )
+                },
+                unit_function(
+                    executable_cleanup,
+                    Some(receiver_type),
+                    vec![executable_call.clone(), return_unit(2)],
+                ),
+                unit_function(empty_cleanup, Some(receiver_type), vec![return_unit(3)]),
+                unit_function(helper, Some(helper_type), vec![return_unit(4)]),
+            ],
+        };
+
+        lower_to_target_operations(&plan, NativeTarget::linux_x64())
+            .expect("one executable and one empty cleanup lower");
+
+        plan.functions[1].operations.remove(0);
+        lower_to_target_operations(&plan, NativeTarget::linux_x64())
+            .expect("two empty cleanup bodies remain accepted");
+
+        plan.functions[1]
+            .operations
+            .insert(0, executable_call.clone());
+        plan.functions[2].operations.insert(
+            0,
+            TerminalAbstractOperation::CallUnit {
+                psi_operation: OperationId::new(2).unwrap(),
+                callee: helper,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+            },
+        );
+        assert!(matches!(
+            lower_to_target_operations(&plan, NativeTarget::linux_x64()),
+            Err(LoweringError::UnsupportedOperationInUnitFunction(machine)) if machine == caller
+        ));
+    }
 
     #[test]
     fn refuses_a_return_whose_value_was_never_materialized() {

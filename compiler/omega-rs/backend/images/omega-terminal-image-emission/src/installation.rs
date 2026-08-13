@@ -31,7 +31,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 15;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 16;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -1266,6 +1266,61 @@ fn validate_record_shape(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
+            let exact_nominal_body = |nominal: &psi_terminal::NominalAffineCleanup| {
+                let target = record
+                    .functions
+                    .iter()
+                    .find(|candidate| candidate.machine == nominal.cleanup_machine)?;
+                let calls = record
+                    .internal_unit_calls
+                    .iter()
+                    .filter(|call| call.machine == nominal.cleanup_machine)
+                    .collect::<Vec<_>>();
+                let owners = calls
+                    .iter()
+                    .map(|call| call.custody.owner)
+                    .collect::<std::collections::BTreeSet<_>>();
+                let targets = calls
+                    .iter()
+                    .map(|call| call.custody.target)
+                    .collect::<std::collections::BTreeSet<_>>();
+                (target.attachment == Some(nominal.structural_type)
+                    && target.unit_body
+                    && target.unit_parameters.is_empty()
+                    && target.unit_parameter_homes.is_empty()
+                    && target
+                        .unit_affine_cleanup
+                        .as_ref()
+                        .is_some_and(|return_cleanup| {
+                            return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
+                        })
+                    && calls.len() <= 2
+                    && owners.len() == calls.len()
+                    && targets.len() == calls.len()
+                    && calls.iter().all(|call| {
+                        matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
+                            && call.custody.arguments.is_empty()
+                            && call.custody.claim_transfers.is_empty()
+                            && record.functions.iter().any(|helper| {
+                                helper.machine == call.custody.target
+                                    && helper.attachment.is_some()
+                                    && helper.unit_body
+                                    && helper.unit_parameters.is_empty()
+                                    && helper.unit_parameter_homes.is_empty()
+                                    && helper.unit_affine_cleanup.as_ref().is_some_and(
+                                        |return_cleanup| {
+                                            return_cleanup.locals.is_empty()
+                                                && return_cleanup.actions.is_empty()
+                                        },
+                                    )
+                                    && !record
+                                        .internal_unit_calls
+                                        .iter()
+                                        .any(|helper_call| helper_call.machine == helper.machine)
+                            })
+                    }))
+                .then_some(!calls.is_empty())
+            };
             let Some(parameter_discards) = discards.get(expected_local_prefix.len()..) else {
                 return Err(TerminalInstallationError::InvalidUnitAffineCleanup(
                     function.machine,
@@ -1306,55 +1361,17 @@ fn validate_record_shape(
                     != cleanup.actions.len()
                 || match (nominal_cleanups.as_slice(), residual_discards.as_slice()) {
                     ([nominal], []) => {
-                        let cleanup_function = record
-                            .functions
-                            .iter()
-                            .find(|candidate| candidate.machine == nominal.cleanup_machine);
-                        let cleanup_calls = record
-                            .internal_unit_calls
-                            .iter()
-                            .filter(|call| call.machine == nominal.cleanup_machine)
-                            .collect::<Vec<_>>();
-                        let cleanup_call_owners = cleanup_calls
-                            .iter()
-                            .map(|call| call.custody.owner)
-                            .collect::<std::collections::BTreeSet<_>>();
-                        let cleanup_call_targets = cleanup_calls
-                            .iter()
-                            .map(|call| call.custody.target)
-                            .collect::<std::collections::BTreeSet<_>>();
-                        let cleanup_body_is_exact = cleanup_calls.len() <= 2
-                            && cleanup_call_owners.len() == cleanup_calls.len()
-                            && cleanup_call_targets.len() == cleanup_calls.len()
-                            && cleanup_calls.iter().all(|call| {
-                                matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
-                                    && call.custody.arguments.is_empty()
-                                    && call.custody.claim_transfers.is_empty()
-                                    && record.functions.iter().any(|helper| {
-                                        helper.machine == call.custody.target
-                                            && helper.attachment.is_some()
-                                            && helper.unit_body
-                                            && helper.unit_parameters.is_empty()
-                                            && helper.unit_parameter_homes.is_empty()
-                                            && helper.unit_affine_cleanup.as_ref().is_some_and(
-                                                |return_cleanup| {
-                                                    return_cleanup.locals.is_empty()
-                                                        && return_cleanup.actions.is_empty()
-                                                },
-                                            )
-                                            && !record.internal_unit_calls.iter().any(
-                                                |helper_call| helper_call.machine == helper.machine,
-                                            )
-                                    })
-                            });
-                        let cleanup_is_executable = !cleanup_calls.is_empty();
-                        let matching_edge_calls = record
+                        let cleanup_is_executable = exact_nominal_body(nominal);
+                        let matching_cleanup_calls = record
                             .internal_unit_calls
                             .iter()
                             .filter(|call| {
                                 call.machine == function.machine
                                     && call.custody.owner
-                                        == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
+                                        == TerminalCallSiteOwner::CleanupAction {
+                                            edge: cleanup.psi_edge,
+                                            action_ordinal: 0,
+                                        }
                                     && call.custody.target == nominal.cleanup_machine
                                     && call.custody.arguments.is_empty()
                                     && call.custody.claim_transfers.is_empty()
@@ -1378,19 +1395,9 @@ fn validate_record_shape(
                                 && function.unit_parameter_homes[0].source.locations.is_empty())
                             || attachments.get(&nominal.cleanup_machine)
                                 != Some(&Some(nominal.structural_type))
-                            || !cleanup_body_is_exact
-                            || cleanup_function.is_none_or(|candidate| {
-                                !candidate.unit_body
-                                    || !candidate.unit_parameters.is_empty()
-                                    || !candidate.unit_parameter_homes.is_empty()
-                                    || candidate.unit_affine_cleanup.as_ref().is_none_or(
-                                        |return_cleanup| {
-                                            !return_cleanup.locals.is_empty()
-                                                || !return_cleanup.actions.is_empty()
-                                        },
-                                    )
-                            })
-                            || matching_edge_calls != usize::from(cleanup_is_executable)
+                            || cleanup_is_executable.is_none()
+                            || matching_cleanup_calls
+                                != usize::from(cleanup_is_executable == Some(true))
                     }
                     ([], []) => parameter_discards != expected_parameter_discards,
                     ([], [residual]) => {
@@ -1429,6 +1436,22 @@ fn validate_record_shape(
                             })
                     }
                     ([first, second], []) => {
+                        let bodies = [exact_nominal_body(first), exact_nominal_body(second)];
+                        let executable = bodies
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(ordinal, body)| (*body == Some(true)).then_some(ordinal))
+                            .collect::<Vec<_>>();
+                        let caller_cleanup_calls = record
+                            .internal_unit_calls
+                            .iter()
+                            .filter(|call| {
+                                call.machine == function.machine
+                                    && matches!(call.custody.owner,
+                                        TerminalCallSiteOwner::CleanupAction { edge, .. }
+                                            if edge == cleanup.psi_edge)
+                            })
+                            .collect::<Vec<_>>();
                         !cleanup.locals.is_empty()
                             || !discards.is_empty()
                             || function.unit_parameter_homes.len() != 2
@@ -1448,34 +1471,28 @@ fn validate_record_shape(
                                             && home.source.locations.is_empty())
                                         || attachments.get(&nominal.cleanup_machine)
                                             != Some(&Some(nominal.structural_type))
-                                        || record
-                                            .functions
-                                            .iter()
-                                            .find(|candidate| {
-                                                candidate.machine == nominal.cleanup_machine
-                                            })
-                                            .is_none_or(|candidate| {
-                                                !candidate.unit_body
-                                                    || !candidate.unit_parameters.is_empty()
-                                                    || !candidate.unit_parameter_homes.is_empty()
-                                                    || candidate
-                                                        .unit_affine_cleanup
-                                                        .as_ref()
-                                                        .is_none_or(|return_cleanup| {
-                                                            !return_cleanup.locals.is_empty()
-                                                                || !return_cleanup
-                                                                    .actions
-                                                                    .is_empty()
-                                                        })
-                                                    || record.internal_unit_calls.iter().any(
-                                                        |call| call.machine == candidate.machine,
-                                                    )
-                                            })
                                 })
-                            || record.internal_unit_calls.iter().any(|call| {
-                                call.machine == function.machine
-                                    && call.custody.owner
-                                        == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
+                            || bodies.iter().any(Option::is_none)
+                            || executable.len() > 1
+                            || caller_cleanup_calls.len() != executable.len()
+                            || executable.iter().any(|ordinal| {
+                                let action_ordinal = u32::try_from(*ordinal).ok();
+                                action_ordinal.is_none_or(|action_ordinal| {
+                                    caller_cleanup_calls[0].custody.owner
+                                        != TerminalCallSiteOwner::CleanupAction {
+                                            edge: cleanup.psi_edge,
+                                            action_ordinal,
+                                        }
+                                        || caller_cleanup_calls[0].custody.target
+                                            != [first, second][*ordinal].cleanup_machine
+                                        || !caller_cleanup_calls[0].custody.arguments.is_empty()
+                                        || !caller_cleanup_calls[0]
+                                            .custody
+                                            .claim_transfers
+                                            .is_empty()
+                                        || caller_cleanup_calls[0].custody.code_offset
+                                            != cleanup.code_offset
+                                })
                             })
                     }
                     _ => true,
@@ -1689,7 +1706,10 @@ fn validate_record_shape(
                         && attribution.attribution.byte_count == custody.byte_count
                 })
             }
-            TerminalCallSiteOwner::Edge(edge) => {
+            TerminalCallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
                 custody.arguments.is_empty()
                     && custody.claim_transfers.is_empty()
                     && function
@@ -1697,9 +1717,12 @@ fn validate_record_shape(
                         .as_ref()
                         .is_some_and(|cleanup| {
                             cleanup.psi_edge == edge
-                                && matches!(cleanup.actions.as_slice(),
-                                    [psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)]
-                                        if nominal.cleanup_machine == custody.target)
+                                && usize::try_from(action_ordinal)
+                                    .ok()
+                                    .and_then(|ordinal| cleanup.actions.get(ordinal))
+                                    .is_some_and(|action| matches!(action,
+                                        psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)
+                                            if nominal.cleanup_machine == custody.target))
                                 && cleanup.code_offset == custody.code_offset
                                 && custody
                                     .code_offset
@@ -2166,10 +2189,15 @@ fn encode_internal_unit_call(
             bytes.extend_from_slice(&[0; 3]);
             push_u64(bytes, operation.get());
         }
-        TerminalCallSiteOwner::Edge(edge) => {
+        TerminalCallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } => {
             bytes.push(2);
             bytes.extend_from_slice(&[0; 3]);
             push_u64(bytes, edge.get());
+            push_u32(bytes, action_ordinal);
+            push_u32(bytes, 0);
         }
     }
     push_u64(bytes, custody.target.get());
@@ -2340,16 +2368,23 @@ fn decode_internal_unit_call(
     if reader.take(3)? != [0; 3] {
         return Err(TerminalInstallationError::NonzeroReservedField);
     }
-    let owner_identity = reader.u64()?;
     let owner = match owner_tag {
         1 => TerminalCallSiteOwner::Operation(
-            OperationId::new(owner_identity)
+            OperationId::new(reader.u64()?)
                 .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
         ),
-        2 => TerminalCallSiteOwner::Edge(
-            EdgeId::new(owner_identity)
-                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
-        ),
+        2 => {
+            let edge = EdgeId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+            let action_ordinal = reader.u32()?;
+            if reader.u32()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            TerminalCallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            }
+        }
         tag => return Err(TerminalInstallationError::InvalidCallSiteOwnerTag(tag)),
     };
     let target = MachineId::new(reader.u64()?)
