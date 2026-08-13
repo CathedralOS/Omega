@@ -472,9 +472,12 @@ customer-shaped compiler concept is introduced.
   non-reference direct-call expression class is complete through depth two,
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
-  One top-level concrete primitive-only record literal may likewise contain an
-  independently bounded non-reference call tree in each direct field while
-  publishing every write.
+  One top-level concrete primitive-only record or selected-case literal may
+  likewise contain an independently bounded non-reference call tree in each
+  direct common or payload field while publishing every write. One direct
+  field may instead contain a second concrete primitive-only record or
+  selected-case literal whose direct fields obey the same rule; this aggregate
+  depth-two rail does not widen the depth-four call budget.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
@@ -482,10 +485,11 @@ customer-shaped compiler concept is introduced.
 
   Continue with representable relational candidates. Recursive, boundary,
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
-  escaped, non-bijective, generic, reference-bearing, case-bearing or nested
-  computed record literals, and out-of-isolated-root shapes remain conservative
-  fences. Do not restore authored `stores` clauses or treat lifetime elision as
-  evidence; Git carries individual evidence cohorts.
+  escaped, non-bijective, generic, recursive or reference-bearing aggregate
+  literals, third aggregate shells, calls beneath aggregate-field operators or
+  other computed field shapes, and out-of-isolated-root shapes remain
+  conservative fences. Do not restore authored `stores` clauses or treat
+  lifetime elision as evidence; Git carries individual evidence cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
