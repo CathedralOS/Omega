@@ -1721,8 +1721,11 @@ fn stable_alias_initializer_origin(
             ) {
                 return None;
             }
-            let mut collection = stable_alias_expression_origin(
+            let mut collection = stable_alias_initializer_origin(
                 program,
+                current_machine,
+                machine_symbols,
+                active_states,
                 indexed.collection,
                 parameters,
                 isolated_local_roots,
