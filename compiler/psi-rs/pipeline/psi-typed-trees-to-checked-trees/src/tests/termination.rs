@@ -3988,6 +3988,30 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         alias = 2;
     }
 
+    machine Main::prior_alias_survives_slice_view_call_index_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        let prior: &mut u64 = &mut alias;
+        alias = &mut self.other_cells.as_mut_slice()[
+            identity_index(write_index(&mut self.value))
+        ];
+        prior = 1;
+        alias = 2;
+    }
+
+    machine Main::deep_slice_view_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ];
+        alias = 1;
+    }
+
+    machine Main::recursive_slice_view_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells.as_mut_slice()[recursive_index()];
+        alias = 1;
+    }
+
     machine Main::nested_call_index_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut self.other_cells[identity_index(make_index())];
@@ -4134,6 +4158,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             vec!["self.cells", "self.other_cells"],
         ),
         (
+            "Main::prior_alias_survives_slice_view_call_index_rebind",
+            vec!["self.cells", "self.other_cells", "self.value"],
+        ),
+        (
             "Main::nested_call_index_alias_rebind",
             vec!["self.other_cells"],
         ),
@@ -4172,8 +4200,10 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
 
     for name in [
         "Main::deep_call_index_alias_rebind",
+        "Main::deep_slice_view_call_index_alias_rebind",
         "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
+        "Main::recursive_slice_view_call_index_alias_rebind",
         "Main::deep_repeated_call_index_alias_rebind",
     ] {
         let machine = typed
