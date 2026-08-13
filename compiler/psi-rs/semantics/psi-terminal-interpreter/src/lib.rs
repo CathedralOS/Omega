@@ -1165,6 +1165,11 @@ impl TerminalExecution {
                 .terminator
                 .clone();
             match &terminator {
+                Terminator::ReturnUnitPartialAffine { .. } => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "ReturnUnitPartialAffine",
+                    ));
+                }
                 Terminator::Jump {
                     target,
                     arguments,
@@ -1849,6 +1854,7 @@ impl MeasuredTerminalExecution {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    UnsupportedSemanticVariant(&'static str),
     ArgumentCount {
         expected: usize,
         actual: usize,
