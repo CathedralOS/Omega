@@ -139,6 +139,34 @@ pub fn materialize_typed_owned_layout_into(
 
     let mut schemas = Vec::with_capacity(schema_fields.len());
     let mut values = Vec::with_capacity(schema_fields.len());
+    for field in &physical_fields {
+        if schema_fields
+            .iter()
+            .any(|reflected| reflected.name == field.name.as_str())
+        {
+            continue;
+        }
+        let field_value = supplied.get(field.name.as_str()).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "typed owned value `{schema_data}` has no field `{}`",
+                field.name
+            ))
+        })?;
+        let bytes = encode_typed_owned_value(
+            typed,
+            field.type_reference,
+            field_value,
+            byte_order,
+            &mut Vec::new(),
+        )?;
+        if !bytes.is_empty() {
+            return Err(MaterializationDiagnostic(format!(
+                "typed field `{}` was omitted from layout despite deriving {} physical bytes",
+                field.name,
+                bytes.len()
+            )));
+        }
+    }
     for reflected in &schema_fields {
         let field = physical_fields
             .iter()
@@ -244,6 +272,13 @@ pub(crate) fn schema_fields(
                     field.name
                 )
             })?;
+        // A relevant field may itself be a checked record whose complete
+        // runtime shape is erased. Keep the field in semantic/schema identity
+        // and exact-value checking, but do not manufacture a zero-byte plan
+        // entry for it.
+        if size == 0 {
+            continue;
+        }
         let key = field_key(schema_data, field.name.as_str());
         if fields
             .iter()
@@ -507,7 +542,6 @@ fn reflected_record_layout(
 
     let mut offset = 0u64;
     let mut aggregate_align = 1u64;
-    let mut physical_fields = 0usize;
     for member in typed.data_members(data) {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
             visiting.pop();
@@ -516,7 +550,6 @@ fn reflected_record_layout(
         if field.relevance.is_erased() {
             continue;
         }
-        physical_fields += 1;
         let Some((size, align)) =
             reflected_nested_member_layout(typed, field.type_reference, visiting)
         else {
@@ -526,9 +559,7 @@ fn reflected_record_layout(
         offset = checked_align_up(offset, align)?.checked_add(size)?;
         aggregate_align = aggregate_align.max(align);
     }
-    let result = (physical_fields != 0)
-        .then(|| checked_align_up(offset, aggregate_align).map(|size| (size, aggregate_align)))
-        .flatten();
+    let result = checked_align_up(offset, aggregate_align).map(|size| (size, aggregate_align));
     visiting.pop();
     result
 }
