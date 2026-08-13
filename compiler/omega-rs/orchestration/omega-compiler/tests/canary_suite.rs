@@ -13853,17 +13853,10 @@ fn runtime_row_const_column_write_exit_canary_runs() {
     // (`grid[r][0]`, `grid[r][1]`) lowers correctly. Fill both columns of both rows by runtime row,
     // sum 10+15+20+25 = 70. (The runtime-COLUMN case is rejected; see the fail canary.)
     let canary = pass_canary("collections/runtime_row_const_column_write_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime-row const-column write canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime-row const-column write canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-row const-column write canary should run");
     assert_eq!(
@@ -13873,7 +13866,7 @@ fn runtime_row_const_column_write_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13881,17 +13874,11 @@ fn runtime_nested_array_const_index_exit_canary_runs() {
     // A 2D array [[i32;2];2]: const-indexed reads and writes work. Fill all four cells, sum =
     // 1+2+3+4 = 10 -> exit 70. (Runtime-column 2D indexing is a separate known gap.)
     let canary = pass_canary("collections/runtime_nested_array_const_index_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-array-const-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested array const-index canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested array const-index canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested array const-index canary should run");
     assert_eq!(
@@ -13901,7 +13888,7 @@ fn runtime_nested_array_const_index_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13909,17 +13896,11 @@ fn runtime_whole_array_value_copy_exit_canary_runs() {
     // Whole-array value copy: `self.b = self.a` copies contents, so mutating self.b[0] leaves
     // self.a untouched. Discriminates both ways: a keeps (5,6,7), b becomes (99,6,7) -> exit 70.
     let canary = pass_canary("collections/runtime_whole_array_value_copy_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-whole-array-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("whole-array value copy canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("whole-array value copy canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("whole-array value copy canary should run");
     assert_eq!(
@@ -13929,7 +13910,7 @@ fn runtime_whole_array_value_copy_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
