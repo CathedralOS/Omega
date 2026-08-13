@@ -3437,7 +3437,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
     else {
         return unsupported("nominal cleanup target operation sequence drifted");
     };
-    if cleanup_calls.len() > 2
+    if cleanup_calls.len() > 3
         || usize::try_from(*statement_index).ok() != Some(cleanup_calls.len())
         || !trivial_affine_local_discard_ordinals.is_empty()
         || !trivial_affine_discards.is_empty()
@@ -3913,7 +3913,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         else {
             return unsupported("ordered nominal cleanup target does not end in Unit return");
         };
-        if target_calls.len() > 2
+        if target_calls.len() > 3
             || usize::try_from(*statement_index).ok() != Some(target_calls.len())
             || !trivial_affine_local_discard_ordinals.is_empty()
             || !trivial_affine_discards.is_empty()

@@ -1765,7 +1765,7 @@ fn build_nominal_affine_unit_cleanup_machine(
         let cleanup_statements = program
             .statement_table
             .statements(cleanup_state.statement_nodes);
-        if cleanup_statements.len() > 2
+        if cleanup_statements.len() > 3
             || cleanup_statements
                 .iter()
                 .any(|statement| !matches!(statement, StatementNode::Call(_)))

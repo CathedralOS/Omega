@@ -172,6 +172,26 @@ fn exact_two_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
 }
 
 #[test]
+fn exact_three_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
+    let module = three_call_executable_nominal_affine_module();
+    let [first, second, third] = module.machines[1].blocks[0].operations.as_slice() else {
+        panic!("cleanup target has three ordered operations")
+    };
+    let callees = [first, second, third].map(|operation| match operation.kind {
+        OperationKind::CallUnit { callee, .. } => callee,
+        _ => panic!("cleanup operation is a Unit call"),
+    });
+    assert_eq!(callees, [machine_id(3), machine_id(4), machine_id(5)]);
+    validate_module(&module).expect("exact three-call nominal cleanup should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("exact three-call nominal cleanup requires no proof evidence");
+}
+
+#[test]
 fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
     let mut repeated = two_call_executable_nominal_affine_module();
     let first_callee = match repeated.machines[1].blocks[0].operations[0].kind {
@@ -222,6 +242,35 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
     });
     assert!(matches!(
         validate_module(&third_call),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut fourth_call = three_call_executable_nominal_affine_module();
+    let mut fourth_helper = fourth_call.machines[2].clone();
+    fourth_helper.id = machine_id(6);
+    fourth_helper.entry = block_id(6);
+    fourth_helper.blocks[0].id = block_id(6);
+    fourth_helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(6),
+        trivial_affine_discards: Vec::new(),
+    };
+    fourth_helper.contract.id = contract_id(6);
+    fourth_call.machines[1].blocks[0]
+        .operations
+        .push(Operation {
+            id: operation_id(4),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: fourth_helper.id,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    fourth_call.machines.push(fourth_helper);
+    assert!(matches!(
+        validate_module(&fourth_call),
         Err(ModuleError::InvalidNominalAffineCleanup { .. })
     ));
 
@@ -2523,6 +2572,39 @@ fn two_call_executable_nominal_affine_module() -> TerminalModule {
     };
     second_helper.contract.id = contract_id(4);
     module.machines.push(second_helper);
+    module
+}
+
+fn three_call_executable_nominal_affine_module() -> TerminalModule {
+    let mut module = two_call_executable_nominal_affine_module();
+    let helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(4),
+        identity: "ThirdHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(5),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let mut third_helper = module.machines[2].clone();
+    third_helper.id = machine_id(5);
+    third_helper.attachment = Some(helper_type.id);
+    third_helper.entry = block_id(5);
+    third_helper.blocks[0].id = block_id(5);
+    third_helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(5),
+        trivial_affine_discards: Vec::new(),
+    };
+    third_helper.contract.id = contract_id(5);
+    module.machines.push(third_helper);
     module
 }
 

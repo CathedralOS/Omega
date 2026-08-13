@@ -743,6 +743,55 @@ fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
 }
 
 #[test]
+fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order() {
+    let module = three_helper_nominal_affine_module();
+    let semantic = encode_module(&module).expect("three-helper nominal cleanup encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 73,
+        structural_type: structural_type_id(1),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("verified three-helper nominal cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let ordered_sites = [
+        FuelChargeSite::Edge(edge_id(1)),
+        FuelChargeSite::Operation(operation_id(1)),
+        FuelChargeSite::Edge(edge_id(3)),
+        FuelChargeSite::Operation(operation_id(2)),
+        FuelChargeSite::Edge(edge_id(4)),
+        FuelChargeSite::Operation(operation_id(3)),
+        FuelChargeSite::Edge(edge_id(5)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ];
+
+    for (consumed, site) in ordered_sites.iter().copied().enumerate() {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                site: exhausted_site,
+                ..
+            }) if exhausted_site == site
+        ));
+        assert_eq!(meter.usage().total_units(), consumed as u64);
+        meter.replenish(1).unwrap();
+    }
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 8);
+}
+
+#[test]
 fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     let mut module = effect_module();
     let mut machine = module.machines.pop().expect("callee machine");
@@ -1909,6 +1958,39 @@ fn two_helper_nominal_affine_module() -> TerminalModule {
         }],
         contract: empty_contract(contract_id(4)),
     });
+    module
+}
+
+fn three_helper_nominal_affine_module() -> TerminalModule {
+    let mut module = two_helper_nominal_affine_module();
+    let third_helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(4),
+        identity: "ThirdHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(third_helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(5),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let mut third_helper = module.machines[2].clone();
+    third_helper.id = machine_id(5);
+    third_helper.attachment = Some(third_helper_type.id);
+    third_helper.entry = block_id(5);
+    third_helper.blocks[0].id = block_id(5);
+    third_helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(5),
+        trivial_affine_discards: Vec::new(),
+    };
+    third_helper.contract.id = contract_id(5);
+    module.machines.push(third_helper);
     module
 }
 

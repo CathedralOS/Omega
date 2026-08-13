@@ -40,11 +40,14 @@ const TWO_ROOT_ONE_EXECUTABLE_SOURCE: &str = r#"
     machine FirstHelper::touch() {}
     data SecondHelper {}
     machine SecondHelper::touch() {}
+    data ThirdHelper {}
+    machine ThirdHelper::touch() {}
 
     data First {}
     machine First::drop(&mut self) {
         FirstHelper::touch();
         SecondHelper::touch();
+        ThirdHelper::touch();
     }
     data Second {}
     machine Second::drop(&mut self) {}
@@ -102,6 +105,25 @@ const TWO_CALL_SOURCE: &str = r#"
     machine Token::drop(&mut self) {
         First::touch();
         Second::touch();
+    }
+
+    data Root {}
+    machine Root::enter(token: Token) {}
+"#;
+
+const THREE_CALL_SOURCE: &str = r#"
+    data First {}
+    machine First::touch() {}
+    data Second {}
+    machine Second::touch() {}
+    data Third {}
+    machine Third::touch() {}
+
+    data Token { flag: bool; }
+    machine Token::drop(&mut self) {
+        First::touch();
+        Second::touch();
+        Third::touch();
     }
 
     data Root {}
@@ -315,7 +337,7 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
         .expect("one executable cleanup in a two-root list lowers");
 
-    assert_eq!(lowered.semantic_module.machines.len(), 5);
+    assert_eq!(lowered.semantic_module.machines.len(), 6);
     let entry = lowered
         .semantic_module
         .machines
@@ -346,28 +368,32 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
         .find(|machine| machine.id == first_cleanup.cleanup_machine)
         .expect("first cleanup target");
     assert!(second_target.blocks[0].operations.is_empty());
-    let [first_helper_call, second_helper_call] = first_target.blocks[0].operations.as_slice()
+    let [first_helper_call, second_helper_call, third_helper_call] =
+        first_target.blocks[0].operations.as_slice()
     else {
-        panic!("exactly one cleanup body retains both ordered helper calls")
+        panic!("exactly one cleanup body retains all three ordered helper calls")
     };
-    let helper_callees = [first_helper_call, second_helper_call].map(|operation| {
-        let OperationKind::CallUnit {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } = &operation.kind
-        else {
-            panic!("cleanup helper operation remains an ordinary Unit call")
-        };
-        assert!(structural_arguments.is_empty());
-        assert!(claim_transfers.is_empty());
-        assert!(requirement_obligations.is_empty());
-        assert!(crash_continuations.is_empty());
-        *callee
-    });
+    let helper_callees =
+        [first_helper_call, second_helper_call, third_helper_call].map(|operation| {
+            let OperationKind::CallUnit {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } = &operation.kind
+            else {
+                panic!("cleanup helper operation remains an ordinary Unit call")
+            };
+            assert!(structural_arguments.is_empty());
+            assert!(claim_transfers.is_empty());
+            assert!(requirement_obligations.is_empty());
+            assert!(crash_continuations.is_empty());
+            *callee
+        });
     assert_ne!(helper_callees[0], helper_callees[1]);
+    assert_ne!(helper_callees[0], helper_callees[2]);
+    assert_ne!(helper_callees[1], helper_callees[2]);
 
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -633,4 +659,54 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
         lowered.semantic_module,
         "the four-machine ordered cleanup closure is canonical artifact data"
     );
+}
+
+#[test]
+fn three_call_nominal_cleanup_preserves_exact_source_order_through_codec_and_verifier() {
+    let tokens = Lexer::new(THREE_CALL_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("three-call nominal cleanup lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 5);
+    let entry = &lowered.semantic_module.machines[0];
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("expected executable nominal cleanup return")
+    };
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanups[0].cleanup_machine)
+        .expect("cleanup target");
+    let [first, second, third] = target.blocks[0].operations.as_slice() else {
+        panic!("cleanup target retains exactly three calls")
+    };
+    let callees = [first, second, third].map(|operation| {
+        let OperationKind::CallUnit { callee, .. } = operation.kind else {
+            panic!("cleanup helper is an ordinary Unit call")
+        };
+        callee
+    });
+    assert_eq!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .collect::<Vec<_>>(),
+        vec![entry.id, target.id, callees[0], callees[1], callees[2]]
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("three-call nominal cleanup verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
 }
