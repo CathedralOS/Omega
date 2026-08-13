@@ -606,6 +606,67 @@ machine Main::main(&mut self) { }
             .chain(&big_endian[24..])
             .all(|byte| *byte == 0)
     );
+
+    let malformed = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "pairs".to_owned(),
+            BuildTimeValue::Array(vec![BuildTimeValue::Struct {
+                type_name: "Pair".to_owned(),
+                fields: vec![
+                    ("low".to_owned(), BuildTimeValue::Int(258)),
+                    ("high".to_owned(), BuildTimeValue::Int(100992003)),
+                ],
+            }]),
+        )],
+    };
+    let mut unchanged = [0x5a; 32];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &report,
+        &malformed,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a short record array must reject before destination mutation");
+    assert!(error.0.contains("has 1 elements, expected 2"));
+    assert_eq!(unchanged, [0x5a; 32]);
+
+    let wrong_element = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "pairs".to_owned(),
+            BuildTimeValue::Array(vec![
+                BuildTimeValue::Struct {
+                    type_name: "Samples".to_owned(),
+                    fields: vec![
+                        ("low".to_owned(), BuildTimeValue::Int(258)),
+                        ("high".to_owned(), BuildTimeValue::Int(100992003)),
+                    ],
+                },
+                BuildTimeValue::Struct {
+                    type_name: "Pair".to_owned(),
+                    fields: vec![
+                        ("low".to_owned(), BuildTimeValue::Int(2055)),
+                        ("high".to_owned(), BuildTimeValue::Int(202050057)),
+                    ],
+                },
+            ]),
+        )],
+    };
+    let mut unchanged = [0x5a; 32];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &report,
+        &wrong_element,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a wrong nested record identity must reject before mutation");
+    assert!(error.0.contains("does not match `Pair`"));
+    assert_eq!(unchanged, [0x5a; 32]);
 }
 
 #[test]
