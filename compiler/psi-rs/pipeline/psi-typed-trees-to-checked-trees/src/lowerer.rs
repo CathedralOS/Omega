@@ -75,6 +75,12 @@ pub(crate) fn lower_typed_trees(
             &facts,
             &terminal_unit_effects,
         );
+    facts.flow.terminal_nominal_affine_unit_cleanups =
+        crate::flow::build_checked_nominal_affine_unit_cleanup_plans(
+            &program,
+            &facts,
+            &terminal_unit_effects,
+        );
     facts.flow.terminal_unit_effects = terminal_unit_effects;
 
     Ok(CheckedTrees::with_roots(program, facts))

@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        7
+        8
     }
 }
 
@@ -511,6 +511,16 @@ pub struct StructuralAffineDiscard {
     pub structural_type: StructuralTypeId,
 }
 
+/// One whole claim-free affine structural parameter disposed by its exact
+/// nominal cleanup machine. Unlike a trivial affine discard, this action is
+/// executable edge work and therefore retains the selected machine identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NominalAffineCleanup {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub cleanup_machine: MachineId,
+}
+
 /// Transfer one caller-local live claim through the structural argument at
 /// `argument_index`. The callee reconstructs its own entry claim from that
 /// parameter; callers cannot author callee-local claim identities.
@@ -797,6 +807,12 @@ pub enum Terminator {
         trivial_affine_discards: Vec<PlaceId>,
         residual_affine_discards: Vec<StructuralAffineDiscard>,
     },
+    /// Finish normally after executing the exact nominal cleanup for one
+    /// whole affine structural parameter.
+    ReturnUnitNominalAffine {
+        edge: EdgeId,
+        cleanup: NominalAffineCleanup,
+    },
     /// Transfer one structural value and its complete live claim set to the
     /// machine result. Fuel is charged before any transfer or cleanup commits.
     ReturnStructural {
@@ -838,6 +854,7 @@ impl Terminator {
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnUnitPartialAffine { edge, .. }
+            | Self::ReturnUnitNominalAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } => {
@@ -852,6 +869,7 @@ impl Terminator {
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnUnitPartialAffine { edge, .. }
+            | Self::ReturnUnitNominalAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => (*edge, None),
             Self::Conditional {

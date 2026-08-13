@@ -5,8 +5,8 @@ use psi_core::{
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
-    EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
@@ -290,6 +290,54 @@ fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
     );
     assert!(execution.live_affine_frontier().next().is_none());
     assert_eq!(meter.usage().total_units(), 3);
+}
+
+#[test]
+fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
+    let semantic = encode_module(&nominal_affine_module()).expect("nominal cleanup encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 70,
+        structural_type: structural_type_id(1),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("verified nominal cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            site: FuelChargeSite::Edge(edge),
+            ..
+        }) if edge == edge_id(1)
+    ));
+    assert_eq!(execution.live_affine_frontier().count(), 1);
+
+    meter.replenish(1).unwrap();
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            site: FuelChargeSite::Edge(edge),
+            ..
+        }) if edge == edge_id(2)
+    ));
+    assert_eq!(meter.usage().total_units(), 1);
+
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert_eq!(meter.usage().total_units(), 2);
 }
 
 #[test]
@@ -1098,6 +1146,91 @@ fn unit_module() -> TerminalModule {
                 ensures: Vec::new(),
             },
         }],
+    }
+}
+
+fn nominal_affine_module() -> TerminalModule {
+    let token = StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![token.clone()],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: place_id(1),
+                    position: 0,
+                    is_self: false,
+                    structural_type: token.id,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                }],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: place_id(1),
+                    kind: psi_core::StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnitNominalAffine {
+                        edge: edge_id(1),
+                        cleanup: NominalAffineCleanup {
+                            place: place_id(1),
+                            structural_type: token.id,
+                            cleanup_machine: machine_id(2),
+                        },
+                    },
+                }],
+                contract: empty_contract(contract_id(1)),
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                attachment: Some(token.id),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(2),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: empty_contract(contract_id(2)),
+            },
+        ],
     }
 }
 

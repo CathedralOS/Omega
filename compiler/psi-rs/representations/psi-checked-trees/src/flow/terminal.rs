@@ -543,6 +543,47 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 
+/// Checked-only carrier for the first whole-root nominal-cleanup slice. It is
+/// intentionally separate from `CheckedUnitEffectPlans`: a nominal cleanup is
+/// executable edge work and must never be reinterpreted as a trivial affine
+/// discard by an older terminal producer.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedNominalAffineUnitCleanupPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub machines: Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
+}
+
+impl CheckedNominalAffineUnitCleanupPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedNominalAffineUnitCleanupMachinePlan> {
+        self.machines
+            .iter()
+            .find(|plan| plan.machine.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedNominalAffineUnitCleanupMachinePlan {
+    /// Exact ordinary Unit signature and return edge. Both trivial-discard
+    /// lists are empty; `cleanup` is the sole disposal committed by the edge.
+    pub machine: CheckedUnitEffectMachinePlan,
+    pub cleanup: CheckedUnitNominalAffineCleanupPlan,
+}
+
+/// One whole affine parameter disposed by its exact checked empty nominal
+/// cleanup machine. The parameter index is dense in the checked structural
+/// signature and the type identity joins the root to the cleanup attachment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitNominalAffineCleanupPlan {
+    pub source_parameter_index: u32,
+    pub type_identity: String,
+    pub cleanup_machine: SymbolHandle,
+    pub cleanup_state: SymbolHandle,
+    pub cleanup_contract_fingerprint: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitClaimTransferPlan {
     pub claim_identity: psi_language_semantics::PermissionClaimIdentity,

@@ -9,16 +9,17 @@ use psi_core::{
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, MachineContract, Operation,
-    OperationKind, OperationResult, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -30,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 2_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -38,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "2f38ef1d9260cda869d3f5643ea165c56fae169dd9f45f18a25938f0d732b315"
+        "584aa2ca15e549a32fdea3b0c351c77ffc93aef24cfd455a4ae01c8c16e362f9"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -50,10 +51,105 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 2_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 7_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 8_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
+    let module = nominal_affine_fixture();
+    let bytes = encode_module(&module).expect("nominal affine return should encode");
+    assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 8_u16.to_le_bytes());
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
+    let mut valued = nominal_affine_fixture();
+    valued.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(99),
+        scalar_type: ScalarType::Integer(i32_type()),
+    });
+    assert_eq!(
+        encode_module(&valued),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup requires a Unit result"
+        ))
+    );
+
+    let mut wrong_type = nominal_affine_fixture();
+    let Terminator::ReturnUnitNominalAffine { cleanup, .. } =
+        &mut wrong_type.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanup.structural_type = structural_type_id(2);
+    assert_eq!(
+        encode_module(&wrong_type),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup type does not match its structural parameter"
+        ))
+    );
+
+    let mut claimed = nominal_affine_fixture();
+    let place = claimed.machines[0].structural_parameters[0].place;
+    claimed.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(1),
+        input: place,
+        path: Vec::new(),
+    });
+    assert_eq!(
+        encode_module(&claimed),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup is not a claim-free qualified-free affine root"
+        ))
+    );
+
+    let mut unrestricted = nominal_affine_fixture();
+    unrestricted.machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Unrestricted;
+    assert_eq!(
+        encode_module(&unrestricted),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup is not a claim-free qualified-free affine root"
+        ))
+    );
+
+    let mut qualified = nominal_affine_fixture();
+    qualified
+        .structural_domains
+        .push(StructuralDomainDeclaration {
+            id: structural_domain_id(1),
+            identity: "example::NominalResource::Ready".to_owned(),
+            carrier: structural_type_id(1),
+        });
+    qualified.machines[0].structural_parameters[0]
+        .qualifications
+        .push(structural_domain_id(1));
+    assert_eq!(
+        encode_module(&qualified),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup is not a claim-free qualified-free affine root"
+        ))
+    );
+
+    let mut missing_root = nominal_affine_fixture();
+    let Terminator::ReturnUnitNominalAffine { cleanup, .. } =
+        &mut missing_root.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanup.place = place_id(99);
+    assert_eq!(
+        encode_module(&missing_root),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup root is not a structural parameter"
+        ))
+    );
 }
 
 #[test]
@@ -404,7 +500,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 7_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 8_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1224,10 +1320,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&3_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&4_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(3))
+        Err(CodecError::UnsupportedFormatMarker(4))
     );
 
     let mut stale_format = bytes.clone();
@@ -1486,6 +1582,110 @@ fn partial_affine_fixture() -> TerminalModule {
                     terminator: Terminator::ReturnUnit {
                         edge: edge_id(2),
                         trivial_affine_discards: vec![token_place],
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(2),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+        ],
+    }
+}
+
+fn nominal_affine_fixture() -> TerminalModule {
+    let resource_type = structural_type_id(1);
+    let owner_type = structural_type_id(2);
+    let source_place = place_id(1);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: resource_type,
+                identity: "example::NominalResource".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: owner_type,
+                identity: "example::Owner".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                attachment: Some(owner_type),
+                parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: source_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: resource_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                }],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: source_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnitNominalAffine {
+                        edge: edge_id(1),
+                        cleanup: NominalAffineCleanup {
+                            place: source_place,
+                            structural_type: resource_type,
+                            cleanup_machine: machine_id(2),
+                        },
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                attachment: Some(resource_type),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(2),
+                        trivial_affine_discards: Vec::new(),
                     },
                 }],
                 contract: MachineContract {

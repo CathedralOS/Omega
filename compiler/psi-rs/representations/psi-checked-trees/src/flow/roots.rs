@@ -141,6 +141,9 @@ pub struct FlowFacts {
     /// cleanup plans. Terminal consumers intentionally ignore this lane until
     /// they gain a path-sensitive ownership frontier.
     pub terminal_partial_affine_unit_cleanups: super::CheckedPartialAffineUnitCleanupPlans,
+    /// Exact whole-root affine returns that require one checked empty nominal
+    /// cleanup machine. This lane stays distinct from no-code disposal.
+    pub terminal_nominal_affine_unit_cleanups: super::CheckedNominalAffineUnitCleanupPlans,
     /// Whole-parameter no-code cleanup rows for supported ordinary structural
     /// transitions. These are populated only after multiplicity checking has
     /// recorded the authoritative state-exit permission events.
@@ -177,6 +180,8 @@ impl FlowFacts {
             terminal_unit_effects: super::CheckedUnitEffectPlans::default(),
             terminal_partial_affine_unit_cleanups:
                 super::CheckedPartialAffineUnitCleanupPlans::default(),
+            terminal_nominal_affine_unit_cleanups:
+                super::CheckedNominalAffineUnitCleanupPlans::default(),
             terminal_structural_control_cleanups:
                 super::CheckedStructuralControlCleanupPlans::default(),
             terminal_structural_unit_controls: super::CheckedStructuralUnitControlPlans::default(),
