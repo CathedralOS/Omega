@@ -381,8 +381,10 @@ of maximum depth two. The first index fixes the collection-coarse target, later
 indexes are absorbing, and the ordinary frame publishes every index-call
 write. A transparent free helper result or an attached helper result rooted in
 its actual `self` receiver supplies the collection origin without an
-intermediate binding. Deeper or binding-reborrow index trees and recursive or
-opaque free/attached collection producers remain fences.
+intermediate binding. An exact member projection may follow that result before
+indexing: the suffix composes first, then the index coarsens to that nearest
+collection. Deeper or binding-reborrow index trees and recursive or opaque
+free/attached collection producers remain fences.
 The bounded indexed target and bounded non-reference value tree may occur on
 the same assignment. Their complete frames compose and publish independently;
 either side exceeding its depth or non-rebinding rail fences the returned-place
