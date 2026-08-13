@@ -193,12 +193,21 @@ Remaining:
   projected contracts, content-bearing splits, and partial returns remain
   fenced.
 
+  The first structural partial-value cleanup slice is complete: one
+  claim-free affine two-field record may transfer one direct structural field
+  to one ordinary Unit callee and dispose the sole residual sibling on return.
+  Checked plans, canonical terminal format, independent verification,
+  interpretation/fuel, and all five Omega artifact/install paths preserve the
+  exact root, field paths, and leaf types without a runtime bitmap or cleanup
+  bytes. Nested/wider paths, multiple moves, claims/content, contracts, and
+  nominal `drop` remain fenced.
+
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
   parameter tail and a finite consecutive prefix of established empty-record
   affine locals. Both clean up in canonical reverse order with no emitted
   cleanup code; register and stack ABI homes survive installation. Next add
-  nominal/partial-value cleanup,
+  nominal cleanup and wider partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,
@@ -407,8 +416,10 @@ reach or trust, and private proof improvements do not change public identity.
   materialization and transfer-map commitment. Accepted terminal slices carry
   exact reverse-declaration affine cleanup through Unit/scalar returns and
   bounded acyclic structural control, including short-circuit Boolean stages and
-  one equal-frontier diamond. Add contextual cleanup-contract checking,
-  structural partial-value cleanup, repeated-cycle resource composition, and
+  one equal-frontier diamond. One direct-field partial-record transfer now
+  preserves and disposes its exact residual sibling through interpretation and
+  all five native artifact paths. Add contextual cleanup-contract checking,
+  wider structural partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
