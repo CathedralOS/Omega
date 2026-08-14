@@ -346,7 +346,11 @@ state through a raw address.
 #### Exception roots and first timer
 
 - Materialize fatal/diagnostic entries for every architectural exception before
-  enabling interrupts.
+  enabling interrupts. Cathedral now has a checked fixed-work internal leaf
+  that records one normalized 0–31 vector in preallocated atomic state,
+  publishes its validity, and unconditionally aborts. Generated per-vector
+  stubs, admitted internal-state binding, physical entry plans, stacks, gates,
+  and IDT installation remain.
 - Provision dedicated per-CPU double-fault/NMI/machine-check stacks and one
   non-nesting maskable-IRQ stack class; preserve the selected `StatePlan`.
 - Bring up PIT+PIC first and LAPIC as the production provider. The hard root only
