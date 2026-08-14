@@ -415,10 +415,11 @@ arithmetic, or integer-widening shells, or one exact fixed-width narrowing,
 same- or cross-sign, under retained direct parameter range `requires`, or exact
 fixed-width addition with a landed operand, subtraction with a landed
 subtrahend, or multiplication with a landed factor under retained matching
-direct parameter bounds, or exact unsigned subtraction under a retained direct
-subtrahend-to-minuend bound, one exact right shift under a direct unsigned count
-upper bound, one exact left shift by a landed count under a direct unsigned
-value upper bound or
+direct parameter bounds, one runtime unsigned addition under the retained
+canonical `left <= MAX - right` bound, or exact unsigned subtraction under a
+retained direct subtrahend-to-minuend bound, one exact right shift under a direct
+unsigned count upper bound, one exact left shift by a landed count under a direct
+unsigned value upper bound or
 by an unsigned runtime count under direct count and value upper bounds, or exact
 division/remainder by a landed nonzero unsigned constant, a landed signed
 constant other than `0` or `-1`, a runtime unsigned divisor under a direct
@@ -929,9 +930,10 @@ and lower-bound premises; Psi retains each as a terminal machine requirement,
 and each operation certificate cites its exact assumption. Those premises now
 cover same- and cross-sign exact narrowing plus signed or unsigned
 landed-operand addition, landed-subtrahend subtraction, and landed-factor
-multiplication in addition to the separately listed unsigned relational
-subtraction, shift forms, signed landed-divisor form, and runtime signed or
-unsigned positive-divisor forms plus the two signed negative-divisor forms.
+multiplication, plus runtime unsigned addition under `left <= MAX - right`, in
+addition to the separately listed unsigned relational subtraction, shift forms,
+signed landed-divisor form, runtime signed or unsigned positive-divisor forms,
+and the two signed negative-divisor forms.
 Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external

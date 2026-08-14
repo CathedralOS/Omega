@@ -36,10 +36,15 @@ use crate::places::declared_place_type_raw;
 /// S4: build a value environment pre-seeded with the integer bounds a machine's
 /// `requires` clause places on its parameters (`requires amount <= 100`). Used to
 /// seed the ENTRY state's env so param arithmetic with a declared bound stays
-/// exact instead of being forced into a domain. Only simple `param <OP> literal`
-/// (and the flipped `literal <OP> param`) comparisons are read; anything else is
-/// ignored (sound -- a missing bound just falls back to the type width).
-pub(crate) fn requires_value_env(program: &TypedTrees, machine: &Machine) -> ValueEnv {
+/// exact instead of being forced into a domain. Simple `param <OP> literal`
+/// comparisons seed intervals; the canonical `left <= MAX - right` relation
+/// additionally seeds the existing joint-add carrier. Other shapes are ignored
+/// (sound -- a missing bound just falls back to the type width).
+pub(crate) fn requires_value_env(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry_state: &State,
+) -> ValueEnv {
     let mut bounds: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
@@ -64,6 +69,26 @@ pub(crate) fn requires_value_env(program: &TypedTrees, machine: &Machine) -> Val
     let mut env = ValueEnv::new();
     for (name, (low, high)) in bounds {
         env.set(name, Interval { low, high });
+    }
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            let ExpressionNode::Binary(comparison) =
+                program.expression_table.expression(*expression)
+            else {
+                continue;
+            };
+            if let Some((left, right)) =
+                joint_add_upper_guard(program, machine, Some(entry_state), &env, comparison)
+            {
+                env.mark_joint_add_upper_bound(left, right);
+            }
+        }
     }
     env
 }

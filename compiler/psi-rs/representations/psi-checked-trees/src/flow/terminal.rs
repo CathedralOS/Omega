@@ -343,6 +343,8 @@ pub enum CheckedStructuralScalarIntegerBoundPlan {
     Literal(psi_numerics::literals::IntegerLiteral),
     /// Dense position in the same scalar parameter namespace.
     Parameter(u32),
+    /// The maximum of this unsigned carrier minus the named dense parameter.
+    UnsignedMaximumMinusParameter(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -367,7 +367,7 @@ fn validate_program_internal(
             // 100`), so bounded param arithmetic stays exact. Statements are
             // validated in order so the env is current at each use.
             let mut value_env = if state_index == 0 {
-                arithmetic_domains::requires_value_env(program, machine)
+                arithmetic_domains::requires_value_env(program, machine, state)
             } else {
                 // A non-entry state may assume the facts established by every
                 // incoming guarded transition. Multiple predecessors join at

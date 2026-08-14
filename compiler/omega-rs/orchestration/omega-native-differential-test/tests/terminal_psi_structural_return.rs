@@ -745,6 +745,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             signed_divisor: i8,
             negative_divisor: i8,
             bounded_negative_divisor: i8,
+            add_left: u8,
+            add_right: u8,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -753,7 +755,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
             0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
-            negative_divisor <= -2i8, bounded_negative_divisor <= -1i8
+            negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
+            add_left <= 255u8 - add_right
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -787,6 +790,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic % negative_divisor) <= signed_arithmetic)
                 && ((signed_arithmetic / bounded_negative_divisor) < 4i8)
                 && ((signed_arithmetic % bounded_negative_divisor) <= signed_arithmetic)
+                && ((add_left + add_right) <= 255u8)
                 && enabled;
             staged
         }
@@ -1142,6 +1146,30 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 )
         }));
     }
+    let runtime_exact_add_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation,
+            } if left == terminal_entry.parameters[9].id
+                && right == terminal_entry.parameters[10].id =>
+            {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the computed-bound runtime addition");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == runtime_exact_add_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_divide_obligation = terminal_entry
         .blocks
         .iter()
