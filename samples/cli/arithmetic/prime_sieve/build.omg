@@ -1,7 +1,4 @@
-// digital_root build manifest: each target lists the boundary packages it trusts.
-
-target cross_platform_cli {
-}
+// prime_sieve is deployable on every hosted target.
 
 target windows_x64 {
 }

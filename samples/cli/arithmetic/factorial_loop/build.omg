@@ -1,7 +1,4 @@
-// digital_root build manifest: each target lists the boundary packages it trusts.
-
-target cross_platform_cli {
-}
+// factorial_loop is deployable on every hosted target.
 
 target windows_x64 {
 }

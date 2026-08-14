@@ -73,6 +73,9 @@ Remaining:
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
   `temperature_convert`, now lowers directly from its authored host entry. The
+  seventeen deployable CLI arithmetic samples now author all four hosted roots
+  and lower through the same production entry matrix without staging; the four
+  float-lowering fixtures remain explicitly checked-only. The
   fourteen deployable plan-laid runtime canaries likewise author all four
   hosted roots, and the active pass umbrella exercises them through production
   entry selection rather than its explicit legacy fixture seam. Their direct
