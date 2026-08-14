@@ -182,90 +182,36 @@ Owners:
 
 Remaining:
 
-- **PSIIR.** Extend the accepted terminal vocabulary as complete vertical
-  slices. The accepted carrier includes scalar direct calls and guarded crash
-  continuations, canonical Unit structural/content calls, literal fixed-array
-  custody with one typed fixed-index projection, structural results, exact
-  affine cleanup on Unit/scalar returns and structural edges, bounded scalar and
-  local Boolean computation, and acyclic control with two decisions plus one
-  equal-frontier diamond. Whole-root nominal cleanup supports finite mixed
-  claim-free affine/scalar parameter lists, bounded helper calls, contextual
-  direct-Boolean obligations, shared cleanup targets, and edge-specific ordered
-  action streams. One claim-free affine record may transfer pairwise
-  prefix-disjoint all-field paths and clean every maximal residual subtree.
-  Static zero-argument Unit boundary requirements retain every exact checked
-  satisfier as canonical terminal catalog rows; adapter bodies remain ordinary
-  terminal machines. Omega derives installation only from retained selected
-  `ProviderPlan` facts (exact overload, provider type, and adapter identity),
-  and Psi dispatches only through that artifact-bound admitted installation.
-  Selection remains outside terminal semantic identity.
-  Codec, independent verification, interpretation, fixed fuel, and all Omega
-  artifact/install paths agree on these carriers.
+- **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
+  encoding, independent obligation reconstruction and verification,
+  interpretation, fixed fuel, Omega lowering, native evidence, artifact/image
+  custody, and installation must move together. The detailed accepted
+  vocabulary and current fences live in
+  [`terminal_psi.md`](wiki/architecture/pipeline/terminal_psi.md); do not
+  duplicate its operation-by-operation ledger here.
 
-  The nominal-cleanup Boolean slice decides a finite source-ordered sequence of
-  finite short-circuit trees of arbitrary nesting once per stage,
-  source-distributing each stage's value leaves through the remaining
-  branch-free or short-circuit continuation locals; each continuation may use
-  its immediate predecessor one or more times. One finite `!`/`&&`/`||` binding
-  over a finite nonempty set of runtime Boolean parameters plus constants now
-  retains its typed value exits into one terminal-Psi convergence parameter and
-  one shared cleanup return. Boolean equality against a constant normalizes to
-  that same identity/negation carrier. Omega retains the ordered native
-  decisions, non-final-leaf join branches, and final-leaf fallthrough into one
-  physical cleanup tail through target assignment, native emission, decoded
-  object/image custody, and installation on all targets. Extend shared
-  convergence now also admits one direct relevant Boolean field identity from
-  one claim-free affine nominal-cleanup root, combined with the existing
-  Boolean parameters and constants and with at least one Boolean parameter
-  retaining the source across native expression scratch. Nested paths, a
-  field-only tree, a second field identity, and erased or non-Boolean fields
-  remain fenced. Separately, direct integer-comparison leaves over scalar
-  parameters and landed constants now retain the same verified shared cleanup
-  tail through interpretation and every native target. Either operand may use
-  up to two total bitwise-not, binary bitwise, wrapping shift/arithmetic,
-  saturating arithmetic, or integer-widening shells, or one proof-bearing exact
-  fixed-width narrowing, same- or cross-sign, under retained direct parameter
-  range `requires`, or
-  exact fixed-width addition with a landed operand, subtraction with a landed
-  subtrahend, or multiplication with a landed factor under retained matching
-  direct parameter bounds, runtime unsigned multiplication under retained
-  `1 <= right` and `left <= MAX / right` bounds, or runtime signed multiplication
-  under a retained positive or at-most-`-2` factor bound and both carrier-tight
-  quotient bounds, one runtime unsigned addition under the retained canonical
-  `left <= MAX - right` bound, one runtime signed addition under retained
-  matching sign and `MAX - right` or `MIN - right` bounds, runtime subtraction
-  unsigned under a retained direct subtrahend-to-minuend bound or signed under
-  retained matching sign and `MIN + right` or `MAX + right` bounds, one exact
-  right shift under a direct upper count bound for unsigned
-  counts or direct zero-lower and upper bounds for signed counts, one exact left
-  shift by a landed count or runtime count under the verifier-required direct
-  value bounds and, for runtime counts, direct count upper bounds plus a direct
-  zero lower bound when that count is signed, or exact
-  division/remainder by a landed nonzero unsigned constant, a landed signed
-  constant other than `0` or `-1`, a runtime unsigned divisor under a retained
-  direct positive lower bound,
-  or a runtime signed divisor under a retained direct positive lower bound or
-  `divisor <= -2` upper bound, or under joint `divisor <= -1` and
-  `MIN + 1 <= dividend` bounds.
-  One proof-bearing exact operation may also appear as the innermost operation
-  beneath up to two bitwise-not, integer-widening, or proof-free binary shells;
-  distinct binary subtrees may each contain one independently proved exact
-  leaf. A proof-bearing result feeding another proof-bearing operation, computed
-  exact-cast and wider exact-arithmetic premise shapes, other unary computation,
-  and
-  member/comparison mixtures remain fenced. Extend those integer comparisons,
-  then
-  add complete slices for calls and effects, wider partial-value cleanup,
-  nested nominal ownership,
-  returned transfer, loops, suspension, scoped ordering, and ranked tail
-  recursion. Dynamic or
-  nested indexing, wider projections/signatures, content-bearing splits, and
-  unsupported contracts remain fenced until independently verifier-owned.
-  Retire checked/source-tree consumers with each slice; nothing below terminal
+  The accepted baseline covers bounded scalar/direct and structural/content
+  calls, guarded crash continuations, structural results, fixed-array custody,
+  exact affine cleanup and partial transfer, bounded acyclic control, selected
+  provider catalog/dispatch, and verified Boolean/integer shared cleanup
+  convergence. Integer leaves retain the documented policy arithmetic, casts,
+  shifts, division/remainder, exact-operation evidence, bounded nesting, and
+  independent exact leaves in distinct proof-free subtrees across interpreter
+  and every native target.
+
+  Next engineering frontiers are proof-bearing results feeding another
+  proof-bearing operation, computed exact-cast and wider exact-arithmetic
+  premises, member/comparison mixtures, calls and effects, wider partial-value
+  cleanup, nested ownership, returned transfer, loops, suspension, scoped
+  ordering, and ranked tail recursion. Dynamic/nested indexing, wider
+  projections and signatures, content-bearing splits, and unsupported contracts
+  remain fail-closed until independently verifier-owned.
+
+  Retire checked/source-tree consumers with each slice. Nothing below terminal
   Psi may depend on typed/source trees, `ExpressionHandle`, source rendering, or
-  an Omega-to-Psi bridge. Bind partition-composition replay to the exact
-  operation and verifier-selected callee guarantee; fingerprints are identity,
-  never authority.
+  an Omega-to-Psi bridge. Partition replay binds the exact operation and
+  verifier-selected callee guarantee; fingerprints are identity, never
+  authority.
 - **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
   scalar slice. Direct and staged calls retain invocation-specific substitutions
   and verifier-reconstructed continuations. Canonical Boolean and fixed-integer
