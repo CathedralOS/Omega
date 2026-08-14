@@ -29,6 +29,11 @@ pub(crate) fn validate_proposition_entailment(
             &[],
             false,
         );
+        // An explicit producer assignment discharges the proposition itself;
+        // the checked path-sensitive assignment analysis separately proves
+        // that every ordinary outcome constructs each named output exactly
+        // once. Keep those two judgments independent here.
+        let produced_evidence = produced_evidence_labels(program, machine, diagnostics);
         for state in program.machine_states(machine) {
             let mut known = machine_requires.iter().cloned().collect::<BTreeSet<_>>();
             known.extend(proposition_labels(
@@ -38,7 +43,6 @@ pub(crate) fn validate_proposition_entailment(
                 &[],
                 true,
             ));
-
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Call(call) = statement {
                     intake_call_propositions(program, machine, call, &mut known, diagnostics);
@@ -54,7 +58,7 @@ pub(crate) fn validate_proposition_entailment(
                 false,
             ));
             for goal in required {
-                if !known.contains(&goal) {
+                if !known.contains(&goal) && !produced_evidence.contains(&goal) {
                     diagnostics.push(Diagnostic::error(format!(
                         "checked machine `{}` cannot establish proposition ensure `{goal}` in state `{}`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",
                         machine.name.as_str(),
@@ -64,6 +68,121 @@ pub(crate) fn validate_proposition_entailment(
             }
         }
     }
+}
+
+fn produced_evidence_labels(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<String> {
+    let mut labels = Vec::new();
+    for assignment in &program.evidence_forwardings {
+        if assignment.machine_symbol != machine.symbol {
+            continue;
+        }
+        let Some(conformance) = assignment.source_conformance else {
+            continue;
+        };
+        let Some(contract) = program.machine_contracts(machine).iter().find(|contract| {
+            contract.kind == SignatureContractKind::Ensures
+                && contract
+                    .binding
+                    .as_ref()
+                    .is_some_and(|binding| binding == &assignment.target)
+        }) else {
+            continue;
+        };
+        let Some(expected_interface) = program
+            .proof_facts
+            .span_or_empty(contract.facts)
+            .iter()
+            .find_map(|fact| {
+                let ProofFact::Proposition(application) = fact else {
+                    return None;
+                };
+                let normalized = program.normalize_nominal_proposition_application(application)?;
+                match normalized.classification {
+                    psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                        evidence,
+                    } => Some(evidence),
+                    psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                        None
+                    }
+                }
+            })
+        else {
+            continue;
+        };
+        if select_subjectless_evidence_conformance(
+            program,
+            conformance,
+            assignment.source.as_str(),
+            &expected_interface,
+        )
+        .is_none()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "subjectless conformance `{}` does not provide the exact `{expected_interface}` evidence interface required by `{}`",
+                assignment.source, assignment.target
+            )));
+            continue;
+        }
+        labels.extend(proposition_labels(
+            program,
+            std::slice::from_ref(contract),
+            SignatureContractKind::Ensures,
+            &[],
+            false,
+        ));
+    }
+    labels
+}
+
+pub fn select_subjectless_evidence_conformance<'program>(
+    program: &'program TypedTrees,
+    conformance_symbol: psi_symbols::SymbolHandle,
+    source_name: &str,
+    expected_interface: &str,
+) -> Option<(
+    &'program psi_typed_trees::trait_definition::Conformance,
+    psi_symbols::SymbolHandle,
+)> {
+    use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
+
+    let conformance = program
+        .conformances()
+        .iter()
+        .find(|candidate| candidate.symbol == conformance_symbol)?;
+    if !matches!(conformance.subject, ConformanceSubject::Subjectless)
+        || conformance.alias.as_ref()?.as_str() != source_name
+        || !matches!(
+            conformance.implementation,
+            ConformanceImplementation::Closed { .. }
+        )
+    {
+        return None;
+    }
+    let evidence_trait = program
+        .traits()
+        .iter()
+        .find(|candidate| candidate.name == conformance.trait_name)?;
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    let selected_interface = if arguments.is_empty() {
+        conformance.trait_name.to_string()
+    } else {
+        format!(
+            "{}<{}>",
+            conformance.trait_name,
+            arguments
+                .iter()
+                .map(|argument| program.display_type_reference(*argument))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    (selected_interface == expected_interface).then_some((conformance, evidence_trait.symbol))
 }
 
 fn intake_call_propositions(

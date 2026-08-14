@@ -46,6 +46,7 @@ pub fn lower_symbol_resolved_trees(
                 statement_index: forwarding.statement_index,
                 target: crate::name::lower_name(&forwarding.target),
                 source: crate::name::lower_name(&forwarding.source),
+                source_conformance: forwarding.source_conformance,
             },
         )
         .collect();

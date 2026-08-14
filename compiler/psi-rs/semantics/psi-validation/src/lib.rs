@@ -86,6 +86,7 @@ pub use properties::{
     DeclaredPropertyRequirement, declared_property_requirements, effective_data_carry_policy,
     effective_type_carry_policy, type_satisfies_declared_property,
 };
+pub use proposition_entailment::select_subjectless_evidence_conformance;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;

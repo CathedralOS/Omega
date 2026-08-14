@@ -241,13 +241,13 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
         panic!("one checked forwarding expected");
     };
     assert_eq!(forwarding.statement_index, 0);
+    let psi_checked_trees::EvidenceAssignmentSource::Forwarded { term: source } =
+        &forwarding.source
+    else {
+        panic!("an incoming evidence assignment must retain forwarding identity")
+    };
     assert_eq!(
-        checked
-            .facts
-            .proof
-            .evidence_terms
-            .get(forwarding.source)
-            .name,
+        checked.facts.proof.evidence_terms.get(*source).name,
         "incoming"
     );
     assert_eq!(
@@ -260,12 +260,7 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
         "outgoing"
     );
     assert_eq!(
-        checked
-            .facts
-            .proof
-            .evidence_terms
-            .get(forwarding.source)
-            .proposition,
+        checked.facts.proof.evidence_terms.get(*source).proposition,
         checked
             .facts
             .proof
@@ -273,6 +268,184 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
             .get(forwarding.output)
             .proposition
     );
+}
+
+#[test]
+fn explicit_subjectless_conformance_introduces_named_evidence() {
+    let source = r#"
+        trait Evidence {
+            machine witness(value: i32);
+        }
+        proposition carries(value: i32) evidence Evidence;
+
+        ConcreteEvidence: satisfies Evidence {
+            machine witness(value: i32) {}
+        }
+
+        machine produce(value: i32)
+        ensures outgoing: carries(value)
+        {
+            outgoing = ConcreteEvidence;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an explicit complete subjectless conformance should introduce evidence");
+    assert_eq!(checked.facts.proof.evidence_forwardings.len(), 1);
+    let assignment = checked
+        .facts
+        .proof
+        .evidence_forwardings
+        .iter()
+        .next()
+        .map(|(_, assignment)| assignment)
+        .expect("one checked evidence assignment expected");
+    let psi_checked_trees::EvidenceAssignmentSource::ProducerConformance {
+        conformance,
+        evidence_trait,
+        rows,
+    } = &assignment.source
+    else {
+        panic!("the assignment should retain its selected producer")
+    };
+    let selected = checked
+        .conformances()
+        .iter()
+        .find(|candidate| {
+            candidate
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "ConcreteEvidence")
+        })
+        .expect("selected conformance remains in checked source facts");
+    let evidence = checked
+        .traits()
+        .iter()
+        .find(|candidate| candidate.name.as_str() == "Evidence")
+        .expect("evidence trait remains in checked source facts");
+    assert_eq!(*conformance, selected.symbol);
+    assert_eq!(*evidence_trait, evidence.symbol);
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].realization_machine.is_valid());
+    assert!(rows[0].realization_state.is_valid());
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(assignment.output)
+            .name,
+        "outgoing"
+    );
+}
+
+#[test]
+fn incoming_evidence_binding_shadows_same_named_subjectless_conformance() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine forward(value: i32)
+        requires ConcreteEvidence: carries(value)
+        ensures outgoing: carries(value)
+        {
+            outgoing = ConcreteEvidence;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("the lexical incoming evidence binding should shadow the package conformance");
+    let [typed_assignment] = checked.evidence_forwardings.as_slice() else {
+        panic!("one typed evidence assignment expected")
+    };
+    assert_eq!(typed_assignment.source_conformance, None);
+    let assignment = checked
+        .facts
+        .proof
+        .evidence_forwardings
+        .iter()
+        .next()
+        .map(|(_, assignment)| assignment)
+        .expect("one checked evidence assignment expected");
+    let psi_checked_trees::EvidenceAssignmentSource::Forwarded { term } = &assignment.source else {
+        panic!("the shadowing incoming binding must remain a forwarding source")
+    };
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(*term).name,
+        "ConcreteEvidence"
+    );
+}
+
+#[test]
+fn producer_conformance_must_match_the_declared_evidence_interface() {
+    let source = r#"
+        trait Evidence {}
+        trait DifferentEvidence {}
+        proposition carries(value: i32) evidence Evidence;
+        WrongProducer: satisfies DifferentEvidence {}
+
+        machine produce(value: i32)
+        ensures outgoing: carries(value)
+        {
+            outgoing = WrongProducer;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a producer for a different carrierless interface must reject");
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+        "subjectless conformance `WrongProducer` does not provide the exact `Evidence` evidence interface required by `outgoing`"
+    )));
+}
+
+#[test]
+fn instantiated_generic_producer_interface_remains_fail_closed() {
+    let source = r#"
+        trait Evidence<T> {}
+        proposition carries<T>(value: T) evidence Evidence<T>;
+        ConcreteEvidence: satisfies Evidence<i32> {}
+
+        machine produce(value: i32)
+        ensures outgoing: carries<i32>(value)
+        {
+            outgoing = ConcreteEvidence;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an unnormalized generic evidence endpoint must not string-match a producer");
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+        "subjectless conformance `ConcreteEvidence` does not provide the exact `Evidence<T>` evidence interface required by `outgoing`"
+    )));
+}
+
+#[test]
+fn outgoing_producer_does_not_retroactively_discharge_a_call_requirement() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine consume(value: i32)
+        requires carries(value)
+        {}
+
+        machine produce(value: i32)
+        ensures outgoing: carries(value)
+        {
+            consume(value);
+            outgoing = ConcreteEvidence;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an outgoing producer cannot establish an earlier call premise");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot cite `consume`: proposition requirement")
+    }));
 }
 
 #[test]

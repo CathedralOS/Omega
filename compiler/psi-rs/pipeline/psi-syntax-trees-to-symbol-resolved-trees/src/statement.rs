@@ -82,6 +82,7 @@ fn lower_statement_node(
                         statement_index,
                         target: crate::name::lower_name(target),
                         source: crate::name::lower_name(source),
+                        source_conformance: None,
                     },
                 );
                 return Ok(Vec::new());

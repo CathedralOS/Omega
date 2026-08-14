@@ -468,12 +468,16 @@ Remaining N6/N8 work:
   proof-only and retains an exact source/output handle pair plus its statement
   coordinate. A path-sensitive must-analysis carries those assignments through
   the finite named-state graph, requires every ordinary outcome to assign each
-  output exactly once, and exempts crash-only outcomes. Continue with private
-  complete-conformance selection, generated nominal output packages, and
-  terminal evidence identity. `value` is the runtime result; evidence erases,
-  destructuring is complete or explicitly `_`, and guarded fields exist only in
-  the matching refinement. Keep proposition, evidence-term, and provenance
-  identities separate.
+  output exactly once, and exempts crash-only outcomes. A concrete non-generic
+  subjectless conformance alias may now privately introduce a named output;
+  resolved and typed trees retain its exact symbol, while checked facts retain
+  the selected trait and complete normalized realization rows. Interface drift
+  rejects before the assignment can discharge the proposition. Continue with
+  instantiated/generic producer identities, generated nominal output packages,
+  and terminal evidence identity. `value` is the runtime result; evidence
+  erases, destructuring is complete or explicitly `_`, and guarded fields exist
+  only in the matching refinement. Keep proposition, evidence-term, and
+  provenance identities separate.
 - Finish name-owned generic telescopes and explicit binders:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares an
   implementation; `Evidence: Subject satisfies Trait` binds one. Identity
@@ -581,6 +585,9 @@ Acceptance: only an admitted reusable artifact plus consumed placement authority
 can produce installed code; validation binds exact final bytes and placement.
 
 ## Blocked index
+
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** blocked on owner Q11's ruling for the
+  external-entry stack domain and arrival composition rule.
 
 These entries are pointers, not duplicate specifications.
 

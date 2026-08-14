@@ -63,6 +63,7 @@ pub struct EvidenceForwarding {
     pub statement_index: usize,
     pub target: crate::name::Identifier,
     pub source: crate::name::Identifier,
+    pub source_conformance: Option<psi_symbols::SymbolHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

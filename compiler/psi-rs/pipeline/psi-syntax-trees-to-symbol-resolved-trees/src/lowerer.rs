@@ -279,7 +279,17 @@ impl Lowerer {
 
 fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
     let mut owners = Vec::new();
+    let mut incoming_evidence_names = Vec::new();
     for (machine_root_index, machine) in program.machines.iter().enumerate() {
+        incoming_evidence_names.extend(program.machine_contracts(machine).iter().filter_map(
+            |contract| {
+                (contract.kind
+                    == psi_symbol_resolved_trees::signature::SignatureContractKind::Requires)
+                    .then_some(contract.binding.as_ref())
+                    .flatten()
+                    .map(|binding| (machine.symbol, binding.as_str().to_owned()))
+            },
+        ));
         for state_handle in program.machine_state_handles(machine.states) {
             let state = program.machine_state(*state_handle);
             owners.push((
@@ -290,6 +300,23 @@ fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
             ));
         }
     }
+    let subjectless_conformances = program
+        .conformances
+        .iter()
+        .filter_map(|conformance| {
+            (matches!(
+                conformance.subject,
+                psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+            ))
+            .then(|| {
+                conformance
+                    .alias
+                    .as_ref()
+                    .map(|alias| (alias.as_str().to_owned(), conformance.symbol))
+            })
+            .flatten()
+        })
+        .collect::<Vec<_>>();
     for forwarding in &mut program.evidence_forwardings {
         if let Some((_, _, machine_symbol, state_symbol)) =
             owners
@@ -301,6 +328,14 @@ fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
         {
             forwarding.machine_symbol = *machine_symbol;
             forwarding.state_symbol = *state_symbol;
+        }
+        if !incoming_evidence_names.iter().any(|(machine, name)| {
+            *machine == forwarding.machine_symbol && name == forwarding.source.as_str()
+        }) {
+            forwarding.source_conformance =
+                subjectless_conformances.iter().find_map(|(alias, symbol)| {
+                    (alias == forwarding.source.as_str()).then_some(*symbol)
+                });
         }
     }
 }

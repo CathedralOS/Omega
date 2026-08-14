@@ -125,24 +125,40 @@ pub(crate) fn bind_evidence_forwarding_facts(
             )));
             continue;
         };
-        let Some(source) = source else {
+        let output_term = proof.evidence_terms.get(output);
+        let source = if let Some(source) = source {
+            let source_term = proof.evidence_terms.get(source);
+            if output_term.proposition != source_term.proposition
+                || output_term.evidence_type != source_term.evidence_type
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "cannot forward evidence term `{}` into `{}` because their proposition identities differ",
+                    forwarding.source, forwarding.target
+                )));
+                continue;
+            }
+            psi_checked_trees::EvidenceAssignmentSource::Forwarded { term: source }
+        } else if let Some(conformance_symbol) = forwarding.source_conformance {
+            let Some(source) = checked_evidence_producer(
+                program,
+                output_term,
+                conformance_symbol,
+                forwarding.source.as_str(),
+            ) else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "subjectless conformance `{}` does not provide the exact `{}` evidence interface required by `{}`",
+                    forwarding.source, output_term.evidence_type, forwarding.target
+                )));
+                continue;
+            };
+            source
+        } else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "evidence forwarding source `{}` is not a named requires binding of this machine",
+                "evidence forwarding source `{}` is not a named requires binding of this machine or an explicit subjectless conformance",
                 forwarding.source
             )));
             continue;
         };
-        let output_term = proof.evidence_terms.get(output);
-        let source_term = proof.evidence_terms.get(source);
-        if output_term.proposition != source_term.proposition
-            || output_term.evidence_type != source_term.evidence_type
-        {
-            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "cannot forward evidence term `{}` into `{}` because their proposition identities differ",
-                forwarding.source, forwarding.target
-            )));
-            continue;
-        }
         forwardings.append(psi_checked_trees::EvidenceForwardingFact {
             machine_symbol: forwarding.machine_symbol,
             state_symbol: forwarding.state_symbol,
@@ -158,6 +174,52 @@ pub(crate) fn bind_evidence_forwarding_facts(
     } else {
         Err(diagnostics)
     }
+}
+
+fn checked_evidence_producer(
+    program: &psi_typed_trees::TypedTrees,
+    output: &CheckedEvidenceTerm,
+    conformance_symbol: SymbolHandle,
+    source_name: &str,
+) -> Option<psi_checked_trees::EvidenceAssignmentSource> {
+    use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceRowSource};
+
+    let (conformance, evidence_trait) = psi_validation::select_subjectless_evidence_conformance(
+        program,
+        conformance_symbol,
+        source_name,
+        &output.evidence_type,
+    )?;
+    let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
+        unreachable!("selected evidence producers are closed")
+    };
+
+    Some(
+        psi_checked_trees::EvidenceAssignmentSource::ProducerConformance {
+            conformance: conformance.symbol,
+            evidence_trait,
+            rows: rows
+                .iter()
+                .map(|row| psi_checked_trees::DynamicConformanceRowFact {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                    source: match row.source {
+                        ConformanceRowSource::Inline => {
+                            psi_checked_trees::DynamicConformanceRowSource::Inline
+                        }
+                        ConformanceRowSource::Reference => {
+                            psi_checked_trees::DynamicConformanceRowSource::Reference
+                        }
+                        ConformanceRowSource::TraitDefault => {
+                            psi_checked_trees::DynamicConformanceRowSource::TraitDefault
+                        }
+                    },
+                })
+                .collect(),
+        },
+    )
 }
 
 fn validate_evidence_forwarding_definite_assignment(

@@ -42,8 +42,9 @@ pub struct Assignment {
 }
 
 /// An erased named-`ensures` assignment classified out of the runtime
-/// statement stream. Names remain diagnostic at this phase; owner symbols are
-/// bound after ordinary machine/state symbol assignment.
+/// statement stream. Names remain diagnostic at this phase; owner symbols and
+/// an explicitly named subjectless producer conformance are bound after
+/// ordinary symbol assignment.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EvidenceForwarding {
     /// Stable lowering-time coordinate used to bind the owning machine after
@@ -59,6 +60,10 @@ pub struct EvidenceForwarding {
     pub statement_index: usize,
     pub target: DiagnosticName,
     pub source: DiagnosticName,
+    /// Exact producer selected by `target = ConformanceName`, when `source`
+    /// resolves to a subjectless conformance. Incoming evidence forwarding
+    /// leaves this empty and is bound by the checked proof pass.
+    pub source_conformance: Option<SymbolHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
