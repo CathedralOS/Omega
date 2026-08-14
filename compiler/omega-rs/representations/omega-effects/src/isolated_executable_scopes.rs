@@ -99,6 +99,7 @@ impl ExecutableTcbManifestSet {
         let endpoint = ExecutableTcbEntry {
             provider_identity: candidate.provider_identity,
             provider_plan_identity: candidate.provider_plan_identity,
+            selected_requirement: None,
             executable_identity: ExecutableIdentity::IsolatedProviderEndpoint {
                 scope_identity: candidate.isolated_scope_identity,
                 endpoint_identity: candidate.endpoint_identity,
@@ -335,6 +336,7 @@ mod tests {
             exact_allowances: vec![ExactExecutableTcbAllowance {
                 provider_identity: endpoint.provider_identity.clone(),
                 provider_plan_identity: endpoint.provider_plan_identity,
+                selected_requirement: endpoint.selected_requirement.clone(),
                 executable_identity: endpoint.executable_identity.clone(),
                 implementation_evidence: endpoint.implementation_evidence.clone(),
                 origin: endpoint.origin,

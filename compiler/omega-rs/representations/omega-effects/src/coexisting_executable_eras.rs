@@ -1,7 +1,7 @@
 use crate::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
     ExecutableTcbEntry, ExecutableTcbProfileAcceptance, ExecutionScope, ImplementationEvidence,
-    ProviderIdentity, ScopeCompleteness,
+    ProviderIdentity, ScopeCompleteness, SelectedProviderRequirement,
 };
 
 /// Owner of one selected-provider manifest contributing to a live process
@@ -40,13 +40,15 @@ struct ExecutableEntryContribution {
     entry: ExecutableTcbEntry,
 }
 
-/// One executable subject in the coexistence union. Containment is deliberately
-/// not folded into the subject: the live guarantee is the intersection of the
-/// independently retained source contributions.
+/// One executable subject in the coexistence union. A selected provider
+/// requirement remains part of that subject even when two rows share physical
+/// code. Containment is deliberately not folded into the subject: the live
+/// guarantee is the intersection of independently retained contributions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoexistingExecutableTcbEntry {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_identity: u64,
+    pub selected_requirement: Option<SelectedProviderRequirement>,
     pub executable_identity: ExecutableIdentity,
     pub implementation_evidence: ImplementationEvidence,
     pub origin: ExecutableEntryOrigin,
@@ -342,6 +344,7 @@ fn accumulate_manifest(
             entries.push(CoexistingExecutableTcbEntry {
                 provider_identity: entry.provider_identity.clone(),
                 provider_plan_identity: entry.provider_plan_identity,
+                selected_requirement: entry.selected_requirement.clone(),
                 executable_identity: entry.executable_identity.clone(),
                 implementation_evidence: entry.implementation_evidence.clone(),
                 origin: entry.origin,
@@ -366,6 +369,7 @@ fn same_executable_subject(
 ) -> bool {
     left.provider_identity == right.provider_identity
         && left.provider_plan_identity == right.provider_plan_identity
+        && left.selected_requirement == right.selected_requirement
         && left.executable_identity == right.executable_identity
         && left.implementation_evidence == right.implementation_evidence
         && left.origin == right.origin
@@ -384,6 +388,7 @@ mod tests {
         ExecutableTcbEntry {
             provider_identity: ProviderIdentity::NominalType("RuntimeServices".into()),
             provider_plan_identity: 31,
+            selected_requirement: None,
             executable_identity: ExecutableIdentity::CurrentArtifactMachine(name.into()),
             implementation_evidence: ImplementationEvidence::CheckedBody {
                 machine: name.into(),
@@ -399,6 +404,39 @@ mod tests {
             guarantee,
             evidence_identity: identity.into(),
         }
+    }
+
+    #[test]
+    fn coexistence_subject_keeps_selected_overload_identity() {
+        let mut first = entry("ConvertProvider::convert", Vec::new());
+        first.selected_requirement = Some(SelectedProviderRequirement {
+            method: "convert".into(),
+            requirement_identity: "named-callable:path=Convert::convert;result=Ordinary".into(),
+        });
+        let mut second = first.clone();
+        second
+            .selected_requirement
+            .as_mut()
+            .expect("selected requirement")
+            .requirement_identity = "named-callable:path=Convert::convert;result=Saturating".into();
+        let unioned = CoexistingExecutableTcbEntry {
+            provider_identity: first.provider_identity.clone(),
+            provider_plan_identity: first.provider_plan_identity,
+            selected_requirement: first.selected_requirement.clone(),
+            executable_identity: first.executable_identity.clone(),
+            implementation_evidence: first.implementation_evidence.clone(),
+            origin: first.origin,
+            execution_scope: first.execution_scope,
+            contributions: vec![ExecutableEntryContribution {
+                source: ExecutableManifestSource::ProcessStaticBaseline,
+                entry: first,
+            }],
+        };
+
+        assert!(
+            !same_executable_subject(&unioned, &second),
+            "same executable and plan must not collapse distinct selected overload rows"
+        );
     }
 
     fn accepted(

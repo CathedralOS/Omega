@@ -106,10 +106,33 @@ impl ValidatedOpaqueExecutableAdmission {
     }
 }
 
+/// Exact selected provider row whose implementation contributes this entry.
+///
+/// `method` is readable drift/debug data. `requirement_identity` is the
+/// canonical overload and blast-radius identity and is never empty for a
+/// static selected-plan entry.
+#[derive(Debug, Clone)]
+pub struct SelectedProviderRequirement {
+    pub method: String,
+    pub requirement_identity: String,
+}
+
+impl PartialEq for SelectedProviderRequirement {
+    fn eq(&self, other: &Self) -> bool {
+        self.requirement_identity == other.requirement_identity
+    }
+}
+
+impl Eq for SelectedProviderRequirement {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableTcbEntry {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_identity: u64,
+    /// `None` only for an admission that does not originate from one selected
+    /// static ProviderPlan row, such as a runtime-loaded artifact or isolated
+    /// endpoint.
+    pub selected_requirement: Option<SelectedProviderRequirement>,
     pub executable_identity: ExecutableIdentity,
     pub implementation_evidence: ImplementationEvidence,
     pub origin: ExecutableEntryOrigin,
@@ -310,6 +333,7 @@ impl OmegaRuntimeExecutableLedger {
             let entry = ExecutableTcbEntry {
                 provider_identity: candidate.provider_identity.clone(),
                 provider_plan_identity: candidate.provider_plan_identity,
+                selected_requirement: None,
                 executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
                     candidate.executable_identity.clone(),
                 ),
@@ -578,10 +602,19 @@ pub(crate) fn derive_static_manifest(
         let provider_identity = provider_identity(plan);
         let provider_plan_identity = plan.identity_fingerprint();
         for row in &plan.rows {
+            assert!(
+                !row.requirement_identity.is_empty(),
+                "selected ProviderPlan rows have exact requirement identities"
+            );
+            let selected_requirement = Some(SelectedProviderRequirement {
+                method: row.method.clone(),
+                requirement_identity: row.requirement_identity.clone(),
+            });
             let known = match &row.binding {
                 ProviderBinding::CheckedAdapter { machine } => Some(ExecutableTcbEntry {
                     provider_identity: provider_identity.clone(),
                     provider_plan_identity,
+                    selected_requirement: selected_requirement.clone(),
                     executable_identity: ExecutableIdentity::CurrentArtifactMachine(
                         machine.clone(),
                     ),
@@ -595,6 +628,7 @@ pub(crate) fn derive_static_manifest(
                 ProviderBinding::CompilerIntrinsic { name } => Some(ExecutableTcbEntry {
                     provider_identity: provider_identity.clone(),
                     provider_plan_identity,
+                    selected_requirement: selected_requirement.clone(),
                     executable_identity: ExecutableIdentity::CurrentArtifactIntrinsic {
                         target: plan.target.clone(),
                         name: name.clone(),
@@ -638,6 +672,7 @@ pub(crate) fn derive_static_manifest(
                         Some(ExecutableTcbEntry {
                             provider_identity: provider_identity.clone(),
                             provider_plan_identity,
+                            selected_requirement: selected_requirement.clone(),
                             executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
                                 admission.executable_identity.clone(),
                             ),
