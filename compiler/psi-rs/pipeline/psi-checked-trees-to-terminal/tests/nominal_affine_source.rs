@@ -374,7 +374,8 @@ const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
         let inverted: bool = !right;
         let staged: bool = left && inverted;
         let completed: bool = !staged;
-        completed
+        let restored: bool = !completed;
+        restored
     }
 "#;
 
@@ -1401,7 +1402,7 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
     .expect("every contextual short-circuit cleanup edge verifies independently");
     let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("contextual short-circuit cleanup has one exact maximum path");
-    assert_eq!(fixed.ceiling_units(), 9);
+    assert_eq!(fixed.ceiling_units(), 10);
     validate_fixed_entry_fuel(&verified, &fixed)
         .expect("contextual short-circuit fixed-fuel certificate recomputes");
     drop(verified);
@@ -1459,16 +1460,16 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
                 TerminalScalarValue::Boolean(false),
                 TerminalScalarValue::Boolean(false),
             ],
-            true,
-            8,
+            false,
+            9,
         ),
         (
             [
                 TerminalScalarValue::Boolean(true),
                 TerminalScalarValue::Boolean(false),
             ],
-            false,
-            9,
+            true,
+            10,
         ),
     ] {
         let mut handler = AcceptTerminalEffects;

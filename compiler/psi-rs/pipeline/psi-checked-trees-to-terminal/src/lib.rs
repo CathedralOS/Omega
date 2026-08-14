@@ -3341,6 +3341,127 @@ fn lower_nominal_structural_scalar_return_machine(
             (boolean_decision_test_count(&decision) == 2
                 && boolean_decision_block_count(&decision) == 5)
                 .then_some((short_circuit_index, expression))
+        })
+        .or_else(|| {
+            let second_continuation_index = plan.bindings.len().checked_sub(1)?;
+            let first_continuation_index = second_continuation_index.checked_sub(1)?;
+            let short_circuit_index = first_continuation_index.checked_sub(1)?;
+            for index in [
+                short_circuit_index,
+                first_continuation_index,
+                second_continuation_index,
+            ] {
+                let binding = &plan.bindings[index];
+                if binding.statement_ordinal != u32::try_from(index).ok()?
+                    || binding.value != CheckedScalarBindingValue::Expression
+                    || binding.primitive_type != PrimitiveType::Bool
+                {
+                    return None;
+                }
+            }
+            let LoweredDirectExpression::Boolean {
+                expression: return_expression,
+            } = &authored_return_expression
+            else {
+                return None;
+            };
+            let second_continuation_position = scalar_parameter_count + second_continuation_index;
+            if !matches!(return_expression.as_ref(),
+                    LoweredBooleanReturnExpression::Local { position }
+                        if *position == second_continuation_position)
+            {
+                return None;
+            }
+            let second_continuation_expression = lower_checked_scalar_expression_at(
+                checked,
+                plan.state,
+                u32::try_from(second_continuation_index).ok()?,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: u32::try_from(second_continuation_index).ok()?,
+                },
+            )
+            .ok()?;
+            let LoweredDirectExpression::Boolean {
+                expression: second_continuation_expression,
+            } = second_continuation_expression
+            else {
+                return None;
+            };
+            let first_continuation_position = scalar_parameter_count + first_continuation_index;
+            if !is_branch_free_structural_boolean_expression(
+                &second_continuation_expression,
+                scalar_parameter_count,
+                second_continuation_index,
+            ) || boolean_local_reference_count(
+                &second_continuation_expression,
+                first_continuation_position,
+            ) != 1
+            {
+                return None;
+            }
+            let first_continuation_expression = lower_checked_scalar_expression_at(
+                checked,
+                plan.state,
+                u32::try_from(first_continuation_index).ok()?,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: u32::try_from(first_continuation_index).ok()?,
+                },
+            )
+            .ok()?;
+            let LoweredDirectExpression::Boolean {
+                expression: first_continuation_expression,
+            } = first_continuation_expression
+            else {
+                return None;
+            };
+            let short_circuit_position = scalar_parameter_count + short_circuit_index;
+            if !is_branch_free_structural_boolean_expression(
+                &first_continuation_expression,
+                scalar_parameter_count,
+                first_continuation_index,
+            ) || boolean_local_reference_count(
+                &first_continuation_expression,
+                short_circuit_position,
+            ) != 1
+            {
+                return None;
+            }
+            let short_circuit_expression = lower_checked_scalar_expression_at(
+                checked,
+                plan.state,
+                u32::try_from(short_circuit_index).ok()?,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: u32::try_from(short_circuit_index).ok()?,
+                },
+            )
+            .ok()?;
+            let LoweredDirectExpression::Boolean {
+                expression: short_circuit_expression,
+            } = short_circuit_expression
+            else {
+                return None;
+            };
+            if !is_one_top_level_structural_boolean_decision(
+                &short_circuit_expression,
+                scalar_parameter_count,
+                short_circuit_index,
+            ) {
+                return None;
+            }
+            let first_continuation_expression = inline_boolean_local(
+                &first_continuation_expression,
+                short_circuit_position,
+                &short_circuit_expression,
+            );
+            let expression = inline_boolean_local(
+                &second_continuation_expression,
+                first_continuation_position,
+                &first_continuation_expression,
+            );
+            let decision = lower_boolean_value_decision(&expression);
+            (boolean_decision_test_count(&decision) == 2
+                && boolean_decision_block_count(&decision) == 5)
+                .then_some((short_circuit_index, expression))
         });
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
         let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
