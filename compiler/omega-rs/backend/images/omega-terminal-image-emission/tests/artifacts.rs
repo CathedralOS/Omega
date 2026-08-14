@@ -1533,6 +1533,12 @@ fn scalar_conditional_calls_replay_per_arm_and_compose_by_maximum() {
             u64::from(expected_peak)
         );
 
+        let mut source_distributed = plan.clone();
+        source_distributed.functions[1].internal_calls[1].owner =
+            TerminalCallSiteOwner::Operation(operation_id(2));
+        build_terminal_object_artifact(&source_distributed)
+            .expect("one semantic call may be source-distributed across mutually exclusive leaves");
+
         let mut missing = plan.clone();
         missing.functions[1].internal_calls[0].scalar_stack = None;
         assert_eq!(

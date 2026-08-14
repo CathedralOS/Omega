@@ -416,7 +416,10 @@ pub fn build_terminal_object_artifact(
             );
         }
         let mut validated_call_stacks = Vec::new();
-        let mut call_owners = std::collections::BTreeSet::new();
+        let mut call_owner_paths = std::collections::BTreeMap::<
+            TerminalCallSiteOwner,
+            Vec<Option<Vec<(usize, bool)>>>,
+        >::new();
         for call in &function.internal_calls {
             let owner_in_provenance = match call.owner {
                 TerminalCallSiteOwner::Operation(operation) => {
@@ -432,12 +435,29 @@ pub fn build_terminal_object_artifact(
                     owner: call.owner,
                 });
             }
-            if !call_owners.insert(call.owner) {
+            let path = conditional_call_path(
+                plan.target.architecture,
+                &function.bytes,
+                function.scalar_stack.as_ref(),
+                call,
+            );
+            let prior_paths = call_owner_paths.entry(call.owner).or_default();
+            if !prior_paths.is_empty()
+                && (!matches!(call.owner, TerminalCallSiteOwner::Operation(_))
+                    || path.as_ref().is_none_or(|path| {
+                        prior_paths.iter().any(|prior| {
+                            prior
+                                .as_ref()
+                                .is_none_or(|prior| !conditional_paths_are_exclusive(prior, path))
+                        })
+                    }))
+            {
                 return Err(TerminalObjectError::DuplicateInternalCallOperation {
                     caller: function.machine,
                     owner: call.owner,
                 });
             }
+            prior_paths.push(path);
             match (function.unit_stack, call.unit_stack) {
                 (Some(_), Some(call_stack)) => {
                     let validated = validate_unit_call_stack(
@@ -3513,6 +3533,78 @@ fn collect_conditional_tree_regions(
         prefixes,
         leaves,
     )
+}
+
+fn conditional_call_path(
+    architecture: Architecture,
+    bytes: &[u8],
+    stack: Option<&TerminalScalarStackEvidence>,
+    call: &omega_terminal_machine_code::TerminalInternalCallRelocation,
+) -> Option<Vec<(usize, bool)>> {
+    let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } = &stack?.control_flow
+    else {
+        return None;
+    };
+    let call_offset = match architecture {
+        Architecture::X86_64 => call.offset.checked_sub(1)?,
+        Architecture::Aarch64 => call.offset,
+    };
+    if call_offset >= bytes.len() {
+        return None;
+    }
+    conditional_call_path_in_region(call_offset, 0, bytes.len(), decisions, &mut Vec::new())
+}
+
+fn conditional_call_path_in_region(
+    call_offset: usize,
+    start: usize,
+    end: usize,
+    decisions: &[TerminalScalarConditionalBranchEvidence],
+    path: &mut Vec<(usize, bool)>,
+) -> Option<Vec<(usize, bool)>> {
+    let Some((root, descendants)) = decisions.split_first() else {
+        return (start <= call_offset && call_offset < end).then(|| path.clone());
+    };
+    if start <= call_offset && call_offset < root.branch_offset {
+        return Some(path.clone());
+    }
+    let branch_end = root.branch_offset.checked_add(root.branch_byte_count)?;
+    let true_decision_count =
+        descendants.partition_point(|branch| branch.branch_offset < root.false_arm_offset);
+    let (true_decisions, false_decisions) = descendants.split_at(true_decision_count);
+    if branch_end <= call_offset && call_offset < root.false_arm_offset {
+        path.push((root.branch_offset, true));
+        let result = conditional_call_path_in_region(
+            call_offset,
+            branch_end,
+            root.false_arm_offset,
+            true_decisions,
+            path,
+        );
+        path.pop();
+        return result;
+    }
+    if root.false_arm_offset <= call_offset && call_offset < end {
+        path.push((root.branch_offset, false));
+        let result = conditional_call_path_in_region(
+            call_offset,
+            root.false_arm_offset,
+            end,
+            false_decisions,
+            path,
+        );
+        path.pop();
+        return result;
+    }
+    None
+}
+
+fn conditional_paths_are_exclusive(left: &[(usize, bool)], right: &[(usize, bool)]) -> bool {
+    left.iter().any(|(left_decision, left_outcome)| {
+        right.iter().any(|(right_decision, right_outcome)| {
+            left_decision == right_decision && left_outcome != right_outcome
+        })
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1096,13 +1096,32 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
             assign_registers(&target_operations).expect("the staged source call should assign");
         let emitted = emit_machine_code(&assigned).expect("the staged source call should emit");
         assert_eq!(emitted.functions.len(), 2);
-        assert!(!emitted.functions[0].internal_calls.is_empty());
+        assert!(
+            emitted.functions[0].internal_calls.len() > 1,
+            "the convergence operation should be source-distributed"
+        );
         assert!(
             emitted.functions[0]
                 .internal_calls
                 .iter()
-                .all(|call| call.target == MachineId::new(2).expect("callee identity"))
+                .all(|call| call.owner == emitted.functions[0].internal_calls[0].owner),
+            "every distributed call retains the one convergence operation owner"
         );
+        assert!(emitted.functions[0].scalar_stack.is_some());
+        assert!(
+            emitted.functions[0]
+                .internal_calls
+                .iter()
+                .all(
+                    |call| call.target == MachineId::new(2).expect("callee identity")
+                        && call.scalar_stack.is_some()
+                )
+        );
+        let object = build_terminal_object_artifact(&emitted)
+            .expect("the source-distributed convergence tree should replay at object boundary");
+        let demand = derive_terminal_stack_demand(&object, MachineId::new(1).unwrap())
+            .expect("the convergence tree should compose its staged call closure");
+        assert_eq!(demand.contributing_machines().len(), 2);
     }
 }
 

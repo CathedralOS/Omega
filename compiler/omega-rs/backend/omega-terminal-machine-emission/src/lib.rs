@@ -402,60 +402,81 @@ fn emit_function(
             when_true,
             when_false,
             ..
-        } => match architecture {
-            Architecture::Aarch64 => {
-                let fragment = emit_aarch64_conditional_boolean_control(
+        } => {
+            let fragment = match architecture {
+                Architecture::Aarch64 => emit_aarch64_conditional_boolean_control(
                     *condition_source,
                     *condition_location,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
-            }
-            Architecture::X86_64 => {
-                let fragment = emit_x86_64_conditional_boolean_control(
+                )?,
+                Architecture::X86_64 => emit_x86_64_conditional_boolean_control(
                     *condition_source,
                     *condition_location,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
+                )?,
+            };
+            let terminal_shape = direct_conditional_boolean_shape(when_true, when_false);
+            scalar_stack_eligible = terminal_shape.is_some();
+            if let Some(terminal_shape) = terminal_shape {
+                let decisions = fragment
+                    .conditional
+                    .expect("top-level Boolean conditional retains its branch evidence");
+                let branches = if architecture == Architecture::X86_64 {
+                    collect_x86_division_branch_evidence(&fragment.bytes)?
+                } else {
+                    Vec::new()
+                };
+                scalar_control_flow =
+                    conditional_with_terminal_shape(decisions, terminal_shape, branches)?;
             }
-        },
+            internal_calls = fragment.internal_calls;
+            fragment.bytes
+        }
         TerminalAssignedOperation::ReturnBooleanExpressionConditionalControl {
             condition_frame,
             condition,
             when_true,
             when_false,
             ..
-        } => match architecture {
-            Architecture::Aarch64 => {
-                let fragment = emit_aarch64_conditional_boolean_expression_control(
+        } => {
+            let fragment = match architecture {
+                Architecture::Aarch64 => emit_aarch64_conditional_boolean_expression_control(
                     condition_frame,
                     condition,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
-            }
-            Architecture::X86_64 => {
-                let fragment = emit_x86_64_conditional_boolean_expression_control(
+                )?,
+                Architecture::X86_64 => emit_x86_64_conditional_boolean_expression_control(
                     condition_frame,
                     condition,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
+                )?,
+            };
+            let terminal_shape = direct_conditional_boolean_shape(when_true, when_false);
+            scalar_stack_eligible =
+                terminal_shape.is_some() && accountable_conditional_boolean_expression(condition);
+            if let Some(terminal_shape) = terminal_shape.filter(|_| scalar_stack_eligible) {
+                let decisions = fragment
+                    .conditional
+                    .expect("top-level Boolean expression conditional retains branch evidence");
+                let branches = if architecture == Architecture::X86_64 {
+                    collect_x86_division_branch_evidence(&fragment.bytes)?
+                } else {
+                    Vec::new()
+                };
+                scalar_control_flow =
+                    conditional_with_terminal_shape(decisions, terminal_shape, branches)?;
             }
-        },
+            internal_calls = fragment.internal_calls;
+            fragment.bytes
+        }
     };
     let scalar_stack = scalar_stack_eligible
         .then(|| collect_scalar_stack_evidence(architecture, &bytes, scalar_control_flow, None))
@@ -3303,9 +3324,22 @@ fn emit_x86_64_conditional_boolean_control(
     let false_fragment = emit_x86_64_boolean_control(&when_false.control, target)?;
     let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.conditional = Some(top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Parameter,
+        branch_offset,
+        6,
+        false_arm_offset,
+        true_fragment.conditional.as_deref(),
+        false_fragment.conditional.as_deref(),
+    )?);
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
     Ok(fragment)
@@ -3328,12 +3362,25 @@ fn emit_x86_64_conditional_boolean_expression_control(
     let false_fragment = emit_x86_64_boolean_control(&when_false.control, target)?;
     let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let conditional = top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Expression,
+        branch_offset,
+        6,
+        false_arm_offset,
+        true_fragment.conditional.as_deref(),
+        false_fragment.conditional.as_deref(),
+    )?;
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
-        conditional: None,
+        conditional: Some(conditional),
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -3582,8 +3629,21 @@ fn emit_aarch64_conditional_boolean_control(
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
     let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(condition_register);
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&cbz.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.conditional = Some(top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Parameter,
+        branch_offset,
+        4,
+        false_arm_offset,
+        true_fragment.conditional.as_deref(),
+        false_fragment.conditional.as_deref(),
+    )?);
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
     Ok(fragment)
@@ -3614,11 +3674,24 @@ fn emit_aarch64_conditional_boolean_expression_control(
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
     let branch_equal = 0x5400_0000_u32 | ((branch_words as u32) << 5); // b.eq false
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&branch_equal.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let conditional = top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Expression,
+        branch_offset,
+        4,
+        false_arm_offset,
+        true_fragment.conditional.as_deref(),
+        false_fragment.conditional.as_deref(),
+    )?;
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
-        conditional: None,
+        conditional: Some(conditional),
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -6591,6 +6664,58 @@ fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bo
     }
 }
 
+fn direct_conditional_boolean_shape(
+    when_true: &TerminalAssignedConditionalBooleanArm,
+    when_false: &TerminalAssignedConditionalBooleanArm,
+) -> Option<Vec<bool>> {
+    fn collect(
+        control: &TerminalAssignedBooleanControl,
+        crash_leaves: &mut Vec<bool>,
+    ) -> Option<()> {
+        match control {
+            TerminalAssignedBooleanControl::ReturnImmediate { .. }
+            | TerminalAssignedBooleanControl::ReturnParameter { .. }
+            | TerminalAssignedBooleanControl::ReturnNotParameter { .. } => {
+                crash_leaves.push(false);
+                Some(())
+            }
+            TerminalAssignedBooleanControl::ReturnExpression { expression, .. }
+                if accountable_conditional_boolean_expression(expression) =>
+            {
+                crash_leaves.push(false);
+                Some(())
+            }
+            TerminalAssignedBooleanControl::Crash { .. } => {
+                crash_leaves.push(true);
+                Some(())
+            }
+            TerminalAssignedBooleanControl::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                collect(&when_true.control, crash_leaves)?;
+                collect(&when_false.control, crash_leaves)
+            }
+            TerminalAssignedBooleanControl::ConditionalExpression {
+                condition,
+                when_true,
+                when_false,
+                ..
+            } if accountable_conditional_boolean_expression(condition) => {
+                collect(&when_true.control, crash_leaves)?;
+                collect(&when_false.control, crash_leaves)
+            }
+            _ => None,
+        }
+    }
+
+    let mut crash_leaves = Vec::new();
+    collect(&when_true.control, &mut crash_leaves)?;
+    collect(&when_false.control, &mut crash_leaves)?;
+    Some(crash_leaves)
+}
+
 fn direct_conditional_integer_shape(
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
@@ -9260,7 +9385,17 @@ mod tests {
             MachineRegister::X86Rsi,
         ))
         .unwrap();
-        assert_eq!(x86.functions[0].scalar_stack, None);
+        assert!(matches!(
+            x86.functions[0]
+                .scalar_stack
+                .as_ref()
+                .map(|stack| &stack.control_flow),
+            Some(TerminalScalarControlFlowEvidence::ConditionalTree {
+                decisions,
+                crash_leaves,
+                ..
+            }) if decisions.len() == 1 && crash_leaves == &[false, false]
+        ));
         assert!(
             x86.functions[0]
                 .bytes
@@ -9274,7 +9409,17 @@ mod tests {
             MachineRegister::Aarch64X(1),
         ))
         .unwrap();
-        assert_eq!(aarch64.functions[0].scalar_stack, None);
+        assert!(matches!(
+            aarch64.functions[0]
+                .scalar_stack
+                .as_ref()
+                .map(|stack| &stack.control_flow),
+            Some(TerminalScalarControlFlowEvidence::ConditionalTree {
+                decisions,
+                crash_leaves,
+                ..
+            }) if decisions.len() == 1 && crash_leaves == &[false, false]
+        ));
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
         assert!(instructions.windows(6).any(|window| window
             == [
@@ -9296,7 +9441,13 @@ mod tests {
             let emitted = emit_machine_code(&calling_conditional_plan(target, argument_register))
                 .expect("emit conditional calls");
             let caller = &emitted.functions[0];
-            assert_eq!(caller.scalar_stack, None);
+            assert!(matches!(
+                caller
+                    .scalar_stack
+                    .as_ref()
+                    .map(|stack| &stack.control_flow),
+                Some(TerminalScalarControlFlowEvidence::ConditionalTree { .. })
+            ));
             assert_eq!(caller.internal_calls.len(), 3);
             assert_eq!(
                 caller
@@ -9320,7 +9471,7 @@ mod tests {
             );
             for relocation in &caller.internal_calls {
                 assert_eq!(relocation.target, MachineId::new(2).unwrap());
-                assert_eq!(relocation.scalar_stack, None);
+                assert!(relocation.scalar_stack.is_some());
                 match target.architecture {
                     Architecture::X86_64 => {
                         assert_eq!(caller.bytes[relocation.offset - 1], 0xe8);
