@@ -18,7 +18,7 @@ use omega_terminal_target_operations_to_assigned_target_operations::assign_regis
 use psi_core::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ProfileDecisionId, ValueId,
 };
-use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_terminal::{CrashCause, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[test]
 fn nested_conditional_stack_facts_survive_installation_and_reject_forgery() {
@@ -144,6 +144,67 @@ fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
             .expect("decode four-leaf conditional installation record");
         let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
             .expect("recompose installed four-leaf conditional stack demand");
+        assert_eq!(installed, demand);
+    }
+}
+
+#[test]
+fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = nested_conditional_plan(target, false);
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerControl::Conditional { when_false, .. } =
+            when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
+            psi_crash_edge: edge_id(8),
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        });
+        let assigned = assign_registers(&plan).expect("assign nested crash conditional");
+        let emitted = emit_machine_code(&assigned).expect("emit nested crash conditional");
+        let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
+            root,
+            crash_leaves,
+            ..
+        } = emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("nested crash conditional stack evidence")
+            .control_flow
+        else {
+            panic!("nested crash conditional must retain terminal evidence")
+        };
+        assert_eq!(crash_leaves, [false, true, false]);
+
+        let mut forged = emitted.clone();
+        forged.functions[0].bytes[root.false_arm_offset - 1] ^= 1;
+        assert!(build_terminal_object_artifact(&forged).is_err());
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays nested return and crash leaves");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive nested crash conditional stack demand");
+        let image = emit_terminal_executable_image(&artifact, 35)
+            .expect("emit nested crash conditional executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(3).expect("profile decision"),
+        )
+        .expect("build nested crash conditional installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode nested crash conditional installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode nested crash conditional installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed nested crash conditional demand");
         assert_eq!(installed, demand);
     }
 }

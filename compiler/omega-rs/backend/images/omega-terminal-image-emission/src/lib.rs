@@ -2409,6 +2409,32 @@ fn validate_scalar_stack(
             nested,
             nested_arm,
             scalar_control_affine_cleanups,
+            None,
+        );
+    }
+    if let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
+        root,
+        nested,
+        nested_arm,
+        crash_leaves,
+    } = evidence.control_flow
+    {
+        if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                machine,
+            ));
+        }
+        return validate_top_level_two_decision_three_return_scalar_stack(
+            architecture,
+            machine,
+            bytes,
+            calls,
+            evidence,
+            root,
+            nested,
+            nested_arm,
+            scalar_control_affine_cleanups,
+            Some(crash_leaves),
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
@@ -3672,6 +3698,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
     nested: TerminalScalarConditionalBranchEvidence,
     nested_arm: TerminalScalarConditionalArm,
     cleanups: &[TerminalScalarControlAffineCleanupRecord],
+    crash_leaves: Option<[bool; 3]>,
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -3681,6 +3708,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
 > {
     let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
     if !cleanups.is_empty() && cleanups.len() != leaf_regions.len()
+        || crash_leaves.is_some() && !cleanups.is_empty()
         || evidence.cleanup_preservation.is_some()
         || evidence
             .mutations
@@ -3782,20 +3810,37 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
     }
     peak = peak.max(nested_peak);
     for (index, (start, end)) in leaf_regions.into_iter().enumerate() {
-        peak = peak.max(replay_scalar_conditional_region(
-            architecture,
-            machine,
-            bytes,
-            start,
-            end,
-            true,
-            &mut claimed,
-            &mut call_sites,
-            true,
-            evidence,
-            &mut validated_calls,
-            cleanups.get(index).map(|cleanup| &cleanup.cleanup),
-        )?);
+        let leaf_peak = if crash_leaves.is_some_and(|leaves| leaves[index]) {
+            replay_scalar_conditional_terminal_region(
+                architecture,
+                machine,
+                bytes,
+                start,
+                end,
+                true,
+                &[],
+                &mut claimed,
+                &mut call_sites,
+                evidence,
+                &mut validated_calls,
+            )?
+        } else {
+            replay_scalar_conditional_region(
+                architecture,
+                machine,
+                bytes,
+                start,
+                end,
+                true,
+                &mut claimed,
+                &mut call_sites,
+                true,
+                evidence,
+                &mut validated_calls,
+                cleanups.get(index).map(|cleanup| &cleanup.cleanup),
+            )?
+        };
+        peak = peak.max(leaf_peak);
     }
     if let Some((&offset, _)) = claimed.first_key_value() {
         return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
