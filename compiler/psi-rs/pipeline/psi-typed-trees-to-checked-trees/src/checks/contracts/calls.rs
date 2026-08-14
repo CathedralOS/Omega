@@ -601,7 +601,7 @@ fn transition_guard_proves_requires(
     ) else {
         return false;
     };
-    if !matches!(call_site, crate::CallSite::TransitionNamed(_)) {
+    if !matches!(call_site, crate::CallSite::TransitionNamed { .. }) {
         return false;
     }
     let Some(machine) = program

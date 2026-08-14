@@ -809,13 +809,19 @@ fn count_transition_target_node(
 ) {
     match syntax_trees.statements.transition_target(target) {
         crate::statement::TransitionTargetNode::Named {
-            path, arguments, ..
+            path,
+            arguments,
+            evidence_arguments,
+            ..
         } => {
             for member in syntax_trees.statements.identifier_path_members(*path) {
                 count_identifier(member, counts);
             }
             for argument in syntax_trees.statements.expression_handles(*arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
+            }
+            for evidence in evidence_arguments.iter() {
+                count_identifier(evidence, counts);
             }
         }
         crate::statement::TransitionTargetNode::Value(expression) => {

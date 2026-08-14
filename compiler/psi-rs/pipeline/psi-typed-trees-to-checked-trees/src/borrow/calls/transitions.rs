@@ -5,7 +5,9 @@ pub(super) fn collect_transition_target_borrow_calls(
     target: psi_typed_trees::statement::TransitionTargetHandle,
 ) {
     match collection.program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { arguments, path } => {
+        TransitionTargetNode::Named {
+            arguments, path, ..
+        } => {
             let accesses = collection.collect_call_argument_accesses(
                 collection
                     .program

@@ -757,14 +757,14 @@ fn inductive_transition_entailment(
         let target = program.statement_table.transition_target(transition.target);
         let kind = match target {
             TransitionTargetNode::Value(value) => ArmKind::Value(*value),
-            TransitionTargetNode::Named { path, arguments } if path.symbol == root.symbol => {
-                ArmKind::TailSelfCall(
-                    program
-                        .statement_table
-                        .expression_handles(*arguments)
-                        .to_vec(),
-                )
-            }
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } if path.symbol == root.symbol => ArmKind::TailSelfCall(
+                program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .to_vec(),
+            ),
             // Transitions to other states (or `self` / terminal targets) are
             // outside the recognized inductive shape.
             _ => return,
@@ -3748,8 +3748,9 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             if !transition.target.is_valid() {
                 continue;
             }
-            let TransitionTargetNode::Named { path, arguments } =
-                program.statement_table.transition_target(transition.target)
+            let TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(transition.target)
             else {
                 continue;
             };
@@ -4894,6 +4895,7 @@ fn recognize_structural_state_leaves(
                 TransitionTargetNode::Named {
                     path: target,
                     arguments,
+                    ..
                 } => {
                     let [state_name] = program.statement_table.name_path_members(target.members)
                     else {

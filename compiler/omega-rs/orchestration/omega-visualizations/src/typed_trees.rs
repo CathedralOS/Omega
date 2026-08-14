@@ -987,7 +987,11 @@ fn transition_target_label(program: &TypedTrees, target: TransitionTargetHandle)
     }
 
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { path, arguments } => {
+        TransitionTargetNode::Named {
+            path,
+            arguments,
+            evidence_arguments,
+        } => {
             let path = program
                 .statement_table
                 .name_path_members(path.members)
@@ -995,7 +999,11 @@ fn transition_target_label(program: &TypedTrees, target: TransitionTargetHandle)
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join(".");
-            format!("{path}({})", arguments.len())
+            format!(
+                "{path}({}; {} evidence)",
+                arguments.len(),
+                evidence_arguments.len()
+            )
         }
         TransitionTargetNode::Value(_) => "value".to_owned(),
         TransitionTargetNode::SelfTarget => "self".to_owned(),

@@ -676,6 +676,7 @@ pub enum TransitionTargetSnapshot {
     Named {
         path: Vec<String>,
         arguments: Vec<ExpressionSnapshot>,
+        evidence_arguments: Vec<String>,
     },
     Value {
         value: ExpressionSnapshot,
@@ -1487,9 +1488,17 @@ fn transition_target_snapshot(
     }
 
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { path, arguments } => TransitionTargetSnapshot::Named {
+        TransitionTargetNode::Named {
+            path,
+            arguments,
+            evidence_arguments,
+        } => TransitionTargetSnapshot::Named {
             path: path_snapshot(program.statement_table.name_path_members(path.members)),
             arguments: statement_expression_span_snapshot(program, *arguments),
+            evidence_arguments: evidence_arguments
+                .iter()
+                .map(|name| name.as_str().to_owned())
+                .collect(),
         },
         TransitionTargetNode::Value(value) => TransitionTargetSnapshot::Value {
             value: expression_snapshot(program, *value),

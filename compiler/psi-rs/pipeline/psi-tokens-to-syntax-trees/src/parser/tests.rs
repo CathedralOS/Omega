@@ -3718,7 +3718,7 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
 }
 
 #[test]
-fn rejects_evidence_lane_on_named_transition_without_dropping_it() {
+fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     let source = r#"
         machine Main::main(proof: Evidence) {
             transition { _ -> next(; proof) }
@@ -3726,13 +3726,35 @@ fn rejects_evidence_lane_on_named_transition_without_dropping_it() {
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("named transitions must reject unsupported evidence lanes explicitly");
-    assert!(
-        error.message.contains(
-            "erased evidence arguments are not yet supported on named transition targets"
-        ),
-        "unexpected parse error: {error:?}"
+    let parsed = parse_syntax_trees(&tokens).expect("named transition evidence lane should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let StatementNode::Transition(transition) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("expected transition statement");
+    };
+    let psi_syntax_trees::statement::TransitionTargetNode::Named {
+        evidence_arguments, ..
+    } = parsed.statements.transition_target(transition.target)
+    else {
+        panic!("expected named transition target");
+    };
+    assert_eq!(
+        evidence_arguments
+            .iter()
+            .map(|name| name.as_str())
+            .collect::<Vec<_>>(),
+        ["proof"]
     );
 }
 

@@ -233,7 +233,11 @@ impl StatementTable {
             return TransitionTargetHandle::invalid();
         }
         let target = match source.transition_target(target) {
-            TransitionTargetNode::Named { path, arguments } => {
+            TransitionTargetNode::Named {
+                path,
+                arguments,
+                evidence_arguments,
+            } => {
                 let members = self
                     .name_path_members
                     .insert_many(source.name_path_members(path.members).iter().cloned());
@@ -252,6 +256,7 @@ impl StatementTable {
                         symbol: path.symbol,
                     },
                     arguments,
+                    evidence_arguments: evidence_arguments.clone(),
                 }
             }
             TransitionTargetNode::Value(value) => TransitionTargetNode::Value(
@@ -341,7 +346,9 @@ impl StatementTable {
         }
         let snapshot = self.transition_target(target).clone();
         match snapshot {
-            TransitionTargetNode::Named { path, arguments } => {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
                 for argument in self.expression_handles(arguments).to_vec() {
                     expressions.remap_symbols_in(argument, symbols);
                 }
@@ -540,6 +547,7 @@ pub enum TransitionTargetNode {
     Named {
         path: TableNamePath,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
+        evidence_arguments: Box<[Identifier]>,
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,
@@ -589,6 +597,7 @@ mod tests {
                 symbol: target_symbol,
             },
             arguments,
+            evidence_arguments: Box::default(),
         });
 
         let mut state_statements = psi_arena::HandleSpan::empty();
@@ -610,8 +619,9 @@ mod tests {
         let StatementNode::Transition(transition) = statements.statement(statement) else {
             panic!("statement should be transition");
         };
-        let TransitionTargetNode::Named { path, arguments } =
-            statements.transition_target(transition.target)
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = statements.transition_target(transition.target)
         else {
             panic!("transition target should be named");
         };
@@ -660,6 +670,7 @@ mod tests {
                 symbol: target_symbol,
             },
             arguments,
+            evidence_arguments: Box::default(),
         });
         source_statements.push_statement(
             &mut source_span,
@@ -729,8 +740,9 @@ mod tests {
         let StatementNode::Transition(transition) = &copied[1] else {
             panic!("second copied statement should be transition");
         };
-        let TransitionTargetNode::Named { path, arguments } =
-            copied_statements.transition_target(transition.target)
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = copied_statements.transition_target(transition.target)
         else {
             panic!("copied transition target should be named");
         };

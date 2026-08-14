@@ -106,7 +106,7 @@ pub(crate) fn canonical_receiver_place_for_call_site(
                 .find(|parameter| parameter.is_self)?;
             canonical_place_from_symbol(self_parameter.symbol)
         }
-        CallSite::TransitionNamed(_) => {
+        CallSite::TransitionNamed { .. } => {
             let caller_state =
                 find_state_in_machine(program, caller_machine_symbol, caller_state_symbol)?;
             let self_parameter = program

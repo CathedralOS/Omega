@@ -91,7 +91,7 @@ impl EvaluationTraversal<'_, '_> {
                 for argument in self.program.statement_table.expression_handles(*arguments) {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::CallSite::TransitionNamed(target) if *target == *arguments)
+                if matches!(self.target, crate::CallSite::TransitionNamed { arguments: target, .. } if *target == *arguments)
                 {
                     self.target_reached = true;
                 }

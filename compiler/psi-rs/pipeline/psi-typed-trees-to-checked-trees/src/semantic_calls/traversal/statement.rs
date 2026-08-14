@@ -73,9 +73,16 @@ fn find_call_site_in_transition_target<'program>(
     target: psi_typed_trees::statement::TransitionTargetHandle,
 ) -> Option<CallSite<'program>> {
     match traversal.program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { arguments, .. } => {
+        TransitionTargetNode::Named {
+            arguments,
+            evidence_arguments,
+            ..
+        } => {
             if traversal.is_target_call_site() {
-                return Some(CallSite::TransitionNamed(*arguments));
+                return Some(CallSite::TransitionNamed {
+                    arguments: *arguments,
+                    evidence_arguments,
+                });
             }
             traversal.advance_call_ordinal();
 

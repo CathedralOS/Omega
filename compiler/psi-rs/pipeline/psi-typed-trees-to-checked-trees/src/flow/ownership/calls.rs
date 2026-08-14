@@ -37,7 +37,7 @@ pub(crate) fn owned_method_receiver_place(
             call.receiver,
         ),
         CallSite::Statement(call) => canonical_place_from_symbol(call.receiver_symbol),
-        CallSite::TransitionNamed(_) => None,
+        CallSite::TransitionNamed { .. } => None,
     }
     .or_else(|| canonical_place_from_symbol(fallback_receiver_symbol))
 }

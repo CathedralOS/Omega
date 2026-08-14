@@ -1100,6 +1100,7 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
             path,
             path_starts_at_self: false,
             arguments,
+            evidence_arguments: Box::default(),
         },
     })
 }
@@ -1123,6 +1124,14 @@ fn rewrite_guarded_transition_argument_calls(
         collect_synthesizable_argument_calls(lowerer, *argument, &mut calls);
     }
     if calls.is_empty() {
+        return TransitionTarget::Named(named);
+    }
+    // Evidence identifiers are scoped to the authored source state. Moving
+    // this edge behind a synthesized runtime-argument state would orphan a
+    // state-arrival term, so keep the exact edge intact and let the existing
+    // downstream call-in-argument fence decide whether its runtime shape is
+    // supported.
+    if !named.evidence_arguments.is_empty() {
         return TransitionTarget::Named(named);
     }
 
@@ -1200,6 +1209,7 @@ fn rewrite_guarded_transition_argument_calls(
             path,
             path_starts_at_self: false,
             arguments,
+            evidence_arguments: Box::default(),
         },
     })
 }
@@ -1910,6 +1920,7 @@ fn lower_transition_target_node(
             path,
             path_starts_at_self,
             arguments,
+            evidence_arguments,
         } => {
             let arguments = lower_statement_expressions(lowerer, syntax_trees, *arguments)?;
             // A runtime-indexed read in OPERAND position inside a transition
@@ -1945,6 +1956,11 @@ fn lower_transition_target_node(
                     path: lower_statement_path_members(lowerer, syntax_trees, *path),
                     path_starts_at_self: *path_starts_at_self,
                     arguments,
+                    evidence_arguments: evidence_arguments
+                        .iter()
+                        .map(crate::name::lower_name)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                 },
             }))
         }

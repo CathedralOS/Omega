@@ -18,7 +18,10 @@ pub(super) fn guarded_self_loop<'program>(
         return None;
     };
     let target = program.statement_table.transition_target(transition.target);
-    let TransitionTargetNode::Named { path, arguments } = target else {
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = target
+    else {
         return None;
     };
     if !target_symbol_matches_state(program, state, path.symbol) {
@@ -68,7 +71,10 @@ pub(super) fn fall_through_self_loop<'program>(
             TransitionGuardNode::Always => {}
         }
         let target = program.statement_table.transition_target(transition.target);
-        let TransitionTargetNode::Named { path, arguments } = target else {
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = target
+        else {
             continue;
         };
         if !target_symbol_matches_state(program, state, path.symbol) {
@@ -137,8 +143,9 @@ pub(super) fn edge_to_any_guard<'program>(
         if !target_handle.is_valid() {
             continue;
         }
-        let TransitionTargetNode::Named { path, arguments } =
-            program.statement_table.transition_target(target_handle)
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = program.statement_table.transition_target(target_handle)
         else {
             continue;
         };

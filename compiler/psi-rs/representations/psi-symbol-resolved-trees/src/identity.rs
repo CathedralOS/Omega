@@ -552,12 +552,19 @@ fn count_transition_target_node(
     counts: &mut IdentityStorageCounts,
 ) {
     match target {
-        TransitionTargetNode::Named { path, arguments } => {
+        TransitionTargetNode::Named {
+            path,
+            arguments,
+            evidence_arguments,
+        } => {
             for name in statements.name_path_members(path.members) {
                 count_transition_path_member(name, counts);
             }
             for argument in statements.expression_handles(*arguments) {
                 count_expression_handle(expressions, *argument, counts);
+            }
+            for evidence in evidence_arguments.iter() {
+                count_transition_path_member(evidence, counts);
             }
         }
         TransitionTargetNode::Value(expression) => {

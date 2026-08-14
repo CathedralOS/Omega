@@ -217,6 +217,7 @@ pub enum TransitionTargetNode {
         path: HandleSpan<Identifier>,
         path_starts_at_self: bool,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
+        evidence_arguments: Box<[Identifier]>,
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,
@@ -257,6 +258,7 @@ mod tests {
             path,
             path_starts_at_self: false,
             arguments,
+            evidence_arguments: Box::default(),
         });
         let guard = expressions.insert(ExpressionNode::Boolean(true));
         let statement = statements.insert(StatementNode::Transition(TableTransition {

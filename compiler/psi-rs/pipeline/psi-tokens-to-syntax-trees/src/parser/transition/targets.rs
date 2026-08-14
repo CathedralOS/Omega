@@ -201,11 +201,6 @@ fn classify_call_target_handle(
     syntax_trees: &mut SyntaxTrees,
     call: TableCallExpression,
 ) -> Result<TransitionTargetNode, ParseError> {
-    if !call.evidence_arguments.is_empty() {
-        return Err(ParseError::new(
-            "erased evidence arguments are not yet supported on named transition targets",
-        ));
-    }
     let receiver_depth = if call.receiver.is_valid() {
         expression_handle_identifier_depth(syntax_trees, call.receiver)
     } else {
@@ -248,6 +243,7 @@ fn classify_call_target_handle(
             path,
             path_starts_at_self,
             arguments,
+            evidence_arguments: call.evidence_arguments,
         })
     }
 }

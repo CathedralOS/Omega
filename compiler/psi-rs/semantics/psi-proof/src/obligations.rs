@@ -1486,8 +1486,9 @@ fn table_transition_target_state_and_arguments<'program>(
     &'program State,
     &'program [psi_typed_trees::expression::ExpressionHandle],
 )> {
-    let TransitionTargetNode::Named { path, arguments } =
-        program.statement_table.transition_target(target)
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = program.statement_table.transition_target(target)
     else {
         return None;
     };

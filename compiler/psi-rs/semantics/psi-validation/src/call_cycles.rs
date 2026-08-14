@@ -344,7 +344,9 @@ fn collect_statement_edges(
                     continue;
                 }
                 match program.statement_table.transition_target(target_handle) {
-                    TransitionTargetNode::Named { path, arguments } => {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
                         let members = program.statement_table.name_path_members(path.members);
                         // `-> self.X(..)`: the Nested arm-target spelling.
                         if let [receiver, target] = members

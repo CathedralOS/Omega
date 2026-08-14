@@ -433,6 +433,126 @@ fn named_requires_call_rejects_ambient_fact_inference() {
 }
 
 #[test]
+fn named_transition_evidence_forwards_across_state_arrivals() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            transition { _ -> first(value; incoming) }
+
+            state first(value: i32)
+            requires first_evidence: carries(value);
+            {
+                transition { _ -> second(value; first_evidence) }
+            }
+
+            state second(value: i32)
+            requires second_evidence: carries(value);
+            {
+            }
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("named transition evidence should bind each exact state-arrival lane");
+    assert_eq!(checked.facts.proof.contract_evidence_arguments.len(), 2);
+    assert!(checked.facts.proof.evidence_terms.iter().any(|(_, term)| {
+        term.name == "first_evidence"
+            && matches!(
+                term.owner,
+                psi_checked_trees::ContractProofFactOwner::MachineState { .. }
+            )
+    }));
+}
+
+#[test]
+fn named_transition_requires_explicit_evidence_lane() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            transition { _ -> next(value) }
+
+            state next(value: i32)
+            requires required: carries(value);
+            {
+            }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("ambient state-arrival facts must not synthesize erased transition arguments");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("supplies 0 erased evidence arguments but its named requires lane has 1")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn named_transition_rejects_wrong_evidence_term() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        proposition differs(value: i32) evidence Evidence;
+
+        machine forward(value: i32)
+        requires incoming: differs(value)
+        {
+            transition { _ -> next(value; incoming) }
+
+            state next(value: i32)
+            requires required: carries(value);
+            {
+            }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a transition evidence term must inhabit the exact target-state proposition");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not inhabit erased requires position 0")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn named_state_requires_rejects_fact_only_evidence_binding() {
+    let source = r#"
+        proposition ready(value: i32);
+
+        machine forward(value: i32) {
+            transition { _ -> next(value) }
+
+            state next(value: i32)
+            requires proof: ready(value);
+            {
+            }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a named state arrival requires must carry witness evidence");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "state `next` named requires evidence `proof` binds fact-only proposition `ready`"
+            )),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn named_requires_call_rejects_wrong_proposition_term() {
     let source = r#"
         trait Evidence {}

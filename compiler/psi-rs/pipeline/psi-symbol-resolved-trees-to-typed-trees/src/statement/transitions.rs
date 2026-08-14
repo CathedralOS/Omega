@@ -62,7 +62,11 @@ fn lower_transition_target(
         .statements
         .transition_target(target)
     {
-        resolved::statement::TransitionTargetNode::Named { path, arguments } => {
+        resolved::statement::TransitionTargetNode::Named {
+            path,
+            arguments,
+            evidence_arguments,
+        } => {
             let lowered_arguments = lower_statement_argument_span(lowerer, *arguments)?;
 
             typed::statement::TransitionTargetNode::Named {
@@ -72,6 +76,11 @@ fn lower_transition_target(
                     symbol: path.symbol,
                 },
                 arguments: lowered_arguments,
+                evidence_arguments: evidence_arguments
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
             }
         }
         resolved::statement::TransitionTargetNode::Value(expression) => {

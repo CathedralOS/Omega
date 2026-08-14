@@ -4051,7 +4051,9 @@ fn append_permuted_cycle_frame_edge(
         TransitionTargetNode::Terminal
         | TransitionTargetNode::Value(_)
         | TransitionTargetNode::SelfTarget => Some(()),
-        TransitionTargetNode::Named { path, arguments } => {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
             let target = program
                 .machine_states(machine)
                 .iter()
@@ -6306,8 +6308,9 @@ fn substate_parameter_descends(
                         if !target_handle.is_valid() {
                             continue;
                         }
-                        let TransitionTargetNode::Named { path, arguments } =
-                            program.statement_table.transition_target(target_handle)
+                        let TransitionTargetNode::Named {
+                            path, arguments, ..
+                        } = program.statement_table.transition_target(target_handle)
                         else {
                             continue;
                         };

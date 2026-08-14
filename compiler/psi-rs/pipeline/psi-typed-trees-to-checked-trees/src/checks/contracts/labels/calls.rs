@@ -76,7 +76,7 @@ fn call_result_label(
             }
         }
         // A named transition target carries no single call result to bind.
-        crate::CallSite::TransitionNamed(_) => RESULT_BINDER.to_owned(),
+        crate::CallSite::TransitionNamed { .. } => RESULT_BINDER.to_owned(),
     }
 }
 

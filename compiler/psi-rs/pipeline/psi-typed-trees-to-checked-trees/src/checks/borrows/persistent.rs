@@ -153,8 +153,9 @@ fn state_transition_edges(
         .flatten()
         .filter(|target| target.is_valid())
         .filter_map(|target| {
-            let psi_typed_trees::statement::TransitionTargetNode::Named { path, arguments } =
-                program.statement_table.transition_target(target)
+            let psi_typed_trees::statement::TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(target)
             else {
                 return None;
             };

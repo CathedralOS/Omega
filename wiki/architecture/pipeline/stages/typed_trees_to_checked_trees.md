@@ -51,6 +51,9 @@ Must own:
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
 - A durable checked-flow representation of calls and transitions.
+- Exact positional binding from each named-transition evidence identifier to
+  the target state's witness-bearing arrival requirement after ordinary
+  transition-argument substitution; enclosing machine evidence stays live.
 
 Must not own:
 
