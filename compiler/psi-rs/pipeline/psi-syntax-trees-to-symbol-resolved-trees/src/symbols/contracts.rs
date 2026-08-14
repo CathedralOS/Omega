@@ -263,6 +263,10 @@ fn assign_contract_call_symbols(
             if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
+                    if argument.evidence_projection.is_some() {
+                        argument.symbol = psi_symbols::SymbolHandle::invalid();
+                        continue;
+                    }
                     argument.symbol = if target_symbol.is_valid()
                         && matches!(
                             symbols.get(target_symbol).kind,

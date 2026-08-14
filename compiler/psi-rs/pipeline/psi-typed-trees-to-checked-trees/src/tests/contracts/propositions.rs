@@ -17,6 +17,35 @@ fn proposition_type_arguments_instantiate_value_parameter_types() {
 }
 
 #[test]
+fn carrierless_evidence_projection_cannot_select_an_executable_machine_parameter() {
+    let source = r#"
+        trait Evidence {
+            machine modulus() -> i32;
+        }
+
+        proposition holds() evidence Evidence;
+
+        machine consume<machine Witness>()
+        where machine Witness() -> i32;
+        {}
+
+        machine caller()
+        requires proof: holds()
+        {
+            consume<proof.modulus>();
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("erased evidence must not become an executable callback");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "proof-static evidence projection `proof.modulus` cannot select an executable machine parameter",
+        )
+    }));
+}
+
+#[test]
 fn proposition_type_arguments_reject_mismatched_value_arguments() {
     let source = r#"
         proposition typed<T>(value: T);

@@ -415,6 +415,10 @@ fn count_statement_node(
                 for member in &argument.path {
                     count_identifier(member, counts);
                 }
+                if let Some(projection) = &argument.evidence_projection {
+                    count_identifier(&projection.term, counts);
+                    count_identifier(&projection.member, counts);
+                }
             }
             for argument in syntax_trees.statements.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
@@ -599,6 +603,10 @@ fn count_expression_handle(
             for argument in &call.machine_arguments {
                 for member in &argument.path {
                     count_identifier(member, counts);
+                }
+                if let Some(projection) = &argument.evidence_projection {
+                    count_identifier(&projection.term, counts);
+                    count_identifier(&projection.member, counts);
                 }
             }
             for argument in syntax_trees.expressions.expression_handles(call.arguments) {

@@ -148,6 +148,17 @@ fn validate_call_selection(
         return;
     };
 
+    if let Some(projection) = arguments
+        .iter()
+        .find_map(|argument| argument.evidence_projection.as_ref())
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "proof-static evidence projection `{}.{}` cannot select an executable machine parameter; erased evidence cannot eliminate into runtime computation",
+            projection.term, projection.member
+        )));
+        return;
+    }
+
     let machine_arguments = arguments
         .iter()
         .filter(|argument| {

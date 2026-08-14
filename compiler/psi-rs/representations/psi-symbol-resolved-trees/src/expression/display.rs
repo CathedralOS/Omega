@@ -115,7 +115,14 @@ impl TableCallExpression {
                     .iter()
                     .map(|argument| {
                         argument.const_literal.as_ref().map_or_else(
-                            || display_name_path(&argument.path, "::"),
+                            || {
+                                argument.evidence_projection.as_ref().map_or_else(
+                                    || display_name_path(&argument.path, "::"),
+                                    |projection| {
+                                        format!("{}.{}", projection.term, projection.member)
+                                    },
+                                )
+                            },
                             |literal| literal.text().to_owned(),
                         )
                     })

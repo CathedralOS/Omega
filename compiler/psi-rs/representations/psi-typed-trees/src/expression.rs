@@ -2025,8 +2025,17 @@ pub struct StaticMachineArgument {
     /// arguments; proposition proof facts retain their final category.
     pub path: Box<[Identifier]>,
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
+    /// Proof-static projection from one named evidence term. The checked proof
+    /// layer binds it to one stable opaque member of that retained term.
+    pub evidence_projection: Option<EvidenceProjection>,
     /// Entry-state symbol of the selected concrete machine.
     pub symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceProjection {
+    pub term: Identifier,
+    pub member: Identifier,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

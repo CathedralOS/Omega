@@ -153,6 +153,14 @@ fn lower_statement_node(
                                     .collect::<Vec<_>>()
                                     .into_boxed_slice(),
                                 const_literal: argument.const_literal.clone(),
+                                evidence_projection: argument.evidence_projection.as_ref().map(
+                                    |projection| {
+                                        psi_symbol_resolved_trees::expression::EvidenceProjection {
+                                            term: crate::name::lower_name(&projection.term),
+                                            member: crate::name::lower_name(&projection.member),
+                                        }
+                                    },
+                                ),
                                 symbol: SymbolHandle::invalid(),
                             }
                         })

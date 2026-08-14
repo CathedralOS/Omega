@@ -20,6 +20,7 @@ use serde::Serialize;
 pub enum StaticArgumentSnapshot {
     Path(Vec<String>),
     Const(String),
+    EvidenceProjection { term: String, member: String },
 }
 
 #[cfg(test)]
@@ -1549,10 +1550,16 @@ fn table_expression_snapshot(
 fn snapshot_static_argument(
     argument: &crate::expression::StaticMachineArgument,
 ) -> StaticArgumentSnapshot {
-    argument.const_literal.as_ref().map_or_else(
-        || StaticArgumentSnapshot::Path(diagnostic_name_span_snapshot(&argument.path)),
-        |literal| StaticArgumentSnapshot::Const(literal.text().to_owned()),
-    )
+    if let Some(literal) = &argument.const_literal {
+        StaticArgumentSnapshot::Const(literal.text().to_owned())
+    } else if let Some(projection) = &argument.evidence_projection {
+        StaticArgumentSnapshot::EvidenceProjection {
+            term: projection.term.as_str().to_owned(),
+            member: projection.member.as_str().to_owned(),
+        }
+    } else {
+        StaticArgumentSnapshot::Path(diagnostic_name_span_snapshot(&argument.path))
+    }
 }
 
 fn type_reference_snapshot(

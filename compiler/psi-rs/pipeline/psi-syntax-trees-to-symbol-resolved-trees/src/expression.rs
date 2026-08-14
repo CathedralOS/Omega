@@ -287,6 +287,14 @@ fn lower_expression_node_into_table(
                                     .collect::<Vec<_>>()
                                     .into_boxed_slice(),
                                 const_literal: argument.const_literal.clone(),
+                                evidence_projection: argument.evidence_projection.as_ref().map(
+                                    |projection| {
+                                        psi_symbol_resolved_trees::expression::EvidenceProjection {
+                                            term: lower_name(&projection.term),
+                                            member: lower_name(&projection.member),
+                                        }
+                                    },
+                                ),
                                 symbol: SymbolHandle::invalid(),
                             }
                         })

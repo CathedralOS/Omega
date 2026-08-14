@@ -419,6 +419,10 @@ fn count_statement_node(
                 for member in &argument.path {
                     count_call_name(member, counts);
                 }
+                if let Some(projection) = &argument.evidence_projection {
+                    count_call_name(&projection.term, counts);
+                    count_call_name(&projection.member, counts);
+                }
             }
             for receiver in statements.name_path_members(call.receiver) {
                 count_call_name(receiver, counts);
@@ -595,6 +599,10 @@ fn count_expression_node(
             for argument in &call.machine_arguments {
                 for member in &argument.path {
                     count_call_name(member, counts);
+                }
+                if let Some(projection) = &argument.evidence_projection {
+                    count_call_name(&projection.term, counts);
+                    count_call_name(&projection.member, counts);
                 }
             }
             if call.receiver.is_valid() {
