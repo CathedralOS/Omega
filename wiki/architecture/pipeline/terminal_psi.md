@@ -387,14 +387,15 @@ leaf and validates the result and return-link lifetime independently on every
 native path. Terminal production decides every short-circuit local once per
 stage, substitutes each resulting value leaf into the continuation, and
 source-distributes branch-free work and later decision stages without a
-convergence block. One deliberately narrow exception accepts an exact
-top-level Boolean identity binding (`input && true` or `input || false`) whose
-typed value leaves jump to one terminal-Psi Boolean parameter and one shared
-cleanup return. Omega retains that join as two native value arms, one
-unconditional join branch, and one cleanup tail; object construction decodes
-the branch and replays the shared tail before image and installation custody.
-Wider explicit convergence, calls, effects, nested nominal ownership,
-projections, and wider cleanup shapes still fail closed.
+convergence block. One bounded exception accepts a finite `&&`/`||` tree with
+exactly one runtime Boolean input and otherwise constant leaves. Every typed
+value leaf jumps to one terminal-Psi Boolean parameter and one shared cleanup
+return. Omega folds the constant-only decisions and retains one physical
+two-arm join, one unconditional join branch, and one cleanup tail on every
+target; object construction decodes the branch and replays the shared tail
+before image and installation custody. Multiple or computed runtime leaves,
+calls, effects, nested nominal ownership, projections, and wider cleanup shapes
+still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -869,9 +870,9 @@ call into several leaves, the object boundary permits its repeated operation
 owner only when every physical pair has conflicting outcomes at a validated
 decision. Calls sharing an executable path still reject. This proves the
 source-distributed tree, not an actual reconvergent native join. Separately, the
-exact Boolean identity-binding slice retains one terminal-Psi join and object
+single-runtime-input Boolean-tree slice retains one terminal-Psi join and object
 replay validates its native decision, unconditional join branch, and single
-cleanup tail on both targets. General shared native control-flow joins remain
+cleanup tail on every target. General shared native control-flow joins remain
 outside the theorem. Affine cleanup admits the finite
 branch-only trees described above, with one distinct cleanup-bearing return
 edge per surviving leaf. External adapter/interrupt-arrival state and other
