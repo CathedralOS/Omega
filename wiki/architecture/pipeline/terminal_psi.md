@@ -421,9 +421,9 @@ upper bound, one exact left shift by a landed count under a direct unsigned
 value upper bound or
 by an unsigned runtime count under direct count and value upper bounds, or exact
 division/remainder by a landed nonzero unsigned constant, a landed signed
-constant other than `0` or `-1`, or a runtime unsigned divisor under a direct
-lower bound, may form decision leaves. Psi retains every exact operation and
-all native targets join its leaves into the
+constant other than `0` or `-1`, or a runtime signed or unsigned divisor under a
+direct positive lower bound, may form decision leaves. Psi retains every exact
+operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,
@@ -928,8 +928,8 @@ and each operation certificate cites its exact assumption. Those premises now
 cover same- and cross-sign exact narrowing plus signed or unsigned
 landed-operand addition, landed-subtrahend subtraction, and landed-factor
 multiplication in addition to the separately listed unsigned relational
-subtraction, shift forms, signed landed-divisor form, and runtime unsigned
-divisor form.
+subtraction, shift forms, signed landed-divisor form, and runtime signed or
+unsigned positive-divisor forms.
 Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external

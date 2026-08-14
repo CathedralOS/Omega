@@ -742,6 +742,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             count: u8,
             signed: i64,
             signed_arithmetic: i8,
+            signed_divisor: i8,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -749,7 +750,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
-            0i8 <= signed_arithmetic
+            0i8 <= signed_arithmetic, 1i8 <= signed_divisor
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -777,6 +778,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic * -3i8) < 4i8)
                 && ((signed_arithmetic / 2i8) < 4i8)
                 && ((signed_arithmetic % -2i8) <= 1i8)
+                && ((signed_arithmetic / signed_divisor) < 4i8)
+                && ((signed_arithmetic % signed_divisor) <= signed_arithmetic)
                 && enabled;
             staged
         }
@@ -1049,6 +1052,31 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
     }));
     assert!(signed_division_obligations.len() >= 2);
     for obligation in signed_division_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let signed_divisor_parameter = terminal_entry.parameters[6].id;
+    let runtime_signed_division_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
+                right, obligation, ..
+            } if right == signed_divisor_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(runtime_signed_division_obligations.len() >= 2);
+    for obligation in runtime_signed_division_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
