@@ -201,6 +201,7 @@ const EXPLICIT_ENTRY_TEXT_SAMPLES: &[&str] = &[
 ];
 const EXPLICIT_ENTRY_RENDERING_SAMPLES: &[&str] = &[
     "bouncing_ball",
+    "bouncing_ball_2d",
     "bouncing_console",
     "bouncing_particles",
     "dungeon_render",
@@ -235,6 +236,7 @@ const EXPLICIT_ENTRY_SIMULATION_SAMPLES: &[&str] = &[
     "game_of_life_glider",
     "grid_walk",
     "langtons_ant",
+    "particle_sim",
     "random_walk",
     "stopwatch",
     "traffic_light",
