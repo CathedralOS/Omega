@@ -77,7 +77,8 @@ Remaining:
   hosted roots, and the active pass umbrella exercises them through production
   entry selection rather than its explicit legacy fixture seam. Their direct
   native runtime tests select the authored host root as well. Eighteen
-  deployable recast runtime canaries likewise author all four hosted roots and
+  deployable recast runtime canaries—now the complete twenty-three-fixture
+  rooted cohort—likewise author all four hosted roots and
   now pass through production entry selection in the active umbrella. The
   active pass-canary umbrella uses its explicit legacy fixture entry and asserts
   that state-graph lowering occurred, so it cannot silently collapse into
@@ -333,9 +334,9 @@ Remaining:
   retains the language-defined inline expansion for finite nonempty trees of
   relevant Boolean and fixed-integer fields, flattens the resulting conjunction,
   and reconstructs both roots independently across whole-root calls. Exact
-  addition over same-typed relevant fixed-integer members now remains a typed
-  proposition term and reconstructs every nested operand across whole-root and
-  all-field-projected calls. Continue with other arithmetic families,
+  addition and subtraction over same-typed relevant fixed-integer members now
+  remain typed proposition terms and reconstruct every nested operand across
+  whole-root and all-field-projected calls. Continue with other arithmetic families,
   case-payload paths, and wider aggregate equality involving text, floats, sums,
   or erased fields. Imported crash capsules remain design-blocked on artifact
   identity and certificate binding.
