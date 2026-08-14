@@ -744,6 +744,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             signed_arithmetic: i8,
             signed_divisor: i8,
             negative_divisor: i8,
+            bounded_negative_divisor: i8,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -752,7 +753,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
             0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
-            negative_divisor <= -2i8
+            negative_divisor <= -2i8, bounded_negative_divisor <= -1i8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -784,6 +785,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic % signed_divisor) <= signed_arithmetic)
                 && ((signed_arithmetic / negative_divisor) < 4i8)
                 && ((signed_arithmetic % negative_divisor) <= signed_arithmetic)
+                && ((signed_arithmetic / bounded_negative_divisor) < 4i8)
+                && ((signed_arithmetic % bounded_negative_divisor) <= signed_arithmetic)
                 && enabled;
             staged
         }
@@ -1106,6 +1109,31 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .collect::<Vec<_>>();
     assert!(runtime_negative_signed_division_obligations.len() >= 2);
     for obligation in runtime_negative_signed_division_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let bounded_negative_divisor_parameter = terminal_entry.parameters[8].id;
+    let runtime_bounded_negative_signed_division_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
+                right, obligation, ..
+            } if right == bounded_negative_divisor_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(runtime_bounded_negative_signed_division_obligations.len() >= 2);
+    for obligation in runtime_bounded_negative_signed_division_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
