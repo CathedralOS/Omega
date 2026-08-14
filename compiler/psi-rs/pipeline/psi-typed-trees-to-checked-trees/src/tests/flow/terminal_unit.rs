@@ -1514,6 +1514,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((15u8 & (input * 2u8)) < 16u8) && enabled;
             staged
         }
+        machine Root::two_shell_nested_exact_add_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8
+        {
+            let staged: bool = ((~((input + 3u8) as u16)) < 65535u16) && enabled;
+            staged
+        }
         machine Root::nested_exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -2215,6 +2225,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one exact-multiply right subtree beneath bitwise-and retains the scalar plan");
     assert!(
         binary_right_exact_multiply_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let two_shell_nested_exact_add_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "two_shell_nested_exact_add_integer_comparison_convergence",
+        ))
+        .expect("one exact-add shell beneath widening and bitwise-not retains the scalar plan");
+    assert!(
+        two_shell_nested_exact_add_integer_comparison
             .shared_boolean_convergence
             .is_some()
     );

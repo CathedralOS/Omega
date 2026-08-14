@@ -10902,7 +10902,7 @@ fn shared_integer_runtime_parameters_with_shells(
             left,
             right,
             ..
-        } if proof_shell_allowed && remaining_shells > 0 => {
+        } if proof_shell_allowed => {
             let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
                 right, 0, false,
@@ -10914,7 +10914,7 @@ fn shared_integer_runtime_parameters_with_shells(
             scalar_type: ScalarType::Integer(_),
             left,
             right,
-        } if proof_shell_allowed && remaining_shells > 0 => {
+        } if proof_shell_allowed => {
             let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
                 right, 0, false,
@@ -10926,7 +10926,7 @@ fn shared_integer_runtime_parameters_with_shells(
             left,
             right,
             ..
-        } if proof_shell_allowed && remaining_shells > 0 => {
+        } if proof_shell_allowed => {
             let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
                 right, 0, false,
@@ -10947,9 +10947,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 proof_shell_allowed,
             )
         }
-        LoweredDirectExpression::IntegerExactCast { operand, .. }
-            if proof_shell_allowed && remaining_shells > 0 =>
-        {
+        LoweredDirectExpression::IntegerExactCast { operand, .. } if proof_shell_allowed => {
             shared_integer_runtime_parameters_with_shells(operand, 0, false)
         }
         LoweredDirectExpression::Local { .. }
