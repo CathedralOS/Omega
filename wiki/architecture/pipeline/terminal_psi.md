@@ -819,10 +819,15 @@ arm, validates their exact conditional/join targets, and independently replays
 the special and ordinary paths. These forms may also occur in typed call
 arguments in the condition or either arm; exact call relocation and closure
 evidence survives object, image, and installation custody. General nested and
-reconvergent control remains outside this bounded theorem. Crashes in arms,
-external adapter/interrupt-arrival state, and other terminal function forms are
-not yet part of that theorem, so the inspection surface still makes no
-installed-root WCSU claim.
+reconvergent control remains outside this bounded theorem. One additional
+bounded terminal shape is retained: exactly one direct accountable return arm
+and one direct crash arm. Its evidence binds which arm crashes; object
+construction requires that region to end in exact x86 `UD2` or AArch64 `BRK #0`
+while independently replaying the returning region. Division-bearing
+return/crash combinations, two-crash conditionals, external
+adapter/interrupt-arrival state, and other terminal function forms are not yet
+part of that theorem, so the inspection surface still makes no installed-root
+WCSU claim.
 
 ## Implementation queue
 

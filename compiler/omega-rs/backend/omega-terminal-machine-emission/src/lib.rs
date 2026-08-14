@@ -336,9 +336,9 @@ fn emit_function(
                     target,
                 )?,
             };
-            scalar_stack_eligible = direct_accountable_integer_arm(when_true)
-                && direct_accountable_integer_arm(when_false);
-            if scalar_stack_eligible {
+            let terminal_shape = direct_conditional_integer_shape(when_true, when_false);
+            scalar_stack_eligible = terminal_shape.is_some();
+            if let Some(terminal_shape) = terminal_shape {
                 let conditional = fragment
                     .conditional
                     .expect("top-level integer conditional retains its branch evidence");
@@ -347,7 +347,13 @@ fn emit_function(
                 } else {
                     Vec::new()
                 };
-                scalar_control_flow = conditional_with_division_branches(conditional, branches)?;
+                if let Some(evidence) =
+                    conditional_with_terminal_shape(conditional, terminal_shape, branches)?
+                {
+                    scalar_control_flow = evidence;
+                } else {
+                    scalar_stack_eligible = false;
+                }
             }
             internal_calls = fragment.internal_calls;
             fragment.bytes
@@ -378,10 +384,10 @@ fn emit_function(
                     target,
                 )?,
             };
-            scalar_stack_eligible = accountable_conditional_boolean_expression(condition)
-                && direct_accountable_integer_arm(when_true)
-                && direct_accountable_integer_arm(when_false);
-            if scalar_stack_eligible {
+            let terminal_shape = direct_conditional_integer_shape(when_true, when_false);
+            scalar_stack_eligible =
+                accountable_conditional_boolean_expression(condition) && terminal_shape.is_some();
+            if let Some(terminal_shape) = terminal_shape.filter(|_| scalar_stack_eligible) {
                 let conditional = fragment
                     .conditional
                     .expect("top-level integer expression conditional retains its branch evidence");
@@ -390,7 +396,13 @@ fn emit_function(
                 } else {
                     Vec::new()
                 };
-                scalar_control_flow = conditional_with_division_branches(conditional, branches)?;
+                if let Some(evidence) =
+                    conditional_with_terminal_shape(conditional, terminal_shape, branches)?
+                {
+                    scalar_control_flow = evidence;
+                } else {
+                    scalar_stack_eligible = false;
+                }
             }
             internal_calls = fragment.internal_calls;
             fragment.bytes
@@ -6502,13 +6514,17 @@ fn collect_x86_division_branch_evidence(
     Ok(branches)
 }
 
-fn conditional_with_division_branches(
+#[derive(Clone, Copy)]
+enum DirectConditionalIntegerShape {
+    TwoReturn,
+    ReturnAndCrash(TerminalScalarConditionalArm),
+}
+
+fn conditional_with_terminal_shape(
     conditional: TerminalScalarControlFlowEvidence,
+    terminal_shape: DirectConditionalIntegerShape,
     branches: Vec<TerminalScalarDivisionBranchEvidence>,
-) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
-    if branches.is_empty() {
-        return Ok(conditional);
-    }
+) -> Result<Option<TerminalScalarControlFlowEvidence>, EmissionError> {
     let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
         condition,
         branch_offset,
@@ -6518,15 +6534,35 @@ fn conditional_with_division_branches(
     else {
         return Err(EmissionError::ConditionalBranchEncodingInvalid);
     };
-    Ok(
-        TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
-            condition,
-            branch_offset,
-            branch_byte_count,
-            false_arm_offset,
-            branches,
-        },
-    )
+    Ok(match (terminal_shape, branches.is_empty()) {
+        (DirectConditionalIntegerShape::TwoReturn, true) => {
+            Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                condition,
+                branch_offset,
+                branch_byte_count,
+                false_arm_offset,
+            })
+        }
+        (DirectConditionalIntegerShape::TwoReturn, false) => Some(
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+                condition,
+                branch_offset,
+                branch_byte_count,
+                false_arm_offset,
+                branches,
+            },
+        ),
+        (DirectConditionalIntegerShape::ReturnAndCrash(crash_arm), true) => {
+            Some(TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+                condition,
+                branch_offset,
+                branch_byte_count,
+                false_arm_offset,
+                crash_arm,
+            })
+        }
+        (DirectConditionalIntegerShape::ReturnAndCrash(_), false) => None,
+    })
 }
 
 fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bool {
@@ -6540,12 +6576,29 @@ fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bo
     }
 }
 
-fn direct_accountable_integer_arm(arm: &TerminalAssignedConditionalIntegerArm) -> bool {
-    matches!(
-        arm.control.as_ref(),
+fn direct_conditional_integer_shape(
+    when_true: &TerminalAssignedConditionalIntegerArm,
+    when_false: &TerminalAssignedConditionalIntegerArm,
+) -> Option<DirectConditionalIntegerShape> {
+    let classify = |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
         TerminalAssignedIntegerControl::Return { expression, .. }
-            if accountable_conditional_arm_integer_expression(expression)
-    )
+            if accountable_conditional_arm_integer_expression(expression) =>
+        {
+            Some(false)
+        }
+        TerminalAssignedIntegerControl::Crash { .. } => Some(true),
+        _ => None,
+    };
+    match (classify(when_true)?, classify(when_false)?) {
+        (false, false) => Some(DirectConditionalIntegerShape::TwoReturn),
+        (true, false) => Some(DirectConditionalIntegerShape::ReturnAndCrash(
+            TerminalScalarConditionalArm::True,
+        )),
+        (false, true) => Some(DirectConditionalIntegerShape::ReturnAndCrash(
+            TerminalScalarConditionalArm::False,
+        )),
+        (true, true) => None,
+    }
 }
 
 /// Expression-condition WCSU evidence admits division and remainder in the
@@ -9327,7 +9380,7 @@ mod tests {
     }
 
     #[test]
-    fn conditional_division_admits_only_branch_free_arm_forms() {
+    fn conditional_division_and_crash_admit_accountable_arm_forms() {
         let mut division_arm = conditional_plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
             &mut division_arm.functions[0].operation
@@ -9421,25 +9474,49 @@ mod tests {
             TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
         ));
 
-        let mut crash_arm = conditional_plan(NativeTarget::linux_arm64());
-        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
-            &mut crash_arm.functions[0].operation
-        else {
-            unreachable!()
-        };
-        when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
-            psi_crash_edge: EdgeId::new(9).expect("crash edge"),
-            cause: psi_terminal::CrashCause::Trap,
-            site_guard: Vec::new(),
-            frontier_lower_bound: Vec::new(),
-        });
-        assert_eq!(
-            emit_machine_code(&crash_arm)
-                .expect("conditional crash still emits")
-                .functions[0]
-                .scalar_stack,
-            None
-        );
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            for crash_false_arm in [false, true] {
+                let mut crash_plan = conditional_plan(target);
+                let TerminalTargetOperation::ReturnIntegerConditionalControl {
+                    when_true,
+                    when_false,
+                    ..
+                } = &mut crash_plan.functions[0].operation
+                else {
+                    unreachable!()
+                };
+                let crash_arm = if crash_false_arm {
+                    when_false
+                } else {
+                    when_true
+                };
+                crash_arm.control = Box::new(TerminalTargetIntegerControl::Crash {
+                    psi_crash_edge: EdgeId::new(9).expect("crash edge"),
+                    cause: psi_terminal::CrashCause::Trap,
+                    site_guard: Vec::new(),
+                    frontier_lower_bound: Vec::new(),
+                });
+                let emitted = emit_machine_code(&crash_plan)
+                    .expect("conditional return/crash emits with stack evidence");
+                let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { crash_arm, .. } =
+                    emitted.functions[0]
+                        .scalar_stack
+                        .as_ref()
+                        .expect("conditional return/crash stack evidence")
+                        .control_flow
+                else {
+                    panic!("conditional return/crash must retain terminal evidence")
+                };
+                assert_eq!(
+                    crash_arm,
+                    if crash_false_arm {
+                        TerminalScalarConditionalArm::False
+                    } else {
+                        TerminalScalarConditionalArm::True
+                    }
+                );
+            }
+        }
     }
 
     #[test]

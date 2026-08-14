@@ -19,7 +19,7 @@ use psi_core::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ProfileDecisionId,
     ValueId,
 };
-use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_terminal::{CrashCause, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[test]
 fn division_argument_stack_facts_survive_assignment_emission_object_and_image() {
@@ -173,6 +173,130 @@ fn signed_x86_conditional_division_diamond_survives_installation_and_rejects_for
     let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
         .expect("recompose installed signed x86 conditional division demand");
     assert_eq!(installed, demand);
+}
+
+#[test]
+fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for crash_false_arm in [false, true] {
+            let assigned =
+                assign_registers(&conditional_return_crash_plan(target, crash_false_arm))
+                    .expect("assign conditional return/crash");
+            let emitted = emit_machine_code(&assigned).expect("emit conditional return/crash");
+            let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+                branch_offset,
+                branch_byte_count,
+                false_arm_offset,
+                crash_arm,
+                ..
+            } = emitted.functions[0]
+                .scalar_stack
+                .as_ref()
+                .expect("conditional return/crash stack evidence")
+                .control_flow
+            else {
+                panic!("conditional return/crash must retain terminal evidence")
+            };
+            assert_eq!(
+                crash_arm,
+                if crash_false_arm {
+                    omega_terminal_machine_code::TerminalScalarConditionalArm::False
+                } else {
+                    omega_terminal_machine_code::TerminalScalarConditionalArm::True
+                }
+            );
+
+            let mut forged = emitted.clone();
+            let crash_region_end = if crash_false_arm {
+                forged.functions[0].bytes.len()
+            } else {
+                false_arm_offset
+            };
+            forged.functions[0].bytes[crash_region_end - 1] ^= 1;
+            assert!(build_terminal_object_artifact(&forged).is_err());
+
+            let artifact = build_terminal_object_artifact(&emitted)
+                .expect("object boundary replays return and crash terminals");
+            let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+                .expect("derive conditional return/crash stack demand");
+            let image = emit_terminal_executable_image(&artifact, 23 + u16::from(crash_false_arm))
+                .expect("emit conditional return/crash executable image");
+            let installation = build_terminal_installation_record(
+                &image,
+                ProfileDecisionId::new(6).expect("profile decision"),
+            )
+            .expect("build conditional return/crash installation record");
+            let encoded = encode_terminal_installation_record(&installation)
+                .expect("encode conditional return/crash installation record");
+            let decoded = decode_terminal_installation_record(&encoded)
+                .expect("decode conditional return/crash installation record");
+            let installed =
+                derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+                    .expect("recompose installed conditional return/crash demand");
+            assert_eq!(installed, demand);
+            assert!(branch_offset + branch_byte_count <= false_arm_offset);
+        }
+    }
+}
+
+fn conditional_return_crash_plan(
+    target: NativeTarget,
+    crash_false_arm: bool,
+) -> TerminalTargetOperationPlan {
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let condition_register = match target.architecture {
+        Architecture::X86_64 => MachineRegister::X86Rdi,
+        Architecture::Aarch64 => MachineRegister::Aarch64X(0),
+    };
+    let returned = |edge, return_edge, source, value| TerminalTargetConditionalIntegerArm {
+        psi_edge: edge_id(edge),
+        control: Box::new(TerminalTargetIntegerControl::Return {
+            psi_return_edge: edge_id(return_edge),
+            source_value: value_id(source),
+            expression: TerminalTargetIntegerExpression::Immediate {
+                source_value: value_id(source),
+                value: IntegerValue::Unsigned(value),
+            },
+        }),
+    };
+    let crashed = |edge, crash_edge| TerminalTargetConditionalIntegerArm {
+        psi_edge: edge_id(edge),
+        control: Box::new(TerminalTargetIntegerControl::Crash {
+            psi_crash_edge: edge_id(crash_edge),
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        }),
+    };
+    let (when_true, when_false) = if crash_false_arm {
+        (returned(1, 3, 2, 1), crashed(2, 4))
+    } else {
+        (crashed(1, 3), returned(2, 4, 2, 1))
+    };
+    TerminalTargetOperationPlan {
+        terminal_psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([46; 32]),
+        },
+        target,
+        entry: machine_id(1),
+        functions: vec![TerminalTargetFunction {
+            machine: machine_id(1),
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: Vec::new(),
+                edges: (1..=4).map(edge_id).collect(),
+            },
+            operation: TerminalTargetOperation::ReturnIntegerConditionalControl {
+                condition_source: value_id(1),
+                condition_parameter_index: 0,
+                condition_location: TerminalScalarParameterLocation::Register(condition_register),
+                scalar_type,
+                when_true,
+                when_false,
+            },
+        }],
+    }
 }
 
 #[test]

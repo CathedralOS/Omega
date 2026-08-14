@@ -405,6 +405,16 @@ pub enum TerminalScalarControlFlowEvidence {
         false_arm_offset: usize,
         branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
+    /// One top-level Boolean branch with exactly one direct scalar return arm
+    /// and one no-successor native crash arm. `crash_arm` binds which physical
+    /// region must end in the target's canonical crash instruction.
+    TopLevelReturnAndCrash {
+        condition: TerminalScalarConditionalCondition,
+        branch_offset: usize,
+        branch_byte_count: usize,
+        false_arm_offset: usize,
+        crash_arm: TerminalScalarConditionalArm,
+    },
     /// Exactly two Boolean decisions and three independently returning leaves.
     /// The root is followed by its true arm and then its false arm; `nested_arm`
     /// identifies which root arm contains the sole nested decision. The three
