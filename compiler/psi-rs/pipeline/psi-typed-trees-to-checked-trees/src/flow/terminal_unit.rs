@@ -3226,22 +3226,33 @@ fn direct_integer_requirement(
         {
             let (position, primitive_type) = parameter(binary.left)?;
             let (divisor, divisor_type) = parameter(bound.right)?;
-            let ExpressionNode::Integer(maximum) = program.expression_table.expression(bound.left)
+            let ExpressionNode::Integer(boundary) = program.expression_table.expression(bound.left)
             else {
                 return None;
             };
-            let maximum_matches = match primitive_type {
-                PrimitiveType::U8 => maximum.value_u64() == Some(u64::from(u8::MAX)),
-                PrimitiveType::U16 => maximum.value_u64() == Some(u64::from(u16::MAX)),
-                PrimitiveType::U32 => maximum.value_u64() == Some(u64::from(u32::MAX)),
-                PrimitiveType::U64 => maximum.value_u64() == Some(u64::MAX),
-                _ => false,
-            };
-            (maximum_matches && primitive_type == divisor_type).then_some((
+            let bound_plan = quotient_extremum_bound_plan(primitive_type, boundary, divisor)?;
+            (primitive_type == divisor_type).then_some((
                 position,
                 primitive_type,
                 CheckedStructuralScalarIntegerBoundKind::Upper,
-                CheckedStructuralScalarIntegerBoundPlan::UnsignedMaximumDivideParameter(divisor),
+                bound_plan,
+            ))?
+        }
+        (BinaryOperator::LessOrEqual, ExpressionNode::Binary(bound), _)
+            if bound.operator == BinaryOperator::Divide =>
+        {
+            let (position, primitive_type) = parameter(binary.right)?;
+            let (divisor, divisor_type) = parameter(bound.right)?;
+            let ExpressionNode::Integer(boundary) = program.expression_table.expression(bound.left)
+            else {
+                return None;
+            };
+            let bound_plan = quotient_extremum_bound_plan(primitive_type, boundary, divisor)?;
+            (primitive_type == divisor_type).then_some((
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Lower,
+                bound_plan,
             ))?
         }
         (BinaryOperator::LessOrEqual, _, _) => {
@@ -3262,6 +3273,36 @@ fn direct_integer_requirement(
         kind,
         bound,
     })
+}
+
+fn quotient_extremum_bound_plan(
+    primitive_type: PrimitiveType,
+    boundary: &psi_numerics::literals::IntegerLiteral,
+    divisor: u32,
+) -> Option<CheckedStructuralScalarIntegerBoundPlan> {
+    let maximum_matches = match primitive_type {
+        PrimitiveType::U8 => boundary.value_u64() == Some(u64::from(u8::MAX)),
+        PrimitiveType::U16 => boundary.value_u64() == Some(u64::from(u16::MAX)),
+        PrimitiveType::U32 => boundary.value_u64() == Some(u64::from(u32::MAX)),
+        PrimitiveType::U64 => boundary.value_u64() == Some(u64::MAX),
+        PrimitiveType::I8 => boundary.value_i64() == Some(i64::from(i8::MAX)),
+        PrimitiveType::I16 => boundary.value_i64() == Some(i64::from(i16::MAX)),
+        PrimitiveType::I32 => boundary.value_i64() == Some(i64::from(i32::MAX)),
+        PrimitiveType::I64 => boundary.value_i64() == Some(i64::MAX),
+        _ => false,
+    };
+    if maximum_matches {
+        return Some(CheckedStructuralScalarIntegerBoundPlan::MaximumDivideParameter(divisor));
+    }
+    let minimum_matches = match primitive_type {
+        PrimitiveType::I8 => boundary.value_i64() == Some(i64::from(i8::MIN)),
+        PrimitiveType::I16 => boundary.value_i64() == Some(i64::from(i16::MIN)),
+        PrimitiveType::I32 => boundary.value_i64() == Some(i64::from(i32::MIN)),
+        PrimitiveType::I64 => boundary.value_i64() == Some(i64::MIN),
+        _ => false,
+    };
+    minimum_matches
+        .then_some(CheckedStructuralScalarIntegerBoundPlan::SignedMinimumDivideParameter(divisor))
 }
 
 fn nominal_cleanup_missing_requirement(
