@@ -402,11 +402,12 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         small: u8,
         enabled: bool
     ) -> bool
-    requires input <= 255u64
+    requires input <= 255u64, small <= 254u8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
+            && ((small + 1u8) < 6u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1723,6 +1724,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_add_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the proven exact addition");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_add_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     assert!(entry.blocks.iter().any(|block| {
         block
             .operations
@@ -1791,17 +1808,21 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let [Proposition::LessOrEqual(subject, _)] = entry_contract.requires.as_slice() else {
-        panic!("shared convergence retains one unsigned upper-bound premise")
+    let [
+        Proposition::LessOrEqual(subject, _),
+        Proposition::LessOrEqual(_, _),
+    ] = entry_contract.requires.as_slice()
+    else {
+        panic!("shared convergence retains both unsigned upper-bound premises")
     };
-    entry_contract.requires = vec![Proposition::LessOrEqual(
+    entry_contract.requires[0] = Proposition::LessOrEqual(
         subject.clone(),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             IntegerValue::Unsigned(254),
         )
         .unwrap(),
-    )];
+    );
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &changed_bound,
@@ -1812,6 +1833,49 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == cast_obligation
+    ));
+    let mut missing_exact_add_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_exact_add_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != exact_add_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_exact_add_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == exact_add_obligation
+    ));
+    let mut changed_add_bound = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_add_bound.entry;
+    let entry_contract = &mut changed_add_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let Proposition::LessOrEqual(add_subject, _) = &entry_contract.requires[1] else {
+        panic!("shared convergence retains the exact-add upper-bound premise")
+    };
+    entry_contract.requires[1] = Proposition::LessOrEqual(
+        add_subject.clone(),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerValue::Unsigned(253),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_add_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == exact_add_obligation
     ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
@@ -1858,6 +1922,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 ((wrapped_add < 4) || (bitwise_not < 1) || (input <= 9))
                     && small < 5
                     && input < 5
+                    && small + 1 < 6
                     && input == 3
                     && enabled
             ))

@@ -1079,6 +1079,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input as u8) < 4u8) && enabled;
             staged
         }
+        machine Root::exact_add_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 254u8
+        {
+            let staged: bool = ((input + 1u8) < 4u8) && enabled;
+            staged
+        }
+        machine Root::nested_exact_add_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 253u8
+        {
+            let staged: bool = (((input + 1u8) + 1u8) < 4u8) && enabled;
+            staged
+        }
         machine Root::nested_exact_cast_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -1366,6 +1386,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         exact_cast_integer_comparison
             .shared_boolean_convergence
             .is_some()
+    );
+    let exact_add_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_add_integer_comparison_convergence",
+        ))
+        .expect("one proof-bearing exact-add shell retains the scalar-return plan");
+    assert!(
+        exact_add_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let nested_exact_add_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nested_exact_add_integer_comparison_convergence",
+        ))
+        .expect("nested exact-add shells retain the source-distributed fallback");
+    assert!(
+        nested_exact_add_integer_comparison
+            .shared_boolean_convergence
+            .is_none()
     );
     let nested_exact_cast_integer_comparison = checked
         .facts
