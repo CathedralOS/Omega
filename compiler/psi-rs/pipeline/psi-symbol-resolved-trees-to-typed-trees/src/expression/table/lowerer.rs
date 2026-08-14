@@ -214,6 +214,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                                         .collect::<Vec<_>>()
                                         .into_boxed_slice(),
                                     const_literal: argument.const_literal.clone(),
+                                    evidence_projection: argument.evidence_projection.as_ref().map(
+                                        |projection| typed::expression::EvidenceProjection {
+                                            term: lower_name(&projection.term),
+                                            member: lower_name(&projection.member),
+                                        },
+                                    ),
                                     symbol: argument.symbol,
                                 })
                                 .collect::<Vec<_>>()

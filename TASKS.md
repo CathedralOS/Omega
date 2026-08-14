@@ -544,7 +544,13 @@ Remaining N6/N8 work:
   specificity-based selection.
 - Project carrierless evidence from the complete conformance map. Projection is
   stable per retained term and forwarding preserves it; separate introductions
-  may differ. Evidence cannot eliminate into runtime computation.
+  may differ. The settled `term.member` spelling now remains structurally
+  distinct from declaration paths through syntax, resolved, and typed Psi,
+  including snapshots and semantic storage accounting; attempting to use it as
+  an executable static-machine selection rejects explicitly. Still bind legal
+  proof-static projections to the named checked term's exact normalized row and
+  retain their opaque stable identities through terminal Psi. Evidence cannot
+  eliminate into runtime computation.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records

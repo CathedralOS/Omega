@@ -4138,6 +4138,50 @@ fn parses_static_machine_symbol_call_argument() {
 }
 
 #[test]
+fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
+    let source = r#"
+        machine consume<machine Witness>()
+        where machine Witness();
+        {}
+
+        machine caller() {
+            consume<proof.modulus>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("evidence projection should parse");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_syntax_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "consume" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("generic call expression");
+    let [argument] = call.machine_arguments.as_ref() else {
+        panic!("one proof-static argument")
+    };
+    assert!(argument.path.is_empty());
+    assert!(argument.const_literal.is_none());
+    let projection = argument
+        .evidence_projection
+        .as_ref()
+        .expect("term.member projection");
+    assert_eq!(projection.term.as_str(), "proof");
+    assert_eq!(projection.member.as_str(), "modulus");
+    assert_eq!(
+        call.display_name(&parsed.expressions),
+        "consume<proof.modulus>()"
+    );
+}
+
+#[test]
 fn destructure_marker_preserves_double_underscore_field_as_one_component() {
     let source = r#"
         data Pair { left__value: i32; right: i32; }

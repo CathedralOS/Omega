@@ -48,6 +48,10 @@ pub struct IdentifierSnapshot {
 pub enum StaticArgumentSnapshot {
     Path(Vec<IdentifierSnapshot>),
     Const(String),
+    EvidenceProjection {
+        term: IdentifierSnapshot,
+        member: IdentifierSnapshot,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1896,10 +1900,16 @@ fn snapshot_call_expression(
 fn snapshot_static_argument(
     argument: &crate::expression::StaticMachineArgument,
 ) -> StaticArgumentSnapshot {
-    argument.const_literal.as_ref().map_or_else(
-        || StaticArgumentSnapshot::Path(snapshot_identifier_slice(&argument.path)),
-        |literal| StaticArgumentSnapshot::Const(literal.text().to_owned()),
-    )
+    if let Some(literal) = &argument.const_literal {
+        StaticArgumentSnapshot::Const(literal.text().to_owned())
+    } else if let Some(projection) = &argument.evidence_projection {
+        StaticArgumentSnapshot::EvidenceProjection {
+            term: snapshot_identifier(&projection.term),
+            member: snapshot_identifier(&projection.member),
+        }
+    } else {
+        StaticArgumentSnapshot::Path(snapshot_identifier_slice(&argument.path))
+    }
 }
 
 fn snapshot_struct_field(

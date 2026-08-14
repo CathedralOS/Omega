@@ -804,6 +804,7 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
             arguments.push(StaticMachineArgument {
                 path: Box::default(),
                 const_literal: Some(literal),
+                evidence_projection: None,
             });
             cursor = rest;
         } else {
@@ -811,19 +812,35 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
                 return Ok(None);
             };
             cursor = rest;
-            let mut path = vec![first];
-            while cursor.at_punctuation(PunctuationKind::ColonColon) {
-                let after_separator = cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                let Ok((member, rest)) = after_separator.take_identifier() else {
-                    return Ok(None);
-                };
-                path.push(member);
+            if cursor.at_punctuation(PunctuationKind::Dot) {
+                cursor = cursor.take_punctuation(PunctuationKind::Dot, ".")?;
+                let (member, rest) = cursor.take_identifier()?;
+                arguments.push(StaticMachineArgument {
+                    path: Box::default(),
+                    const_literal: None,
+                    evidence_projection: Some(psi_syntax_trees::expression::EvidenceProjection {
+                        term: first,
+                        member,
+                    }),
+                });
                 cursor = rest;
+            } else {
+                let mut path = vec![first];
+                while cursor.at_punctuation(PunctuationKind::ColonColon) {
+                    let after_separator =
+                        cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                    let Ok((member, rest)) = after_separator.take_identifier() else {
+                        return Ok(None);
+                    };
+                    path.push(member);
+                    cursor = rest;
+                }
+                arguments.push(StaticMachineArgument {
+                    path: path.into_boxed_slice(),
+                    const_literal: None,
+                    evidence_projection: None,
+                });
             }
-            arguments.push(StaticMachineArgument {
-                path: path.into_boxed_slice(),
-                const_literal: None,
-            });
         }
 
         if cursor.at_punctuation(PunctuationKind::Comma) {

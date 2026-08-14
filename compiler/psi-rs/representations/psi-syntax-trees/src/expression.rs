@@ -279,6 +279,16 @@ pub struct StaticMachineArgument {
     /// Integer const argument. `Some` makes `path` empty; the target's binder
     /// kind determines whether the static argument is legal.
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
+    /// Proof-static projection from one named evidence term. This remains
+    /// structurally distinct from a declaration path: `term.member` is not
+    /// interchangeable with `term::member`.
+    pub evidence_projection: Option<EvidenceProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceProjection {
+    pub term: Identifier,
+    pub member: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

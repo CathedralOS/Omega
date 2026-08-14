@@ -149,6 +149,10 @@ pub(super) fn assign_call_symbol(
     {
         call.target_symbol = target_symbol;
         for argument in &mut call.machine_arguments {
+            if argument.evidence_projection.is_some() {
+                argument.symbol = SymbolHandle::invalid();
+                continue;
+            }
             argument.symbol = if target_symbol.is_valid()
                 && matches!(
                     symbols.get(target_symbol).kind,

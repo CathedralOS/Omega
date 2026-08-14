@@ -76,6 +76,79 @@ fn retains_typed_explicit_conformance_binder_identity() {
 }
 
 #[test]
+fn retains_proof_static_evidence_projection_through_resolved_and_typed_trees() {
+    let source = r#"
+        trait Evidence {
+            machine modulus() -> i32;
+        }
+
+        proposition holds() evidence Evidence;
+
+        machine consume<machine Witness>()
+        where machine Witness() -> i32;
+        {}
+
+        machine caller()
+        requires proof: holds()
+        {
+            consume<proof.modulus>();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved_caller = resolved
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "caller")
+        .expect("resolved caller");
+    let resolved_projection = resolved
+        .machine_state_handles(resolved_caller.states)
+        .iter()
+        .flat_map(|state| resolved.state_statements(resolved.machine_state(*state).statements))
+        .find_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::Statement::Call(call)
+                if call.target.as_str() == "consume" =>
+            {
+                call.machine_arguments[0].evidence_projection.as_ref()
+            }
+            _ => None,
+        })
+        .expect("resolved projection");
+    assert_eq!(resolved_projection.term.as_str(), "proof");
+    assert_eq!(resolved_projection.member.as_str(), "modulus");
+
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed_caller = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "caller")
+        .expect("typed caller");
+    let typed_call = typed
+        .machine_states(typed_caller)
+        .iter()
+        .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| match statement {
+            psi_typed_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "consume" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("typed call");
+    let projection = typed_call.machine_arguments[0]
+        .evidence_projection
+        .as_ref()
+        .expect("typed projection");
+    assert_eq!(projection.term.as_str(), "proof");
+    assert_eq!(projection.member.as_str(), "modulus");
+    assert!(!typed_call.machine_arguments[0].symbol.is_valid());
+    let snapshot = typed.snapshot_json().expect("typed snapshot");
+    assert!(snapshot.contains("\"term\":\"proof\",\"member\":\"modulus\""));
+}
+
+#[test]
 fn retains_typed_evidence_forwarding_owner_identity() {
     let source = r#"
         trait Evidence {}

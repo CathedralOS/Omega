@@ -1036,8 +1036,17 @@ pub struct StaticMachineArgument {
     /// arguments; the typed target telescope validates the category.
     pub path: Box<[DiagnosticName]>,
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
+    /// Proof-static projection from one named evidence term. It is resolved
+    /// against checked contract terms, not the runtime symbol table.
+    pub evidence_projection: Option<EvidenceProjection>,
     /// Entry-state symbol of the selected concrete machine.
     pub symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceProjection {
+    pub term: DiagnosticName,
+    pub member: DiagnosticName,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
