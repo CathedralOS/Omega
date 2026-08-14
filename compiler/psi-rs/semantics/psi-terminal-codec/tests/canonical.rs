@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 7_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 8_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "ee533b0367553bf69779a8ca6495290204157099f4b923e4e8837e0d3359f17d"
+        "8a547a1a8518f2b17437009ed423c99a46b133352b3a54a6fd5f1eb19028df7c"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -51,8 +51,8 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 7_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 8_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 13_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -61,8 +61,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 7_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 8_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 13_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -93,7 +93,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 7_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 8_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -663,7 +663,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 12_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 13_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1483,10 +1483,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&8_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&9_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(8))
+        Err(CodecError::UnsupportedFormatMarker(9))
     );
 
     let mut stale_format = bytes.clone();
@@ -1536,6 +1536,16 @@ fn encoder_refuses_noncanonical_semantic_ordering_and_forms() {
     assert_eq!(
         encode_module(&conjunction),
         Err(CodecError::NestedConjunction)
+    );
+
+    let mut disjunction = fixture();
+    disjunction.machines[0].contract.ensures[0].proposition = Proposition::Disjunction(vec![
+        Proposition::Truth,
+        Proposition::Disjunction(vec![Proposition::Truth, Proposition::Falsehood]),
+    ]);
+    assert_eq!(
+        encode_module(&disjunction),
+        Err(CodecError::NestedDisjunction)
     );
 
     let mut call = call_fixture();

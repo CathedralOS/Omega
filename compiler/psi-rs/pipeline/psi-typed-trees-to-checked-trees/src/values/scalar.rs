@@ -513,22 +513,25 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 })
             }
             ExpressionNode::Binary(binary)
-                if binary.operator == BinaryOperator::And
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
                     && operator_is_builtin(operators, expression) =>
             {
-                Some(CheckedBooleanExpression::And {
-                    left: Box::new(lower_structural_boolean_expression(
-                        program,
-                        operators,
-                        parameters,
-                        binary.left,
-                    )?),
-                    right: Box::new(lower_structural_boolean_expression(
-                        program,
-                        operators,
-                        parameters,
-                        binary.right,
-                    )?),
+                let left = Box::new(lower_structural_boolean_expression(
+                    program,
+                    operators,
+                    parameters,
+                    binary.left,
+                )?);
+                let right = Box::new(lower_structural_boolean_expression(
+                    program,
+                    operators,
+                    parameters,
+                    binary.right,
+                )?);
+                Some(if binary.operator == BinaryOperator::And {
+                    CheckedBooleanExpression::And { left, right }
+                } else {
+                    CheckedBooleanExpression::Or { left, right }
                 })
             }
             _ => None,

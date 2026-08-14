@@ -2412,6 +2412,12 @@ pub(crate) fn substitute_proposition_values(
                 .map(|conjunct| substitute_proposition_values(conjunct, substitutions))
                 .collect(),
         ),
+        Proposition::Disjunction(disjuncts) => Proposition::Disjunction(
+            disjuncts
+                .iter()
+                .map(|disjunct| substitute_proposition_values(disjunct, substitutions))
+                .collect(),
+        ),
         Proposition::Implication {
             premise,
             conclusion,
@@ -2460,6 +2466,12 @@ pub(crate) fn substitute_proposition_structural_places(
             conjuncts
                 .iter()
                 .map(|conjunct| substitute_proposition_structural_places(conjunct, substitutions))
+                .collect(),
+        ),
+        Proposition::Disjunction(disjuncts) => Proposition::Disjunction(
+            disjuncts
+                .iter()
+                .map(|disjunct| substitute_proposition_structural_places(disjunct, substitutions))
                 .collect(),
         ),
         Proposition::Implication {

@@ -158,6 +158,25 @@ const PROJECTED_INTEGER_MEMBER_SOURCE: &str = r#"
     }
 "#;
 
+const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
+    data Flag { active: bool; }
+    data Pair { left: Flag; right: Flag; decoy: Flag; }
+    data Envelope { pair: Pair; spare: Pair; }
+    data Helper {}
+    machine Helper::inspect(pair: Pair)
+    crashes Abort
+        pair.left.active || !pair.right.active
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.pair.left.active || !envelope.pair.right.active
+    {
+        Helper::inspect(envelope.pair);
+    }
+"#;
+
 #[test]
 fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretation() {
     struct Accept;
@@ -1170,6 +1189,217 @@ fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected projected integer validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn proposition_disjunction_rebases_and_verifies_each_member_path_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn field_paths(proposition: &Proposition) -> Vec<&[CanonicalStructuralPathSegment]> {
+        fn collect_term<'a>(
+            term: &'a ScalarTerm,
+            paths: &mut Vec<&'a [CanonicalStructuralPathSegment]>,
+        ) {
+            match term {
+                ScalarTerm::BooleanField { path, .. } => paths.push(path),
+                ScalarTerm::BooleanNot { operand } => collect_term(operand, paths),
+                _ => {}
+            }
+        }
+        fn collect<'a>(
+            proposition: &'a Proposition,
+            paths: &mut Vec<&'a [CanonicalStructuralPathSegment]>,
+        ) {
+            match proposition {
+                Proposition::Equal(left, right) => {
+                    collect_term(left, paths);
+                    collect_term(right, paths);
+                }
+                Proposition::Disjunction(disjuncts) => {
+                    for disjunct in disjuncts {
+                        collect(disjunct, paths);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut paths = Vec::new();
+        collect(proposition, &mut paths);
+        paths
+    }
+
+    let tokens = Lexer::new(DISJUNCTIVE_MEMBER_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("disjunctive projected member crash route lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let envelope = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_parameters[0].structural_type)
+        .expect("Envelope type");
+    let StructuralTypeShape::Record { fields } = &envelope.shape else {
+        panic!("Envelope is a record")
+    };
+    let pair = fields
+        .iter()
+        .find(|field| field.identity == "pair")
+        .expect("pair field");
+    let StructuralFieldType::Structural(pair_type) = pair.field_type else {
+        panic!("pair has a structural type")
+    };
+    let pair_declaration = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == pair_type)
+        .expect("Pair type");
+    let StructuralTypeShape::Record {
+        fields: pair_fields,
+    } = &pair_declaration.shape
+    else {
+        panic!("Pair is a record")
+    };
+    let decoy = pair_fields
+        .iter()
+        .find(|field| field.identity == "decoy")
+        .expect("decoy field");
+
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one disjunctive route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one disjunctive route")
+    };
+    let Proposition::Disjunction(root_disjuncts) = root_route.proposition() else {
+        panic!("caller retains terminal proposition disjunction")
+    };
+    assert_eq!(root_disjuncts.len(), 2);
+    let Proposition::Disjunction(helper_disjuncts) = helper_route.proposition() else {
+        panic!("callee retains terminal proposition disjunction")
+    };
+    assert_eq!(helper_disjuncts.len(), 2);
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected structural Unit call")
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        [StructuralPathSegment::Field("pair".into())]
+    );
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains one disjunctive continuation")
+    };
+    assert_eq!(continuation, root_route);
+    let root_paths = field_paths(root_route.proposition());
+    let helper_paths = field_paths(helper_route.proposition());
+    assert_eq!(root_paths.len(), 2);
+    assert_eq!(helper_paths.len(), 2);
+    for root_path in root_paths {
+        assert_eq!(
+            root_path.first(),
+            Some(&CanonicalStructuralPathSegment::Field(pair.id))
+        );
+        assert!(helper_paths.contains(&&root_path[1..]));
+    }
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently reconstructs the disjunctive continuation");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("disjunctive route has an acyclic fixed-fuel certificate");
+    assert_eq!(fixed.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 29,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("disjunctive member contract remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let CrashRouteGuard::Predicate(predicate) = &mut crash_continuations[0].alternatives[0] else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Disjunction(disjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(Proposition::Equal(_, ScalarTerm::BooleanField { path, .. })) =
+        disjuncts.iter_mut().find(|disjunct| {
+            matches!(
+                disjunct,
+                Proposition::Equal(_, ScalarTerm::BooleanField { .. })
+            )
+        })
+    else {
+        unreachable!()
+    };
+    path[1] = CanonicalStructuralPathSegment::Field(decoy.id);
+    *predicate = CrashPredicateTerm::new(proposition);
+    let invalid_result = psi_terminal_verifier::validate_module(&redirected);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected disjunctive validation result: {invalid_result:?}"
     );
 }
 

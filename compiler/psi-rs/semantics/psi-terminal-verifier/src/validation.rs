@@ -3422,9 +3422,9 @@ fn validate_boolean_field_terms(
             validate_term(module, machine, left)?;
             validate_term(module, machine, right)?;
         }
-        Proposition::Conjunction(conjuncts) => {
-            for conjunct in conjuncts {
-                validate_boolean_field_terms(module, machine, conjunct)?;
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            for proposition in propositions {
+                validate_boolean_field_terms(module, machine, proposition)?;
             }
         }
         Proposition::Implication {
@@ -3981,9 +3981,9 @@ fn validate_contract_clause_kind(
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
     match proposition {
-        Proposition::Conjunction(conjuncts) => {
-            for conjunct in conjuncts {
-                validate_contract_clause_kind(conjunct, contract, clause)?;
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            for proposition in propositions {
+                validate_contract_clause_kind(proposition, contract, clause)?;
             }
             Ok(())
         }
@@ -4015,9 +4015,9 @@ fn validate_contract_scope(
             validate_term_scope(left, allowed, contract, clause)?;
             validate_term_scope(right, allowed, contract, clause)
         }
-        Proposition::Conjunction(conjuncts) => {
-            for conjunct in conjuncts {
-                validate_contract_scope(conjunct, allowed, contract, clause)?;
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            for proposition in propositions {
+                validate_contract_scope(proposition, allowed, contract, clause)?;
             }
             Ok(())
         }
@@ -5596,7 +5596,9 @@ fn validate_operation_operands(
 fn proposition_contains_content(proposition: &Proposition) -> bool {
     match proposition {
         Proposition::ContentConservation(_) => true,
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_contains_content),
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            propositions.iter().any(proposition_contains_content)
+        }
         Proposition::Implication {
             premise,
             conclusion,
@@ -5664,9 +5666,9 @@ fn proposition_boolean_field_roots(proposition: &Proposition) -> BTreeSet<PlaceI
                 collect_term(left, roots);
                 collect_term(right, roots);
             }
-            Proposition::Conjunction(conjuncts) => {
-                for conjunct in conjuncts {
-                    collect(conjunct, roots);
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                for proposition in propositions {
+                    collect(proposition, roots);
                 }
             }
             Proposition::Implication {
@@ -5708,9 +5710,9 @@ fn proposition_content_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
                 collect_term(conservation.left(), roots);
                 collect_term(conservation.right(), roots);
             }
-            Proposition::Conjunction(conjuncts) => {
-                for conjunct in conjuncts {
-                    collect(conjunct, roots);
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                for proposition in propositions {
+                    collect(proposition, roots);
                 }
             }
             Proposition::Implication {

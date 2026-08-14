@@ -10282,19 +10282,21 @@ fn lower_structural_crash_route_buckets(
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<Proposition, LoweringError> {
-        if let CheckedBooleanExpression::And { left, right } = expression {
-            let conjuncts = vec![
+        if let CheckedBooleanExpression::And { left, right }
+        | CheckedBooleanExpression::Or { left, right } = expression
+        {
+            let propositions = vec![
                 lower_proposition(left, parameters, structural_types)?,
                 lower_proposition(right, parameters, structural_types)?,
             ];
-            let mut keyed = conjuncts
+            let mut keyed = propositions
                 .into_iter()
-                .map(|conjunct| {
-                    psi_terminal_codec::canonical_proposition_order_key(&conjunct)
-                        .map(|key| (key, conjunct))
+                .map(|proposition| {
+                    psi_terminal_codec::canonical_proposition_order_key(&proposition)
+                        .map(|key| (key, proposition))
                         .map_err(|_| {
                             LoweringError::Unsupported(
-                                "structural crash conjunction is not canonically encodable",
+                                "structural crash connective is not canonically encodable",
                             )
                         })
                 })
@@ -10303,16 +10305,19 @@ fn lower_structural_crash_route_buckets(
             keyed.dedup_by(|left, right| left.0 == right.0);
             if keyed.len() != 2 {
                 return unsupported(
-                    "structural crash conjunction must retain two distinct predicates",
+                    "structural crash connective must retain two distinct predicates",
                 );
             }
-            return Ok(Proposition::Conjunction(
-                keyed.into_iter().map(|(_, conjunct)| conjunct).collect(),
-            ));
-        }
-        if matches!(expression, CheckedBooleanExpression::Or { .. }) {
-            return unsupported(
-                "disjunctive structural crash predicates require terminal proposition disjunction",
+            let propositions = keyed
+                .into_iter()
+                .map(|(_, proposition)| proposition)
+                .collect();
+            return Ok(
+                if matches!(expression, CheckedBooleanExpression::And { .. }) {
+                    Proposition::Conjunction(propositions)
+                } else {
+                    Proposition::Disjunction(propositions)
+                },
             );
         }
         Ok(Proposition::Equal(
@@ -10416,9 +10421,9 @@ fn substitute_structural_crash_route_roots(
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
-            Proposition::Conjunction(conjuncts) => {
-                for conjunct in conjuncts.iter_mut() {
-                    substitute_proposition(conjunct, substitutions)?;
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                for proposition in propositions.iter_mut() {
+                    substitute_proposition(proposition, substitutions)?;
                 }
             }
             _ => {}
@@ -10522,13 +10527,40 @@ fn checked_boolean_proposition(
         CheckedBooleanExpression::Constant(_) => {
             unsupported("constant crash predicates must normalize before terminal lowering")
         }
-        CheckedBooleanExpression::And { left, right } => Ok(Proposition::Conjunction(vec![
-            checked_boolean_proposition(left, values)?,
-            checked_boolean_proposition(right, values)?,
-        ])),
-        CheckedBooleanExpression::Or { .. } => unsupported(
-            "disjunctive scalar crash predicates require terminal proposition disjunction",
-        ),
+        CheckedBooleanExpression::And { left, right }
+        | CheckedBooleanExpression::Or { left, right } => {
+            let mut propositions = [
+                checked_boolean_proposition(left, values)?,
+                checked_boolean_proposition(right, values)?,
+            ]
+            .into_iter()
+            .map(|proposition| {
+                psi_terminal_codec::canonical_proposition_order_key(&proposition)
+                    .map(|key| (key, proposition))
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "scalar crash connective is not canonically encodable",
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+            propositions.sort_by(|left, right| left.0.cmp(&right.0));
+            propositions.dedup_by(|left, right| left.0 == right.0);
+            if propositions.len() != 2 {
+                return unsupported("scalar crash connective must retain two distinct predicates");
+            }
+            let propositions = propositions
+                .into_iter()
+                .map(|(_, proposition)| proposition)
+                .collect();
+            Ok(
+                if matches!(expression, CheckedBooleanExpression::And { .. }) {
+                    Proposition::Conjunction(propositions)
+                } else {
+                    Proposition::Disjunction(propositions)
+                },
+            )
+        }
         expression => {
             let mut left = checked_boolean_scalar_term(expression, values)?;
             let mut right = ScalarTerm::boolean(true);
@@ -12777,6 +12809,43 @@ mod tests {
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
     use psi_typed_trees_to_checked_trees::lower_typed_trees;
+
+    #[test]
+    fn scalar_crash_disjunction_lowers_to_canonical_terminal_propositions() {
+        let values = vec![
+            ValueDeclaration {
+                id: value_id(2),
+                scalar_type: ScalarType::Boolean,
+            },
+            ValueDeclaration {
+                id: value_id(1),
+                scalar_type: ScalarType::Boolean,
+            },
+        ];
+        let proposition = checked_boolean_proposition(
+            &CheckedBooleanExpression::Or {
+                left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+                right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+            },
+            &values,
+        )
+        .expect("scalar disjunction lowers");
+        let Proposition::Disjunction(disjuncts) = &proposition else {
+            panic!("scalar disjunction retains proposition structure")
+        };
+        assert_eq!(disjuncts.len(), 2);
+        let keys = disjuncts
+            .iter()
+            .map(|disjunct| psi_terminal_codec::canonical_proposition_order_key(disjunct).unwrap())
+            .collect::<Vec<_>>();
+        assert!(keys[0] < keys[1]);
+        PropositionContext::from_value_types(
+            values.iter().map(|value| (value.id, value.scalar_type)),
+        )
+        .unwrap()
+        .validate(&proposition)
+        .expect("scalar disjunction is well typed");
+    }
 
     fn unit_claim_at(
         machine: SymbolHandle,

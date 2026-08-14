@@ -52,7 +52,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 7;
+const FORMAT_MARKER: u16 = 8;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1125,6 +1125,21 @@ fn validate_canonical_proposition(
             }
             if !canonical_propositions_strictly_increase(conjuncts)? {
                 return Err(CodecError::NonCanonicalOrder("conjunction propositions"));
+            }
+            Ok(())
+        }
+        Proposition::Disjunction(disjuncts) => {
+            if disjuncts
+                .iter()
+                .any(|disjunct| matches!(disjunct, Proposition::Disjunction(_)))
+            {
+                return Err(CodecError::NestedDisjunction);
+            }
+            for disjunct in disjuncts {
+                validate_canonical_proposition(disjunct, depth + 1)?;
+            }
+            if !canonical_propositions_strictly_increase(disjuncts)? {
+                return Err(CodecError::NonCanonicalOrder("disjunction propositions"));
             }
             Ok(())
         }
@@ -2245,6 +2260,13 @@ fn encode_proposition(
             encode_content_algebra(writer, conservation.algebra())?;
             encode_content_term(writer, conservation.left(), 0)?;
             encode_content_term(writer, conservation.right(), 0)?;
+        }
+        Proposition::Disjunction(disjuncts) => {
+            writer.u8(10);
+            writer.len("disjuncts", disjuncts.len())?;
+            for disjunct in disjuncts {
+                encode_proposition(writer, disjunct, depth + 1)?;
+            }
         }
     }
     Ok(())
@@ -3615,6 +3637,14 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
             let right = decode_content_term(reader, 0)?;
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
         }
+        10 => {
+            let count = reader.count()?;
+            let mut disjuncts = Vec::new();
+            for _ in 0..count {
+                disjuncts.push(decode_proposition(reader, depth + 1)?);
+            }
+            Proposition::Disjunction(disjuncts)
+        }
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }
@@ -4128,6 +4158,7 @@ pub enum CodecError {
     NonCanonicalOrder(&'static str),
     NonCanonicalEncoding,
     NestedConjunction,
+    NestedDisjunction,
     PropositionNestingTooDeep,
     ScalarTermNestingTooDeep,
     ContentTermNestingTooDeep,
