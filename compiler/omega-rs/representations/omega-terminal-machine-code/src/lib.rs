@@ -428,6 +428,15 @@ pub enum TerminalScalarControlFlowEvidence {
         nested: TerminalScalarConditionalBranchEvidence,
         nested_arm: TerminalScalarConditionalArm,
     },
+    /// The same two-decision physical tree with one or more leaves ending in
+    /// the target's canonical crash instruction. `crash_leaves` follows the
+    /// physical true-before-false DFS leaf order.
+    TopLevelTwoDecisionThreeTerminal {
+        root: TerminalScalarConditionalBranchEvidence,
+        nested: TerminalScalarConditionalBranchEvidence,
+        nested_arm: TerminalScalarConditionalArm,
+        crash_leaves: [bool; 3],
+    },
     /// Exactly three Boolean decisions and four independently returning leaves:
     /// each physical arm of `root` contains one further decision.
     TopLevelThreeDecisionFourReturn {

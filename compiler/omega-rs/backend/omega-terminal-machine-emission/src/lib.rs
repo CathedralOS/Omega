@@ -382,6 +382,7 @@ fn emit_function(
             let terminal_shape = direct_conditional_integer_shape(when_true, when_false);
             scalar_stack_eligible = terminal_shape.is_some_and(|shape| match shape {
                 DirectConditionalIntegerShape::TwoDecisionThreeReturn
+                | DirectConditionalIntegerShape::TwoDecisionThreeTerminal(_)
                 | DirectConditionalIntegerShape::ThreeDecisionFourReturn => {
                     linear_boolean_expression(condition)
                 }
@@ -6602,6 +6603,7 @@ enum DirectConditionalIntegerShape {
     TwoReturn,
     WithCrash(TerminalScalarConditionalCrashArms),
     TwoDecisionThreeReturn,
+    TwoDecisionThreeTerminal([bool; 3]),
     ThreeDecisionFourReturn,
 }
 
@@ -6610,38 +6612,51 @@ fn conditional_with_terminal_shape(
     terminal_shape: DirectConditionalIntegerShape,
     branches: Vec<TerminalScalarDivisionBranchEvidence>,
 ) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
-    if matches!(
-        terminal_shape,
-        DirectConditionalIntegerShape::TwoDecisionThreeReturn
-            | DirectConditionalIntegerShape::ThreeDecisionFourReturn
-    ) {
-        return match (conditional, branches.is_empty()) {
-            (
+    if !branches.is_empty() {
+        if matches!(
+            terminal_shape,
+            DirectConditionalIntegerShape::TwoDecisionThreeReturn
+                | DirectConditionalIntegerShape::TwoDecisionThreeTerminal(_)
+                | DirectConditionalIntegerShape::ThreeDecisionFourReturn
+        ) {
+            return Err(EmissionError::ConditionalBranchEncodingInvalid);
+        }
+    }
+    match terminal_shape {
+        DirectConditionalIntegerShape::TwoDecisionThreeReturn => {
+            return match conditional {
                 evidence @ TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
                     ..
-                },
-                true,
-            ) if matches!(
-                terminal_shape,
-                DirectConditionalIntegerShape::TwoDecisionThreeReturn
-            ) =>
-            {
-                Ok(evidence)
-            }
-            (
+                } => Ok(evidence),
+                _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
+            };
+        }
+        DirectConditionalIntegerShape::TwoDecisionThreeTerminal(crash_leaves) => {
+            return match conditional {
+                TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                    root,
+                    nested,
+                    nested_arm,
+                } => Ok(
+                    TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
+                        root,
+                        nested,
+                        nested_arm,
+                        crash_leaves,
+                    },
+                ),
+                _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
+            };
+        }
+        DirectConditionalIntegerShape::ThreeDecisionFourReturn => {
+            return match conditional {
                 evidence @ TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
                     ..
-                },
-                true,
-            ) if matches!(
-                terminal_shape,
-                DirectConditionalIntegerShape::ThreeDecisionFourReturn
-            ) =>
-            {
-                Ok(evidence)
-            }
-            _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
-        };
+                } => Ok(evidence),
+                _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
+            };
+        }
+        DirectConditionalIntegerShape::TwoReturn | DirectConditionalIntegerShape::WithCrash(_) => {}
     }
     let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
         condition,
@@ -6681,6 +6696,7 @@ fn conditional_with_terminal_shape(
             }
         }
         (DirectConditionalIntegerShape::TwoDecisionThreeReturn, _) => unreachable!(),
+        (DirectConditionalIntegerShape::TwoDecisionThreeTerminal(_), _) => unreachable!(),
         (DirectConditionalIntegerShape::ThreeDecisionFourReturn, _) => unreachable!(),
     })
 }
@@ -6723,12 +6739,14 @@ fn direct_conditional_integer_shape(
             )),
         };
     }
-    let linear_return = |arm: &TerminalAssignedConditionalIntegerArm| {
-        matches!(
-            arm.control.as_ref(),
-            TerminalAssignedIntegerControl::Return { expression, .. }
-                if linear_integer_expression(expression)
-        )
+    let linear_terminal = |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
+        TerminalAssignedIntegerControl::Return { expression, .. }
+            if linear_integer_expression(expression) =>
+        {
+            Some(false)
+        }
+        TerminalAssignedIntegerControl::Crash { .. } => Some(true),
+        _ => None,
     };
     let one_linear_decision =
         |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
@@ -6736,28 +6754,44 @@ fn direct_conditional_integer_shape(
                 when_true,
                 when_false,
                 ..
-            } => linear_return(when_true) && linear_return(when_false),
+            } => Some([linear_terminal(when_true)?, linear_terminal(when_false)?]),
             TerminalAssignedIntegerControl::ConditionalExpression {
                 condition,
                 when_true,
                 when_false,
                 ..
-            } => {
-                linear_boolean_expression(condition)
-                    && linear_return(when_true)
-                    && linear_return(when_false)
+            } if linear_boolean_expression(condition) => {
+                Some([linear_terminal(when_true)?, linear_terminal(when_false)?])
             }
-            _ => false,
+            _ => None,
         };
-    match (
-        one_linear_decision(when_true),
-        one_linear_decision(when_false),
-        linear_return(when_true),
-        linear_return(when_false),
-    ) {
-        (true, true, _, _) => Some(DirectConditionalIntegerShape::ThreeDecisionFourReturn),
-        (true, false, _, true) | (false, true, true, _) => {
-            Some(DirectConditionalIntegerShape::TwoDecisionThreeReturn)
+    let true_decision = one_linear_decision(when_true);
+    let false_decision = one_linear_decision(when_false);
+    let true_leaf = linear_terminal(when_true);
+    let false_leaf = linear_terminal(when_false);
+    match (true_decision, false_decision, true_leaf, false_leaf) {
+        (Some([false, false]), Some([false, false]), _, _) => {
+            Some(DirectConditionalIntegerShape::ThreeDecisionFourReturn)
+        }
+        (Some(nested), None, _, Some(outer)) => {
+            let crash_leaves = [nested[0], nested[1], outer];
+            if crash_leaves.iter().any(|crash| *crash) {
+                Some(DirectConditionalIntegerShape::TwoDecisionThreeTerminal(
+                    crash_leaves,
+                ))
+            } else {
+                Some(DirectConditionalIntegerShape::TwoDecisionThreeReturn)
+            }
+        }
+        (None, Some(nested), Some(outer), _) => {
+            let crash_leaves = [outer, nested[0], nested[1]];
+            if crash_leaves.iter().any(|crash| *crash) {
+                Some(DirectConditionalIntegerShape::TwoDecisionThreeTerminal(
+                    crash_leaves,
+                ))
+            } else {
+                Some(DirectConditionalIntegerShape::TwoDecisionThreeReturn)
+            }
         }
         _ => None,
     }
@@ -9657,6 +9691,37 @@ mod tests {
             assert!(root.branch_offset < true_nested.branch_offset);
             assert!(true_nested.false_arm_offset < root.false_arm_offset);
             assert!(root.false_arm_offset <= false_nested.branch_offset);
+
+            let mut nested_crash = nested_plan(target, false);
+            let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
+                &mut nested_crash.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let TerminalTargetIntegerControl::Conditional { when_false, .. } =
+                when_true.control.as_mut()
+            else {
+                unreachable!()
+            };
+            when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
+                psi_crash_edge: EdgeId::new(15).expect("crash edge"),
+                cause: psi_terminal::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            });
+            let emitted = emit_machine_code(&nested_crash)
+                .expect("emit nested conditional with a crash leaf");
+            assert!(matches!(
+                emitted.functions[0]
+                    .scalar_stack
+                    .as_ref()
+                    .expect("nested crash stack evidence")
+                    .control_flow,
+                TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
+                    crash_leaves: [false, true, false],
+                    ..
+                }
+            ));
         }
 
         let mut too_deep = nested_plan(NativeTarget::linux_x64(), false);
