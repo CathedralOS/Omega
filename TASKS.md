@@ -353,6 +353,9 @@ state through a raw address.
   and IDT installation remain.
 - Provision dedicated per-CPU double-fault/NMI/machine-check stacks and one
   non-nesting maskable-IRQ stack class; preserve the selected `StatePlan`.
+  Cathedral now authors and validates the complete four-role class/IST policy;
+  WCSU-derived byte sizing, a source-level `StackLease`, storage provisioning,
+  and installed-root binding remain.
 - Bring up PIT+PIC first and LAPIC as the production provider. The hard root only
   acknowledges, records time, publishes a coalesced wake, and returns; fan-out
   runs in an ordinary task.
