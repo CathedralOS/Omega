@@ -740,7 +740,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             small: u8,
             enabled: bool
         ) -> bool
-        requires input <= 255u64, small <= 254u8, small <= 127u8
+        requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && ((small as u16) < 5u16)
@@ -750,6 +750,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small * 2u8) < 10u8)
                 && ((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
+                && ((small >> small) < 1u8)
                 && enabled;
             staged
         }
@@ -837,6 +838,22 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 )
         }));
     }
+    let exact_shift_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftRight { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the bounded exact right shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_shift_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_multiply_obligation = terminal_entry
         .blocks
         .iter()

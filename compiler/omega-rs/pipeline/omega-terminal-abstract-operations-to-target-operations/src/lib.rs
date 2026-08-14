@@ -1646,6 +1646,7 @@ fn shared_boolean_cleanup_convergence_return_edge(
             | TerminalAbstractOperation::IntegerBitwiseXor { .. }
             | TerminalAbstractOperation::WrappingIntegerShiftLeft { .. }
             | TerminalAbstractOperation::WrappingIntegerShiftRight { .. }
+            | TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { .. }
