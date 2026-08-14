@@ -10638,7 +10638,8 @@ fn shared_integer_runtime_parameters_with_shells(
                 | LoweredIntegerBinaryKind::SaturatingSubtract
                 | LoweredIntegerBinaryKind::WrappingMultiply
                 | LoweredIntegerBinaryKind::SaturatingMultiply
-                | LoweredIntegerBinaryKind::ExactAdd,
+                | LoweredIntegerBinaryKind::ExactAdd
+                | LoweredIntegerBinaryKind::ExactSubtract,
             left,
             right,
             ..

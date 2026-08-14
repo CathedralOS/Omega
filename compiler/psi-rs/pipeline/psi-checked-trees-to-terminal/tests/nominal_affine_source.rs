@@ -408,6 +408,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
             && ((small + 1u8) < 6u8)
+            && ((255u8 - small) < 253u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1724,6 +1725,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_subtract_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerSubtract { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the carrier-total exact subtraction");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_subtract_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_add_obligation = entry
         .blocks
         .iter()
@@ -1877,6 +1894,20 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == exact_add_obligation
     ));
+    let mut missing_exact_subtract_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_exact_subtract_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != exact_subtract_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_exact_subtract_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == exact_subtract_obligation
+    ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -1923,6 +1954,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small < 5
                     && input < 5
                     && small + 1 < 6
+                    && 255 - small < 253
                     && input == 3
                     && enabled
             ))
