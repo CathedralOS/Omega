@@ -218,9 +218,12 @@ Remaining:
   one claim-free affine nominal-cleanup root, combined with the existing
   Boolean parameters and constants and with at least one Boolean parameter
   retaining the source across native expression scratch. Nested paths, a
-  field-only tree, a second field identity, erased or non-Boolean fields, and
-  integer comparisons remain fenced. Extend
-  shared convergence to integer comparisons, then
+  field-only tree, a second field identity, and erased or non-Boolean fields
+  remain fenced. Separately, direct integer-comparison leaves over scalar
+  parameters and landed constants now retain the same verified shared cleanup
+  tail through interpretation and every native target. Computed integer
+  operands and member/comparison mixtures remain fenced. Extend those integer
+  comparisons, then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

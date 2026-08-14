@@ -727,6 +727,129 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
 }
 
 #[test]
+fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_targets() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { retained: bool; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::measure(token: Token, input: u64, enabled: bool) -> bool {
+            let staged: bool = (input < 7u64) && enabled;
+            staged
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize integer-comparison convergence");
+    let syntax = parse_syntax_trees(&tokens).expect("parse integer-comparison convergence");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve integer-comparison convergence");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type integer-comparison convergence");
+    let checked = lower_typed_trees(typed).expect("check integer-comparison convergence");
+    let lowered =
+        lower_machine(&checked, "Root::measure").expect("lower integer-comparison convergence");
+    let terminal_entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("terminal integer-comparison convergence entry");
+    assert!(terminal_entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::IntegerLessThan { .. }))
+    }));
+    assert_eq!(
+        terminal_entry
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+            .count(),
+        1
+    );
+    let semantics = encode_module(&lowered.semantic_module).expect("shared integer semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("shared integer proof");
+    let entry_machine = lowered.semantic_module.entry;
+    let abstract_plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("integer-comparison convergence crosses Omega boundary");
+
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering: {error:?}", case.target));
+        let target_entry = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("target integer-comparison convergence entry");
+        assert!(matches!(
+            &target_entry.operation,
+            TerminalTargetOperation::ScalarReturnWithCleanup { scalar, .. }
+                if matches!(scalar.as_ref(),
+                    TerminalTargetOperation::ReturnBooleanSharedConvergence { .. })
+        ));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment: {error:?}", case.target));
+        assert!(matches!(
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry_machine)
+                .map(|function| &function.operation),
+            Some(TerminalAssignedOperation::ScalarReturnWithCleanup { scalar, .. })
+                if matches!(scalar.as_ref(),
+                    TerminalAssignedOperation::ReturnBooleanSharedConvergence { .. })
+        ));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission: {error:?}", case.target));
+        let emitted = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted integer-comparison convergence entry");
+        assert!(emitted.scalar_affine_cleanup.is_some());
+        assert!(emitted.scalar_control_affine_cleanups.is_empty());
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            decisions,
+            joins,
+            structural_conditions,
+            merge_offset,
+        } = &emitted
+            .scalar_stack
+            .as_ref()
+            .expect("shared integer convergence stack evidence")
+            .control_flow
+        else {
+            panic!("native integer-comparison convergence must retain its exact join")
+        };
+        assert!(decisions.len() >= 2);
+        assert_eq!(joins.len(), decisions.len());
+        assert!(structural_conditions.is_empty());
+        assert_eq!(
+            *merge_offset,
+            emitted
+                .scalar_affine_cleanup
+                .as_ref()
+                .expect("shared integer cleanup")
+                .code_offset
+        );
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object replay: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation: {error:?}", case.target));
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed integer-comparison convergence binds its exact image");
+    }
+}
+
+#[test]
 fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
     let source = r#"
         data Helper {}

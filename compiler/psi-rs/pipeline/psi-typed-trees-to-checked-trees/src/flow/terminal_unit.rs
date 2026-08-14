@@ -1342,14 +1342,19 @@ fn checked_shared_boolean_convergence(
                 parameter_position,
                 field,
             } => Some((*parameter_position, field)),
-            SharedBooleanRuntimeInput::Scalar(_) => None,
+            SharedBooleanRuntimeInput::BooleanScalar(_)
+            | SharedBooleanRuntimeInput::IntegerScalar(_) => None,
         })
         .collect::<Vec<_>>();
-    let has_scalar_input = runtime_inputs
+    let has_boolean_scalar_input = runtime_inputs
         .iter()
-        .any(|input| matches!(input, SharedBooleanRuntimeInput::Scalar(_)));
+        .any(|input| matches!(input, SharedBooleanRuntimeInput::BooleanScalar(_)));
+    let has_integer_scalar_input = runtime_inputs
+        .iter()
+        .any(|input| matches!(input, SharedBooleanRuntimeInput::IntegerScalar(_)));
     if structural_fields.len() > 1
-        || (!structural_fields.is_empty() && !has_scalar_input)
+        || (!structural_fields.is_empty() && !has_boolean_scalar_input)
+        || (!structural_fields.is_empty() && has_integer_scalar_input)
         || structural_fields.first().is_some_and(|(position, _)| {
             !cleanup_actions.iter().any(|action| {
                 matches!(
@@ -1379,7 +1384,8 @@ fn checked_shared_boolean_convergence(
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum SharedBooleanRuntimeInput {
-    Scalar(usize),
+    BooleanScalar(usize),
+    IntegerScalar(usize),
     StructuralField {
         parameter_position: u32,
         field: String,
@@ -1389,8 +1395,9 @@ enum SharedBooleanRuntimeInput {
 /// Collect the distinct runtime Boolean inputs in the shared-join form. One
 /// direct authored member identity on the nominal cleanup root is admitted
 /// alongside scalar inputs; terminal production resolves it to one canonical
-/// relevant Boolean field.
-/// Constants and equality against a constant add no new runtime input.
+/// relevant Boolean field. Integer-comparison leaves separately admit direct
+/// scalar parameters and landed constants. Constants and Boolean equality
+/// against a constant add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1400,7 +1407,7 @@ fn shared_boolean_runtime_inputs(
         psi_checked_trees::CheckedBooleanExpression::Parameter { position }
             if *position < scalar_parameter_count =>
         {
-            Some(BTreeSet::from([SharedBooleanRuntimeInput::Scalar(
+            Some(BTreeSet::from([SharedBooleanRuntimeInput::BooleanScalar(
                 *position,
             )]))
         }
@@ -1434,10 +1441,41 @@ fn shared_boolean_runtime_inputs(
                 field: path[0].clone(),
             },
         ])),
+        psi_checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            let mut inputs = shared_integer_runtime_inputs(left, scalar_parameter_count)?;
+            inputs.extend(shared_integer_runtime_inputs(
+                right,
+                scalar_parameter_count,
+            )?);
+            Some(inputs)
+        }
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
-        | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
-        | psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. } => None,
+        | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,
+    }
+}
+
+fn shared_integer_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    match expression {
+        CheckedScalarExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
+        CheckedScalarExpression::Parameter { position, .. }
+            if *position < scalar_parameter_count =>
+        {
+            Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                *position,
+            )]))
+        }
+        CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::Local { .. }
+        | CheckedScalarExpression::IntegerBinary { .. }
+        | CheckedScalarExpression::IntegerBitwiseNot { .. }
+        | CheckedScalarExpression::IntegerWiden { .. }
+        | CheckedScalarExpression::IntegerExactCast { .. }
+        | CheckedScalarExpression::StructuralParameterField { .. }
+        | CheckedScalarExpression::Boolean(_) => None,
     }
 }
 

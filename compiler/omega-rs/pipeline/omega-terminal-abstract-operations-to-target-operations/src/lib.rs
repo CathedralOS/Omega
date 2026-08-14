@@ -1633,7 +1633,11 @@ fn shared_boolean_cleanup_convergence_return_edge(
             }
             TerminalAbstractOperation::BooleanConstant { .. }
             | TerminalAbstractOperation::BooleanStructuralField { .. }
-            | TerminalAbstractOperation::BooleanNot { .. } => {}
+            | TerminalAbstractOperation::BooleanNot { .. }
+            | TerminalAbstractOperation::IntegerConstant { .. }
+            | TerminalAbstractOperation::IntegerEqual { .. }
+            | TerminalAbstractOperation::IntegerLessThan { .. }
+            | TerminalAbstractOperation::IntegerLessOrEqual { .. } => {}
             _ => return None,
         }
     }

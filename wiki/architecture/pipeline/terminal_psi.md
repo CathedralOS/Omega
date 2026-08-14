@@ -406,10 +406,13 @@ verification reconstructs that field from the entry type, and interpretation/
 native lowering read the exact structural ABI field without treating opaque
 identity as layout. Machine-code evidence binds every such read to its exact
 field-bearing condition bytes, which object replay validates before image and
-installation custody. Nested paths, field-only trees, a second field identity,
-erased or non-Boolean fields, integer comparisons, calls, effects, nested
-nominal ownership, other projections, and wider cleanup shapes still fail
-closed.
+installation custody. Separately, direct integer comparisons whose
+operands are scalar parameters or landed constants may form decision leaves;
+Psi retains the exact comparison operation and all native targets join its
+leaves into the same cleanup tail. Nested paths, field-only trees, a second
+field identity, erased or non-Boolean fields, computed integer operands,
+member/comparison mixtures, calls, effects, nested nominal ownership, other
+projections, and wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -897,11 +900,13 @@ terminal boundary. It additionally accepts one direct relevant Boolean field
 identity on one claim-free affine nominal-cleanup root; the terminal operation,
 verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
-that source outside native expression scratch. Field-only trees, nested or
-multiple member identities, integer comparisons, external
-adapter/interrupt-arrival state, and other terminal function forms remain
-outside the shared-join theorem, so the inspection surface makes no
-installed-root WCSU claim.
+that source outside native expression scratch. Separately, direct integer
+comparisons over scalar parameters and landed constants retain their exact Psi
+operations through the same verified, interpreted, and native shared join.
+Field-only trees, nested or multiple member identities, computed integer
+operands, member/comparison mixtures, external adapter/interrupt-arrival state,
+and other terminal function forms remain outside the shared-join theorem, so
+the inspection surface makes no installed-root WCSU claim.
 
 ## Implementation queue
 
