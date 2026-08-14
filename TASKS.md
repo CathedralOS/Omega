@@ -223,9 +223,10 @@ Remaining:
   parameters and landed constants now retain the same verified shared cleanup
   tail through interpretation and every native target. Either operand may use
   one total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
-  arithmetic shell. Nested shells, partial/exact operations, casts, other unary
-  computation, and member/comparison mixtures remain fenced. Extend those
-  integer comparisons, then
+  arithmetic shell, or one integer-widening shell. Nested shells, partial/exact
+  operations, proof-bearing exact casts, other unary computation, and
+  member/comparison mixtures remain fenced. Extend those integer comparisons,
+  then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

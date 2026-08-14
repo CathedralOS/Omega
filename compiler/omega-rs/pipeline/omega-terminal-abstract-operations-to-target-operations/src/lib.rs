@@ -1639,6 +1639,7 @@ fn shared_boolean_cleanup_convergence_return_edge(
             | TerminalAbstractOperation::IntegerLessThan { .. }
             | TerminalAbstractOperation::IntegerLessOrEqual { .. }
             | TerminalAbstractOperation::IntegerBitwiseNot { .. }
+            | TerminalAbstractOperation::IntegerWiden { .. }
             | TerminalAbstractOperation::IntegerBitwiseAnd { .. }
             | TerminalAbstractOperation::IntegerBitwiseOr { .. }
             | TerminalAbstractOperation::IntegerBitwiseXor { .. }

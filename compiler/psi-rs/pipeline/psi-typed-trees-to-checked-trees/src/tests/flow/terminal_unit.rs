@@ -1055,6 +1055,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((~(~input)) < 4u64) && true;
             staged
         }
+        machine Root::widened_integer_comparison_convergence(
+            token: Token,
+            input: u8
+        ) -> bool {
+            let staged: bool = ((input as u16) < 4u16) && true;
+            staged
+        }
+        machine Root::nested_widened_integer_comparison_convergence(
+            token: Token,
+            input: u8
+        ) -> bool {
+            let staged: bool = (((input as u16) as u32) < 4u32) && true;
+            staged
+        }
         machine Root::member_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -1288,6 +1302,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("nested bitwise-not shells retain the source-distributed fallback");
     assert!(
         nested_bitwise_not_integer_comparison
+            .shared_boolean_convergence
+            .is_none()
+    );
+    let widened_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "widened_integer_comparison_convergence",
+        ))
+        .expect("one integer-widening shell retains the scalar-return plan");
+    assert!(
+        widened_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let nested_widened_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nested_widened_integer_comparison_convergence",
+        ))
+        .expect("nested integer widening retains the source-distributed fallback");
+    assert!(
+        nested_widened_integer_comparison
             .shared_boolean_convergence
             .is_none()
     );

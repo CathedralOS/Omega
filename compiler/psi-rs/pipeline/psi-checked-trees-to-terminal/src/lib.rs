@@ -10622,6 +10622,9 @@ fn shared_integer_runtime_parameters_with_shells(
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. } if remaining_shells > 0 => {
             shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
         }
+        LoweredDirectExpression::IntegerWiden { operand, .. } if remaining_shells > 0 => {
+            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
+        }
         LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::IntegerBinary { .. }
         | LoweredDirectExpression::IntegerBitwiseNot { .. }
