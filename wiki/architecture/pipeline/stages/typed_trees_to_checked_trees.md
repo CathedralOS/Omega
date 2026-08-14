@@ -206,6 +206,12 @@ Current ownership is:
   and computed depth-two rail do not change the depth-four call budget. A third
   aggregate or computed level, generic, recursive, or reference-bearing call
   results, and other computed field shapes remain fences.
+  A primitive assignment may also project one direct field from a concrete
+  caller-isolated record or selected-case literal whose effectful fields are
+  bounded direct-call trees. That projection may sit below one further unary,
+  binary, primitive-cast, member-projection, or indexing shell: the projection
+  consumes one of the existing two computation shells, so a third shell still
+  fails closed.
   Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are
