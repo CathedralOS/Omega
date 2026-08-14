@@ -332,10 +332,13 @@ Remaining:
   Source whole-record equality between same-typed `Equatable` parameters now
   retains the language-defined inline expansion for finite nonempty trees of
   relevant Boolean and fixed-integer fields, flattens the resulting conjunction,
-  and reconstructs both roots independently across whole-root calls. Continue
-  with arithmetic over members, case-payload paths, and wider aggregate equality
-  involving text, floats, sums, or erased fields. Imported crash capsules remain
-  design-blocked on artifact identity and certificate binding.
+  and reconstructs both roots independently across whole-root calls. Exact
+  addition over same-typed relevant fixed-integer members now remains a typed
+  proposition term and reconstructs every nested operand across whole-root and
+  all-field-projected calls. Continue with other arithmetic families,
+  case-payload paths, and wider aggregate equality involving text, floats, sums,
+  or erased fields. Imported crash capsules remain design-blocked on artifact
+  identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

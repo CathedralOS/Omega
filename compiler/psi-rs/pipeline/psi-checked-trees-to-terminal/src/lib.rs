@@ -10222,6 +10222,33 @@ fn lower_structural_crash_route_buckets(
                     ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
                         .map_err(LoweringError::InvalidCrashPredicate)
                 }
+                CheckedScalarExpression::IntegerBinary {
+                    kind: CheckedIntegerBinaryKind::ExactAdd,
+                    primitive_type,
+                    left,
+                    right,
+                } => {
+                    let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                    else {
+                        return unsupported(
+                            "structural crash exact addition has a non-integer type",
+                        );
+                    };
+                    let left = Box::new(lower_integer_term(left, parameters, structural_types)?);
+                    let right = Box::new(lower_integer_term(right, parameters, structural_types)?);
+                    if left.scalar_type() != ScalarType::Integer(integer_type)
+                        || right.scalar_type() != ScalarType::Integer(integer_type)
+                    {
+                        return unsupported(
+                            "structural crash exact-add operands do not match its integer type",
+                        );
+                    }
+                    Ok(ScalarTerm::ExactIntegerAdd {
+                        scalar_type: integer_type,
+                        left,
+                        right,
+                    })
+                }
                 _ => unsupported(
                     "structural crash integer predicate contains an unsupported operand",
                 ),
@@ -10405,7 +10432,8 @@ fn substitute_structural_crash_route_roots(
             ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
