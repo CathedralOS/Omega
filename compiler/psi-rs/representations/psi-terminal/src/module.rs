@@ -209,9 +209,11 @@ pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
     pub identity: String,
     pub attachment: Option<StructuralTypeId>,
-    /// This first boundary slice is structurally parameterized and returns
-    /// Unit. It therefore declares no scalar parameters or result value.
+    /// This first boundary slice has structural parameters and no scalar
+    /// parameters. A primitive scalar result is retained when the successful
+    /// invocation returns a runtime status/value.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    pub result: Option<ScalarType>,
     /// Strictly ordered by `(argument_index, domain)`.
     pub requires: Vec<StructuralDomainRequirement>,
     /// Strictly ordered normalized published ceiling.
@@ -747,10 +749,11 @@ pub enum OperationKind {
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// Invoke one exact bodyless boundary Unit machine. Completion receipts
+    /// Invoke one exact bodyless boundary machine. Completion receipts
     /// name every live caller claim consumed by the successful invocation at
-    /// its exact structural argument position.
-    BoundaryCallUnit {
+    /// its exact structural argument position. The operation result must agree
+    /// with the boundary declaration's optional scalar result.
+    BoundaryCall {
         boundary: BoundaryMachineId,
         structural_arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,

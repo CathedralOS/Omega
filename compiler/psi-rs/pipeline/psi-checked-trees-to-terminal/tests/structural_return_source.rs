@@ -9,7 +9,7 @@ use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralResult, TerminalStructuralValue,
 };
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
@@ -112,6 +112,23 @@ const INDEXED_CUSTODY_SOURCE: &str = r#"
     {
         Receipt::settle(receipts[0]);
         Receipt::settle(receipts[1]);
+    }
+"#;
+
+const RESULT_BOUNDARY_CUSTODY_SOURCE: &str = r#"
+    boundary trait PortIo {}
+    data Receipt [linear] { value: u64; }
+
+    boundary machine Receipt::settle(self) -> bool
+    reaches PortIo
+    ensures true;
+
+    data Root {}
+    machine Root::enter(receipt: Receipt) -> bool
+    reaches PortIo
+    {
+        let accepted: bool = receipt.settle();
+        accepted
     }
 "#;
 
@@ -314,12 +331,130 @@ impl TerminalEffectHandler for RejectSecondEffect {
     }
 }
 
+struct ResultBoundaryHandler {
+    reject: bool,
+}
+
+impl TerminalEffectHandler for ResultBoundaryHandler {
+    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        Ok(())
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+        if self.reject {
+            return Err(TerminalEffectRejection::new("provider rejected settlement"));
+        }
+        assert!(matches!(
+            effect,
+            TerminalEffect::BoundaryCall {
+                result: Some(psi_core::ScalarType::Boolean),
+                ..
+            }
+        ));
+        Ok(Some(TerminalScalarValue::Boolean(true)))
+    }
+}
+
 fn checked_source() -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
+}
+
+#[test]
+fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
+    let tokens = Lexer::new(RESULT_BOUNDARY_CUSTODY_SOURCE)
+        .tokenize()
+        .expect("tokenize result boundary custody");
+    let syntax = parse_syntax_trees(&tokens).expect("parse result boundary custody");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve result boundary custody");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type result boundary custody");
+    let checked = lower_typed_trees(typed).expect("check result boundary custody");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("result-bearing boundary custody should lower");
+    let module = &lowered.semantic_module;
+    assert_eq!(module.boundary_machines.len(), 1);
+    assert_eq!(
+        module.boundary_machines[0].result,
+        Some(psi_core::ScalarType::Boolean)
+    );
+    let operation = &module.machines[0].blocks[0].operations[0];
+    assert!(operation.result.scalar().is_some());
+    let psi_terminal::OperationKind::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &operation.kind
+    else {
+        panic!("result-bearing call must remain a terminal boundary operation")
+    };
+    assert_eq!(completion_receipts.len(), 1);
+
+    let semantic = encode_module(module).expect("result boundary semantics encode");
+    assert_eq!(
+        decode_module(&semantic).expect("result boundary semantics decode"),
+        *module
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("result boundary proof encodes");
+    psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("result-bearing boundary custody verifies");
+    let mut mismatched_result = module.clone();
+    mismatched_result.boundary_machines[0].result = None;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&mismatched_result),
+        Err(psi_terminal_verifier::ModuleError::BoundaryCallResultMismatch {
+            operation: rejected,
+            ..
+        }) if rejected == operation.id
+    ));
+    let parameter = &module.machines[0].structural_parameters[0];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 0x5e77_1e,
+            structural_type: parameter.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("result boundary artifact starts");
+    let initial_claims = execution.live_claim_frontier().collect::<Vec<_>>();
+    assert_eq!(initial_claims.len(), 1);
+    let mut meter = TerminalFuelMeter::unbounded();
+    let mut rejecting = ResultBoundaryHandler { reject: true };
+    assert!(matches!(
+        execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        Err(TerminalInterpretError::EffectRejected { operation: rejected, .. })
+            if rejected == operation.id
+    ));
+    assert_eq!(
+        execution.live_claim_frontier().collect::<Vec<_>>(),
+        initial_claims
+    );
+    assert!(execution.effects().is_empty());
+
+    let mut accepting = ResultBoundaryHandler { reject: false };
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut accepting)
+            .expect("accepted boundary result resumes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
+    assert_eq!(execution.live_claim_frontier().count(), 0);
+    assert_eq!(execution.effects().len(), 1);
 }
 
 #[test]
@@ -348,7 +483,7 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
         panic!("two indexed settlements")
     };
     for (operation, index) in [(first, 0), (second, 1)] {
-        let psi_terminal::OperationKind::BoundaryCallUnit {
+        let psi_terminal::OperationKind::BoundaryCall {
             structural_arguments,
             completion_receipts,
             ..
@@ -405,7 +540,7 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
     let effects = execution.effects();
     assert_eq!(effects.len(), 2);
     for (effect, index) in effects.iter().zip([0, 1]) {
-        let psi_terminal_interpreter::TerminalEffect::BoundaryCallUnit {
+        let psi_terminal_interpreter::TerminalEffect::BoundaryCall {
             structural_arguments,
             completion_receipts,
             ..

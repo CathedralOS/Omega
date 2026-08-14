@@ -485,7 +485,7 @@ fn reconstruct_machine_semantics(
                         );
                     }
                 }
-                OperationKind::BoundaryCallUnit { .. } | OperationKind::PortWrite { .. } => {}
+                OperationKind::BoundaryCall { .. } | OperationKind::PortWrite { .. } => {}
                 OperationKind::Call {
                     callee,
                     arguments,

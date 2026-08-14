@@ -87,7 +87,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-        OperationKind::BoundaryCallUnit {
+        OperationKind::BoundaryCall {
             boundary: BoundaryMachineId::new(1).unwrap(),
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),

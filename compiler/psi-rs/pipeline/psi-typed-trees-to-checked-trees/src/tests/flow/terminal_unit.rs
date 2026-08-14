@@ -2327,7 +2327,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
         }
     ));
     match &helper.operations[1] {
-        CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
             target_machine,
             structural_arguments,
@@ -2413,7 +2413,7 @@ fn retains_numbered_record_field_custody_for_unit_call_closure() {
         panic!("root should transfer aggregate custody to helper")
     };
     assert_eq!(claim_transfers.len(), 1);
-    let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
         completion_receipts,
         ..
     } = &helper.operations[0]
@@ -2421,6 +2421,49 @@ fn retains_numbered_record_field_custody_for_unit_call_closure() {
         panic!("helper should settle aggregate custody at the boundary")
     };
     assert_eq!(completion_receipts.len(), 1);
+}
+
+#[test]
+fn retains_completion_receipt_for_result_bearing_boundary_call() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { value: u64; }
+
+        boundary machine Receipt::settle(self) -> i32
+        reaches PortIo
+        ensures true;
+
+        data Root {}
+
+        machine Root::enter(receipt: Receipt) -> i32
+        reaches PortIo
+        {
+            let status: i32 = receipt.settle();
+            status
+        }
+        "#,
+    );
+
+    let plan = checked
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("result-bearing boundary call should retain a checked custody plan");
+    assert_eq!(plan.entry_claims.len(), 1);
+    assert_eq!(plan.result_type, PrimitiveType::I32);
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &plan.boundary_call
+    else {
+        panic!("scalar boundary plan should retain one bodyless boundary call")
+    };
+    assert_eq!(completion_receipts.len(), 1);
+    assert_eq!(
+        completion_receipts[0].claim_identity,
+        plan.entry_claims[0].claim_identity
+    );
 }
 
 #[test]
@@ -2490,7 +2533,7 @@ fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
             .iter()
             .all(|transfer| transfer.argument_index == 0)
     );
-    let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
         completion_receipts,
         ..
     } = &helper.operations[0]
@@ -2567,7 +2610,7 @@ fn retains_nested_record_field_custody_for_unit_call_closure() {
         panic!("root should transfer nested custody to helper")
     };
     assert_eq!(claim_transfers.len(), 1);
-    let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
         completion_receipts,
         ..
     } = &helper.operations[0]
@@ -2640,7 +2683,7 @@ fn retains_literal_fixed_array_boundary_settlements_with_sibling_claims() {
 
     assert_eq!(root.operations.len(), 3);
     for (index, operation) in root.operations[..2].iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        let CheckedUnitEffectOperationPlan::BoundaryCall {
             structural_arguments,
             completion_receipts,
             ..

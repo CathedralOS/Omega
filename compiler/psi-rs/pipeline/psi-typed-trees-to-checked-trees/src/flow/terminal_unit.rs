@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
+    CheckedBoundaryScalarReturnPlans, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
@@ -12,16 +13,15 @@ use psi_checked_trees::{
     CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
     CheckedStructuralUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitEntryClaimPlan, CheckedUnitNominalAffineCallerRequirementPlan,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
-    ContractProofFactOwner,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
+    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
@@ -77,7 +77,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
                     checked_symbols.contains(target_machine)
                 }
-                CheckedUnitEffectOperationPlan::BoundaryCallUnit { target_machine, .. } => {
+                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
                     boundary_symbols.contains(target_machine)
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
@@ -684,6 +684,203 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
         structural_types: shapes.types.into_values().collect(),
         machines,
     }
+}
+
+pub(crate) fn build_checked_boundary_scalar_return_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> CheckedBoundaryScalarReturnPlans {
+    let mut shapes = ShapeCollector::new(program);
+    let boundary_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode.is_boundary_declaration())
+        .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
+        .filter(|boundary| boundary.result_type.is_some())
+        .collect::<Vec<_>>();
+    let machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_boundary_scalar_return_machine(
+                program,
+                facts,
+                &mut shapes,
+                &boundary_machines,
+                machine,
+            )
+        })
+        .collect::<Vec<_>>();
+    let retained = boundary_machines
+        .iter()
+        .flat_map(|boundary| {
+            boundary
+                .attachment_type_identity
+                .iter()
+                .map(String::as_str)
+                .chain(
+                    boundary
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+        })
+        .chain(machines.iter().flat_map(|machine| {
+            std::iter::once(machine.attachment_type_identity.as_str()).chain(
+                machine
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.type_identity.as_str()),
+            )
+        }))
+        .collect::<BTreeSet<_>>();
+    shapes.retain_transitive(&retained);
+    CheckedBoundaryScalarReturnPlans {
+        structural_types: shapes.types.into_values().collect(),
+        structural_domains: {
+            shapes.domains.sort_by_key(|domain| domain.domain.0);
+            shapes.domains
+        },
+        boundary_machines,
+        machines,
+    }
+}
+
+fn build_boundary_scalar_return_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    boundaries: &[CheckedBoundaryMachinePlan],
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedBoundaryScalarReturnMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    let result_type = program.primitive_type_reference(state.return_type)?;
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters) =
+        structural_signature(program, shapes, machine, state, &binders)?;
+    if structural_parameters.is_empty()
+        || !checked_state_contracts_supported(program, machine, state, &structural_parameters)
+        || machine_has_content_evidence(facts, machine.symbol, state.symbol)
+        || !checked_requires_expressions(program, facts, machine.symbol, state.symbol)?.is_empty()
+    {
+        return None;
+    }
+    let entry_claims = entry_claims(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        &structural_parameters,
+        program.state_parameters(state),
+    )?;
+    if entry_claims.is_empty() {
+        return None;
+    }
+    let [
+        StatementNode::LocalData(local),
+        StatementNode::Expression(_),
+    ] = program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    if local.is_mutable
+        || program.primitive_type_reference(local.type_reference) != Some(result_type)
+        || !matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        )
+    {
+        return None;
+    }
+    let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let [call] = facts.flow.control.calls.span_or_empty(state_flow.calls) else {
+        return None;
+    };
+    if call.statement_index != 0 || call.call_ordinal != 0 {
+        return None;
+    }
+    let boundary_call = build_call_operation(
+        program,
+        facts,
+        machine,
+        state,
+        &structural_parameters,
+        &entry_claims,
+        call,
+        false,
+        Some(result_type),
+    )?;
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        target_machine,
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &boundary_call
+    else {
+        return None;
+    };
+    if structural_arguments
+        .iter()
+        .any(|argument| !argument.path.is_empty())
+        || !boundaries.iter().any(|boundary| {
+            boundary.machine == *target_machine && boundary.result_type == Some(result_type)
+        })
+    {
+        return None;
+    }
+    let expected_claims = entry_claims
+        .iter()
+        .map(|claim| claim.claim_identity)
+        .collect::<Vec<_>>();
+    let received_claims = completion_receipts
+        .iter()
+        .map(|receipt| receipt.claim_identity)
+        .collect::<Vec<_>>();
+    if expected_claims != received_claims {
+        return None;
+    }
+    let return_statement_ordinal = 1;
+    let return_expression = facts.values.scalar_expressions.expression_at(
+        state.symbol,
+        return_statement_ordinal,
+        CheckedScalarExpressionRole::Return,
+    )?;
+    let returns_binding = match return_expression {
+        CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type,
+        } => *primitive_type == result_type,
+        CheckedScalarExpression::Boolean(expression) => {
+            result_type == PrimitiveType::Bool
+                && matches!(
+                    expression.as_ref(),
+                    psi_checked_trees::CheckedBooleanExpression::Local { position: 0 }
+                )
+        }
+        _ => false,
+    };
+    if !returns_binding {
+        return None;
+    }
+    Some(CheckedBoundaryScalarReturnMachinePlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        attachment_type_identity,
+        structural_parameters,
+        entry_claims,
+        boundary_call,
+        result_type,
+        return_statement_ordinal,
+        contract_service_reach: facts
+            .contract_plans
+            .for_machine(machine.symbol)?
+            .service_reach
+            .clone(),
+        service_reach: state_flow.service_reach.clone(),
+    })
 }
 
 fn build_structural_scalar_return_machine(
@@ -1935,15 +2132,19 @@ fn build_boundary_machine(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
-) -> Option<CheckedUnitBoundaryMachinePlan> {
+) -> Option<CheckedBoundaryMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    if !is_unit(program, state.return_type)
-        || !program
-            .statement_table
-            .statements(state.statement_nodes)
-            .is_empty()
+    let result_type = if is_unit(program, state.return_type) {
+        None
+    } else {
+        Some(program.primitive_type_reference(state.return_type)?)
+    };
+    if !program
+        .statement_table
+        .statements(state.statement_nodes)
+        .is_empty()
     {
         return None;
     }
@@ -1962,11 +2163,12 @@ fn build_boundary_machine(
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
 
-    Some(CheckedUnitBoundaryMachinePlan {
+    Some(CheckedBoundaryMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
         attachment_type_identity: Some(attachment_type_identity),
         structural_parameters,
+        result_type,
         domain_requirements,
         contract_fingerprint: contract.fingerprint,
         contract_service_reach: contract.service_reach.clone(),
@@ -1980,7 +2182,7 @@ fn build_boundary_machine(
 fn build_static_boundary_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
-) -> Vec<CheckedUnitBoundaryMachinePlan> {
+) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = program
         .traits()
         .iter()
@@ -2023,11 +2225,12 @@ fn build_static_boundary_requirements(
                         direct: *published_reach,
                         transitive: *published_reach,
                     };
-                    Some(CheckedUnitBoundaryMachinePlan {
+                    Some(CheckedBoundaryMachinePlan {
                         machine: signature.symbol,
                         state: signature.symbol,
                         attachment_type_identity: None,
                         structural_parameters: Vec::new(),
+                        result_type: None,
                         domain_requirements: Vec::new(),
                         contract_fingerprint: capsule.target_contract_fingerprint(),
                         contract_service_reach: psi_language_semantics::ServiceReachPlan {
@@ -2132,6 +2335,7 @@ fn build_checked_machine(
             &entry_claims,
             call,
             false,
+            None,
         )?);
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -2852,6 +3056,7 @@ fn build_partial_affine_unit_cleanup_machine(
             &entry_claims,
             call,
             true,
+            None,
         )?;
         let CheckedUnitEffectOperationPlan::CallUnit {
             target_machine,
@@ -3262,6 +3467,7 @@ fn build_call_operation(
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
+    expected_boundary_result: Option<PrimitiveType>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -3332,7 +3538,12 @@ fn build_call_operation(
             || !arguments.is_empty()
             || !call.has_receiver
             || call.receiver_symbol != definition.symbol
-            || !is_unit(program, signature.return_type)
+            || match expected_boundary_result {
+                None => !is_unit(program, signature.return_type),
+                Some(expected) => {
+                    program.primitive_type_reference(signature.return_type) != Some(expected)
+                }
+            }
             || !program.state_signature_contracts(signature).is_empty()
             || signature.suspends
             || signature.blocks
@@ -3342,7 +3553,7 @@ fn build_call_operation(
         let capsule = facts
             .contract_plans
             .crash_capsule(definition.symbol, signature.symbol)?;
-        return Some(CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        return Some(CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
             target_machine: signature.symbol,
             target_state: signature.symbol,
@@ -3363,11 +3574,20 @@ fn build_call_operation(
             .iter()
             .any(|candidate_state| candidate_state.symbol == target_state.symbol)
     })?;
-    if !is_unit(program, target_state.return_type) {
-        return None;
-    }
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let boundary = target_machine.supply_mode.is_boundary_declaration();
+    if if boundary {
+        match expected_boundary_result {
+            None => !is_unit(program, target_state.return_type),
+            Some(expected) => {
+                program.primitive_type_reference(target_state.return_type) != Some(expected)
+            }
+        }
+    } else {
+        expected_boundary_result.is_some() || !is_unit(program, target_state.return_type)
+    } {
+        return None;
+    }
     if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }
@@ -3415,7 +3635,7 @@ fn build_call_operation(
     )?;
 
     if boundary {
-        Some(CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        Some(CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
@@ -4261,7 +4481,7 @@ fn return_unit_affine_discards(
                 structural_arguments,
                 ..
             }
-            | CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+            | CheckedUnitEffectOperationPlan::BoundaryCall {
                 structural_arguments,
                 ..
             } => structural_arguments

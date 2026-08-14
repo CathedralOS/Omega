@@ -82,7 +82,7 @@ pub(crate) use terminal_scalar::{
     build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
 };
 pub(crate) use terminal_unit::{
-    build_checked_nominal_affine_unit_cleanup_plans,
+    build_checked_boundary_scalar_return_plans, build_checked_nominal_affine_unit_cleanup_plans,
     build_checked_partial_affine_unit_cleanup_plans, build_checked_structural_return_plans,
     build_checked_structural_scalar_return_plans, build_checked_structural_unit_control_plans,
     build_checked_unit_effect_plans,

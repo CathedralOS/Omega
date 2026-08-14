@@ -124,11 +124,12 @@ pub struct TerminalStructuralValue {
 /// One externally observable terminal-Psi effect in semantic execution order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffect {
-    BoundaryCallUnit {
+    BoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
         structural_arguments: Vec<TerminalStructuralValue>,
         completion_receipts: Vec<CompletionReceipt>,
+        result: Option<ScalarType>,
     },
     PortWrite {
         operation: OperationId,
@@ -142,6 +143,18 @@ pub enum TerminalEffect {
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
+
+    /// Handle an effect that may return one primitive scalar. Existing Unit
+    /// handlers retain their behavior through the default implementation;
+    /// result-bearing boundary providers override this method and return the
+    /// exact declared scalar type.
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+        self.handle_effect(effect)?;
+        Ok(None)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -643,15 +656,12 @@ impl TerminalExecution {
                         self.next_operation = 0;
                         continue;
                     }
-                    OperationKind::BoundaryCallUnit {
+                    OperationKind::BoundaryCall {
                         boundary,
                         structural_arguments,
                         completion_receipts,
                         ..
                     } => {
-                        if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
                         if self.provider_candidates.contains(&boundary) {
                             if !structural_arguments.is_empty() || !completion_receipts.is_empty() {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -714,18 +724,51 @@ impl TerminalExecution {
                             &completion_receipts,
                             &boundary_declaration.structural_parameters,
                         )?;
-                        let effect = TerminalEffect::BoundaryCallUnit {
+                        let effect = TerminalEffect::BoundaryCall {
                             operation: operation.id,
                             boundary,
                             structural_arguments: arguments,
                             completion_receipts,
+                            result: boundary_declaration.result,
                         };
-                        handler.handle_effect(&effect).map_err(|rejection| {
-                            TerminalInterpretError::EffectRejected {
-                                operation: operation.id,
-                                rejection,
+                        let returned =
+                            handler.handle_effect_result(&effect).map_err(|rejection| {
+                                TerminalInterpretError::EffectRejected {
+                                    operation: operation.id,
+                                    rejection,
+                                }
+                            })?;
+                        match (operation.result.scalar(), returned) {
+                            (None, None) => {}
+                            (Some(declaration), Some(value))
+                                if declaration.scalar_type == value.scalar_type() =>
+                            {
+                                self.values.insert(declaration.id, value);
                             }
-                        })?;
+                            _ => {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                        }
+                        for (argument, parameter) in structural_arguments
+                            .iter()
+                            .zip(&boundary_declaration.structural_parameters)
+                            .filter(|(argument, parameter)| {
+                                argument.path.is_empty()
+                                    && parameter.multiplicity
+                                        != StructuralMultiplicity::Unrestricted
+                            })
+                        {
+                            if self.structural_values.remove(&argument.place).is_none() {
+                                return Err(
+                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                        argument.place,
+                                    ),
+                                );
+                            }
+                            if parameter.multiplicity == StructuralMultiplicity::Affine {
+                                remove_affine_root(&mut self.live_affine_frontier, argument.place);
+                            }
+                        }
                         self.live_claims = remaining_claims;
                         self.effects.push(effect);
                     }

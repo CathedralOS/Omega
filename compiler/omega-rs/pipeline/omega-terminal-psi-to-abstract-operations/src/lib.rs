@@ -270,14 +270,21 @@ fn lower_machine(
                         claim_transfers,
                     });
                 }
-                OperationKind::BoundaryCallUnit {
+                OperationKind::BoundaryCall {
                     boundary,
                     structural_arguments,
                     completion_receipts,
                     ..
                 } => {
-                    operations.push(TerminalAbstractOperation::BoundaryCallUnit {
+                    operations.push(TerminalAbstractOperation::BoundaryCall {
                         psi_operation: operation.id,
+                        result: operation
+                            .result
+                            .scalar()
+                            .map(|result| TerminalAbstractResult {
+                                value: result.id,
+                                scalar_type: result.scalar_type,
+                            }),
                         boundary,
                         structural_arguments,
                         completion_receipts,

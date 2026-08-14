@@ -67,6 +67,8 @@ pub(crate) fn lower_typed_trees(
     facts.flow.terminal_structural_returns =
         crate::flow::build_checked_structural_return_plans(&program, &facts);
     let terminal_unit_effects = crate::flow::build_checked_unit_effect_plans(&program, &facts);
+    facts.flow.terminal_boundary_scalar_returns =
+        crate::flow::build_checked_boundary_scalar_return_plans(&program, &facts);
     let mut cleanup_diagnostics = Vec::new();
     facts.flow.terminal_structural_scalar_returns =
         crate::flow::build_checked_structural_scalar_return_plans(

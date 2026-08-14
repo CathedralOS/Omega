@@ -1079,7 +1079,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         input: place_id(951),
         path: Vec::new(),
     }];
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         structural_arguments,
         completion_receipts,
         ..
@@ -1869,6 +1869,7 @@ fn unit_effect_fixture() -> TerminalModule {
             identity: "test::boundary".into(),
             attachment: None,
             structural_parameters: Vec::new(),
+            result: None,
             requires: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
@@ -1947,7 +1948,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     operations: vec![Operation {
                         id: operation_id(702),
                         result: OperationResult::Unit,
-                        kind: OperationKind::BoundaryCallUnit {
+                        kind: OperationKind::BoundaryCall {
                             boundary: boundary_id(1),
                             structural_arguments: Vec::new(),
                             completion_receipts: Vec::new(),

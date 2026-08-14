@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 11_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "1f67ed3b94337c2d105215529644c307d7eba5c4af6c4f9a8b03f67b8ea263c1"
+        "f3d3c439db683c65ceb917ae41664825585706ba7ad33ac628087fb14a6ddec5"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -51,7 +51,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 11_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -61,7 +61,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 11_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -93,7 +93,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 11_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -891,7 +891,7 @@ fn structural_foundation_rejects_an_out_of_bounds_fixed_index() {
 #[test]
 fn structural_foundation_requires_claim_and_argument_paths_to_match() {
     let mut module = fixed_array_custody_fixture();
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         structural_arguments,
         ..
     } = &mut module.machines[0].blocks[0].operations[1].kind
@@ -935,7 +935,7 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
     });
     let mut second_call = module.machines[0].blocks[0].operations[1].clone();
     second_call.id = operation_id(4);
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         structural_arguments,
         completion_receipts,
         ..
@@ -1521,10 +1521,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&11_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&12_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(11))
+        Err(CodecError::UnsupportedFormatMarker(12))
     );
 
     let mut stale_format = bytes.clone();
@@ -2063,6 +2063,7 @@ fn structural_effect_fixture() -> TerminalModule {
             identity: "example::Occurrence::settle".to_owned(),
             attachment: Some(resource_type),
             structural_parameters: vec![structural_parameter(place_id(30), 0, resource_type, true)],
+            result: None,
             requires: vec![StructuralDomainRequirement {
                 argument_index: 0,
                 domain,
@@ -2179,7 +2180,7 @@ fn structural_effect_fixture() -> TerminalModule {
                         Operation {
                             id: operation_id(3),
                             result: OperationResult::Unit,
-                            kind: OperationKind::BoundaryCallUnit {
+                            kind: OperationKind::BoundaryCall {
                                 boundary: boundary_machine_id(1),
                                 structural_arguments: vec![StructuralArgument {
                                     place: callee_place,
@@ -2232,7 +2233,7 @@ fn project_boundary_argument(
 
 fn project_boundary_path_only(module: &mut TerminalModule, path: Vec<StructuralPathSegment>) {
     module.machines[0].entry_claims[0].path = path.clone();
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         structural_arguments,
         ..
     } = &mut module.machines[0].blocks[0].operations[1].kind
@@ -2271,7 +2272,7 @@ fn fixed_array_custody_fixture() -> TerminalModule {
 
     module.machines[0].structural_parameters[0].structural_type = array;
     module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(1)];
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         structural_arguments,
         ..
     } = &mut module.machines[0].blocks[0].operations[1].kind

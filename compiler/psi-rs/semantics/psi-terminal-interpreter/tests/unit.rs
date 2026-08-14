@@ -1142,8 +1142,9 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     .expect("verified Unit/effect artifact should execute");
 
     let expected = vec![
-        TerminalEffect::BoundaryCallUnit {
+        TerminalEffect::BoundaryCall {
             operation: operation_id(3),
+            result: None,
             boundary: boundary_id(1),
             structural_arguments: vec![argument],
             completion_receipts: vec![CompletionReceipt {
@@ -1255,7 +1256,7 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert!(matches!(
         &handler.effects[0],
-        TerminalEffect::BoundaryCallUnit {
+        TerminalEffect::BoundaryCall {
             structural_arguments,
             completion_receipts,
             ..
@@ -1312,7 +1313,7 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         claim: claim_id(2),
         argument_index: 0,
     });
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         completion_receipts,
         ..
     } = &mut module.machines[1].blocks[0].operations[0].kind
@@ -1340,7 +1341,7 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert!(matches!(
         &handler.effects[0],
-        TerminalEffect::BoundaryCallUnit {
+        TerminalEffect::BoundaryCall {
             structural_arguments,
             completion_receipts,
             ..
@@ -1380,7 +1381,7 @@ fn sponsor_exhaustion_does_not_replay_unit_calls_or_accepted_effects() {
     assert_eq!(handler.effects.len(), 1);
     assert!(matches!(
         handler.effects[0],
-        TerminalEffect::BoundaryCallUnit { .. }
+        TerminalEffect::BoundaryCall { .. }
     ));
 
     meter.replenish(2).unwrap();
@@ -1509,6 +1510,7 @@ fn effect_module() -> TerminalModule {
             identity: "test::acknowledge".into(),
             attachment: Some(structural_type),
             structural_parameters: vec![structural_parameter(place_id(3), structural_type, domain)],
+            result: None,
             requires: vec![StructuralDomainRequirement {
                 argument_index: 0,
                 domain,
@@ -1607,7 +1609,7 @@ fn effect_module() -> TerminalModule {
                     operations: vec![Operation {
                         id: operation_id(3),
                         result: OperationResult::Unit,
-                        kind: OperationKind::BoundaryCallUnit {
+                        kind: OperationKind::BoundaryCall {
                             boundary: boundary_id(1),
                             structural_arguments: vec![StructuralArgument {
                                 place: place_id(2),

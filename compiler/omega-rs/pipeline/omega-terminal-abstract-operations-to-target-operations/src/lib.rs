@@ -129,7 +129,7 @@ fn lower_to_target_operations_with_settlements(
         .iter()
         .flat_map(|function| &function.operations)
         .filter_map(|operation| match operation {
-            TerminalAbstractOperation::BoundaryCallUnit { boundary, .. } => Some(*boundary),
+            TerminalAbstractOperation::BoundaryCall { boundary, .. } => Some(*boundary),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
@@ -408,9 +408,28 @@ fn lower_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::BoundaryCall {
+                psi_operation,
+                result,
+                boundary,
+                ..
+            } => {
+                if result.is_some() {
+                    return Err(
+                        LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            boundary: *boundary,
+                        },
+                    );
+                }
+                return Err(LoweringError::UnitOperationInScalarFunction {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | TerminalAbstractOperation::CallUnit { psi_operation, .. }
-            | TerminalAbstractOperation::BoundaryCallUnit { psi_operation, .. }
             | TerminalAbstractOperation::PortWrite { psi_operation, .. } => {
                 return Err(LoweringError::UnitOperationInScalarFunction {
                     machine: function.machine,
@@ -2062,12 +2081,22 @@ fn lower_unit_function(
                 });
                 provenance.operations.push(*psi_operation);
             }
-            TerminalAbstractOperation::BoundaryCallUnit {
+            TerminalAbstractOperation::BoundaryCall {
                 psi_operation,
+                result,
                 boundary,
                 structural_arguments,
                 completion_receipts,
             } => {
+                if result.is_some() {
+                    return Err(
+                        LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            boundary: *boundary,
+                        },
+                    );
+                }
                 let binding = settlements
                     .get(boundary)
                     .copied()
@@ -5022,7 +5051,7 @@ fn conditional_provenance(
         let psi_operation = match operation {
             TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | TerminalAbstractOperation::CallUnit { psi_operation, .. }
-            | TerminalAbstractOperation::BoundaryCallUnit { psi_operation, .. }
+            | TerminalAbstractOperation::BoundaryCall { psi_operation, .. }
             | TerminalAbstractOperation::PortWrite { psi_operation, .. }
             | TerminalAbstractOperation::Call { psi_operation, .. }
             | TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
@@ -5127,6 +5156,11 @@ pub enum LoweringError {
     UnitOperationInScalarFunction {
         machine: MachineId,
         operation: OperationId,
+    },
+    ResultBearingBoundarySettlementRequiresNativeRealization {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
     },
     UnsupportedOperationInScalarFunction(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
@@ -6065,6 +6099,7 @@ mod tests {
                     multiplicity: StructuralMultiplicity::Linear,
                     qualifications: Vec::new(),
                 }],
+                result: None,
                 requires: Vec::new(),
                 published_service_ceiling: vec![service],
             }],
@@ -6098,8 +6133,9 @@ mod tests {
                         port: 0x20,
                         value: 0x20,
                     },
-                    TerminalAbstractOperation::BoundaryCallUnit {
+                    TerminalAbstractOperation::BoundaryCall {
                         psi_operation: settlement_operation,
+                        result: None,
                         boundary,
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: argument_place,
@@ -6159,6 +6195,35 @@ mod tests {
         assert_eq!(
             lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[wrong],),
             Err(LoweringError::BoundaryRealizationMismatch(boundary))
+        );
+
+        let mut result_bearing = plan.clone();
+        let result = TerminalAbstractResult {
+            value: ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        };
+        result_bearing.boundary_machines[0].result = Some(result.scalar_type);
+        let TerminalAbstractOperation::BoundaryCall {
+            result: operation_result,
+            ..
+        } = &mut result_bearing.functions[0].operations[1]
+        else {
+            unreachable!("fixture contains a boundary call")
+        };
+        *operation_result = Some(result);
+        assert_eq!(
+            lower_to_target_operations_with_settlements(
+                &result_bearing,
+                NativeTarget::linux_x64(),
+                &[binding],
+            ),
+            Err(
+                LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                    machine,
+                    operation: settlement_operation,
+                    boundary,
+                }
+            )
         );
     }
 

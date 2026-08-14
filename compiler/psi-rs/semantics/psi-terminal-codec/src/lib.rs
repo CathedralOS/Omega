@@ -55,7 +55,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 10;
+const FORMAT_MARKER: u16 = 11;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -303,7 +303,7 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
                         "unit-call claim transfers by claim and argument index",
                     ));
                 }
-                OperationKind::BoundaryCallUnit {
+                OperationKind::BoundaryCall {
                     completion_receipts,
                     ..
                 } if !strictly_increasing(completion_receipts.iter().copied()) => {
@@ -868,24 +868,24 @@ fn validate_operation_foundation(
                     .map(|transfer| (transfer.claim, transfer.argument_index)),
             )?;
         }
-        OperationKind::BoundaryCallUnit {
+        OperationKind::BoundaryCall {
             boundary,
             structural_arguments,
             completion_receipts,
             ..
         } => {
-            if operation.result != OperationResult::Unit {
-                return malformed("boundary Unit call declares a scalar result");
-            }
             let Some(boundary) = module
                 .boundary_machines
                 .iter()
                 .find(|candidate| candidate.id == *boundary)
             else {
-                return malformed("boundary Unit call references an unknown boundary");
+                return malformed("boundary call references an unknown boundary");
             };
+            if operation.result.scalar().map(|result| result.scalar_type) != boundary.result {
+                return malformed("boundary call result disagrees with its declaration");
+            }
             if structural_arguments.len() != boundary.structural_parameters.len() {
-                return malformed("boundary Unit call has the wrong structural arity");
+                return malformed("boundary call has the wrong structural arity");
             }
             validate_structural_arguments(
                 module,
@@ -1468,6 +1468,10 @@ fn encode_boundary_machine(
     writer.string("boundary machine identity", &declaration.identity)?;
     encode_optional_id(writer, declaration.attachment);
     encode_structural_parameters(writer, &declaration.structural_parameters)?;
+    writer.boolean(declaration.result.is_some());
+    if let Some(result) = declaration.result {
+        encode_scalar_type(writer, result);
+    }
     writer.len(
         "boundary structural requirements",
         declaration.requires.len(),
@@ -1913,7 +1917,7 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 encode_obligation_ids(writer, &requirement_obligations)?;
                 encode_crash_routes(writer, &crash_continuations)?;
             }
-            OperationKind::BoundaryCallUnit {
+            OperationKind::BoundaryCall {
                 boundary,
                 structural_arguments,
                 completion_receipts,
@@ -3156,6 +3160,10 @@ fn decode_boundary_machine(
         identity: reader.string("boundary machine identity")?,
         attachment: decode_optional_id(reader, "StructuralTypeId")?,
         structural_parameters: decode_structural_parameters(reader)?,
+        result: reader
+            .boolean()?
+            .then(|| decode_scalar_type(reader))
+            .transpose()?,
         requires: decode_counted(reader, |reader| {
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,
@@ -3703,7 +3711,7 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
                 crash_continuations: decode_crash_routes(reader)?,
             },
-            35 => OperationKind::BoundaryCallUnit {
+            35 => OperationKind::BoundaryCall {
                 boundary: reader.id("BoundaryMachineId")?,
                 structural_arguments: decode_structural_arguments(reader)?,
                 completion_receipts: decode_counted(reader, |reader| {

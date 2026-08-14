@@ -304,8 +304,13 @@ Owners:
   multiple-owned sources are accepted only when an exact authored equality
   relates one whole input entry projection directly to the whole current result
   projection in the same content algebra; partition/subplace equations and
-  borrowed selections remain fail-closed. Extend this closure to result-bearing
-  boundary calls and provider-view invalidation.
+  borrowed selections remain fail-closed. Primitive result-bearing calls now
+  carry exact whole-root receipts from source checking through terminal Psi
+  encoding, verification, and retry-safe interpretation. Omega retains the
+  result in its abstract plan and rejects the old metadata-only settlement path
+  rather than dropping it. Finish a native result-returning provider
+  realization, then provider-view invalidation; projected/content-bearing
+  result calls remain fail-closed.
 - **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
   representation and initialization transition are settled, carry the exact
   view through foreign signatures, calling plans, borrow checking, and both

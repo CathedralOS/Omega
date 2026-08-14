@@ -76,7 +76,7 @@ fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewr
         .expect("entry machine");
     assert!(matches!(
         entry.blocks[0].operations[0].kind,
-        OperationKind::BoundaryCallUnit { boundary: called, .. } if called == boundary
+        OperationKind::BoundaryCall { boundary: called, .. } if called == boundary
     ));
 
     let encoded = encode_module(module).expect("encode catalog");
