@@ -303,11 +303,11 @@ direct primitive scalar inputs interleaved at authored parameter positions,
 and no authored contract beyond the direct-Boolean contextual subset below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
 and either one branch-free scalar result or a finite Boolean continuation chain
-that begins with one top-level `&&`/`||`. Every later local in that chain is
-branch-free or another top-level `&&`/`||`, its operands are branch-free over
-the inputs and locals, and it uses its immediate Boolean predecessor at least
-once; the return directly names the final local. Checked plans
-retain the complete authored parameter partition; terminal Psi gives scalar
+that begins with a finite `&&`/`||` decision tree of arbitrary nesting. Every
+later local in that chain is branch-free or another finite nested decision
+tree over the inputs and available locals, and it uses its immediate Boolean
+predecessor at least once; the return directly names the final local. Checked
+plans retain the complete authored parameter partition; terminal Psi gives scalar
 values and structural places independent dense namespaces. Terminal production
 materializes the input-dependent local and result operations in
 source order, then executes the complete cleanup stream in reverse authored
@@ -332,8 +332,8 @@ leaf and validates the result and return-link lifetime independently on every
 native path. Terminal production decides every short-circuit local once per
 stage, substitutes each resulting value leaf into the continuation, and
 source-distributes branch-free work and later decision stages without a
-convergence block. Explicit convergence to one shared cleanup return, arbitrary
-nested decisions, calls, effects, nested nominal ownership,
+convergence block. Explicit convergence to one shared cleanup return, calls,
+effects, nested nominal ownership,
 projections, and wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,

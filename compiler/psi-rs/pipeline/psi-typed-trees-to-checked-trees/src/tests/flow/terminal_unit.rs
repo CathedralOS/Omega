@@ -1008,6 +1008,11 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         machine Root::repeated_short_circuit(token: Token) -> bool {
             (true && false) || true
         }
+        machine Root::nested_short_circuit_locals(token: Token) -> bool {
+            let staged: bool = true && (false || true);
+            let repeated: bool = staged || (true && false);
+            repeated
+        }
         machine Root::mutable_local(token: Token) -> u64 {
             let mut staged: u64 = 1u64;
             staged
@@ -1079,13 +1084,27 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     assert_eq!(three_continuation_locals.bindings.len(), 4);
     assert_eq!(three_continuation_locals.return_statement_ordinal, 4);
 
-    for machine in [
-        "nested_short_circuit",
-        "repeated_short_circuit",
-        "mutable_local",
-        "call_local",
-        "effect_before_return",
+    for (machine, binding_count) in [
+        ("nested_short_circuit", 0),
+        ("repeated_short_circuit", 0),
+        ("nested_short_circuit_locals", 2),
     ] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!("`{machine}` should retain arbitrary nested short-circuit cleanup")
+            });
+        assert_eq!(plan.bindings.len(), binding_count);
+        assert_eq!(
+            usize::try_from(plan.return_statement_ordinal).unwrap(),
+            binding_count
+        );
+    }
+
+    for machine in ["mutable_local", "call_local", "effect_before_return"] {
         assert!(
             checked
                 .facts

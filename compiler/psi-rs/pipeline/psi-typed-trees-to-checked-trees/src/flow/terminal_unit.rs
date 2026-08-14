@@ -818,7 +818,7 @@ fn build_structural_scalar_return_machine(
         scalar_parameters.len(),
         binding_count,
     );
-    let return_is_one_short_circuit_boolean = is_single_top_level_short_circuit_boolean_return(
+    let return_is_short_circuit_boolean = is_structural_short_circuit_boolean_return(
         return_expression,
         scalar_parameters.len(),
         binding_count,
@@ -840,7 +840,7 @@ fn build_structural_scalar_return_machine(
                 },
             )
             .is_some_and(|expression| {
-                is_single_top_level_short_circuit_boolean_return(
+                is_structural_short_circuit_boolean_return(
                     expression,
                     scalar_parameters.len(),
                     binding_count - 1,
@@ -887,7 +887,7 @@ fn build_structural_scalar_return_machine(
                         },
                     )
                     .is_some_and(|expression| {
-                        is_single_top_level_short_circuit_boolean_return(
+                        is_structural_short_circuit_boolean_return(
                             expression,
                             scalar_parameters.len(),
                             short_circuit_index,
@@ -914,7 +914,7 @@ fn build_structural_scalar_return_machine(
                                             boolean,
                                             scalar_parameters.len(),
                                             continuation_index,
-                                        ) || is_single_top_level_short_circuit_boolean_return(
+                                        ) || is_structural_short_circuit_boolean_return(
                                             expression,
                                             scalar_parameters.len(),
                                             continuation_index,
@@ -957,7 +957,7 @@ fn build_structural_scalar_return_machine(
     if has_nominal_cleanup
         && (structural_parameters.len() != whole_discards.len()
             || !(bindings_are_branch_free
-                && (return_is_branch_free || return_is_one_short_circuit_boolean)
+                && (return_is_branch_free || return_is_short_circuit_boolean)
                 || final_binding_is_source_distributed_short_circuit_return
                 || final_short_circuit_continuation_chain_is_source_distributed))
     {
@@ -1216,7 +1216,7 @@ fn checked_boolean_contains_short_circuit(
     }
 }
 
-fn is_single_top_level_short_circuit_boolean_return(
+fn is_structural_short_circuit_boolean_return(
     expression: &CheckedScalarExpression,
     scalar_parameters: usize,
     available_locals: usize,
@@ -1224,18 +1224,8 @@ fn is_single_top_level_short_circuit_boolean_return(
     let CheckedScalarExpression::Boolean(expression) = expression else {
         return false;
     };
-    match expression.as_ref() {
-        psi_checked_trees::CheckedBooleanExpression::And { left, right }
-        | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
-            is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
-                && is_branch_free_structural_boolean_expression(
-                    right,
-                    scalar_parameters,
-                    available_locals,
-                )
-        }
-        _ => false,
-    }
+    checked_boolean_contains_short_circuit(expression)
+        && is_structural_boolean_return_expression(expression, scalar_parameters, available_locals)
 }
 
 fn checked_boolean_local_reference_count(

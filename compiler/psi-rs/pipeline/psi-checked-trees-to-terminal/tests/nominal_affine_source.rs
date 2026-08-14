@@ -352,6 +352,28 @@ const MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     }
 "#;
 
+const MIXED_NOMINAL_NESTED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(
+        token: Token,
+        left: bool,
+        plain: Plain,
+        right: bool
+    ) -> bool
+    {
+        let staged: bool = left && (right || !left);
+        let continued: bool = staged || (left && right);
+        continued
+    }
+"#;
+
 const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -1342,6 +1364,103 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
         );
         assert_eq!(measured.usage().total_units(), expected_fuel);
+        assert!(measured.effects().is_empty());
+    }
+}
+
+#[test]
+fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
+    let tokens = Lexer::new(MIXED_NOMINAL_NESTED_SHORT_CIRCUIT_SCALAR_SOURCE)
+        .tokenize()
+        .expect("tokenize nested nominal short-circuit scalar return");
+    let syntax =
+        parse_syntax_trees(&tokens).expect("parse nested nominal short-circuit scalar return");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve nested nominal short-circuit scalar return");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type nested nominal short-circuit scalar return");
+    let checked =
+        lower_typed_trees(typed).expect("check nested nominal short-circuit scalar return");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("nested nominal short-circuit scalar return lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("nested nominal short-circuit entry");
+    let [token, plain] = entry.structural_parameters.as_slice() else {
+        panic!("nested nominal short-circuit entry retains both structural roots")
+    };
+    let mut conditional_count = 0;
+    let mut return_count = 0;
+    for block in &entry.blocks {
+        match &block.terminator {
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                conditional_count += 1;
+                assert!(when_true.trivial_affine_discards.is_empty());
+                assert!(when_false.trivial_affine_discards.is_empty());
+            }
+            Terminator::Return {
+                cleanup_actions, ..
+            } => {
+                return_count += 1;
+                assert!(matches!(
+                    cleanup_actions.as_slice(),
+                    [
+                        TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+                        TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
+                    ] if *plain_cleanup == plain.place && token_cleanup.place == token.place
+                ));
+            }
+            _ => panic!("nested nominal cleanup emits only decisions and return leaves"),
+        }
+    }
+    assert!(
+        conditional_count >= 4,
+        "nested and repeated short-circuit stages must retain the full decision tree"
+    );
+    assert_eq!(return_count, conditional_count + 1);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("nested nominal short-circuit cleanup verifies on every leaf");
+    let semantics = encode_module(&lowered.semantic_module)
+        .expect("nested nominal short-circuit module encodes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("nested nominal short-circuit proof encodes");
+    let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
+        let mut handler = AcceptTerminalEffects;
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &[
+                TerminalScalarValue::Boolean(left),
+                TerminalScalarValue::Boolean(right),
+            ],
+            &structural_arguments,
+            &mut handler,
+        )
+        .expect("nested nominal short-circuit path interprets");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(left && right))
+        );
         assert!(measured.effects().is_empty());
     }
 }

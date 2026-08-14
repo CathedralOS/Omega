@@ -3267,7 +3267,7 @@ fn lower_nominal_structural_scalar_return_machine(
             let LoweredDirectExpression::Boolean { expression } = expression else {
                 return None;
             };
-            if !is_one_top_level_structural_boolean_decision(
+            if !is_structural_short_circuit_boolean_decision(
                 &expression,
                 scalar_parameter_count,
                 binding_index,
@@ -3324,7 +3324,7 @@ fn lower_nominal_structural_scalar_return_machine(
                 else {
                     return None;
                 };
-                if !is_one_top_level_structural_boolean_decision(
+                if !is_structural_short_circuit_boolean_decision(
                     &short_circuit_expression,
                     scalar_parameter_count,
                     short_circuit_index,
@@ -3354,7 +3354,7 @@ fn lower_nominal_structural_scalar_return_machine(
                         &continuation_expression,
                         scalar_parameter_count,
                         continuation_index,
-                    ) || is_one_top_level_structural_boolean_decision(
+                    ) || is_structural_short_circuit_boolean_decision(
                         &continuation_expression,
                         scalar_parameter_count,
                         continuation_index,
@@ -3434,7 +3434,7 @@ fn lower_nominal_structural_scalar_return_machine(
     let authored_short_circuit_return = matches!(
         &expression,
         LoweredDirectExpression::Boolean { expression }
-            if is_one_top_level_structural_boolean_decision(
+            if is_structural_short_circuit_boolean_decision(
                 expression,
                 scalar_parameter_count,
                 expression_available_locals,
@@ -3800,18 +3800,13 @@ fn is_branch_free_structural_boolean_expression(
     }
 }
 
-fn is_one_top_level_structural_boolean_decision(
+fn is_structural_short_circuit_boolean_decision(
     expression: &LoweredBooleanReturnExpression,
     scalar_parameters: usize,
     available_locals: usize,
 ) -> bool {
-    let (left, right) = match expression {
-        LoweredBooleanReturnExpression::And { left, right }
-        | LoweredBooleanReturnExpression::Or { left, right } => (left, right),
-        _ => return false,
-    };
-    is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
-        && is_branch_free_structural_boolean_expression(right, scalar_parameters, available_locals)
+    contains_short_circuit(expression)
+        && is_structural_boolean_return_expression(expression, scalar_parameters, available_locals)
 }
 
 fn boolean_local_reference_count(
