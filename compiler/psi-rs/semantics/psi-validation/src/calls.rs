@@ -2773,6 +2773,20 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
                     )
                 }
+                ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                    if struct_literal_field_is_primitive(program, literal, field.name.as_str()) =>
+                {
+                    primitive_computed_aggregate_field_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        field.value,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                    )
+                }
                 _ => false,
             }
         })
@@ -2800,6 +2814,8 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
             [Some(cast.value), None]
         }
         ExpressionNode::Unary(unary) => [Some(unary.operand), None],
+        ExpressionNode::Member(member) => [Some(member.receiver), None],
+        ExpressionNode::Indexed(indexed) => [Some(indexed.collection), Some(indexed.index)],
         _ => return false,
     };
     operands.into_iter().flatten().all(|operand| {

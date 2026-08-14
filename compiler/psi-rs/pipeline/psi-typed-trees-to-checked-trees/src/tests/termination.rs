@@ -7148,6 +7148,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         value: u64;
         other: u64;
         pair: Pair;
+        source_pair: Pair;
         generic_pair: GenericPair<u64>;
         choice: PairChoice;
         generic_choice: GenericChoice<u64>;
@@ -7174,6 +7175,20 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
 
     machine combine(first: u64, second: u64) -> u64 {
         first + second
+    }
+
+    machine make_pair(value: &mut u64) -> Pair {
+        value = 1;
+        Pair { first: 1, second: 2 }
+    }
+
+    machine make_cells(value: &mut u64) -> [u64; 2] {
+        value = 1;
+        [1, 2]
+    }
+
+    machine return_pair(pair: &mut Pair) -> &mut Pair {
+        pair
     }
 
     machine recursive_value() -> u64 {
@@ -7331,6 +7346,42 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
     ) -> &'cells mut [u64; 2] {
         pair = Pair {
             first: (~compute(value) as u64) + 1,
+            second: 0
+        };
+        cells
+    }
+
+    machine return_after_projected_record_field<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: make_pair(value).first,
+            second: 0
+        };
+        cells
+    }
+
+    machine return_after_indexed_record_field<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: make_cells(value)[0],
+            second: 0
+        };
+        cells
+    }
+
+    machine return_after_reference_projected_record_field<'cells, 'pair, 'source>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        source: &'source mut Pair
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: return_pair(source).first,
             second: 0
         };
         cells
@@ -7626,6 +7677,33 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::projected_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_projected_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::indexed_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_indexed_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::reference_projected_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_reference_projected_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.source_pair
+        );
+        alias[0] = 2;
+    }
+
     machine Main::case_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_case_value_calls(
             &mut self.cells,
@@ -7796,6 +7874,14 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             vec!["self.cells", "self.pair", "self.value"],
         ),
         (
+            "Main::projected_record_field_assignment_result",
+            vec!["self.cells", "self.pair", "self.value"],
+        ),
+        (
+            "Main::indexed_record_field_assignment_result",
+            vec!["self.cells", "self.pair", "self.value"],
+        ),
+        (
             "Main::case_value_call_assignment_result",
             vec!["self.cells", "self.choice", "self.other", "self.value"],
         ),
@@ -7861,6 +7947,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::generic_record_value_call_assignment_result",
         "Main::deep_computed_record_field_assignment_result",
         "Main::three_computed_record_field_assignment_result",
+        "Main::reference_projected_record_field_assignment_result",
         "Main::generic_case_value_call_assignment_result",
         "Main::deep_record_value_call_assignment_result",
         "Main::generic_nested_case_value_call_assignment_result",

@@ -373,8 +373,9 @@ compiler concept is introduced.
   selected-case literal whose direct fields obey the same rule; this aggregate
   depth-two rail does not widen the depth-four call budget. A declared
   primitive field at either level may wrap independently bounded call operands
-  in up to two nested scalar-computation shells made from unary/binary operators
-  and primitive value casts without widening that budget.
+  in up to two nested scalar-computation shells made from unary/binary
+  operators, primitive value casts, member projections, or indexing without
+  widening that budget.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
