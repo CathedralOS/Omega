@@ -536,10 +536,10 @@ Remaining N6/N8 work:
   direct and inherited requirements in the binder scope, substitutes the
   selected normalized rows, and commits the map identity separately from
   callable static-machine arguments. Still instantiate generic conformance
-  declarations over their own telescopes and carry forwarded evidence through
-  nested generic calls. Identity retains declared name, telescope, optional
-  subject, instantiated trait, and normalized rows. No visibility-, priority-,
-  or specificity-based selection.
+  declarations over their own telescopes. Nested generic calls already forward
+  the exact evidence selection through specialization. Identity retains
+  declared name, telescope, optional subject, instantiated trait, and
+  normalized rows. No visibility-, priority-, or specificity-based selection.
 - Project carrierless evidence from the complete conformance map. Projection is
   stable per retained term and forwarding preserves it; separate introductions
   may differ. Evidence cannot eliminate into runtime computation.
