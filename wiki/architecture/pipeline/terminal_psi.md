@@ -425,12 +425,13 @@ call verification independently substitutes both roots and rejects redirecting
 either operand even when the replacement path is otherwise valid and
 same-typed. Text, float, sum/case, erased-field, empty-record, and written
 `equals` bodies remain outside this bounded terminal slice. Arithmetic over
-same-typed relevant fixed-integer members accepts Exact addition: each member or
-fixed-integer-literal operand retains its exact checked carrier, nested additions
-remain typed `ExactIntegerAdd` terms, and whole-root or all-field-projected calls
-rebase every member leaf recursively. The verifier independently repeats that
-substitution and validates every declared leaf and arithmetic-node type; both
-codecs preserve the nested term. Other arithmetic policies and operators,
+same-typed relevant fixed-integer members accepts Exact addition and subtraction:
+each member or fixed-integer-literal operand retains its exact checked carrier,
+nested operations remain typed `ExactIntegerAdd` or `ExactIntegerSubtract`
+terms, and whole-root or all-field-projected calls rebase every member leaf
+recursively. The verifier independently repeats that substitution and validates
+every declared leaf and arithmetic-node type; both codecs preserve the nested
+term. Other arithmetic policies and operators,
 case-payload paths, and imported crash capsules remain fail-closed.
 Structural/content contracts reject because custody effects require their own
 vertical slice rather than an ordinary scalar flag.
