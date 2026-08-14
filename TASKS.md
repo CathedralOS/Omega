@@ -635,14 +635,15 @@ reach or trust, and private proof improvements do not change public identity.
   diamond. Integer division/remainder inside typed scalar call arguments now
   retains the same facts through ABI assignment, typed relocation, object/image
   validation, installation serialization, and installed-closure recomposition.
-  Direct branch-free division/remainder in either arm of the bounded two-return
-  conditional now reuses its arm-by-arm maximum: AArch64 retains all emitted
-  policy forms and x86 retains only streams without an inner division diamond.
-  Extend accounting to division in conditional conditions and arm call
-  arguments, signed x86 policy diamonds within arms, broader language-level
-  nested/reconvergent conditionals, crashes in arms, and the external entry
-  adapter before calling it a complete root `StackPlan`; zero-byte internal
-  closures remain inadmissible until that adapter demand exists.
+  Direct branch-free division/remainder in the condition or either arm of the
+  bounded two-return conditional now reuses its prefix/arm maximum: AArch64
+  retains all emitted policy forms and x86 retains only streams without an
+  inner division diamond. Extend accounting to division in condition/arm call
+  arguments, signed x86 policy diamonds within the conditional, broader
+  language-level nested/reconvergent conditionals, crashes in arms, and the
+  external entry adapter before calling it a complete root `StackPlan`;
+  zero-byte internal closures remain inadmissible until that adapter demand
+  exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

@@ -201,19 +201,19 @@ replays the instructions, derives caller-live bytes even with pending
 temporaries, and composes the same acyclic closure. It rejects missing, forged,
 untyped, cyclic, or unaccounted evidence. Conditional control-flow joins remain
 outside this scalar slice. The one admitted conditional shape is not a join: a
-top-level Boolean-parameter or linear Boolean-expression condition leading to
-two direct linear integer return arms. Object construction distinguishes the
-condition form, validates its exact branch target (`JZ` on x86-64, `CBZ` or
+top-level Boolean-parameter or bounded Boolean-expression condition leading to
+two direct accountable integer return arms. Object construction distinguishes
+the condition form, validates its exact branch target (`JZ` on x86-64, `CBZ` or
 expression `B.EQ` on AArch64), and recognizes the exact x86 flag-preserving
 `LEA` used to release an expression frame after comparison. It replays the
 balanced expression prefix and each arm independently, then takes their
 maximum peak. Typed scalar calls in the prefix or either arm reuse exact
 outbound/link validation and closure composition. Direct branch-free division
-and remainder in either return arm reuse the same replay and maximum: all
-AArch64 forms qualify, while x86 qualifies only when emission contains no
-compiler-generated division diamond. Division in the condition or an arm's
-call arguments, signed x86 policy diamonds, nesting, crashes in arms, and
-reconvergence remain excluded.
+and remainder in Boolean condition operands or either return arm reuse the
+same replay and maximum: all AArch64 forms qualify, while x86 qualifies only
+when emission contains no compiler-generated division diamond. Division in
+condition/arm call arguments, signed x86 policy diamonds within the
+conditional, nesting, crashes in arms, and reconvergence remain excluded.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 
