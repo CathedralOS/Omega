@@ -400,9 +400,11 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         token: Token,
         input: u64 in Wrapping,
         small: u8,
+        divisor: u8,
         enabled: bool
     ) -> bool
-    requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8
+    requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8,
+        1u8 <= divisor
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && ((small as u16) < 5u16))
@@ -412,6 +414,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small * 2u8) < 10u8)
             && ((small / 2u8) < 3u8)
             && ((small % 2u8) <= 1u8)
+            && ((small / divisor) < 6u8)
+            && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
             && ((small << 1u8) < 11u8)
             && (input == 3u64)
@@ -1690,6 +1694,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .iter()
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("shared integer convergence entry");
+    let unsigned_term = |bits: u16, value: u128| {
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+            IntegerValue::Unsigned(value),
+        )
+        .unwrap_or_else(|error| panic!("test integer term: {error:?}"))
+    };
+    let input_term = ScalarTerm::value(entry.parameters[0].id, entry.parameters[0].scalar_type);
+    let small_term = ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type);
+    let divisor_term = ScalarTerm::value(entry.parameters[2].id, entry.parameters[2].scalar_type);
+    let input_upper_requirement =
+        Proposition::LessOrEqual(input_term.clone(), unsigned_term(64, 255));
+    let shift_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 7));
+    let exact_upper_requirement =
+        Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 127));
+    let add_upper_requirement = Proposition::LessOrEqual(small_term, unsigned_term(8, 254));
+    let divisor_lower_requirement = Proposition::LessOrEqual(unsigned_term(8, 1), divisor_term);
+    for requirement in [
+        &input_upper_requirement,
+        &shift_upper_requirement,
+        &exact_upper_requirement,
+        &add_upper_requirement,
+        &divisor_lower_requirement,
+    ] {
+        assert!(entry.contract.requires.contains(requirement));
+    }
     assert!(entry.blocks.iter().any(|block| {
         block
             .operations
@@ -1762,6 +1792,41 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let divisor_parameter = entry.parameters[2].id;
+    let runtime_exact_divide_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            } if right == divisor_parameter => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains exact division by a proven runtime divisor");
+    let runtime_exact_remainder_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerRemainder {
+                right, obligation, ..
+            } if right == divisor_parameter => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains exact remainder by a proven runtime divisor");
+    for obligation in [
+        runtime_exact_divide_obligation,
+        runtime_exact_remainder_obligation,
+    ] {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_shift_obligation = entry
         .blocks
         .iter()
@@ -1910,17 +1975,13 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let [
-        Proposition::LessOrEqual(subject, _),
-        Proposition::LessOrEqual(_, _),
-        Proposition::LessOrEqual(_, _),
-        Proposition::LessOrEqual(_, _),
-    ] = entry_contract.requires.as_slice()
-    else {
-        panic!("shared convergence retains all unsigned upper-bound premises")
-    };
-    entry_contract.requires[0] = Proposition::LessOrEqual(
-        subject.clone(),
+    let input_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &input_upper_requirement)
+        .expect("shared convergence retains the exact-cast upper-bound premise");
+    entry_contract.requires[input_requirement] = Proposition::LessOrEqual(
+        input_term,
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             IntegerValue::Unsigned(254),
@@ -1959,11 +2020,13 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let Proposition::LessOrEqual(add_subject, _) = &entry_contract.requires[3] else {
-        panic!("shared convergence retains the exact-add upper-bound premise")
-    };
-    entry_contract.requires[3] = Proposition::LessOrEqual(
-        add_subject.clone(),
+    let add_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &add_upper_requirement)
+        .expect("shared convergence retains the exact-add upper-bound premise");
+    entry_contract.requires[add_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
             IntegerValue::Unsigned(253),
@@ -2017,11 +2080,13 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let Proposition::LessOrEqual(exact_subject, _) = &entry_contract.requires[2] else {
-        panic!("shared convergence retains the subtract/multiply upper-bound premise")
-    };
-    entry_contract.requires[2] = Proposition::LessOrEqual(
-        exact_subject.clone(),
+    let exact_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &exact_upper_requirement)
+        .expect("shared convergence retains the subtract/multiply upper-bound premise");
+    entry_contract.requires[exact_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
             IntegerValue::Unsigned(126),
@@ -2039,7 +2104,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == exact_subtract_obligation || obligation == exact_multiply_obligation
     ));
-    for obligation in [exact_divide_obligation, exact_remainder_obligation] {
+    for obligation in [
+        exact_divide_obligation,
+        exact_remainder_obligation,
+        runtime_exact_divide_obligation,
+        runtime_exact_remainder_obligation,
+    ] {
         let mut missing_proof = decode_proof_bundle(&proof).expect("decode shared proof");
         missing_proof
             .evidence
@@ -2051,9 +2121,42 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 &AdmissionProfile::default(),
             ),
             Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
-                if missing == obligation
+            if missing == obligation
         ));
     }
+    let mut changed_divisor_bound = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_divisor_bound.entry;
+    let entry_contract = &mut changed_divisor_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let divisor_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &divisor_lower_requirement)
+        .expect("shared convergence retains the runtime-divisor lower-bound premise");
+    entry_contract.requires[divisor_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerValue::Unsigned(2),
+        )
+        .unwrap(),
+        ScalarTerm::value(entry.parameters[2].id, entry.parameters[2].scalar_type),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_divisor_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == runtime_exact_divide_obligation
+            || obligation == runtime_exact_remainder_obligation
+    ));
     let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode shared proof");
     missing_shift_proof
         .evidence
@@ -2075,11 +2178,13 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let Proposition::LessOrEqual(shift_subject, _) = &entry_contract.requires[1] else {
-        panic!("shared convergence retains the exact-shift count premise")
-    };
-    entry_contract.requires[1] = Proposition::LessOrEqual(
-        shift_subject.clone(),
+    let shift_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &shift_upper_requirement)
+        .expect("shared convergence retains the exact-shift count premise");
+    entry_contract.requires[shift_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
             IntegerValue::Unsigned(6),
@@ -2119,12 +2224,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         qualifications: Vec::new(),
         path: Vec::new(),
     }];
-    for (input, small, enabled) in [
-        (3_u128, 4_u128, false),
-        (3, 4, true),
-        (3, 5, true),
-        (4, 4, true),
-        (10, 4, true),
+    for (input, small, divisor, enabled) in [
+        (3_u128, 4_u128, 2_u128, false),
+        (3, 4, 2, true),
+        (3, 5, 3, true),
+        (4, 4, 2, true),
+        (10, 4, 4, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -2143,6 +2248,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
                     value: IntegerValue::Unsigned(small),
                 },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    value: IntegerValue::Unsigned(divisor),
+                },
                 TerminalScalarValue::Boolean(enabled),
             ],
             &structural_arguments,
@@ -2160,6 +2269,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small * 2 < 10
                     && small / 2 < 3
                     && small % 2 <= 1
+                    && small / divisor < 6
+                    && small % divisor <= small
                     && (small >> small) < 1
                     && (small << 1) < 11
                     && input == 3

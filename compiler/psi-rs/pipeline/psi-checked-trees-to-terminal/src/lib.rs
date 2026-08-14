@@ -17,15 +17,16 @@ use psi_checked_trees::{
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
-    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
@@ -4186,12 +4187,20 @@ fn lower_nominal_structural_scalar_return_machine(
             let ScalarType::Integer(integer_type) = scalar_type else {
                 return unsupported("nominal scalar requirement is not an integer bound");
             };
-            let maximum = integer_value(&requirement.maximum, scalar_type)?;
-            Ok(Proposition::LessOrEqual(
-                ScalarTerm::value(parameter.id, scalar_type),
-                ScalarTerm::integer(integer_type, maximum)
-                    .map_err(|_| LoweringError::Unsupported("nominal scalar bound is invalid"))?,
-            ))
+            let bound = ScalarTerm::integer(
+                integer_type,
+                integer_value(&requirement.bound, scalar_type)?,
+            )
+            .map_err(|_| LoweringError::Unsupported("nominal scalar bound is invalid"))?;
+            let parameter = ScalarTerm::value(parameter.id, scalar_type);
+            Ok(match requirement.kind {
+                CheckedStructuralScalarIntegerBoundKind::Lower => {
+                    Proposition::LessOrEqual(bound, parameter)
+                }
+                CheckedStructuralScalarIntegerBoundKind::Upper => {
+                    Proposition::LessOrEqual(parameter, bound)
+                }
+            })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     scalar_requirements.sort_by_cached_key(|requirement| {
@@ -10664,16 +10673,7 @@ fn shared_integer_runtime_parameters_with_shells(
             scalar_type: ScalarType::Integer(integer_type),
             left,
             right,
-        } if remaining_shells > 0
-            && integer_type.sign() == IntegerSign::Unsigned
-            && matches!(
-                right.as_ref(),
-                LoweredDirectExpression::IntegerLiteral {
-                    value: IntegerValue::Unsigned(value),
-                    ..
-                } if *value > 0
-            ) =>
-        {
+        } if remaining_shells > 0 && integer_type.sign() == IntegerSign::Unsigned => {
             let mut parameters =
                 shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
@@ -14789,6 +14789,8 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
                                 | OperationKind::ExactIntegerMultiply { obligation, .. }
                                 | OperationKind::ExactIntegerShiftRight { obligation, .. }
                                 | OperationKind::ExactIntegerShiftLeft { obligation, .. }
+                                | OperationKind::ExactIntegerDivide { obligation, .. }
+                                | OperationKind::ExactIntegerRemainder { obligation, .. }
                                 if obligation == site.obligation.id
                         )
                     })
