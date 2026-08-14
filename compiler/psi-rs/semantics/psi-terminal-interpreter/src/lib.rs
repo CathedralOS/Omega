@@ -149,6 +149,73 @@ pub struct TerminalEffectRejection {
     pub reason: String,
 }
 
+/// Omega-owned policy input naming one exact verified terminal provider row.
+/// Selection is intentionally separate from terminal-Psi semantic bytes.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProviderInstallationSelection {
+    pub boundary: BoundaryMachineId,
+    pub provider_identity: String,
+    pub candidate: MachineId,
+}
+
+/// Validated provider installation bound to one exact terminal-Psi identity.
+/// Private fields prevent callers from manufacturing a boundary-to-machine
+/// redirect without replaying terminal decoding and verification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedProviderInstallation {
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    installed: BTreeMap<BoundaryMachineId, MachineId>,
+}
+
+impl AdmittedProviderInstallation {
+    pub const fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi
+    }
+}
+
+/// Decode and verify an artifact, then admit only selections that exactly name
+/// rows in its canonical provider catalog.
+pub fn admit_provider_installation_from_artifact(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+    selections: &[ProviderInstallationSelection],
+) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(ProviderInstallationError::SemanticDecode)?;
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ProviderInstallationError::ProofDecode)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(ProviderInstallationError::Verification)?;
+    let mut installed = BTreeMap::new();
+    for selection in selections {
+        if selection.provider_identity.is_empty()
+            || installed
+                .insert(selection.boundary, selection.candidate)
+                .is_some()
+            || !verified
+                .module()
+                .provider_candidates
+                .iter()
+                .any(|candidate| {
+                    candidate.boundary == selection.boundary
+                        && candidate.provider_identity == selection.provider_identity
+                        && candidate.candidate == selection.candidate
+                })
+        {
+            return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
+                boundary: selection.boundary,
+                candidate: selection.candidate,
+            });
+        }
+    }
+    Ok(AdmittedProviderInstallation {
+        terminal_psi: psi_terminal_codec::terminal_psi_identity(verified.module())
+            .map_err(ProviderInstallationError::SemanticDecode)?,
+        installed,
+    })
+}
+
 impl TerminalEffectRejection {
     pub fn new(reason: impl Into<String>) -> Self {
         Self {
@@ -202,6 +269,8 @@ pub struct TerminalExecution {
     structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: BTreeMap<MachineId, ExecutableMachine>,
     boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
+    provider_candidates: BTreeSet<BoundaryMachineId>,
+    provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -292,16 +361,47 @@ impl TerminalExecution {
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start(&verified, scalar_arguments, structural_arguments)
+        Self::start(&verified, scalar_arguments, structural_arguments, None)
             .map_err(TerminalArtifactInterpretError::Execution)
+    }
+
+    /// Begin execution with one explicit provider installation previously
+    /// admitted against these exact semantic/proof sections.
+    pub fn start_artifact_with_provider_installation(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &psi_proof_kernel::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        installation: &AdmittedProviderInstallation,
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        let module = psi_terminal_codec::decode_module(semantic_bytes)
+            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+        let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+            .map_err(TerminalArtifactInterpretError::ProofDecode)?;
+        let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+            .map_err(TerminalArtifactInterpretError::Verification)?;
+        Self::start(
+            &verified,
+            scalar_arguments,
+            structural_arguments,
+            Some(installation),
+        )
+        .map_err(TerminalArtifactInterpretError::Execution)
     }
 
     fn start(
         verified: &VerifiedTerminalModule<'_>,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
+        installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
         let module = verified.module();
+        let terminal_psi = psi_terminal_codec::terminal_psi_identity(module)
+            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+        if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {
+            return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
+        }
         let machines = module
             .machines
             .iter()
@@ -357,6 +457,14 @@ impl TerminalExecution {
             structural_types,
             machines,
             boundary_machines,
+            provider_candidates: module
+                .provider_candidates
+                .iter()
+                .map(|candidate| candidate.boundary)
+                .collect(),
+            provider_installation: installation
+                .map(|installation| installation.installed.clone())
+                .unwrap_or_default(),
             blocks,
             values,
             structural_values,
@@ -543,6 +651,49 @@ impl TerminalExecution {
                     } => {
                         if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        if self.provider_candidates.contains(&boundary) {
+                            if !structural_arguments.is_empty() || !completion_receipts.is_empty() {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            let callee_id =
+                                self.provider_installation.get(&boundary).copied().ok_or(
+                                    TerminalInterpretError::ProviderInstallationMissing(boundary),
+                                )?;
+                            let callee = self.machines.get(&callee_id).cloned().ok_or(
+                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
+                            )?;
+                            if callee.result != TerminalMachineResult::Unit
+                                || !callee.parameters.is_empty()
+                                || !callee.structural_parameters.is_empty()
+                                || !callee.entry_claims.is_empty()
+                                || !callee.content_entry_claims.is_empty()
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            self.next_operation += 1;
+                            self.call_stack.push(SuspendedCall {
+                                blocks: std::mem::take(&mut self.blocks),
+                                values: std::mem::take(&mut self.values),
+                                structural_values: std::mem::take(&mut self.structural_values),
+                                live_affine_frontier: std::mem::take(
+                                    &mut self.live_affine_frontier,
+                                ),
+                                live_claims: std::mem::take(&mut self.live_claims),
+                                current_machine: self.current_machine,
+                                current: self.current,
+                                next_operation: self.next_operation,
+                                result: SuspendedCallResult::Unit,
+                            });
+                            self.blocks = callee.blocks;
+                            self.values = BTreeMap::new();
+                            self.structural_values = BTreeMap::new();
+                            self.live_affine_frontier = BTreeSet::new();
+                            self.live_claims = BTreeMap::new();
+                            self.current_machine = callee_id;
+                            self.current = callee.entry;
+                            self.next_operation = 0;
+                            continue;
                         }
                         let boundary_declaration = self.boundary_machines.get(&boundary).ok_or(
                             TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
@@ -2425,6 +2576,8 @@ pub enum TerminalInterpretError {
     },
     ClaimTransferMismatch,
     CompletionReceiptMismatch,
+    ProviderInstallationIdentityMismatch,
+    ProviderInstallationMissing(BoundaryMachineId),
     VerifiedEntryMachineMissing,
     VerifiedCallTargetMissing(MachineId),
     VerifiedBoundaryMachineMissing(BoundaryMachineId),
@@ -2438,6 +2591,17 @@ pub enum TerminalInterpretError {
     },
     Crash(TerminalCrash),
     Fuel(FuelMeterError),
+}
+
+#[derive(Debug)]
+pub enum ProviderInstallationError {
+    SemanticDecode(psi_terminal_codec::CodecError),
+    ProofDecode(psi_terminal_codec::ProofCodecError),
+    Verification(psi_terminal_verifier::VerificationError),
+    UnknownOrDuplicateSelection {
+        boundary: BoundaryMachineId,
+        candidate: MachineId,
+    },
 }
 
 #[derive(Debug)]

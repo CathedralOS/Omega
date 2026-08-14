@@ -236,6 +236,7 @@ fn call_module() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),

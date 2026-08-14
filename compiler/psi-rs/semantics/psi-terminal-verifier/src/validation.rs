@@ -229,17 +229,24 @@ fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
         .machines
         .iter()
         .map(|machine| {
-            let callees = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .filter_map(|operation| match &operation.kind {
+            let mut callees = BTreeSet::new();
+            for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+                match &operation.kind {
                     OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } => {
-                        Some(*callee)
+                        callees.insert(*callee);
                     }
-                    _ => None,
-                })
-                .collect::<BTreeSet<_>>();
+                    OperationKind::BoundaryCallUnit { boundary, .. } => {
+                        callees.extend(
+                            module
+                                .provider_candidates
+                                .iter()
+                                .filter(|candidate| candidate.boundary == *boundary)
+                                .map(|candidate| candidate.candidate),
+                        );
+                    }
+                    _ => {}
+                }
+            }
             (machine.id, callees)
         })
         .collect::<BTreeMap<_, _>>();
@@ -621,6 +628,114 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
         }
     }
 
+    if let Some(pair) = module.provider_candidates.windows(2).find(|pair| {
+        (
+            pair[0].boundary,
+            pair[0].provider_identity.as_str(),
+            pair[0].candidate_identity.as_str(),
+            pair[0].candidate,
+        ) >= (
+            pair[1].boundary,
+            pair[1].provider_identity.as_str(),
+            pair[1].candidate_identity.as_str(),
+            pair[1].candidate,
+        )
+    }) {
+        let row = &pair[1];
+        return Err(ModuleError::InvalidProviderCandidate {
+            boundary: row.boundary,
+            candidate: row.candidate,
+        });
+    }
+    let mut provider_subjects = BTreeSet::new();
+    let mut requirement_identities = BTreeMap::<BoundaryMachineId, &str>::new();
+    for row in &module.provider_candidates {
+        let Some(boundary) = module
+            .boundary_machines
+            .iter()
+            .find(|boundary| boundary.id == row.boundary)
+        else {
+            return Err(ModuleError::InvalidProviderCandidate {
+                boundary: row.boundary,
+                candidate: row.candidate,
+            });
+        };
+        let Some(candidate) = module
+            .machines
+            .iter()
+            .find(|candidate| candidate.id == row.candidate)
+        else {
+            return Err(ModuleError::InvalidProviderCandidate {
+                boundary: row.boundary,
+                candidate: row.candidate,
+            });
+        };
+        if row.requirement_identity.is_empty()
+            || row.provider_identity.is_empty()
+            || row.candidate_identity.is_empty()
+            || boundary.identity != row.requirement_identity
+            || !provider_subjects.insert((
+                row.boundary,
+                row.provider_identity.as_str(),
+                row.candidate_identity.as_str(),
+                row.candidate,
+            ))
+            || requirement_identities
+                .insert(row.boundary, row.requirement_identity.as_str())
+                .is_some_and(|identity| identity != row.requirement_identity)
+        {
+            return Err(ModuleError::InvalidProviderCandidate {
+                boundary: row.boundary,
+                candidate: row.candidate,
+            });
+        }
+        let Some(attachment) = candidate
+            .attachment
+            .and_then(|attachment| types.get(&attachment))
+        else {
+            return Err(ModuleError::InvalidProviderCandidate {
+                boundary: row.boundary,
+                candidate: row.candidate,
+            });
+        };
+        let boundary_signature = boundary
+            .structural_parameters
+            .iter()
+            .map(provider_signature_parameter)
+            .collect::<Vec<_>>();
+        let candidate_signature = candidate
+            .structural_parameters
+            .iter()
+            .map(provider_signature_parameter)
+            .collect::<Vec<_>>();
+        let expected_positions = (0..boundary_signature.len())
+            .map(|index| psi_terminal::ProviderParameterRefinement {
+                boundary_index: u32::try_from(index).unwrap_or(u32::MAX),
+                candidate_index: u32::try_from(index).unwrap_or(u32::MAX),
+            })
+            .collect::<Vec<_>>();
+        if attachment.identity.is_empty()
+            || !boundary_signature.is_empty()
+            || !candidate.parameters.is_empty()
+            || candidate.result != TerminalMachineResult::Unit
+            || row.signature.parameters != boundary_signature
+            || row.signature.parameters != candidate_signature
+            || row.refinement.positional_parameters != expected_positions
+            || row.refinement.required_domains != boundary.requires
+            || row.refinement.realized_service_ceiling != candidate.published_service_ceiling
+            || row
+                .refinement
+                .realized_service_ceiling
+                .iter()
+                .any(|service| !boundary.published_service_ceiling.contains(service))
+        {
+            return Err(ModuleError::InvalidProviderCandidate {
+                boundary: row.boundary,
+                candidate: row.candidate,
+            });
+        }
+    }
+
     for machine in &module.machines {
         validate_attachment(machine.id, machine.attachment, &types)?;
         validate_structural_signature(
@@ -797,6 +912,18 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
         validate_machine_entry_claims(module, machine)?;
     }
     Ok(())
+}
+
+fn provider_signature_parameter(
+    parameter: &StructuralParameterDeclaration,
+) -> psi_terminal::ProviderSignatureParameter {
+    psi_terminal::ProviderSignatureParameter {
+        position: parameter.position,
+        is_self: parameter.is_self,
+        structural_type: parameter.structural_type,
+        multiplicity: parameter.multiplicity,
+        qualifications: parameter.qualifications.clone(),
+    }
 }
 
 fn validate_structural_type_graph(
@@ -6393,6 +6520,10 @@ pub enum ModuleError {
         domain: StructuralDomainId,
     },
     NonCanonicalBoundaryRequirements(BoundaryMachineId),
+    InvalidProviderCandidate {
+        boundary: BoundaryMachineId,
+        candidate: MachineId,
+    },
     StructuralParameterPlaceMismatch {
         machine: MachineId,
         place: PlaceId,

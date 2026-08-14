@@ -35,6 +35,107 @@ pub fn lower_artifact_sections(
     lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
 }
 
+/// Bind Omega's provider policy only to exact rows preserved from the verified
+/// terminal catalog. Psi independently replays artifact verification before it
+/// returns the private-field installation carrier consumed by its interpreter.
+pub fn admit_provider_installation(
+    plan: &TerminalAbstractOperationPlan,
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+    selected: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<psi_terminal_interpreter::AdmittedProviderInstallation, ProviderInstallationError> {
+    let mut selections = Vec::new();
+    let mut boundaries = plan
+        .provider_candidates
+        .iter()
+        .map(|candidate| candidate.boundary)
+        .collect::<Vec<_>>();
+    boundaries.sort();
+    boundaries.dedup();
+    for boundary in boundaries {
+        let candidates = plan
+            .provider_candidates
+            .iter()
+            .filter(|candidate| candidate.boundary == boundary)
+            .collect::<Vec<_>>();
+        let requirement_identity = candidates[0].requirement_identity.as_str();
+        if requirement_identity.is_empty()
+            || candidates
+                .iter()
+                .any(|candidate| candidate.requirement_identity != requirement_identity)
+        {
+            return Err(ProviderInstallationError::InvalidLoweredCatalog);
+        }
+        let selected_rows = selected
+            .plans()
+            .iter()
+            .flat_map(|provider| {
+                provider.rows.iter().filter_map(move |row| {
+                    let omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine } =
+                        &row.binding
+                    else {
+                        return None;
+                    };
+                    (row.requirement_identity == requirement_identity)
+                        .then_some((provider.provider_type.as_str(), machine.as_str()))
+                })
+            })
+            .collect::<Vec<_>>();
+        if selected_rows.is_empty() {
+            return Err(ProviderInstallationError::MissingSelectedProvider { boundary });
+        }
+        let exact = candidates
+            .iter()
+            .filter(|candidate| {
+                selected_rows.iter().any(|(provider, machine)| {
+                    candidate.provider_identity == *provider
+                        && candidate.candidate_identity == *machine
+                })
+            })
+            .collect::<Vec<_>>();
+        let [candidate] = exact.as_slice() else {
+            return Err(if exact.is_empty() {
+                ProviderInstallationError::SelectedProviderMismatch { boundary }
+            } else {
+                ProviderInstallationError::AmbiguousSelectedProvider { boundary }
+            });
+        };
+        selections.push(psi_terminal_interpreter::ProviderInstallationSelection {
+            boundary,
+            provider_identity: candidate.provider_identity.clone(),
+            candidate: candidate.candidate,
+        });
+    }
+    let installation = psi_terminal_interpreter::admit_provider_installation_from_artifact(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        &selections,
+    )
+    .map_err(ProviderInstallationError::PsiAdmission)?;
+    if installation.terminal_psi() != plan.terminal_psi {
+        return Err(ProviderInstallationError::TerminalIdentityMismatch);
+    }
+    Ok(installation)
+}
+
+#[derive(Debug)]
+pub enum ProviderInstallationError {
+    InvalidLoweredCatalog,
+    MissingSelectedProvider {
+        boundary: psi_core::BoundaryMachineId,
+    },
+    SelectedProviderMismatch {
+        boundary: psi_core::BoundaryMachineId,
+    },
+    AmbiguousSelectedProvider {
+        boundary: psi_core::BoundaryMachineId,
+    },
+    PsiAdmission(psi_terminal_interpreter::ProviderInstallationError),
+    TerminalIdentityMismatch,
+}
+
 /// Consume the complete verified module after the artifact entry has decoded
 /// and verified it. The initial terminal vocabulary has one unconditional
 /// executable chain per machine, so its Omega requirement stream is flat and
@@ -60,6 +161,7 @@ fn lower_decoded_verified_module(
         entry: module.entry,
         structural_types: module.structural_types.clone(),
         boundary_machines: module.boundary_machines.clone(),
+        provider_candidates: module.provider_candidates.clone(),
         functions,
     })
 }

@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "e71c572ca38f107ad4d0e5b53d14f23575340a7b9ac3641c1c182d8e4d6bc2cd"
+        "00ac0a52714901f1b6e9b9f0bc87238db4fdeeb08f63392aa39bbedbb5f8afcf"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -52,7 +52,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
     assert_eq!(&bytes[8..10], 8_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 13_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 14_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -62,7 +62,7 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
     assert_eq!(&bytes[8..10], 8_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 13_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 14_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -537,6 +537,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -665,7 +666,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 13_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 14_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1213,11 +1214,21 @@ fn structural_unit_calls_participate_in_call_graph_validation() {
 #[test]
 fn decoder_rejects_an_unknown_machine_result_shape() {
     let mut bytes = encode_module(&unit_fixture()).expect("unit terminal module should encode");
-    // magic + format + vocabulary + entry + four empty foundation tables +
-    // two empty proposition counts + empty evidence-term and contract-lane counts + machine count
-    // + machine id + no attachment +
-    // empty scalar and structural parameter counts
-    bytes[73] = 0xff;
+    let mut machine_prefix = 1_u32.to_le_bytes().to_vec(); // one machine
+    machine_prefix.extend(machine_id(900).get().to_le_bytes());
+    machine_prefix.push(0); // no attachment
+    machine_prefix.extend(0_u32.to_le_bytes()); // no scalar parameters
+    machine_prefix.extend(0_u32.to_le_bytes()); // no structural parameters
+    machine_prefix.push(0); // Unit result tag
+    let offsets = bytes
+        .windows(machine_prefix.len())
+        .enumerate()
+        .filter_map(|(offset, window)| (window == machine_prefix).then_some(offset))
+        .collect::<Vec<_>>();
+    let [machine_offset] = offsets.as_slice() else {
+        panic!("fixture must contain one unique encoded machine prefix")
+    };
+    bytes[machine_offset + machine_prefix.len() - 1] = 0xff;
 
     assert_eq!(
         decode_module(&bytes),
@@ -1682,6 +1693,7 @@ fn partial_affine_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -1893,6 +1905,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2052,6 +2065,7 @@ fn structural_effect_fixture() -> TerminalModule {
             }],
             published_service_ceiling: vec![service],
         }],
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2272,6 +2286,7 @@ fn unit_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2323,6 +2338,7 @@ fn fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2459,6 +2475,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2673,6 +2690,7 @@ fn call_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),

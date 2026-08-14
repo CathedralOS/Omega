@@ -187,6 +187,12 @@ Remaining:
   direct-Boolean obligations, shared cleanup targets, and edge-specific ordered
   action streams. One claim-free affine record may transfer pairwise
   prefix-disjoint all-field paths and clean every maximal residual subtree.
+  Static zero-argument Unit boundary requirements retain every exact checked
+  satisfier as canonical terminal catalog rows; adapter bodies remain ordinary
+  terminal machines. Omega derives installation only from retained selected
+  `ProviderPlan` facts (exact overload, provider type, and adapter identity),
+  and Psi dispatches only through that artifact-bound admitted installation.
+  Selection remains outside terminal semantic identity.
   Codec, independent verification, interpretation, fixed fuel, and all Omega
   artifact/install paths agree on these carriers.
 

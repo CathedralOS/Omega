@@ -13,9 +13,9 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    ProviderCandidateConformance, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +28,10 @@ pub struct TerminalAbstractOperationPlan {
     pub structural_types: Vec<StructuralTypeDeclaration>,
     /// Exact bodyless boundary declarations available to Unit operations.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
+    /// Complete verifier-approved checked provider catalog. Target/provider
+    /// installation selects from these exact terminal IDs without changing
+    /// terminal-Psi semantic identity.
+    pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub functions: Vec<TerminalAbstractFunction>,
 }
 

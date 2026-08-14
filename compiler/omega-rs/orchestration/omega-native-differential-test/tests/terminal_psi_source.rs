@@ -412,6 +412,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
             entry: MachineId::new(1).expect("machine"),
             structural_types: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine: MachineId::new(1).expect("machine"),
                 attachment: None,

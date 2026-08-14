@@ -39,6 +39,25 @@ Parsing therefore belongs to Psi. “Omega files” is the language and product
 branding; Psi is the frontend, semantic verifier input, and portable execution
 representation.
 
+## Checked-adapter provider installation
+
+A static bodyless boundary call keeps its boundary-machine ID in terminal Psi;
+it is not rewritten to a chosen implementation. For the currently admitted
+zero-argument Unit slice, Psi serializes every exact checked satisfier as an
+ordinary terminal machine plus a canonical conformance row. The row binds the
+boundary requirement identity, nominal provider identity, canonical adapter
+identity, artifact-local machine ID, Unit signature, and checked service
+refinement. Structural parameters, domain requirements, stateful provider
+values, and completion receipts remain outside this slice.
+
+Provider selection is not terminal-Psi semantic identity. Omega consumes its
+retained `SelectedProviderPlanFacts`, resolves each selected `CheckedAdapter`
+by exact overload, provider type, and adapter identity against the verified
+catalog, and asks Psi to admit only those terminal IDs for the exact artifact.
+The Psi interpreter follows a cataloged boundary only through that explicit
+private-field installation; absence fails closed instead of falling through to
+an external effect handler.
+
 ## Why the bootstrap stages are not the cut
 
 The older bootstrap lane does not provide a portable expression-lowering
