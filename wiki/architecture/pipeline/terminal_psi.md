@@ -434,8 +434,9 @@ runtime signed divisor under a direct positive lower
 bound, `divisor <= -2` upper bound, or joint `divisor <= -1` and
 `MIN + 1 <= dividend` bounds, may form decision leaves. Psi retains every exact
 operation; one proof-bearing exact operation may also appear beneath one
-bitwise-not or integer-widening shell. All native targets join those leaves into the
-same cleanup tail. Nested paths,
+bitwise-not, integer-widening, or proof-free binary shell, whose other subtree
+remains proof-free. All native targets join those leaves into the same cleanup
+tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,
 nested nominal ownership, other projections, and wider cleanup shapes still

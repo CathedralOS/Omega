@@ -10874,14 +10874,24 @@ fn shared_integer_runtime_parameters_with_shells(
             right,
             ..
         } if remaining_shells > 0 => {
-            let mut parameters =
-                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1, false)?;
-            parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right,
-                remaining_shells - 1,
-                false,
-            )?);
-            Some(parameters)
+            let collect = |left_proof_allowed, right_proof_allowed| {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(
+                    left,
+                    remaining_shells - 1,
+                    left_proof_allowed,
+                )?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right,
+                    remaining_shells - 1,
+                    right_proof_allowed,
+                )?);
+                Some(parameters)
+            };
+            if proof_shell_allowed {
+                collect(true, false).or_else(|| collect(false, true))
+            } else {
+                collect(false, false)
+            }
         }
         LoweredDirectExpression::IntegerBinary {
             kind:

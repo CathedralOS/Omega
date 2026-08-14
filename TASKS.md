@@ -247,9 +247,10 @@ Remaining:
   or a runtime signed divisor under a retained direct positive lower bound or
   `divisor <= -2` upper bound, or under joint `divisor <= -1` and
   `MIN + 1 <= dividend` bounds.
-  One proof-bearing exact operation may also appear beneath one bitwise-not or
-  integer-widening shell. Other nested proof-bearing shells, computed exact-cast
-  and wider exact-arithmetic premise shapes, other unary computation, and
+  One proof-bearing exact operation may also appear beneath one bitwise-not,
+  integer-widening, or proof-free binary shell; the other binary subtree remains
+  proof-free. Other nested proof-bearing shells, computed exact-cast and wider
+  exact-arithmetic premise shapes, other unary computation, and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
   then
   add complete slices for calls and effects, wider partial-value cleanup,
