@@ -1260,6 +1260,28 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input / divisor) < 4u8) && enabled;
             staged
         }
+        machine Root::runtime_signed_exact_divide_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            divisor: i8,
+            enabled: bool
+        ) -> bool
+        requires 1i8 <= divisor
+        {
+            let staged: bool = ((input / divisor) < 4i8) && enabled;
+            staged
+        }
+        machine Root::runtime_signed_exact_remainder_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            divisor: i8,
+            enabled: bool
+        ) -> bool
+        requires 1i8 <= divisor
+        {
+            let staged: bool = ((input % divisor) < 4i8) && enabled;
+            staged
+        }
         machine Root::exact_shift_right_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1768,6 +1790,22 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    for machine in [
+        "runtime_signed_exact_divide_integer_comparison_convergence",
+        "runtime_signed_exact_remainder_integer_comparison_convergence",
+    ] {
+        let runtime_signed_exact_division_integer_comparison = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect("one positive signed runtime-divisor shell retains the scalar-return plan");
+        assert!(
+            runtime_signed_exact_division_integer_comparison
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
     let exact_shift_right_integer_comparison = checked
         .facts
         .flow
