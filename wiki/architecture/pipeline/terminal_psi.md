@@ -412,15 +412,15 @@ installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath up to
 two total bitwise-not, binary bitwise, wrapping shift/arithmetic, saturating
 arithmetic, or integer-widening shells, or one exact fixed-width narrowing under
-retained direct parameter range `requires`, or exact unsigned addition,
-subtraction, or multiplication under retained direct parameter upper bounds,
-one exact right shift under a direct unsigned
-count upper bound, one exact left shift by a landed count under a direct unsigned
-value upper bound or by an unsigned runtime count under direct count and value
-upper bounds, or exact division/remainder by a landed nonzero unsigned constant
-or runtime unsigned divisor under a direct lower bound, may form decision
-leaves. Psi
-retains every exact operation and all native targets join its leaves into the
+retained direct parameter range `requires`, or exact fixed-width addition by a
+landed constant under a retained matching direct parameter bound, or exact
+unsigned subtraction or multiplication under retained direct parameter upper
+bounds, one exact right shift under a direct unsigned count upper bound, one
+exact left shift by a landed count under a direct unsigned value upper bound or
+by an unsigned runtime count under direct count and value upper bounds, or exact
+division/remainder by a landed nonzero unsigned constant or runtime unsigned
+divisor under a direct lower bound, may form decision leaves. Psi retains every
+exact operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,
@@ -921,7 +921,10 @@ exact-divide, or exact-remainder shell per operand, retain their exact Psi
 operations through the same verified, interpreted, and native shared join.
 The proof-bearing subset accepts direct fixed-width integer parameter upper-
 and lower-bound premises; Psi retains each as a terminal machine requirement,
-and each operation certificate cites its exact assumption. Field-only trees,
+and each operation certificate cites its exact assumption. Those premises now
+cover exact narrowing and signed or unsigned addition by a landed constant in
+addition to the separately listed unsigned arithmetic and shift/divisor forms.
+Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external
 adapter/interrupt-arrival state, and other terminal function forms remain
