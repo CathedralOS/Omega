@@ -10888,7 +10888,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             if proof_shell_allowed {
-                collect(true, false).or_else(|| collect(false, true))
+                collect(true, true)
             } else {
                 collect(false, false)
             }
