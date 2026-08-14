@@ -409,7 +409,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
         small <= 7u8, 1u8 <= divisor, count <= 2u8,
         -128i64 <= signed, signed <= 127i64,
-        -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8
+        -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
+        -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (((input + 1u64) + 1u64) < 5u64)
@@ -430,6 +431,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic + -1i8) < 4i8)
             && ((signed_arithmetic - 1i8) < 4i8)
             && ((signed_arithmetic - -1i8) < 4i8)
+            && ((signed_arithmetic * 3i8) < 4i8)
+            && ((signed_arithmetic * -3i8) < 4i8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1748,6 +1751,14 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         signed_arithmetic_term,
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(126)).unwrap(),
     );
+    let signed_multiply_lower_requirement = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-42)).unwrap(),
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+    );
+    let signed_multiply_upper_requirement = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(42)).unwrap(),
+    );
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
@@ -1760,6 +1771,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &signed_upper_requirement,
         &signed_arithmetic_lower_requirement,
         &signed_arithmetic_upper_requirement,
+        &signed_multiply_lower_requirement,
+        &signed_multiply_upper_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -1904,6 +1917,50 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             .any(|(_, subtrahend)| *subtrahend == IntegerValue::Signed(-1))
     );
     for (obligation, _) in &signed_subtract_sites {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let signed_multiply_sites = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply {
+                left,
+                right,
+                obligation,
+            } if left == signed_arithmetic_parameter => entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .map(|factor| (obligation, factor)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        signed_multiply_sites
+            .iter()
+            .any(|(_, factor)| *factor == IntegerValue::Signed(3))
+    );
+    assert!(
+        signed_multiply_sites
+            .iter()
+            .any(|(_, factor)| *factor == IntegerValue::Signed(-3))
+    );
+    for (obligation, _) in &signed_multiply_sites {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == *obligation
                 && matches!(
@@ -2181,6 +2238,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ),
             Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
                 if obligation == *signed_subtract_obligation
+        ));
+    }
+    for (signed_multiply_obligation, _) in &signed_multiply_sites {
+        let mut missing_signed_multiply_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_signed_multiply_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *signed_multiply_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_signed_multiply_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == *signed_multiply_obligation
         ));
     }
     let mut changed_bound = decode_module(&semantics).expect("decode shared semantics");
@@ -2555,6 +2628,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && signed_arithmetic - 1 < 4
                     && signed_arithmetic - 1 < 4
                     && signed_arithmetic + 1 < 4
+                    && signed_arithmetic * 3 < 4
+                    && signed_arithmetic * -3 < 4
                     && input == 3
                     && enabled
             ))

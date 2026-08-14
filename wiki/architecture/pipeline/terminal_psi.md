@@ -412,11 +412,11 @@ installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath up to
 two total bitwise-not, binary bitwise, wrapping shift/arithmetic, saturating
 arithmetic, or integer-widening shells, or one exact fixed-width narrowing under
-retained direct parameter range `requires`, or exact fixed-width addition with
-a landed operand or subtraction with a landed subtrahend under a retained
-matching direct parameter bound, or exact unsigned subtraction with a landed
-minuend or multiplication under retained direct parameter upper bounds, one
-exact right shift under a direct unsigned count upper bound, one exact left
+retained direct parameter range `requires`, or exact fixed-width addition with a
+landed operand, subtraction with a landed subtrahend, or multiplication with a
+landed factor under retained matching direct parameter bounds, or exact unsigned
+subtraction with a landed minuend under a retained direct parameter upper bound,
+one exact right shift under a direct unsigned count upper bound, one exact left
 shift by a landed count under a direct unsigned value upper bound or
 by an unsigned runtime count under direct count and value upper bounds, or exact
 division/remainder by a landed nonzero unsigned constant or runtime unsigned
@@ -923,9 +923,9 @@ operations through the same verified, interpreted, and native shared join.
 The proof-bearing subset accepts direct fixed-width integer parameter upper-
 and lower-bound premises; Psi retains each as a terminal machine requirement,
 and each operation certificate cites its exact assumption. Those premises now
-cover exact narrowing plus signed or unsigned landed-operand addition and
-landed-subtrahend subtraction in addition to the separately listed unsigned
-arithmetic and shift/divisor forms.
+cover exact narrowing plus signed or unsigned landed-operand addition,
+landed-subtrahend subtraction, and landed-factor multiplication in addition to
+the separately listed unsigned and shift/divisor forms.
 Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external
