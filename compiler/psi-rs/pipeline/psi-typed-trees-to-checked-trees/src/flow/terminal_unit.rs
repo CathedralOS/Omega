@@ -1400,8 +1400,8 @@ enum SharedBooleanRuntimeInput {
 /// direct authored member identity on the nominal cleanup root is admitted
 /// alongside scalar inputs; terminal production resolves it to one canonical
 /// relevant Boolean field. Integer-comparison leaves separately admit scalar
-/// parameters and landed constants beneath at most one total binary,
-/// bitwise-not, integer-widening, proof-bearing exact-cast, exact-add,
+/// parameters and landed constants beneath up to two total binary, bitwise-not,
+/// or integer-widening shells, or one proof-bearing exact-cast, exact-add,
 /// exact-subtract, exact-multiply, exact shift, exact-divide, or exact-remainder
 /// computation shell. Constants and Boolean equality against a constant add no
 /// new runtime input.
@@ -1466,13 +1466,14 @@ fn shared_integer_runtime_inputs(
     expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    shared_integer_runtime_inputs_with_shells(expression, scalar_parameter_count, 1)
+    shared_integer_runtime_inputs_with_shells(expression, scalar_parameter_count, 2, true)
 }
 
 fn shared_integer_runtime_inputs_with_shells(
     expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
     remaining_shells: usize,
+    proof_shell_allowed: bool,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         CheckedScalarExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
@@ -1495,11 +1496,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 | CheckedIntegerBinaryKind::WrappingSubtract
                 | CheckedIntegerBinaryKind::SaturatingSubtract
                 | CheckedIntegerBinaryKind::WrappingMultiply
-                | CheckedIntegerBinaryKind::SaturatingMultiply
-                | CheckedIntegerBinaryKind::ExactAdd
-                | CheckedIntegerBinaryKind::ExactSubtract
-                | CheckedIntegerBinaryKind::ExactMultiply
-                | CheckedIntegerBinaryKind::ExactShiftRight,
+                | CheckedIntegerBinaryKind::SaturatingMultiply,
             left,
             right,
             ..
@@ -1508,11 +1505,33 @@ fn shared_integer_runtime_inputs_with_shells(
                 left,
                 scalar_parameter_count,
                 remaining_shells - 1,
+                false,
             )?;
             inputs.extend(shared_integer_runtime_inputs_with_shells(
                 right,
                 scalar_parameter_count,
                 remaining_shells - 1,
+                false,
+            )?);
+            Some(inputs)
+        }
+        CheckedScalarExpression::IntegerBinary {
+            kind:
+                CheckedIntegerBinaryKind::ExactAdd
+                | CheckedIntegerBinaryKind::ExactSubtract
+                | CheckedIntegerBinaryKind::ExactMultiply
+                | CheckedIntegerBinaryKind::ExactShiftRight,
+            left,
+            right,
+            ..
+        } if proof_shell_allowed && remaining_shells > 0 => {
+            let mut inputs =
+                shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
+            inputs.extend(shared_integer_runtime_inputs_with_shells(
+                right,
+                scalar_parameter_count,
+                0,
+                false,
             )?);
             Some(inputs)
         }
@@ -1522,16 +1541,14 @@ fn shared_integer_runtime_inputs_with_shells(
                 PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64,
             left,
             right,
-        } if remaining_shells > 0 => {
-            let mut inputs = shared_integer_runtime_inputs_with_shells(
-                left,
-                scalar_parameter_count,
-                remaining_shells - 1,
-            )?;
+        } if proof_shell_allowed && remaining_shells > 0 => {
+            let mut inputs =
+                shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
             inputs.extend(shared_integer_runtime_inputs_with_shells(
                 right,
                 scalar_parameter_count,
-                remaining_shells - 1,
+                0,
+                false,
             )?);
             Some(inputs)
         }
@@ -1540,16 +1557,14 @@ fn shared_integer_runtime_inputs_with_shells(
             left,
             right,
             ..
-        } if remaining_shells > 0 => {
-            let mut inputs = shared_integer_runtime_inputs_with_shells(
-                left,
-                scalar_parameter_count,
-                remaining_shells - 1,
-            )?;
+        } if proof_shell_allowed && remaining_shells > 0 => {
+            let mut inputs =
+                shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
             inputs.extend(shared_integer_runtime_inputs_with_shells(
                 right,
                 scalar_parameter_count,
-                remaining_shells - 1,
+                0,
+                false,
             )?);
             Some(inputs)
         }
@@ -1558,6 +1573,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 operand,
                 scalar_parameter_count,
                 remaining_shells - 1,
+                false,
             )
         }
         CheckedScalarExpression::IntegerWiden { operand, .. } if remaining_shells > 0 => {
@@ -1565,14 +1581,13 @@ fn shared_integer_runtime_inputs_with_shells(
                 operand,
                 scalar_parameter_count,
                 remaining_shells - 1,
+                false,
             )
         }
-        CheckedScalarExpression::IntegerExactCast { operand, .. } if remaining_shells > 0 => {
-            shared_integer_runtime_inputs_with_shells(
-                operand,
-                scalar_parameter_count,
-                remaining_shells - 1,
-            )
+        CheckedScalarExpression::IntegerExactCast { operand, .. }
+            if proof_shell_allowed && remaining_shells > 0 =>
+        {
+            shared_integer_runtime_inputs_with_shells(operand, scalar_parameter_count, 0, false)
         }
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }

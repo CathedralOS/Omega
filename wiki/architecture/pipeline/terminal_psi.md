@@ -409,9 +409,9 @@ native lowering read the exact structural ABI field without treating opaque
 identity as layout. Machine-code evidence binds every such read to its exact
 field-bearing condition bytes, which object replay validates before image and
 installation custody. Separately, direct integer comparisons whose
-operands are scalar parameters or landed constants, optionally beneath one
-total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
-arithmetic shell, one integer-widening shell, or one exact unsigned narrowing
+operands are scalar parameters or landed constants, optionally beneath up to
+two total bitwise-not, binary bitwise, wrapping shift/arithmetic, saturating
+arithmetic, or integer-widening shells, or one exact unsigned narrowing
 or exact addition, subtraction, or multiplication under retained direct
 parameter upper-bound `requires`, one exact right shift under a direct unsigned
 count upper bound, one exact left shift by a landed count under a direct unsigned
@@ -913,11 +913,11 @@ identity on one claim-free affine nominal-cleanup root; the terminal operation,
 verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
 that source outside native expression scratch. Separately, direct integer
-comparisons over scalar parameters and landed constants, with at most one total
-binary, bitwise-not, integer-widening, proof-bearing exact-cast, exact-add,
-exact-subtract, exact-multiply, exact shift, exact-divide, or exact-remainder
-computation shell per operand, retain their exact Psi operations through the
-same verified, interpreted, and native shared join.
+comparisons over scalar parameters and landed constants, with up to two total
+binary, bitwise-not, or integer-widening computation shells, or one
+proof-bearing exact-cast, exact-add, exact-subtract, exact-multiply, exact shift,
+exact-divide, or exact-remainder shell per operand, retain their exact Psi
+operations through the same verified, interpreted, and native shared join.
 The proof-bearing subset accepts direct unsigned parameter upper- and
 lower-bound premises; Psi retains each as a terminal machine requirement, and
 each operation certificate cites its exact assumption. Field-only trees,

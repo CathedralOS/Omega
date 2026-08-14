@@ -305,10 +305,11 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// equality with a constant is normalized to identity/negation. One direct
     /// relevant Boolean field identity on one nominal-cleanup root is also
     /// admitted. Integer-comparison leaves separately accept scalar parameters
-    /// and landed constants beneath at most one total binary, bitwise-not,
-    /// integer-widening, proof-bearing exact-cast, exact-add, exact-subtract,
-    /// exact-multiply, exact shift, exact-divide, or exact-remainder computation
-    /// shell. Proof-bearing parameter bounds remain explicit.
+    /// and landed constants beneath up to two total binary, bitwise-not, or
+    /// integer-widening shells, or one proof-bearing exact-cast, exact-add,
+    /// exact-subtract, exact-multiply, exact shift, exact-divide, or
+    /// exact-remainder computation shell. Proof-bearing parameter bounds remain
+    /// explicit.
     /// Nested or multiple field identities, member/comparison mixtures, wider
     /// integer computations, and richer leaves retain the source-distributed
     /// fallback and publish `None`.

@@ -222,17 +222,18 @@ Remaining:
   remain fenced. Separately, direct integer-comparison leaves over scalar
   parameters and landed constants now retain the same verified shared cleanup
   tail through interpretation and every native target. Either operand may use
-  one total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
-  arithmetic shell, one integer-widening shell, or one proof-bearing exact
+  up to two total bitwise-not, binary bitwise, wrapping shift/arithmetic,
+  saturating arithmetic, or integer-widening shells, or one proof-bearing exact
   unsigned narrowing, addition, subtraction, or multiplication under retained
   direct parameter upper-bound `requires`, one exact right shift under a direct
   unsigned count upper bound, one exact left shift by a landed count under a
   direct unsigned value upper bound or by an unsigned runtime count under
   direct count and value upper bounds, or exact division/remainder by a landed
   nonzero unsigned constant or runtime unsigned divisor under a retained direct
-  lower bound. Nested shells, wider exact-cast and exact-arithmetic premise
-  shapes, other unary computation, and member/comparison mixtures remain
-  fenced. Extend those integer comparisons, then
+  lower bound. Nested proof-bearing shells, wider exact-cast and
+  exact-arithmetic premise shapes, other unary computation, and
+  member/comparison mixtures remain fenced. Extend those integer comparisons,
+  then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail
