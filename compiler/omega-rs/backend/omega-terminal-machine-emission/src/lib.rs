@@ -24,11 +24,11 @@ use omega_terminal_machine_code::{
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
     TerminalScalarCallStackEvidence, TerminalScalarCleanupPreservationEvidence,
     TerminalScalarConditionalArm, TerminalScalarConditionalBranchEvidence,
-    TerminalScalarConditionalCondition, TerminalScalarControlAffineCleanupRecord,
-    TerminalScalarControlFlowEvidence, TerminalScalarDivisionBranchEvidence,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarConditionalCondition, TerminalScalarConditionalCrashArms,
+    TerminalScalarControlAffineCleanupRecord, TerminalScalarControlFlowEvidence,
+    TerminalScalarDivisionBranchEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
+    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{MachineRegister, TerminalCallSiteOwner};
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -6507,7 +6507,7 @@ fn collect_x86_division_branch_evidence(
 #[derive(Clone, Copy)]
 enum DirectConditionalIntegerShape {
     TwoReturn,
-    ReturnAndCrash(TerminalScalarConditionalArm),
+    WithCrash(TerminalScalarConditionalCrashArms),
 }
 
 fn conditional_with_terminal_shape(
@@ -6542,13 +6542,13 @@ fn conditional_with_terminal_shape(
                 branches,
             }
         }
-        (DirectConditionalIntegerShape::ReturnAndCrash(crash_arm), _) => {
-            TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+        (DirectConditionalIntegerShape::WithCrash(crash_arms), _) => {
+            TerminalScalarControlFlowEvidence::TopLevelWithCrash {
                 condition,
                 branch_offset,
                 branch_byte_count,
                 false_arm_offset,
-                crash_arm,
+                crash_arms,
                 branches,
             }
         }
@@ -6581,13 +6581,15 @@ fn direct_conditional_integer_shape(
     };
     match (classify(when_true)?, classify(when_false)?) {
         (false, false) => Some(DirectConditionalIntegerShape::TwoReturn),
-        (true, false) => Some(DirectConditionalIntegerShape::ReturnAndCrash(
-            TerminalScalarConditionalArm::True,
+        (true, false) => Some(DirectConditionalIntegerShape::WithCrash(
+            TerminalScalarConditionalCrashArms::True,
         )),
-        (false, true) => Some(DirectConditionalIntegerShape::ReturnAndCrash(
-            TerminalScalarConditionalArm::False,
+        (false, true) => Some(DirectConditionalIntegerShape::WithCrash(
+            TerminalScalarConditionalCrashArms::False,
         )),
-        (true, true) => None,
+        (true, true) => Some(DirectConditionalIntegerShape::WithCrash(
+            TerminalScalarConditionalCrashArms::Both,
+        )),
     }
 }
 
@@ -9478,8 +9480,8 @@ mod tests {
         });
         let emitted = emit_machine_code(&signed_return_crash)
             .expect("signed x86 division plus crash emits with stack evidence");
-        let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
-            crash_arm,
+        let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
+            crash_arms,
             branches,
             ..
         } = &emitted.functions[0]
@@ -9490,7 +9492,7 @@ mod tests {
         else {
             panic!("signed x86 return/crash division must retain composite evidence")
         };
-        assert_eq!(*crash_arm, TerminalScalarConditionalArm::False);
+        assert_eq!(*crash_arms, TerminalScalarConditionalCrashArms::False);
         assert_eq!(branches.len(), 1);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -9517,7 +9519,7 @@ mod tests {
                 });
                 let emitted = emit_machine_code(&crash_plan)
                     .expect("conditional return/crash emits with stack evidence");
-                let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { crash_arm, .. } =
+                let TerminalScalarControlFlowEvidence::TopLevelWithCrash { crash_arms, .. } =
                     emitted.functions[0]
                         .scalar_stack
                         .as_ref()
@@ -9527,14 +9529,45 @@ mod tests {
                     panic!("conditional return/crash must retain terminal evidence")
                 };
                 assert_eq!(
-                    crash_arm,
+                    crash_arms,
                     if crash_false_arm {
-                        TerminalScalarConditionalArm::False
+                        TerminalScalarConditionalCrashArms::False
                     } else {
-                        TerminalScalarConditionalArm::True
+                        TerminalScalarConditionalCrashArms::True
                     }
                 );
             }
+
+            let mut two_crash_plan = conditional_plan(target);
+            let TerminalTargetOperation::ReturnIntegerConditionalControl {
+                when_true,
+                when_false,
+                ..
+            } = &mut two_crash_plan.functions[0].operation
+            else {
+                unreachable!()
+            };
+            for (edge, arm) in [(11, when_true), (12, when_false)] {
+                arm.control = Box::new(TerminalTargetIntegerControl::Crash {
+                    psi_crash_edge: EdgeId::new(edge).expect("crash edge"),
+                    cause: psi_terminal::CrashCause::Trap,
+                    site_guard: Vec::new(),
+                    frontier_lower_bound: Vec::new(),
+                });
+            }
+            let emitted = emit_machine_code(&two_crash_plan)
+                .expect("two-crash conditional emits with stack evidence");
+            assert!(matches!(
+                emitted.functions[0]
+                    .scalar_stack
+                    .as_ref()
+                    .expect("two-crash conditional stack evidence")
+                    .control_flow,
+                TerminalScalarControlFlowEvidence::TopLevelWithCrash {
+                    crash_arms: TerminalScalarConditionalCrashArms::Both,
+                    ..
+                }
+            ));
         }
     }
 
