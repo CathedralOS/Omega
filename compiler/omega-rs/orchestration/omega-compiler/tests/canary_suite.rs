@@ -47690,15 +47690,15 @@ fn efi_two_table_function_leaves_cross_compile() {
         .expect("backend report should be written");
     assert!(
         report.contains(
-            "BootServices.get_memory_map table function EfiBootServicesTable.get_memory_map"
+            " table function EfiBootServicesTable.get_memory_map (+40) arity 6 (table not passed)"
         ),
-        "get_memory_map must select the attached TableFunction leaf"
+        "get_memory_map must select the attached TableFunction leaf with one dispatch-only table operand"
     );
     assert!(
         report.contains(
-            "BootServices.exit_boot_services table function EfiBootServicesTable.exit_boot_services"
+            " table function EfiBootServicesTable.exit_boot_services (+48) arity 3 (table not passed)"
         ),
-        "exit_boot_services must select the attached TableFunction leaf"
+        "exit_boot_services must select the attached TableFunction leaf with one dispatch-only table operand"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

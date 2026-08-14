@@ -217,6 +217,7 @@ fn extract_external_binding_rows(
                     requirement.as_str(),
                     &requirement_identity,
                     policy,
+                    usize::from(matches!(&binding, ExternalBindingKind::TableFunction { .. })),
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(

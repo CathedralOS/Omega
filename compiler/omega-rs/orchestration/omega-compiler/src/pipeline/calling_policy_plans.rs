@@ -70,6 +70,7 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
     method_name: &str,
     requirement_identity: &str,
     policy: CallingPolicy,
+    dispatch_only_parameter_count: usize,
 ) -> Result<Option<BoundaryEntryPlan>, String> {
     let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
     let Some(signature) = typed.traits().iter().find_map(|definition| {
@@ -89,14 +90,33 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
         return Ok(None);
     };
     let materialized = call_signature_from_typed(typed, signature, &[])?;
+    let classified =
+        compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
+    evaluate_ordinary_boundary_entry_plan(policy, &classified)
+        .map(|validated| Some(validated.plan().clone()))
+        .map_err(|diagnostic| diagnostic.to_string())
+}
+
+fn compatibility_call_signature(
+    materialized: &MaterializedBoundarySignature,
+    policy: CallingPolicy,
+    dispatch_only_parameter_count: usize,
+) -> Result<CallSignature, String> {
+    if dispatch_only_parameter_count > materialized.parameters.len() {
+        return Err(format!(
+            "compatibility calling plan removes {dispatch_only_parameter_count} dispatch-only parameter(s) from a signature with only {} parameter(s)",
+            materialized.parameters.len()
+        ));
+    }
     let syscall_words = matches!(
         policy,
         CallingPolicy::LinuxSyscallX86_64 | CallingPolicy::LinuxSyscallAarch64
     );
-    let classified = CallSignature {
+    Ok(CallSignature {
         parameters: materialized
             .parameters
             .iter()
+            .skip(dispatch_only_parameter_count)
             .copied()
             .map(|root| {
                 if syscall_words {
@@ -116,10 +136,7 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
                 }
             })
             .transpose()?,
-    };
-    evaluate_ordinary_boundary_entry_plan(policy, &classified)
-        .map(|validated| Some(validated.plan().clone()))
-        .map_err(|diagnostic| diagnostic.to_string())
+    })
 }
 
 fn classified_boundary_shape(
@@ -1861,6 +1878,35 @@ mod tests {
             CallingPolicy::MicrosoftX64,
         )
         .expect("Microsoft x64 should classify the fixed array as an indirect aggregate");
+    }
+
+    #[test]
+    fn compatibility_signature_excludes_dispatch_only_table_parameter() {
+        let signature = MaterializedBoundarySignature {
+            shapes: vec![
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Integer,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Integer,
+                    byte_size: 4,
+                    alignment: 4,
+                },
+            ],
+            fields: Vec::new(),
+            parameters: vec![0, 1, 0],
+            result: Some(1),
+        };
+        let wire = compatibility_call_signature(&signature, CallingPolicy::MicrosoftX64, 1)
+            .expect("one table pointer should project out of the wire signature");
+        assert_eq!(
+            wire.parameters,
+            [ValueShape::integer(4, 4), ValueShape::integer(8, 8)]
+        );
+        assert_eq!(wire.result, Some(ValueShape::integer(4, 4)));
+        assert!(compatibility_call_signature(&signature, CallingPolicy::MicrosoftX64, 4).is_err());
     }
 
     #[test]
