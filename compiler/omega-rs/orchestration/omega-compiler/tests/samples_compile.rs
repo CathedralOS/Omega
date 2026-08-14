@@ -9,9 +9,9 @@
 //! the default target and reports *all* broken samples at once, so a language
 //! change that breaks a demo fails the suite the same day. This broad source-
 //! compatibility sweep is entry-agnostic. Authored entry migration is checked
-//! separately. The broad native oracle uses an authored host entry whenever one
-//! exists and keeps its exact host-owned staging adapter only for unrooted
-//! legacy samples (plus explicitly documented lowering gaps).
+//! separately. The native oracle executes only samples with an authored entry
+//! for the host target. Target-shaped samples without one remain checked-only;
+//! the harness never manufactures a machine or root binding for them.
 //!
 //! Four guards:
 //!  * `all_samples_reach_checked_trees` — every sample `main.omg` under
@@ -53,8 +53,12 @@
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
+//!  * `sample_entry_exceptions_are_explicit_and_non_runnable` — the complete
+//!    rootless corpus is the intentional proof/trap/firmware set, and any
+//!    host-unavailable runtime sample is an explicit target-shaped exception.
 //!  * `samples_with_documented_exit_run_correctly` — every sample whose comment
-//!    states `Expected exit: N` is compiled, RUN, and its exit asserted. This
+//!    states `Expected exit: N` and has an authored host root is compiled, RUN,
+//!    and its exit asserted. This
 //!    catches runtime miscompiles that compile cleanly: stack_vm exited 71 vs 70
 //!    for weeks because nothing ran the samples. Now a native miscompile in a
 //!    demo fails the suite the same day. A sample may ALSO state
@@ -66,10 +70,7 @@ use omega_compiler::{CompileOptions, compile as compile_program, compile_to_chec
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
 
-static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
-const SAMPLE_ENTRY: &str = "omega_sample_entry";
 const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
 const GUI_SAMPLE_TARGETS: &[&str] = &["windows_x64", "macos_arm64"];
 const EXPLICIT_ENTRY_BASIC_SAMPLES: &[&str] = &[
@@ -352,198 +353,16 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn compile_sample_runtime_entry(
-    options: CompileOptions,
-) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let has_authored_entry = fs::read_to_string(
-        options
-            .root_path
-            .parent()
-            .expect("sample source has a project directory")
-            .join("build.omg"),
-    )
-    .is_ok_and(|source| {
-        source.contains(".roots.bind(")
-            && source.contains(&format!("{}::ProgramEntry", host_root_owner()))
-    });
-    if has_authored_entry {
-        return compile_program(CompileOptions {
-            target_name: Some(host_target_name().to_owned()),
-            ..options
-        });
-    }
-
-    compile_staged_legacy_host_entry(options)
-}
-
-fn compile_staged_legacy_host_entry(
-    options: CompileOptions,
-) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let ordinal = NEXT_ENTRY_STAGE.fetch_add(1, Ordering::Relaxed);
-    let stage_dir = std::env::temp_dir().join(format!(
-        "omega-sample-entry-stage-{}-{ordinal}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&stage_dir);
-    if let Err(error) =
-        stage_exact_host_entry_project(&options.root_path, &stage_dir, options.build_dir.as_deref())
-    {
-        let _ = fs::remove_dir_all(&stage_dir);
-        return Err(vec![psi_diagnostics::Diagnostic::error(format!(
-            "failed to stage legacy sample entry: {error}"
-        ))]);
-    }
-
-    let result = compile_program(CompileOptions {
-        root_path: stage_dir.join(
-            options
-                .root_path
-                .file_name()
-                .expect("sample source has a file name"),
-        ),
-        build_dir: options.build_dir,
-        target_name: Some(host_target_name().to_owned()),
-        write_output: options.write_output,
-    });
-    let _ = fs::remove_dir_all(&stage_dir);
-    result
-}
-
-fn stage_exact_host_entry_project(
-    main_path: &Path,
-    destination: &Path,
-    excluded: Option<&Path>,
-) -> std::io::Result<()> {
-    copy_project_tree(
-        main_path
-            .parent()
-            .expect("sample source has a project directory"),
-        destination,
-        excluded,
-    )?;
-    write_exact_host_entry_adapter(main_path, destination)?;
-    write_exact_host_build(destination)
-}
-
-fn copy_project_tree(
-    source: &Path,
-    destination: &Path,
-    excluded: Option<&Path>,
-) -> std::io::Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let path = entry.path();
-        if excluded.is_some_and(|excluded| path == excluded)
-            || matches!(entry.file_name().to_str(), Some("build" | "target"))
-        {
-            continue;
-        }
-        let target = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_project_tree(&path, &target, excluded)?;
-        } else {
-            fs::copy(path, target)?;
-        }
-    }
-    Ok(())
-}
-
-fn write_exact_host_entry_adapter(main_path: &Path, destination: &Path) -> std::io::Result<()> {
-    let main_source = fs::read_to_string(main_path)?;
-    let signature_start = main_source.find("machine Main::main(").ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "sample source has no Main::main machine",
-        )
-    })?;
-    let signature_end = main_source[signature_start..]
-        .find('{')
-        .map(|offset| signature_start + offset)
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "sample Main::main has no body",
-            )
-        })?;
-    let call = if main_source[signature_start..signature_end].contains("->") {
-        "_ = self.main();"
-    } else {
-        "self.main();"
+fn authored_program_entry(main_path: &Path, root_owner: Option<&str>) -> bool {
+    let Some(project) = main_path.parent() else {
+        return false;
     };
-    fs::write(
-        destination.join(
-            main_path
-                .file_name()
-                .expect("sample source has a file name"),
-        ),
-        format!("{main_source}\n\nmachine Main::{SAMPLE_ENTRY}(&mut self) {{\n    {call}\n}}\n"),
-    )
-}
-
-fn write_exact_host_build(project: &Path) -> std::io::Result<()> {
-    let path = project.join("build.omg");
-    let mut source = fs::read_to_string(&path).unwrap_or_default();
-    let target = host_target_name();
-    if !source.contains(&format!("target {target}")) {
-        source.push_str(&format!("\n\ntarget {target} {{\n}}\n"));
-    }
-    let binding = format!(
-        "{}.roots.bind({}::ProgramEntry, Main::{SAMPLE_ENTRY});",
-        build_parameter_name(&source).unwrap_or("b"),
-        host_root_owner(),
-    );
-    source = replace_host_program_entry_binding(&source, &binding);
-    if !source.contains(&binding) {
-        if let Some(open_brace) = build_machine_open_brace(&source) {
-            source.insert_str(open_brace + 1, &format!("\n    {binding}"));
-        } else {
-            source.push_str(&format!(
-                "\n\nmachine build(b: &mut Build) {{\n    {binding}\n}}\n"
-            ));
-        }
-    }
-    fs::write(path, source)
-}
-
-fn replace_host_program_entry_binding(source: &str, binding: &str) -> String {
-    let marker = format!("{}::ProgramEntry", host_root_owner());
-    let mut replaced = false;
-    let mut lines = Vec::new();
-    for line in source.lines() {
-        if line.contains(".roots.bind(") && line.contains(&marker) {
-            if !replaced {
-                let indent = &line[..line.len() - line.trim_start().len()];
-                lines.push(format!("{indent}{binding}"));
-                replaced = true;
-            }
-        } else {
-            lines.push(line.to_owned());
-        }
-    }
-    let mut rewritten = lines.join("\n");
-    if source.ends_with('\n') {
-        rewritten.push('\n');
-    }
-    rewritten
-}
-
-fn build_machine_open_brace(source: &str) -> Option<usize> {
-    let start = source.find("machine build(")?;
-    source[start..].find('{').map(|offset| start + offset)
-}
-
-fn build_parameter_name(source: &str) -> Option<&str> {
-    let start = source.find("machine build(")?;
-    let signature_end = source[start..].find('{').map(|offset| start + offset)?;
-    let signature = &source[start..signature_end];
-    let type_marker = signature.rfind(": &mut Build")?;
-    let prefix = signature[..type_marker].trim_end();
-    let name_start = prefix
-        .rfind(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
-        .map_or(0, |index| index + 1);
-    let name = &prefix[name_start..];
-    (!name.is_empty()).then_some(name)
+    fs::read_to_string(project.join("build.omg")).is_ok_and(|source| {
+        source.lines().any(|line| {
+            line.contains(".roots.bind(")
+                && root_owner.is_none_or(|owner| line.contains(&format!("{owner}::ProgramEntry")))
+        })
+    })
 }
 
 fn host_target_name() -> &'static str {
@@ -963,6 +782,53 @@ fn named_integer_conversion_samples_reach_checked_trees() {
 }
 
 #[test]
+fn sample_entry_exceptions_are_explicit_and_non_runnable() {
+    let mains = sample_mains();
+    let mut rootless = Vec::new();
+    let mut host_unavailable_runtime = Vec::new();
+
+    for main_path in &mains {
+        let name = sample_name(main_path);
+        let source = fs::read_to_string(main_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", main_path.display()));
+        if !authored_program_entry(main_path, None) {
+            assert_eq!(
+                documented_expected_exit(&source),
+                None,
+                "rootless sample {name} must remain non-runnable"
+            );
+            rootless.push(name.clone());
+        }
+        if documented_expected_exit(&source).is_some()
+            && !authored_program_entry(main_path, Some(host_root_owner()))
+        {
+            host_unavailable_runtime.push(name);
+        }
+    }
+
+    assert_eq!(
+        rootless,
+        [
+            "cli__probes__trapping_probe",
+            "cli__proofs__math_proofs",
+            "cli__proofs__structural_proofs",
+            "uefi__uefi_hello",
+        ],
+        "only the deliberate trap, proof-only fixtures, and Q2-blocked firmware may lack an authored root"
+    );
+
+    let expected_host_unavailable = if host_target_name().starts_with("linux_") {
+        &["gui__window_demo"][..]
+    } else {
+        &[]
+    };
+    assert_eq!(
+        host_unavailable_runtime, expected_host_unavailable,
+        "a documented runtime sample without an authored host root must be an explicit target-shaped exception"
+    );
+}
+
+#[test]
 fn samples_with_documented_exit_run_correctly() {
     let sample_mains = sample_mains();
     let mut failures: Vec<String> = Vec::new();
@@ -975,6 +841,12 @@ fn samples_with_documented_exit_run_correctly() {
             continue;
         };
         let name = sample_name(main_path);
+        if !authored_program_entry(main_path, Some(host_root_owner())) {
+            // A target-shaped sample can document runtime behavior for its
+            // supported targets while remaining checked-only on this host.
+            // The corpus guard above owns the complete exception list.
+            continue;
+        }
         if !filter.as_deref().is_none_or(|filter| {
             filter.split(',').map(str::trim).any(|candidate| {
                 candidate
@@ -991,10 +863,10 @@ fn samples_with_documented_exit_run_correctly() {
             std::env::temp_dir().join(format!("omega-sample-run-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
 
-        match compile_sample_runtime_entry(CompileOptions {
+        match compile_program(CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
-            target_name: None,
+            target_name: Some(host_target_name().to_owned()),
             write_output: true,
         }) {
             Err(error) => failures.push(format!("{name}: compile failed: {error:?}")),
