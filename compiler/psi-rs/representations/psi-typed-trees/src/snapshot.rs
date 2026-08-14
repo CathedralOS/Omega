@@ -41,6 +41,8 @@ pub struct EvidenceForwardingSnapshot {
     pub statement_index: usize,
     pub target: String,
     pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_conformance: Option<u32>,
 }
 
 impl TypedTreesSnapshot {
@@ -120,6 +122,9 @@ impl TypedTreesSnapshot {
                     statement_index: forwarding.statement_index,
                     target: forwarding.target.to_string(),
                     source: forwarding.source.to_string(),
+                    source_conformance: forwarding
+                        .source_conformance
+                        .map(|symbol| symbol.arena_index()),
                 })
                 .collect(),
         }

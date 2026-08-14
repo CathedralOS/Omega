@@ -102,16 +102,39 @@ pub struct ContractEvidenceArgument {
     pub lane_position: usize,
 }
 
-/// An erased outgoing evidence slot forwarded from one exact incoming term.
-/// Consumers follow `source`; `output` retains the declared public field and
-/// proposition identity without minting a new witness.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// The exact checked source of one erased outgoing evidence assignment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvidenceAssignmentSource {
+    /// Preserve the identity of one exact incoming term.
+    Forwarded { term: Handle<CheckedEvidenceTerm> },
+    /// Introduce a fresh term through one explicitly selected, complete,
+    /// subjectless conformance. Rows are retained so later proof consumers do
+    /// not repeat selection or reconstruct completeness from a name.
+    ProducerConformance {
+        conformance: SymbolHandle,
+        evidence_trait: SymbolHandle,
+        rows: Vec<crate::DynamicConformanceRowFact>,
+    },
+}
+
+impl Default for EvidenceAssignmentSource {
+    fn default() -> Self {
+        Self::Forwarded {
+            term: Handle::invalid(),
+        }
+    }
+}
+
+/// One erased outgoing evidence slot assigned from an exact incoming term or
+/// an explicit producer conformance. `output` retains the public field and
+/// proposition identity.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EvidenceForwardingFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub output: Handle<CheckedEvidenceTerm>,
-    pub source: Handle<CheckedEvidenceTerm>,
+    pub source: EvidenceAssignmentSource,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

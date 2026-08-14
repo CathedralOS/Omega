@@ -26,6 +26,7 @@ fn retains_typed_evidence_forwarding_owner_identity() {
     assert!(forwarding.state_symbol.is_valid());
     assert_eq!(forwarding.target.as_str(), "output_proof");
     assert_eq!(forwarding.source.as_str(), "input_proof");
+    assert_eq!(forwarding.source_conformance, None);
     assert_eq!(typed.snapshot().evidence_forwardings.len(), 1);
 }
 

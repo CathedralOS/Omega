@@ -1713,6 +1713,7 @@ fn classifies_evidence_forwarding_out_of_runtime_statements() {
     assert!(forwarding.state_symbol.is_valid());
     assert_eq!(forwarding.target.as_str(), "output_proof");
     assert_eq!(forwarding.source.as_str(), "input_proof");
+    assert_eq!(forwarding.source_conformance, None);
     assert_eq!(program.snapshot().evidence_forwardings.len(), 1);
     let machine = program
         .machines
@@ -1728,6 +1729,41 @@ fn classifies_evidence_forwarding_out_of_runtime_statements() {
             .statements(state.statement_nodes)
             .is_empty(),
         "erased forwarding must not enter runtime statement spans"
+    );
+}
+
+#[test]
+fn resolves_explicit_evidence_producer_to_exact_subjectless_conformance() {
+    let source = r#"
+    trait Evidence {}
+    proposition carries(value: i32) evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    machine produce(value: i32)
+    ensures output_proof: carries(value)
+    {
+        output_proof = ConcreteEvidence;
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let [assignment] = program.evidence_forwardings.as_slice() else {
+        panic!("one resolved evidence assignment expected");
+    };
+    let producer = program
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "ConcreteEvidence")
+        })
+        .expect("subjectless producer conformance");
+    assert_eq!(assignment.source_conformance, Some(producer.symbol));
+    assert_eq!(
+        program.snapshot().evidence_forwardings[0].source_conformance,
+        Some(producer.symbol.arena_index())
     );
 }
 
