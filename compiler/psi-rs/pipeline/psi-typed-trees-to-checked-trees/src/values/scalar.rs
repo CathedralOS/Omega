@@ -382,6 +382,171 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             program.primitive_type_reference(leaf)
         }
 
+        fn whole_parameter_position(
+            program: &TypedTrees,
+            parameters: &[StateParameter],
+            expression: ExpressionHandle,
+        ) -> Option<u32> {
+            let mut path = Vec::new();
+            let position =
+                structural_parameter_field_path(program, parameters, expression, &mut path)?;
+            path.is_empty().then_some(position)
+        }
+
+        fn structural_record_data<'program>(
+            program: &'program TypedTrees,
+            mut type_reference: TypeReferenceHandle,
+        ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+            let (symbol, name) = loop {
+                match program.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Reference { referee, .. }
+                    | TypeReferenceNode::Constrained {
+                        base_type: referee, ..
+                    } => type_reference = *referee,
+                    TypeReferenceNode::Named { symbol, name }
+                    | TypeReferenceNode::Generic {
+                        base_symbol: symbol,
+                        base_name: name,
+                        ..
+                    } => break (*symbol, name),
+                    _ => return None,
+                }
+            };
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name == *name)
+        }
+
+        fn structural_record_fields<'program>(
+            program: &'program TypedTrees,
+            type_reference: TypeReferenceHandle,
+        ) -> Option<Vec<&'program psi_typed_trees::data::DataField>> {
+            let data = structural_record_data(program, type_reference)?;
+            let mut fields = Vec::new();
+            for member in program.data_members(data) {
+                let psi_typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                if field.relevance.is_erased() {
+                    return None;
+                }
+                fields.push(field);
+            }
+            (!fields.is_empty()).then_some(fields)
+        }
+
+        fn lower_whole_record_equality(
+            program: &TypedTrees,
+            parameters: &[StateParameter],
+            left: ExpressionHandle,
+            right: ExpressionHandle,
+        ) -> Option<CheckedBooleanExpression> {
+            fn collect_comparisons(
+                program: &TypedTrees,
+                left_parameter: u32,
+                right_parameter: u32,
+                type_reference: TypeReferenceHandle,
+                left_path: &mut Vec<String>,
+                right_path: &mut Vec<String>,
+                output: &mut Vec<CheckedBooleanExpression>,
+                visiting: &mut Vec<psi_symbols::SymbolHandle>,
+            ) -> Option<()> {
+                let data = structural_record_data(program, type_reference)?;
+                if !data.symbol.is_valid() || visiting.contains(&data.symbol) {
+                    return None;
+                }
+                visiting.push(data.symbol);
+                for field in structural_record_fields(program, type_reference)? {
+                    left_path.push(field.name.as_str().to_owned());
+                    right_path.push(field.name.as_str().to_owned());
+                    match program.primitive_type_reference(field.type_reference) {
+                        Some(PrimitiveType::Bool) => {
+                            output.push(CheckedBooleanExpression::Equal {
+                                left: Box::new(
+                                    CheckedBooleanExpression::StructuralParameterField {
+                                        parameter_position: left_parameter,
+                                        path: left_path.clone(),
+                                    },
+                                ),
+                                right: Box::new(
+                                    CheckedBooleanExpression::StructuralParameterField {
+                                        parameter_position: right_parameter,
+                                        path: right_path.clone(),
+                                    },
+                                ),
+                            });
+                        }
+                        Some(primitive_type) if is_integer(primitive_type) => {
+                            output.push(CheckedBooleanExpression::IntegerComparison {
+                                kind: CheckedIntegerComparisonKind::Equal,
+                                left: Box::new(CheckedScalarExpression::StructuralParameterField {
+                                    parameter_position: left_parameter,
+                                    path: left_path.clone(),
+                                    primitive_type,
+                                }),
+                                right: Box::new(
+                                    CheckedScalarExpression::StructuralParameterField {
+                                        parameter_position: right_parameter,
+                                        path: right_path.clone(),
+                                        primitive_type,
+                                    },
+                                ),
+                            });
+                        }
+                        Some(_) => return None,
+                        None => collect_comparisons(
+                            program,
+                            left_parameter,
+                            right_parameter,
+                            field.type_reference,
+                            left_path,
+                            right_path,
+                            output,
+                            visiting,
+                        )?,
+                    }
+                    left_path.pop();
+                    right_path.pop();
+                }
+                visiting.pop();
+                Some(())
+            }
+
+            let left_parameter = whole_parameter_position(program, parameters, left)?;
+            let right_parameter = whole_parameter_position(program, parameters, right)?;
+            let left_type = parameters
+                .get(usize::try_from(left_parameter).ok()?)?
+                .type_reference;
+            let right_type = parameters
+                .get(usize::try_from(right_parameter).ok()?)?
+                .type_reference;
+            let left_data = structural_record_data(program, left_type)?;
+            let right_data = structural_record_data(program, right_type)?;
+            if left_data.symbol != right_data.symbol || left_data.name != right_data.name {
+                return None;
+            }
+            let mut comparisons = Vec::new();
+            collect_comparisons(
+                program,
+                left_parameter,
+                right_parameter,
+                left_type,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut comparisons,
+                &mut Vec::new(),
+            )?;
+            let mut comparisons = comparisons.into_iter();
+            let first = comparisons.next()?;
+            Some(
+                comparisons.fold(first, |left, right| CheckedBooleanExpression::And {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }),
+            )
+        }
+
         fn lower_structural_integer_expression(
             program: &TypedTrees,
             parameters: &[StateParameter],
@@ -420,6 +585,21 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             return Some(CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+            });
+        }
+
+        if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+            && matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            )
+            && let Some(equality) =
+                lower_whole_record_equality(program, parameters, binary.left, binary.right)
+        {
+            return Some(if binary.operator == BinaryOperator::NotEqual {
+                CheckedBooleanExpression::Not(Box::new(equality))
+            } else {
+                equality
             });
         }
 

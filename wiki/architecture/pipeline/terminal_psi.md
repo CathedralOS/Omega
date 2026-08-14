@@ -416,10 +416,18 @@ branch may contain the same accepted Boolean or integer-member predicate forms.
 Production and independent verification recursively rebase every branch across
 whole-root and all-field-projected calls. Both codecs retain the proposition;
 the semantic codec rejects nested, duplicate, or noncanonically ordered
-disjunction rows. Whole-aggregate equality, arithmetic over members,
-case-payload paths, and imported crash capsules remain fail-closed.
-Structural/content contracts reject because custody effects require their own
-vertical slice rather than an ordinary scalar flag.
+disjunction rows. Whole-record equality does not add an opaque aggregate term:
+for two same-typed `Equatable` parameters, checked production retains the
+language-defined inline field expansion. A finite nonempty tree containing only
+relevant Boolean and fixed-integer leaves becomes one flat canonical conjunction
+of typed member equalities. Each leaf keeps its left and right parameter root;
+call verification independently substitutes both roots and rejects redirecting
+either operand even when the replacement path is otherwise valid and
+same-typed. Text, float, sum/case, erased-field, empty-record, and written
+`equals` bodies remain outside this bounded terminal slice. Arithmetic over
+members, case-payload paths, and imported crash capsules also remain
+fail-closed. Structural/content contracts reject because custody effects require
+their own vertical slice rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

@@ -329,9 +329,13 @@ Remaining:
   independent leaf-type checking. Terminal proposition disjunction now retains
   distinct canonical branches, rebases every nested member path across
   all-field-projected calls, and is independently reconstructed by the verifier.
-  Continue with whole-aggregate equality, arithmetic over members, and
-  case-payload paths. Imported crash capsules remain design-blocked on artifact
-  identity and certificate binding.
+  Source whole-record equality between same-typed `Equatable` parameters now
+  retains the language-defined inline expansion for finite nonempty trees of
+  relevant Boolean and fixed-integer fields, flattens the resulting conjunction,
+  and reconstructs both roots independently across whole-root calls. Continue
+  with arithmetic over members, case-payload paths, and wider aggregate equality
+  involving text, floats, sums, or erased fields. Imported crash capsules remain
+  design-blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
