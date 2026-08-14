@@ -61,8 +61,8 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
             state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
             state_proof_evidence_count(calls, exits) + operator_proof_evidence,
             service_reach_evidence_count(self.facts, self.state.service_reach),
-            suspension_evidence_count(self.state.operational),
-            blocking_evidence_count(self.state.operational),
+            suspension_evidence_count(self.state.suspension),
+            blocking_evidence_count(self.state.blocking),
             state_boundary_evidence_count(self.state, calls) + operator_boundary_evidence,
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )
@@ -90,8 +90,12 @@ impl<'facts> StateAcceptance<'facts> {
         self.state.service_reach
     }
 
-    pub fn operational(&self) -> psi_language_semantics::OperationalMaySummary {
-        self.state.operational
+    pub fn suspension(&self) -> psi_language_semantics::SuspensionSummary {
+        self.state.suspension
+    }
+
+    pub fn blocking(&self) -> psi_language_semantics::BlockingSummary {
+        self.state.blocking
     }
 
     pub fn statements(&self) -> &'facts [FlowStatementFact] {

@@ -87,7 +87,8 @@ pub(super) fn build_call_flow_fact(
             .map(|call| call.ensures)
             .unwrap_or_else(HandleSpan::empty),
         service_reach: Default::default(),
-        operational: Default::default(),
+        suspension: Default::default(),
+        blocking: Default::default(),
         operational_acknowledgement: Default::default(),
     }
 }

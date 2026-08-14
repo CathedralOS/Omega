@@ -51,15 +51,15 @@ pub(super) fn service_reach_evidence_count(
 }
 
 pub(super) const fn suspension_evidence_count(
-    operational: psi_language_semantics::OperationalMaySummary,
+    suspension: psi_language_semantics::SuspensionSummary,
 ) -> usize {
-    operational.transitive_may_suspend as usize
+    suspension.transitive_may_suspend as usize
 }
 
 pub(super) const fn blocking_evidence_count(
-    operational: psi_language_semantics::OperationalMaySummary,
+    blocking: psi_language_semantics::BlockingSummary,
 ) -> usize {
-    operational.transitive_may_block as usize
+    blocking.transitive_may_block as usize
 }
 
 pub(super) fn machine_decrease_count(facts: &CheckFacts, machine_symbol: SymbolHandle) -> usize {

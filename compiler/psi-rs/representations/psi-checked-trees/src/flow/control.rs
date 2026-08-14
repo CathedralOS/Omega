@@ -1,5 +1,5 @@
 use psi_arena::HandleSpan;
-use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};
+use psi_language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
 use psi_symbols::SymbolHandle;
 
 use crate::{BorrowArgumentAccessFact, BorrowWritableRootFact, ContractProofFactRef};
@@ -28,7 +28,8 @@ pub struct FlowCallFact {
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
     pub service_reach: ServiceReachSummary,
-    pub operational: OperationalMaySummary,
+    pub suspension: SuspensionSummary,
+    pub blocking: BlockingSummary,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
@@ -67,5 +68,6 @@ pub struct FlowStateFact {
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
     pub service_reach: ServiceReachSummary,
-    pub operational: OperationalMaySummary,
+    pub suspension: SuspensionSummary,
+    pub blocking: BlockingSummary,
 }
