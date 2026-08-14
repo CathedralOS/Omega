@@ -19,6 +19,10 @@ const SOURCE: &str = r#"
         value.freestanding = true;
     }
 
+    machine policy_value() -> u16 {
+        7
+    }
+
     data Stager { filesystem: FilesystemHost; result: i32; }
     machine Stager::build(&mut self, value: &mut Build)
     reaches FilesystemHost
@@ -27,6 +31,22 @@ const SOURCE: &str = r#"
         value.freestanding = self.result >= 0;
     }
 "#;
+
+#[test]
+fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
+    let typed = typed(SOURCE);
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    let value = admission
+        .evaluate_machine(&typed, "policy_value", vec![])
+        .expect("an admitted result machine should evaluate");
+    assert_eq!(value, BuildTimeValue::Int(7));
+
+    let error = admission
+        .evaluate_machine(&typed, "Stager::build", vec![])
+        .expect_err("admission must reject reached services before interpretation");
+    assert!(error.contains("service reach [FilesystemHost]"), "{error}");
+}
 
 #[test]
 fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() {

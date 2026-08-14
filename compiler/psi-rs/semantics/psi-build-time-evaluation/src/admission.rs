@@ -16,6 +16,8 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 
+use crate::BuildTimeValue;
+
 pub struct BuildTimeAdmissionPlan {
     operational: psi_effects::OperationalPlan,
     service_reaches: psi_effects::ServiceReachInferencePlan,
@@ -102,6 +104,26 @@ impl BuildTimeAdmissionPlan {
             machine.name,
             violations.join("; ")
         ))
+    }
+
+    /// Admit and evaluate one result-bearing semantic machine against this
+    /// inferred program plan. Callers construct the semantic argument snapshot;
+    /// Psi owns machine lookup, the common admission floor, and interpreter
+    /// execution. Decoding and validating a position-specific result remains
+    /// with that position's normalized-plan owner.
+    pub fn evaluate_machine(
+        &self,
+        program: &TypedTrees,
+        machine_name: &str,
+        arguments: Vec<BuildTimeValue>,
+    ) -> Result<BuildTimeValue, String> {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+        self.require_common_floor(program, machine)?;
+        psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
     }
 
     fn checked_closure_violation(&self, program: &TypedTrees, root: &Machine) -> Option<String> {
