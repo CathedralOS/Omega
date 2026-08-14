@@ -25,9 +25,10 @@ use omega_terminal_machine_code::{
     TerminalScalarCallStackEvidence, TerminalScalarCleanupPreservationEvidence,
     TerminalScalarConditionalArm, TerminalScalarConditionalBranchEvidence,
     TerminalScalarConditionalCondition, TerminalScalarControlAffineCleanupRecord,
-    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarControlFlowEvidence, TerminalScalarDivisionBranchEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{MachineRegister, TerminalCallSiteOwner};
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -284,9 +285,9 @@ fn emit_function(
             expression,
             ..
         } => {
-            scalar_stack_eligible = linear_integer_expression(expression);
+            scalar_stack_eligible = accountable_direct_integer_expression(expression);
             require_native_integer_width(*source_value, *scalar_type)?;
-            match architecture {
+            let bytes = match architecture {
                 Architecture::Aarch64 => emit_aarch64_integer_expression(
                     *scalar_type,
                     frame,
@@ -299,7 +300,15 @@ fn emit_function(
                     expression,
                     Some((&mut internal_calls, target)),
                 )?,
+            };
+            if architecture == Architecture::X86_64 && scalar_stack_eligible {
+                let branches = collect_x86_division_branch_evidence(&bytes)?;
+                if !branches.is_empty() {
+                    scalar_control_flow =
+                        TerminalScalarControlFlowEvidence::LinearWithDivisionBranches { branches };
+                }
             }
+            bytes
         }
         TerminalAssignedOperation::ReturnIntegerConditionalControl {
             condition_source,
@@ -523,7 +532,7 @@ fn emit_scalar_return_with_cleanup(
             emitted
                 .scalar_stack
                 .as_ref()
-                .map(|stack| stack.control_flow),
+                .map(|stack| stack.control_flow.clone()),
             Some(TerminalScalarControlFlowEvidence::Linear)
         )
     {
@@ -6364,6 +6373,113 @@ fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> 
     }
 }
 
+/// The direct-return WCSU lane additionally admits division and remainder.
+/// Compiler-generated x86-64 control flow is retained separately from the
+/// language-level conditional evidence; calls keep their existing linear
+/// argument restriction so a division diamond cannot be hidden inside ABI
+/// argument materialization.
+fn accountable_direct_integer_expression(expression: &TerminalAssignedIntegerExpression) -> bool {
+    match expression {
+        TerminalAssignedIntegerExpression::Call { arguments, .. } => arguments
+            .iter()
+            .all(|argument| linear_scalar_expression(&argument.expression)),
+        TerminalAssignedIntegerExpression::Immediate { .. }
+        | TerminalAssignedIntegerExpression::Parameter { .. } => true,
+        TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerWiden { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerExactCast { operand, .. } => {
+            accountable_direct_integer_expression(operand)
+        }
+        TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::WrappingShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
+            accountable_direct_integer_expression(left)
+                && accountable_direct_integer_expression(right)
+        }
+    }
+}
+
+fn collect_x86_division_branch_evidence(
+    bytes: &[u8],
+) -> Result<Vec<TerminalScalarDivisionBranchEvidence>, EmissionError> {
+    let mut decoder = iced_x86::Decoder::with_ip(64, bytes, 0, iced_x86::DecoderOptions::NONE);
+    let mut instructions = Vec::new();
+    while decoder.can_decode() {
+        let instruction = decoder.decode();
+        if instruction.is_invalid() {
+            return Err(EmissionError::ScalarStackInstructionEncodingInvalid);
+        }
+        instructions.push(instruction);
+    }
+    let mut branches = Vec::new();
+    for instruction in &instructions {
+        if instruction.mnemonic() != iced_x86::Mnemonic::Jne {
+            continue;
+        }
+        let branch_offset = usize::try_from(instruction.ip())
+            .map_err(|_| EmissionError::ScalarStackInstructionEncodingInvalid)?;
+        let ordinary_arm_offset = usize::try_from(instruction.near_branch_target())
+            .map_err(|_| EmissionError::ScalarStackInstructionEncodingInvalid)?;
+        let ordinary_index = instructions
+            .iter()
+            .position(|candidate| candidate.ip() == instruction.near_branch_target())
+            .ok_or(EmissionError::ScalarStackInstructionEncodingInvalid)?;
+        let join = ordinary_index
+            .checked_sub(1)
+            .and_then(|index| instructions.get(index))
+            .ok_or(EmissionError::ScalarStackInstructionEncodingInvalid)?;
+        if join.mnemonic() != iced_x86::Mnemonic::Jmp
+            || join.next_ip() != instruction.near_branch_target()
+        {
+            return Err(EmissionError::ScalarStackInstructionEncodingInvalid);
+        }
+        let merge_offset = usize::try_from(join.near_branch_target())
+            .map_err(|_| EmissionError::ScalarStackInstructionEncodingInvalid)?;
+        branches.push(TerminalScalarDivisionBranchEvidence {
+            branch_offset,
+            branch_byte_count: instruction.len(),
+            ordinary_arm_offset,
+            join_offset: usize::try_from(join.ip())
+                .map_err(|_| EmissionError::ScalarStackInstructionEncodingInvalid)?,
+            join_byte_count: join.len(),
+            merge_offset,
+        });
+    }
+    Ok(branches)
+}
+
 fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bool {
     match expression {
         TerminalAssignedScalarExpression::Boolean(expression) => {
@@ -10316,41 +10432,145 @@ mod tests {
     }
 
     #[test]
-    fn branch_producing_division_stays_outside_linear_scalar_stack_evidence() {
+    fn division_retains_exact_scalar_stack_control_evidence() {
         let scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
-        let expression = |left, right| TerminalTargetIntegerExpression::WrappingDivide {
-            psi_operation: OperationId::new(3).expect("operation"),
-            left: Box::new(TerminalTargetIntegerExpression::Parameter {
+        let expression = |kind, left, right| {
+            let left = Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(1).expect("left"),
                 parameter_index: 0,
                 location: left,
-            }),
-            right: Box::new(TerminalTargetIntegerExpression::Parameter {
+            });
+            let right = Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(2).expect("right"),
                 parameter_index: 1,
                 location: right,
-            }),
+            });
+            let psi_operation = OperationId::new(3).expect("operation");
+            match kind {
+                0 => TerminalTargetIntegerExpression::ExactDivide {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                1 => TerminalTargetIntegerExpression::ExactRemainder {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                2 => TerminalTargetIntegerExpression::WrappingDivide {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                3 => TerminalTargetIntegerExpression::WrappingRemainder {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                4 => TerminalTargetIntegerExpression::SaturatingDivide {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                5 => TerminalTargetIntegerExpression::SaturatingRemainder {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                _ => unreachable!(),
+            }
         };
-        for (target, left, right) in [
-            (
-                NativeTarget::linux_x64(),
-                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
-                TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
-            ),
-            (
-                NativeTarget::linux_arm64(),
-                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
-                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
-            ),
-        ] {
-            let emitted = emit_machine_code(&expression_plan(
-                target,
-                scalar_type,
-                expression(left, right),
-            ))
-            .expect("division still emits outside linear WCSU");
-            assert_eq!(emitted.functions[0].scalar_stack, None);
+        for kind in 0..6 {
+            for (target, left, right) in [
+                (
+                    NativeTarget::linux_x64(),
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+                ),
+                (
+                    NativeTarget::linux_arm64(),
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+                ),
+            ] {
+                let emitted = emit_machine_code(&expression_plan(
+                    target,
+                    scalar_type,
+                    expression(kind, left, right),
+                ))
+                .expect("division emits with exact WCSU evidence");
+                let stack = emitted.functions[0]
+                    .scalar_stack
+                    .as_ref()
+                    .expect("division stack evidence");
+                if target.architecture == Architecture::X86_64 && kind >= 2 {
+                    let TerminalScalarControlFlowEvidence::LinearWithDivisionBranches { branches } =
+                        &stack.control_flow
+                    else {
+                        panic!("signed x86 division must retain its generated diamond")
+                    };
+                    assert_eq!(branches.len(), 1);
+                    let branch = branches[0];
+                    assert_eq!(branch.branch_byte_count, 6);
+                    assert_eq!(branch.join_byte_count, 5);
+                    assert!(branch.branch_offset < branch.join_offset);
+                    assert_eq!(
+                        branch.join_offset + branch.join_byte_count,
+                        branch.ordinary_arm_offset
+                    );
+                    assert!(branch.ordinary_arm_offset < branch.merge_offset);
+                    assert_eq!(
+                        stack
+                            .mutations
+                            .iter()
+                            .filter(|mutation| matches!(
+                                mutation.kind,
+                                TerminalScalarStackMutationKind::Release { byte_size: 8 }
+                            ))
+                            .count(),
+                        2
+                    );
+                } else {
+                    assert_eq!(
+                        stack.control_flow,
+                        TerminalScalarControlFlowEvidence::Linear
+                    );
+                }
+            }
         }
+
+        let parameter = |source, index, register| TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(source).expect("parameter"),
+            parameter_index: index,
+            location: TerminalScalarParameterLocation::Register(register),
+        };
+        let divide = |operation| TerminalTargetIntegerExpression::WrappingDivide {
+            psi_operation: OperationId::new(operation).expect("division operation"),
+            left: Box::new(parameter(1, 0, MachineRegister::X86Rdi)),
+            right: Box::new(parameter(2, 1, MachineRegister::X86Rsi)),
+        };
+        let repeated = TerminalTargetIntegerExpression::WrappingAdd {
+            psi_operation: OperationId::new(5).expect("addition operation"),
+            left: Box::new(divide(3)),
+            right: Box::new(divide(4)),
+        };
+        let emitted = emit_machine_code(&expression_plan(
+            NativeTarget::linux_x64(),
+            scalar_type,
+            repeated,
+        ))
+        .expect("repeated division emits");
+        let TerminalScalarControlFlowEvidence::LinearWithDivisionBranches { branches } = &emitted
+            .functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("repeated division stack evidence")
+            .control_flow
+        else {
+            panic!("repeated signed divisions must retain both diamonds")
+        };
+        assert_eq!(branches.len(), 2);
+        assert!(branches[0].merge_offset <= branches[1].branch_offset);
     }
 
     #[test]

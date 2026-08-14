@@ -762,10 +762,15 @@ direct return leaves. Its three edge-specific cleanup suffixes replay
 independently and compose by maximum. The balanced expression prefix and arms
 retain exact x86 and AArch64 branch encodings. Typed scalar calls in the
 prefix or either arm reuse the exact call evidence and closure composition.
-Nesting, reconvergence, crashes in arms, division/remainder expressions,
-external adapter/interrupt-arrival state, other terminal function forms,
-provider admission, and exact installation binding are not yet part of that
-theorem, so the
+Direct integer returns additionally retain division and remainder stack facts.
+AArch64 and branch-free x86 forms reuse linear replay; signed x86 wrapping and
+saturating forms retain each compiler-generated `-1`/ordinary diamond with its
+exact conditional target, join target, and independently balanced stack paths.
+Multiple such diamonds may occur in one direct expression. Division inside a
+language-level conditional condition or arm, or inside call-argument
+materialization, remains outside this bounded slice with general nested and
+reconvergent control. Crashes in arms, external adapter/interrupt-arrival state,
+and other terminal function forms are not yet part of that theorem, so the
 inspection surface still makes no installed-root WCSU claim.
 
 ## Implementation queue
