@@ -319,8 +319,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// by `source_parameter_index`; no-code actions consume no premise.
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
     /// Bounded scalar premises retained from the authored contract. This slice
-    /// admits direct fixed-width integer parameter bounds so proof-bearing exact
-    /// arithmetic can be reconstructed terminally.
+    /// admits direct fixed-width integer parameter bounds and pairwise
+    /// parameter relations so proof-bearing exact arithmetic can be
+    /// reconstructed terminally.
     pub scalar_requirements: Vec<CheckedStructuralScalarIntegerBoundRequirementPlan>,
     /// Complete post-result cleanup stream in reverse authored parameter
     /// order. Keeping trivial and nominal actions in one list prevents either
@@ -334,7 +335,14 @@ pub struct CheckedStructuralScalarIntegerBoundRequirementPlan {
     pub parameter_position: u32,
     pub primitive_type: PrimitiveType,
     pub kind: CheckedStructuralScalarIntegerBoundKind,
-    pub bound: psi_numerics::literals::IntegerLiteral,
+    pub bound: CheckedStructuralScalarIntegerBoundPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStructuralScalarIntegerBoundPlan {
+    Literal(psi_numerics::literals::IntegerLiteral),
+    /// Dense position in the same scalar parameter namespace.
+    Parameter(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
