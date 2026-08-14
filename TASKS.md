@@ -359,7 +359,10 @@ Remaining:
   policy semantics through the same projected-call, codec, verifier, fixed-fuel,
   and interpretation path. Exact division and remainder additionally accept a
   same-carrier literal divisor whose nonzero and signed overflow safety the
-  producer and verifier both establish independently.
+  producer and verifier both establish independently. Wrapping and Saturating
+  division and remainder now accept same-carrier nonzero literals, including
+  signed `-1`, while independently rejecting zero; the retained term preserves
+  the selected `MIN / -1` behavior through codecs and interpretation.
   Whole-root structural Unit closures now also accept a runtime integer-member
   divisor when every machine's complete bounded `requires` package carries an
   exact positive bound, an at-most-negative-two bound, or the joint signed
@@ -368,9 +371,11 @@ Remaining:
   retain one exact obligation, and cite the matching caller assumption;
   canonical terminal Psi, codec, independent verification, and interpretation
   reject missing evidence, a wrong assumption, or a weakened or redirected
-  premise. Continue with shifts, policy-selected division and remainder,
-  Trapping arithmetic, case-payload paths, and wider aggregate equality
-  involving text, floats, sums, or erased fields.
+  premise. Wrapping and Saturating division and remainder use the same package
+  and projected-call path but require only the positive or negative nonzero
+  divisor bound, because their signed overflow case is policy-defined. Continue
+  with shifts, Trapping arithmetic, case-payload paths, and wider aggregate
+  equality involving text, floats, sums, or erased fields.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source

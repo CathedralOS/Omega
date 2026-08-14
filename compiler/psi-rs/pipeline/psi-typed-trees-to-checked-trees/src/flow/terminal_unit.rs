@@ -2612,7 +2612,7 @@ fn build_partial_affine_unit_cleanup_machine(
         return None;
     }
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
-    let exact_runtime_requires_are_terminal = contract.crash.has_structural_runtime_divisor()
+    let runtime_divisor_requires_are_terminal = contract.crash.has_structural_runtime_divisor()
         && contract.crash.structural_runtime_requirements().is_some();
     if !is_unit(program, state.return_type)
         || program
@@ -2621,7 +2621,7 @@ fn build_partial_affine_unit_cleanup_machine(
             .chain(program.state_contracts(state))
             .any(|contract| match contract.kind {
                 SignatureContractKind::Crashes { .. } => false,
-                SignatureContractKind::Requires if exact_runtime_requires_are_terminal => false,
+                SignatureContractKind::Requires if runtime_divisor_requires_are_terminal => false,
                 SignatureContractKind::Requires
                 | SignatureContractKind::Ensures
                 | SignatureContractKind::Boundary => true,
@@ -3409,7 +3409,7 @@ fn target_contract_mentions_projected_parameter(
     parameter: &StateParameter,
 ) -> bool {
     let expected_root = parameter_root_symbol(target_machine.symbol, parameter);
-    let exact_runtime_requires_are_terminal = facts
+    let runtime_divisor_requires_are_terminal = facts
         .contract_plans
         .for_machine(target_machine.symbol)
         .is_some_and(|contract| {
@@ -3421,7 +3421,7 @@ fn target_contract_mentions_projected_parameter(
         .iter()
         .filter(|contract| match contract.kind {
             SignatureContractKind::Crashes { .. } => false,
-            SignatureContractKind::Requires if exact_runtime_requires_are_terminal => false,
+            SignatureContractKind::Requires if runtime_divisor_requires_are_terminal => false,
             SignatureContractKind::Requires
             | SignatureContractKind::Ensures
             | SignatureContractKind::Boundary => true,

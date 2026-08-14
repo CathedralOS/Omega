@@ -697,6 +697,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 | CheckedIntegerBinaryKind::SaturatingSubtract
                                 | CheckedIntegerBinaryKind::WrappingMultiply
                                 | CheckedIntegerBinaryKind::SaturatingMultiply
+                                | CheckedIntegerBinaryKind::WrappingDivide
+                                | CheckedIntegerBinaryKind::SaturatingDivide
+                                | CheckedIntegerBinaryKind::WrappingRemainder
+                                | CheckedIntegerBinaryKind::SaturatingRemainder
                         ));
                     (supported
                         && is_integer(primitive_type)

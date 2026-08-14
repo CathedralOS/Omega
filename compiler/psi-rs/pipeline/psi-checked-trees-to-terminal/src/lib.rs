@@ -10364,6 +10364,41 @@ fn safe_exact_structural_divisor(
     })
 }
 
+fn safe_policy_structural_divisor(
+    integer_type: IntegerType,
+    divisor: &ScalarTerm,
+    requirements: &[Proposition],
+) -> bool {
+    match divisor {
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(value),
+        } => return *scalar_type == integer_type && *value != 0,
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Signed(value),
+        } => return *scalar_type == integer_type && *value != 0,
+        _ => {}
+    }
+
+    let one = match integer_type.sign() {
+        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+        IntegerSign::Signed => IntegerValue::Signed(1),
+    };
+    if ScalarTerm::integer(integer_type, one)
+        .is_ok_and(|one| requirements.contains(&Proposition::LessOrEqual(one, divisor.clone())))
+    {
+        return true;
+    }
+    if integer_type.sign() != IntegerSign::Signed {
+        return false;
+    }
+    [IntegerValue::Signed(-1), IntegerValue::Signed(-2)]
+        .into_iter()
+        .filter_map(|bound| ScalarTerm::integer(integer_type, bound).ok())
+        .any(|bound| requirements.contains(&Proposition::LessOrEqual(divisor.clone(), bound)))
+}
+
 fn lower_structural_crash_route_buckets(
     buckets: &[psi_checked_trees::CrashRouteBucket],
     parameters: &[StructuralParameterDeclaration],
@@ -10506,6 +10541,10 @@ fn lower_structural_crash_route_buckets(
                         | CheckedIntegerBinaryKind::SaturatingSubtract
                         | CheckedIntegerBinaryKind::WrappingMultiply
                         | CheckedIntegerBinaryKind::SaturatingMultiply
+                        | CheckedIntegerBinaryKind::WrappingDivide
+                        | CheckedIntegerBinaryKind::WrappingRemainder
+                        | CheckedIntegerBinaryKind::SaturatingDivide
+                        | CheckedIntegerBinaryKind::SaturatingRemainder
                 ) =>
                 {
                     let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
@@ -10543,6 +10582,21 @@ fn lower_structural_crash_route_buckets(
                     ) {
                         return unsupported(
                             "structural crash exact division requires explicit terminal divisor safety evidence",
+                        );
+                    }
+                    if matches!(
+                        kind,
+                        CheckedIntegerBinaryKind::WrappingDivide
+                            | CheckedIntegerBinaryKind::WrappingRemainder
+                            | CheckedIntegerBinaryKind::SaturatingDivide
+                            | CheckedIntegerBinaryKind::SaturatingRemainder
+                    ) && !safe_policy_structural_divisor(
+                        integer_type,
+                        &right,
+                        runtime_requirements,
+                    ) {
+                        return unsupported(
+                            "structural crash policy division requires explicit terminal nonzero-divisor evidence",
                         );
                     }
                     Ok(match kind {
@@ -10612,6 +10666,34 @@ fn lower_structural_crash_route_buckets(
                         }
                         CheckedIntegerBinaryKind::SaturatingMultiply => {
                             ScalarTerm::SaturatingIntegerMultiply {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::WrappingDivide => {
+                            ScalarTerm::WrappingIntegerDivide {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::WrappingRemainder => {
+                            ScalarTerm::WrappingIntegerRemainder {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::SaturatingDivide => {
+                            ScalarTerm::SaturatingIntegerDivide {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::SaturatingRemainder => {
+                            ScalarTerm::SaturatingIntegerRemainder {
                                 scalar_type: integer_type,
                                 left,
                                 right,
@@ -10838,7 +10920,11 @@ fn substitute_structural_crash_route_roots(
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
             | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
