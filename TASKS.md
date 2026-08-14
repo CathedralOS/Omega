@@ -381,13 +381,13 @@ compiler concept is introduced.
   bijective write-capable parameter permutations. Primitive-only concrete
   record/sum locals remain isolated through nested fixed arrays.
 
-  Continue with representable relational candidates. Recursive, boundary,
+  Continue with representable relational candidates. Boundary,
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, third aggregate or computed shells, other computed field shapes,
-  and out-of-isolated-root
-  shapes remain conservative fences. Do not restore authored `stores` clauses or treat
-  lifetime elision as evidence; Git carries individual evidence cohorts.
+  and out-of-isolated-root shapes remain conservative fences. Do not restore
+  authored `stores` clauses or treat lifetime elision as evidence; Git carries
+  individual evidence cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
@@ -452,36 +452,24 @@ Remaining N6/N8 work:
   one carrierless term at named `ensures`; consume its normalized requirement
   map. Named `requires` terms are positional erased inputs, passed explicitly
   after `;` and projected as `term.member`. Never infer evidence from visible
-  facts or attached state names. The optional contract binding now parses on
-  machine `requires`/`ensures` and state arrival `requires`, requires exactly
-  one proposition, and remains distinct through resolved and typed trees plus
-  snapshots. Checked trees now
-  reject Boolean, membership, fact-only, and non-nominal bindings, and mint one
-  exact erased term identity per witness-bearing binding with its independent
-  requires/ensures lane position, normalized proposition application, and
-  carrierless interface. Calls now retain a separate erased identifier lane
-  through syntax, resolved, and typed trees; checked calls bind each explicit
-  caller term identity to the callee's named-requires identity by position after
-  runtime-argument substitution, rejecting missing, extra, unknown, or
-  proposition-mismatched terms without visible-fact inference. State arrival
-  `requires` clauses now admit the same witness-bearing binding, and named
-  transitions retain a separate erased lane through syntax, resolved, and
-  typed trees. Checked edges bind it positionally after transition-argument
-  substitution; missing, extra, unknown, and mismatched terms reject, while
-  enclosing machine terms remain live without redundant retransmission.
-  Bare-name requires-to-ensures forwarding now
-  leaves the runtime statement stream, retains exact resolved/typed owner and
-  term names, and checks to an exact source/output handle pair only when the
-  normalized proposition and evidence interface match. Direct ordinary returns
-  now require every named output exactly once, reject repeated assignment, and
-  exempt crash-only paths that produce no output package. Continue with private
-  complete-conformance selection, generated output packages, and terminal
-  evidence identity.
-- Add named-ensures definite assignment per outcome and compiler-generated
-  nominal output packages. `value` is the runtime result; evidence erases,
-  destructuring is complete or explicitly `_`, and guarded fields exist only
-  in the matching refinement. Keep proposition, evidence-term, and provenance
-  identities separate.
+  facts or attached state names.
+
+  The implemented front half retains optional single-proposition bindings on
+  machine/state contracts through resolved and typed snapshots, then mints one
+  exact erased checked term identity with independent requires/ensures lane
+  position and normalized proposition application. Calls and named transitions
+  carry separate erased argument lanes and bind them positionally after runtime
+  substitution; missing, extra, unknown, non-nominal, or mismatched terms reject.
+  Enclosing terms remain live without retransmission. Bare-name forwarding is
+  proof-only and retains an exact source/output handle pair; direct ordinary
+  returns assign every named output exactly once, while crash-only paths assign
+  none. Continue with private complete-conformance selection, generated output
+  packages, and terminal evidence identity.
+- Extend named-ensures definite assignment to every ordinary outcome and emit
+  compiler-generated nominal output packages. `value` is the runtime result;
+  evidence erases, destructuring is complete or explicitly `_`, and guarded
+  fields exist only in the matching refinement. Keep proposition, evidence-term,
+  and provenance identities separate.
 - Finish name-owned generic telescopes and explicit binders:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares an
   implementation; `Evidence: Subject satisfies Trait` binds one. Identity
