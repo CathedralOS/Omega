@@ -1184,6 +1184,14 @@ fn validate_state_statement_node(
                 }
             }
             if local_data.initial_value.is_valid() {
+                arithmetic_domains::collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    value_env,
+                    exact_integer_casts,
+                );
                 arithmetic_domains::record_assignment(
                     value_env,
                     Some(local_data.name.as_str().to_owned()),

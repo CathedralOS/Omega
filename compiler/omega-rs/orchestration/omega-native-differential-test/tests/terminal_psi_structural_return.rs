@@ -739,9 +739,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             input: u64 in Wrapping,
             small: u8,
             enabled: bool
-        ) -> bool {
+        ) -> bool
+        requires input <= 255u64
+        {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && ((small as u16) < 5u16)
+                && ((input as u8) < 5u8)
                 && enabled;
             staged
         }
@@ -785,6 +788,22 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             .operations
             .iter()
             .any(|operation| matches!(operation.kind, OperationKind::IntegerWiden { .. }))
+    }));
+    let cast_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::IntegerExactCast { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the guarded exact cast");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
     }));
     assert_eq!(
         terminal_entry

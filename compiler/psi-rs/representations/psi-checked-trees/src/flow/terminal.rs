@@ -305,8 +305,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// equality with a constant is normalized to identity/negation. One direct
     /// relevant Boolean field identity on one nominal-cleanup root is also
     /// admitted. Integer-comparison leaves separately accept scalar parameters
-    /// and landed constants beneath at most one total binary, bitwise-not, or
-    /// integer-widening computation shell.
+    /// and landed constants beneath at most one total binary, bitwise-not,
+    /// integer-widening, or proof-bearing exact-cast computation shell. The
+    /// exact-cast slice retains one direct unsigned parameter upper bound.
     /// Nested or multiple field identities, member/comparison mixtures, wider
     /// integer computations, and richer leaves retain the source-distributed
     /// fallback and publish `None`.
@@ -315,10 +316,22 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// scalar return edge. Nominal cleanup actions select root-local subsets
     /// by `source_parameter_index`; no-code actions consume no premise.
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
+    /// One bounded scalar premise retained from the authored contract. The
+    /// first slice admits a direct unsigned parameter upper bound so
+    /// proof-bearing exact narrowing can be reconstructed terminally.
+    pub scalar_requirements: Vec<CheckedStructuralScalarIntegerUpperBoundRequirementPlan>,
     /// Complete post-result cleanup stream in reverse authored parameter
     /// order. Keeping trivial and nominal actions in one list prevents either
     /// representation or a later producer from losing their relative order.
     pub cleanup_actions: Vec<CheckedStructuralScalarReturnCleanupAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralScalarIntegerUpperBoundRequirementPlan {
+    /// Dense position in this plan's scalar parameter namespace.
+    pub parameter_position: u32,
+    pub primitive_type: PrimitiveType,
+    pub maximum: psi_numerics::literals::IntegerLiteral,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
