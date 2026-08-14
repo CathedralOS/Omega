@@ -809,11 +809,15 @@ Multiple such diamonds may occur in one direct expression. Typed scalar-call
 arguments may contain the same bounded integer division/remainder expressions;
 their facts survive assignment, the typed call relocation, object/image
 validation, installation serialization, and installed-closure recomposition.
-Division inside a language-level conditional condition or arm remains outside
-this bounded slice with general nested and reconvergent control. Crashes in
-arms, external adapter/interrupt-arrival state, and other terminal function
-forms are not yet part of that theorem, so the inspection surface still makes
-no installed-root WCSU claim.
+The same linear replay now accepts direct division or remainder in either arm
+of the one top-level two-return conditional. AArch64 admits every emitted
+policy form; x86 admits only byte streams with no compiler-generated division
+diamond. Division inside the condition, inside an arm's call arguments, and
+signed x86 Wrapping/Saturating arm diamonds remain outside the bounded theorem
+with general nested and reconvergent control. Crashes in arms, external
+adapter/interrupt-arrival state, and other terminal function forms are not yet
+part of that theorem, so the inspection surface still makes no installed-root
+WCSU claim.
 
 ## Implementation queue
 

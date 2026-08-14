@@ -336,8 +336,10 @@ fn emit_function(
                     target,
                 )?,
             };
-            scalar_stack_eligible =
-                direct_linear_integer_arm(when_true) && direct_linear_integer_arm(when_false);
+            scalar_stack_eligible = direct_accountable_integer_arm(when_true)
+                && direct_accountable_integer_arm(when_false)
+                && (architecture != Architecture::X86_64
+                    || collect_x86_division_branch_evidence(&fragment.bytes)?.is_empty());
             if scalar_stack_eligible {
                 scalar_control_flow = fragment
                     .conditional
@@ -373,8 +375,10 @@ fn emit_function(
                 )?,
             };
             scalar_stack_eligible = linear_boolean_expression(condition)
-                && direct_linear_integer_arm(when_true)
-                && direct_linear_integer_arm(when_false);
+                && direct_accountable_integer_arm(when_true)
+                && direct_accountable_integer_arm(when_false)
+                && (architecture != Architecture::X86_64
+                    || collect_x86_division_branch_evidence(&fragment.bytes)?.is_empty());
             if scalar_stack_eligible {
                 scalar_control_flow = fragment
                     .conditional
@@ -6502,12 +6506,71 @@ fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bo
     }
 }
 
-fn direct_linear_integer_arm(arm: &TerminalAssignedConditionalIntegerArm) -> bool {
+fn direct_accountable_integer_arm(arm: &TerminalAssignedConditionalIntegerArm) -> bool {
     matches!(
         arm.control.as_ref(),
         TerminalAssignedIntegerControl::Return { expression, .. }
-            if linear_integer_expression(expression)
+            if accountable_conditional_arm_integer_expression(expression)
     )
+}
+
+/// The first conditional-division slice permits division in the direct arm
+/// expression while keeping call arguments on the existing linear rail. This
+/// prevents a compiler-generated x86 division diamond from being hidden inside
+/// argument materialization before nested conditional evidence exists.
+fn accountable_conditional_arm_integer_expression(
+    expression: &TerminalAssignedIntegerExpression,
+) -> bool {
+    match expression {
+        TerminalAssignedIntegerExpression::Call { arguments, .. } => arguments
+            .iter()
+            .all(|argument| linear_scalar_expression(&argument.expression)),
+        TerminalAssignedIntegerExpression::Immediate { .. }
+        | TerminalAssignedIntegerExpression::Parameter { .. } => true,
+        TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerWiden { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerExactCast { operand, .. } => {
+            accountable_conditional_arm_integer_expression(operand)
+        }
+        TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::WrappingShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
+            accountable_conditional_arm_integer_expression(left)
+                && accountable_conditional_arm_integer_expression(right)
+        }
+    }
 }
 
 fn collect_scalar_stack_evidence(
@@ -9188,7 +9251,7 @@ mod tests {
     }
 
     #[test]
-    fn broader_conditional_shapes_remain_outside_scalar_stack_evidence() {
+    fn conditional_division_admits_only_branch_free_arm_forms() {
         let mut division_arm = conditional_plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
             &mut division_arm.functions[0].operation
@@ -9210,13 +9273,71 @@ mod tests {
                 value: IntegerValue::Unsigned(2),
             }),
         };
+        let emitted = emit_machine_code(&division_arm).expect("conditional division emits");
+        assert!(matches!(
+            emitted.functions[0]
+                .scalar_stack
+                .as_ref()
+                .expect("branch-free x86 division arm has outer conditional evidence")
+                .control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+        ));
+
+        let signed_division_plan = |target: NativeTarget| {
+            let mut plan = conditional_plan(target);
+            let locations = match target.architecture {
+                Architecture::X86_64 => (MachineRegister::X86Rsi, MachineRegister::X86Rdx),
+                Architecture::Aarch64 => {
+                    (MachineRegister::Aarch64X(1), MachineRegister::Aarch64X(2))
+                }
+            };
+            let TerminalTargetOperation::ReturnIntegerConditionalControl {
+                scalar_type,
+                when_true,
+                ..
+            } = &mut plan.functions[0].operation
+            else {
+                unreachable!()
+            };
+            *scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            let TerminalTargetIntegerControl::Return { expression, .. } =
+                when_true.control.as_mut()
+            else {
+                unreachable!()
+            };
+            *expression = TerminalTargetIntegerExpression::WrappingDivide {
+                psi_operation: OperationId::new(8).expect("divide operation"),
+                left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(8).expect("left"),
+                    parameter_index: 1,
+                    location: TerminalScalarParameterLocation::Register(locations.0),
+                }),
+                right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(9).expect("right"),
+                    parameter_index: 2,
+                    location: TerminalScalarParameterLocation::Register(locations.1),
+                }),
+            };
+            plan
+        };
         assert_eq!(
-            emit_machine_code(&division_arm)
-                .expect("conditional division still emits")
+            emit_machine_code(&signed_division_plan(NativeTarget::linux_x64()))
+                .expect("signed x86 conditional division still emits")
                 .functions[0]
                 .scalar_stack,
-            None
+            None,
+            "the compiler-generated signed x86 division diamond remains fenced"
         );
+        assert!(matches!(
+            emit_machine_code(&signed_division_plan(NativeTarget::linux_arm64()))
+                .expect("signed AArch64 conditional division emits")
+                .functions[0]
+                .scalar_stack
+                .as_ref()
+                .expect("branch-free AArch64 signed division is retained")
+                .control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+        ));
 
         let mut crash_arm = conditional_plan(NativeTarget::linux_arm64());
         let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
@@ -9237,6 +9358,88 @@ mod tests {
                 .scalar_stack,
             None
         );
+    }
+
+    #[test]
+    fn branch_free_division_and_remainder_are_retained_in_either_conditional_arm() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            for kind in 0..6 {
+                for false_arm in [false, true] {
+                    let mut plan = conditional_plan(target);
+                    let TerminalTargetOperation::ReturnIntegerConditionalControl {
+                        when_true,
+                        when_false,
+                        ..
+                    } = &mut plan.functions[0].operation
+                    else {
+                        unreachable!()
+                    };
+                    let arm = if false_arm { when_false } else { when_true };
+                    let TerminalTargetIntegerControl::Return { expression, .. } =
+                        arm.control.as_mut()
+                    else {
+                        unreachable!()
+                    };
+                    let operation = OperationId::new(20 + kind).expect("division operation");
+                    let left = || {
+                        Box::new(TerminalTargetIntegerExpression::Immediate {
+                            source_value: ValueId::new(20).expect("left"),
+                            value: IntegerValue::Unsigned(8),
+                        })
+                    };
+                    let right = || {
+                        Box::new(TerminalTargetIntegerExpression::Immediate {
+                            source_value: ValueId::new(21).expect("right"),
+                            value: IntegerValue::Unsigned(2),
+                        })
+                    };
+                    *expression = match kind {
+                        0 => TerminalTargetIntegerExpression::ExactDivide {
+                            psi_operation: operation,
+                            left: left(),
+                            right: right(),
+                        },
+                        1 => TerminalTargetIntegerExpression::ExactRemainder {
+                            psi_operation: operation,
+                            left: left(),
+                            right: right(),
+                        },
+                        2 => TerminalTargetIntegerExpression::WrappingDivide {
+                            psi_operation: operation,
+                            left: left(),
+                            right: right(),
+                        },
+                        3 => TerminalTargetIntegerExpression::WrappingRemainder {
+                            psi_operation: operation,
+                            left: left(),
+                            right: right(),
+                        },
+                        4 => TerminalTargetIntegerExpression::SaturatingDivide {
+                            psi_operation: operation,
+                            left: left(),
+                            right: right(),
+                        },
+                        5 => TerminalTargetIntegerExpression::SaturatingRemainder {
+                            psi_operation: operation,
+                            left: left(),
+                            right: right(),
+                        },
+                        _ => unreachable!(),
+                    };
+                    let emitted = emit_machine_code(&plan).unwrap_or_else(|error| {
+                        panic!("{target:?} kind {kind} false_arm={false_arm}: {error:?}")
+                    });
+                    assert!(matches!(
+                        emitted.functions[0]
+                            .scalar_stack
+                            .as_ref()
+                            .expect("branch-free conditional division stack evidence")
+                            .control_flow,
+                        TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+                    ));
+                }
+            }
+        }
     }
 
     #[test]
