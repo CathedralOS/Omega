@@ -38,12 +38,19 @@ pub fn lower_artifact_sections(
 /// Bind Omega's provider policy only to exact rows preserved from the verified
 /// terminal catalog. Psi independently replays artifact verification before it
 /// returns the private-field installation carrier consumed by its interpreter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedProviderAdapter {
+    pub requirement_identity: String,
+    pub provider_identity: String,
+    pub machine_identity: String,
+}
+
 pub fn admit_provider_installation(
     plan: &TerminalAbstractOperationPlan,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &psi_proof_kernel::AdmissionProfile,
-    selected: &omega_effects::SelectedProviderPlanFacts,
+    selected: &[SelectedProviderAdapter],
 ) -> Result<psi_terminal_interpreter::AdmittedProviderInstallation, ProviderInstallationError> {
     let mut selections = Vec::new();
     let mut boundaries = plan
@@ -68,18 +75,13 @@ pub fn admit_provider_installation(
             return Err(ProviderInstallationError::InvalidLoweredCatalog);
         }
         let selected_rows = selected
-            .plans()
             .iter()
-            .flat_map(|provider| {
-                provider.rows.iter().filter_map(move |row| {
-                    let omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine } =
-                        &row.binding
-                    else {
-                        return None;
-                    };
-                    (row.requirement_identity == requirement_identity)
-                        .then_some((provider.provider_type.as_str(), machine.as_str()))
-                })
+            .filter(|row| row.requirement_identity == requirement_identity)
+            .map(|row| {
+                (
+                    row.provider_identity.as_str(),
+                    row.machine_identity.as_str(),
+                )
             })
             .collect::<Vec<_>>();
         if selected_rows.is_empty() {

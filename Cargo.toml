@@ -55,6 +55,7 @@ members = [
     "compiler/omega-rs/representations/omega-control-flow",
     "compiler/omega-rs/representations/omega-abstract-operations",
     "compiler/omega-rs/representations/omega-terminal-abstract-operations",
+    "compiler/omega-rs/representations/omega-terminal-installation-evidence",
     "compiler/omega-rs/representations/omega-terminal-target-operations",
     "compiler/omega-rs/representations/omega-terminal-assigned-target-operations",
     "compiler/omega-rs/representations/omega-terminal-machine-code",

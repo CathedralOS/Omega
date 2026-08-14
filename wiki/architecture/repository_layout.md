@@ -98,6 +98,9 @@ Omega/
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
+|   |   |-- [CRATE] omega-terminal-abstract-operations/ # Source-independent terminal-Psi lowering requirements.
+|   |   |-- [CRATE] omega-terminal-installation-evidence/ # Read-only projections of orchestration-owned admission evidence.
+|   |   |-- [CRATE] omega-terminal-target-operations/  # Target-aware operations for the clean terminal-Psi lane.
 |   |   |-- [CRATE] omega-terminal-assigned-target-operations/ # Assigned homes for the clean terminal-Psi lane.
 |   |   |-- [CRATE] omega-target-operations/            # Target-aware operations after legalization and selection.
 |   |   |-- [CRATE] omega-assigned-target-operations/   # Target-aware operations after register and stack assignment.

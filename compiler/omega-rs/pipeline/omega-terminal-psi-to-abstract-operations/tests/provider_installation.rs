@@ -1,9 +1,6 @@
-use omega_effects::{
-    SelectedProviderPlanFacts,
-    provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema},
-};
 use omega_terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact_sections,
+    ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
+    lower_artifact_sections,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
@@ -40,7 +37,7 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
             &semantic,
             &proof,
             &profile,
-            &SelectedProviderPlanFacts::default(),
+            &[],
         ),
         Err(ProviderInstallationError::MissingSelectedProvider { boundary })
             if boundary == boundary_id(1)
@@ -207,41 +204,12 @@ fn provider_catalog_union_rejects_a_candidate_that_reenters_its_boundary() {
     );
 }
 
-fn selected(name: &str, provider: &str, machine: &str) -> SelectedProviderPlanFacts {
-    let plan = ProviderPlan {
-        name: name.into(),
-        provider_type: provider.into(),
-        target: "test".into(),
-        schema: ServiceSchema {
-            trait_name: "Signal".into(),
-            methods: vec![ServiceMethod {
-                name: "emit".into(),
-                requirement_owner: "Signal".into(),
-                requirement_identity: REQUIREMENT.into(),
-                parameter_count: 0,
-                parameter_type_identities: Vec::new(),
-                entry_claims: Vec::new(),
-                has_result: false,
-                result_type_identity: None,
-                result_claims: Vec::new(),
-                service_reach: vec!["Signal".into()],
-                synchronous_invocations: Vec::new(),
-                may_suspend: false,
-                may_block: false,
-                calling_plan_fingerprint: None,
-            }],
-        },
-        rows: vec![ProviderPlanRow {
-            method: "emit".into(),
-            requirement_identity: REQUIREMENT.into(),
-            binding: ProviderBinding::CheckedAdapter {
-                machine: machine.into(),
-            },
-        }],
-        origin_package: "test".into(),
-    };
-    SelectedProviderPlanFacts::from_selection(std::slice::from_ref(&plan), &[name.into()])
-        .expect("valid selected provider plan")
+fn selected(_name: &str, provider: &str, machine: &str) -> Vec<SelectedProviderAdapter> {
+    vec![SelectedProviderAdapter {
+        requirement_identity: REQUIREMENT.into(),
+        provider_identity: provider.into(),
+        machine_identity: machine.into(),
+    }]
 }
 
 fn artifact(module: &TerminalModule) -> (Vec<u8>, Vec<u8>) {

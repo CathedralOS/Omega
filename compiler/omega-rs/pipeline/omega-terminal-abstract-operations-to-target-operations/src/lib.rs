@@ -37,7 +37,8 @@ use psi_terminal::{
 #[derive(Debug, Clone, Copy)]
 pub struct AdmittedTerminalBoundarySettlement<'execution> {
     pub boundary: BoundaryMachineId,
-    pub provider_execution: &'execution omega_external_roots::ProviderExecution,
+    pub provider_execution:
+        &'execution dyn omega_terminal_installation_evidence::TerminalProviderExecutionEvidence,
     pub realization: omega_terminal_target_operations::TerminalMetadataOnlyPortRealization,
 }
 
@@ -58,18 +59,17 @@ pub fn lower_to_target_operations_with_provider_executions(
     let bindings = settlements
         .iter()
         .map(|settlement| {
-            let admitted = settlement.provider_execution.terminal_binding();
             let provider_plan = omega_terminal_target_operations::TerminalProviderPlanIdentity::new(
-                admitted.provider_plan(),
+                settlement.provider_execution.provider_plan(),
             )
             .ok_or_else(|| LoweringError::ProviderExecutionBinding("zero provider plan".into()))?;
             let provider_execution =
                 omega_terminal_target_operations::TerminalProviderExecutionBinding::from_execution_record(
                     provider_plan,
-                    admitted.provider_execution_identity(),
-                    admitted.provider_execution_fingerprint(),
-                    admitted.normalized_root_identity(),
-                    admitted.boundary_contract_fingerprint(),
+                    settlement.provider_execution.provider_execution_identity(),
+                    settlement.provider_execution.provider_execution_fingerprint(),
+                    settlement.provider_execution.normalized_root_identity(),
+                    settlement.provider_execution.boundary_contract_fingerprint(),
                 )
                 .ok_or_else(|| {
                     LoweringError::ProviderExecutionBinding(

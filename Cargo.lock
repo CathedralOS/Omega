@@ -547,6 +547,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-executable-installation",
  "omega-target",
+ "omega-terminal-installation-evidence",
  "psi-core",
  "psi-extents",
  "psi-language-semantics",
@@ -1156,9 +1157,9 @@ name = "omega-terminal-abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-external-roots",
  "omega-target",
  "omega-terminal-abstract-operations",
+ "omega-terminal-installation-evidence",
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
@@ -1181,13 +1182,13 @@ version = "0.1.0"
 dependencies = [
  "iced-x86",
  "omega-calling-conventions",
- "omega-external-roots",
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",
  "omega-image-pe",
  "omega-object-file",
  "omega-target",
+ "omega-terminal-installation-evidence",
  "omega-terminal-machine-code",
  "omega-terminal-target-operations",
  "omega-x86-encoding",
@@ -1196,6 +1197,15 @@ dependencies = [
  "psi-terminal",
  "psi-terminal-fuel",
  "sha2",
+]
+
+[[package]]
+name = "omega-terminal-installation-evidence"
+version = "0.1.0"
+dependencies = [
+ "omega-target",
+ "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]
@@ -1230,7 +1240,6 @@ dependencies = [
 name = "omega-terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
- "omega-effects",
  "omega-terminal-abstract-operations",
  "psi-core",
  "psi-proof-kernel",

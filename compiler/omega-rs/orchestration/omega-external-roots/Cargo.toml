@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
