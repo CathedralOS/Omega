@@ -206,6 +206,30 @@ const PROJECTED_INTEGER_MEMBER_SUBTRACTION_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_MULTIPLICATION_SOURCE: &str = r#"
+    data Metrics {
+        current: u64 [0..=10];
+        factor: u64 [0..=10];
+        limit: u64;
+    }
+    data Batch { metrics: Metrics; shadow: Metrics; }
+    data Envelope { batch: Batch; spare: Batch; }
+    data Helper {}
+    machine Helper::inspect(metrics: Metrics)
+    crashes Abort
+        metrics.current * metrics.factor <= metrics.limit
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.batch.metrics.current * envelope.batch.metrics.factor
+            <= envelope.batch.metrics.limit
+    {
+        Helper::inspect(envelope.batch.metrics);
+    }
+"#;
+
 const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
     data Flag { active: bool; }
     data Pair { left: Flag; right: Flag; decoy: Flag; }
@@ -1644,6 +1668,169 @@ fn exact_member_subtraction_rebases_every_operand_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected subtraction-member validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn exact_member_multiplication_rebases_every_operand_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn multiplication_fields(proposition: &Proposition) -> [&ScalarTerm; 3] {
+        let Proposition::Equal(
+            ScalarTerm::Boolean(true),
+            ScalarTerm::IntegerLessOrEqual {
+                scalar_type,
+                left,
+                right,
+            },
+        ) = proposition
+        else {
+            panic!("member multiplication route retains its ordered comparison")
+        };
+        let ScalarTerm::ExactIntegerMultiply {
+            scalar_type: multiplication_type,
+            left: multiplicand,
+            right: multiplier,
+        } = left.as_ref()
+        else {
+            panic!("comparison left operand retains exact multiplication")
+        };
+        assert_eq!(multiplication_type, scalar_type);
+        [multiplicand, multiplier, right]
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_MULTIPLICATION_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected exact member multiplication lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one multiplication member route")
+    };
+    for term in multiplication_fields(root_route.proposition()) {
+        let ScalarTerm::IntegerField {
+            root: field_root,
+            path,
+            scalar_type,
+        } = term
+        else {
+            panic!("caller multiplication operand is a typed member path")
+        };
+        assert_eq!(*field_root, root.structural_parameters[0].place);
+        assert_eq!(path.len(), 3);
+        assert_eq!(
+            *scalar_type,
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+        );
+    }
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    assert_eq!(structural_arguments.len(), 1);
+    assert_eq!(structural_arguments[0].path.len(), 2);
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains the multiplication member continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently substitutes every exact-multiply member operand");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("multiplication member route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 47,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("member multiplication remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let CrashRouteGuard::Predicate(predicate) = &mut crash_continuations[0].alternatives[0] else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Equal(_, ScalarTerm::IntegerLessOrEqual { left, .. }) = &mut proposition
+    else {
+        unreachable!()
+    };
+    let ScalarTerm::ExactIntegerMultiply { left, right, .. } = left.as_mut() else {
+        unreachable!()
+    };
+    let ScalarTerm::IntegerField {
+        path: left_path, ..
+    } = left.as_mut()
+    else {
+        unreachable!()
+    };
+    let ScalarTerm::IntegerField {
+        path: right_path, ..
+    } = right.as_ref()
+    else {
+        unreachable!()
+    };
+    *left_path = right_path.clone();
+    *predicate = CrashPredicateTerm::new(proposition);
+    let invalid_result = psi_terminal_verifier::validate_module(&redirected);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected multiplication-member validation result: {invalid_result:?}"
     );
 }
 
