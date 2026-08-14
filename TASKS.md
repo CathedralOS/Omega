@@ -630,9 +630,12 @@ Remaining N6/N8 work:
   call identity can be discarded). Bare-name requires-to-ensures forwarding now
   leaves the runtime statement stream, retains exact resolved/typed owner and
   term names, and checks to an exact source/output handle pair only when the
-  normalized proposition and evidence interface match. Continue with private
-  complete-conformance selection, generated output packages, path-sensitive
-  definite assignment, and terminal evidence identity.
+  normalized proposition and evidence interface match. Direct ordinary returns
+  now require every named output exactly once, reject repeated assignment, and
+  exempt crash-only paths that produce no output package. Continue with private
+  complete-conformance selection, generated output packages, transition-path
+  definite assignment alongside the named-transition lane, and terminal
+  evidence identity.
 - Add named-ensures definite assignment per outcome and compiler-generated
   nominal output packages. `value` is the runtime result; evidence erases,
   destructuring is complete or explicitly `_`, and guarded fields exist only

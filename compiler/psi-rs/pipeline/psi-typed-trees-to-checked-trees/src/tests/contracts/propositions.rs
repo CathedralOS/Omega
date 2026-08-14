@@ -52,6 +52,7 @@ fn named_witness_contracts_mint_distinct_positional_checked_terms() {
         requires second: carries(value)
         ensures output: carries(value)
         {
+            output = first;
         }
     "#;
 
@@ -338,6 +339,69 @@ fn evidence_forwarding_rejects_proposition_mismatch() {
             .contains("because their proposition identities differ")),
         "unexpected diagnostics: {diagnostics:?}"
     );
+}
+
+#[test]
+fn named_ensures_rejects_missing_assignment_on_direct_exit() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("every ordinary exit must assign each named ensures term");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "named ensures evidence `outgoing` is not definitely assigned on the ordinary exit"
+            )),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn named_ensures_rejects_repeated_assignment_on_one_path() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+            outgoing = incoming;
+            outgoing = incoming;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("one output term cannot be assigned twice on one path");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("named ensures evidence `outgoing` is assigned more than once")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn named_ensures_need_not_be_assigned_on_crash_only_exit() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine abort(value: i32)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        crashes Abort if true;
+        {
+            crash Abort;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a crash-only path is not an ordinary evidence-package return");
 }
 
 #[test]

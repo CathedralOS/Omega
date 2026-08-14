@@ -145,7 +145,11 @@ runtime statement stream and records an exact checked source-to-output binding;
 both normalized proposition application and evidence interface must match. It
 does not search visible facts or mint another witness. Producer-conformance
 assignment and path-sensitive outgoing definite assignment remain separate
-steps.
+steps. The initial definite-assignment gate covers direct ordinary returns:
+each outgoing slot is assigned exactly once, duplicate assignment rejects, and
+a crash-only path has no outgoing package. State-transition paths remain
+fail-closed with the named-transition evidence lane until that lane can retain
+the same assignment state across edges.
 
 Named requirements are positional erased inputs. Calls pass them explicitly in
 clause order after a `;` lane separator, never through visible-fact or

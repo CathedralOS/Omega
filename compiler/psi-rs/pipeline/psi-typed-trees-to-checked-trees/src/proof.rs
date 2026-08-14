@@ -147,9 +147,165 @@ pub(crate) fn bind_evidence_forwarding_facts(
 
     if diagnostics.is_empty() {
         proof.evidence_forwardings = forwardings;
-        Ok(())
+        validate_evidence_forwarding_definite_assignment(program, proof)
     } else {
         Err(diagnostics)
+    }
+}
+
+fn validate_evidence_forwarding_definite_assignment(
+    program: &psi_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    use psi_typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+    use std::collections::{BTreeSet, VecDeque};
+
+    let mut diagnostic_messages = BTreeSet::new();
+
+    for machine in program.machines() {
+        let outputs = proof
+            .evidence_terms
+            .iter()
+            .filter_map(|(handle, term)| {
+                (term.owner
+                    == (ContractProofFactOwner::Machine {
+                        machine_symbol: machine.symbol,
+                    })
+                    && term.kind == ContractProofFactKind::Ensures)
+                    .then_some(handle)
+            })
+            .collect::<Vec<_>>();
+        if outputs.is_empty() {
+            continue;
+        }
+        let states = program.machine_states(machine);
+        let Some(entry) = states.first() else {
+            continue;
+        };
+        let mut work = VecDeque::from([(entry.symbol, BTreeSet::<u32>::new())]);
+        let mut seen = BTreeSet::new();
+
+        while let Some((state_symbol, mut assigned)) = work.pop_front() {
+            let key = (
+                state_symbol.arena_index(),
+                assigned.iter().copied().collect::<Vec<_>>(),
+            );
+            if !seen.insert(key) {
+                continue;
+            }
+            let Some(state) = states.iter().find(|state| state.symbol == state_symbol) else {
+                continue;
+            };
+
+            let assignments = proof
+                .evidence_forwardings
+                .iter()
+                .filter_map(|(_, forwarding)| {
+                    (forwarding.machine_symbol == machine.symbol
+                        && forwarding.state_symbol == state.symbol)
+                        .then_some(forwarding)
+                })
+                .collect::<Vec<_>>();
+            for forwarding in assignments {
+                if !assigned.insert(forwarding.output.arena_index()) {
+                    let term = proof.evidence_terms.get(forwarding.output);
+                    diagnostic_messages.insert(format!(
+                        "named ensures evidence `{}` is assigned more than once on a reachable path through {}::{}",
+                        term.name, machine.name, state.name
+                    ));
+                }
+            }
+
+            let mut has_transition = false;
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                has_transition = true;
+                if transition.exit != TransitionExit::Ordinary {
+                    continue;
+                }
+                for target_handle in [transition.target, transition.continuation] {
+                    if !target_handle.is_valid() {
+                        continue;
+                    }
+                    match program.statement_table.transition_target(target_handle) {
+                        TransitionTargetNode::Named { path, .. } => {
+                            let target = if path.symbol == machine.symbol {
+                                entry.symbol
+                            } else {
+                                path.symbol
+                            };
+                            if states.iter().any(|state| state.symbol == target) {
+                                work.push_back((target, assigned.clone()));
+                            } else {
+                                append_missing_evidence_diagnostics(
+                                    proof,
+                                    machine,
+                                    state,
+                                    &outputs,
+                                    &assigned,
+                                    &mut diagnostic_messages,
+                                );
+                            }
+                        }
+                        TransitionTargetNode::SelfTarget => {
+                            work.push_back((entry.symbol, assigned.clone()));
+                        }
+                        TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
+                            append_missing_evidence_diagnostics(
+                                proof,
+                                machine,
+                                state,
+                                &outputs,
+                                &assigned,
+                                &mut diagnostic_messages,
+                            );
+                        }
+                    }
+                }
+            }
+
+            if !has_transition {
+                append_missing_evidence_diagnostics(
+                    proof,
+                    machine,
+                    state,
+                    &outputs,
+                    &assigned,
+                    &mut diagnostic_messages,
+                );
+            }
+        }
+    }
+
+    if diagnostic_messages.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostic_messages
+            .into_iter()
+            .map(psi_diagnostics::Diagnostic::error)
+            .collect())
+    }
+}
+
+fn append_missing_evidence_diagnostics(
+    proof: &ProofFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    outputs: &[psi_arena::Handle<CheckedEvidenceTerm>],
+    assigned: &std::collections::BTreeSet<u32>,
+    messages: &mut std::collections::BTreeSet<String>,
+) {
+    for output in outputs {
+        if !assigned.contains(&output.arena_index()) {
+            messages.insert(format!(
+                "named ensures evidence `{}` is not definitely assigned on the ordinary exit through {}::{}",
+                proof.evidence_terms.get(*output).name,
+                machine.name,
+                state.name
+            ));
+        }
     }
 }
 
