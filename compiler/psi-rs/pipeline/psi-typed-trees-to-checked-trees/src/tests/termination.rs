@@ -8529,6 +8529,404 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
 }
 
 #[test]
+fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
+    let source = r#"
+    data Pair {
+        first: u64;
+        second: u64;
+    }
+
+    data GenericPair<T> {
+        first: T;
+        second: u64;
+    }
+
+    data Choice {
+        tag: u64;
+        case Values(first: u64, second: u64);
+        case Empty;
+    }
+
+    data RecordWithArray {
+        values: [u64; 2];
+        marker: u64;
+    }
+
+    data ChoiceWithArray {
+        tag: u64;
+        case Values(values: [u64; 2], marker: u64);
+        case Empty;
+    }
+
+    data RecordWithPairs {
+        pairs: [Pair; 1];
+        marker: u64;
+    }
+
+    data BorrowCell<'source> {
+        value: &'source mut u64;
+    }
+
+    data ReferenceHolder<'source> {
+        values: [BorrowCell<'source>; 1];
+    }
+
+    data Main {
+        cells: [u64; 2];
+        pairs: [Pair; 2];
+        choices: [Choice; 1];
+        record: RecordWithArray;
+        choice_record: ChoiceWithArray;
+        record_array: [RecordWithArray; 1];
+        pair_record: RecordWithPairs;
+        generic_pairs: [GenericPair<u64>; 1];
+        first: u64;
+        second: u64;
+        marker: u64;
+    }
+
+    data ReferenceMain<'storage> {
+        cells: [u64; 2];
+        holder: ReferenceHolder<'storage>;
+        source: &'storage mut u64;
+    }
+
+    machine compute(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine identity(value: u64) -> u64 {
+        value
+    }
+
+    machine make_pair(value: &mut u64) -> Pair {
+        value = 2;
+        Pair { first: 0, second: 1 }
+    }
+
+    machine recursive_value() -> u64 {
+        recursive_value()
+    }
+
+    machine return_reference<'value>(value: &'value mut u64) -> &'value mut u64 {
+        value
+    }
+
+    machine return_after_array_records<'cells, 'target, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [Pair; 2],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [
+            Pair {
+                first: identity(identity(identity(compute(first)))),
+                second: ~(compute(second) + 1)
+            },
+            Pair { first: 0, second: 1 }
+        ];
+        cells
+    }
+
+    machine return_after_array_cases<'cells, 'target, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [Choice; 1],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [Choice::Values {
+            tag: 0,
+            first: compute(first),
+            second: make_pair(second).first
+        }];
+        cells
+    }
+
+    machine return_after_record_array<'cells, 'target, 'first, 'second, 'marker>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut RecordWithArray,
+        first: &'first mut u64,
+        second: &'second mut u64,
+        marker: &'marker mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = RecordWithArray {
+            values: [
+                identity(identity(identity(compute(first)))),
+                ~(compute(second) + 1)
+            ],
+            marker: compute(marker)
+        };
+        cells
+    }
+
+    machine return_after_case_array<'cells, 'target, 'first, 'second, 'marker>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut ChoiceWithArray,
+        first: &'first mut u64,
+        second: &'second mut u64,
+        marker: &'marker mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = ChoiceWithArray::Values {
+            tag: 0,
+            values: [compute(first), make_pair(second).first],
+            marker: compute(marker)
+        };
+        cells
+    }
+
+    machine return_after_array_record_array<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [RecordWithArray; 1],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [RecordWithArray {
+            values: [compute(value), 0],
+            marker: 0
+        }];
+        cells
+    }
+
+    machine return_after_record_array_record<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut RecordWithPairs,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = RecordWithPairs {
+            pairs: [Pair { first: compute(value), second: 0 }],
+            marker: 0
+        };
+        cells
+    }
+
+    machine return_after_generic_array_record<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [GenericPair<u64>; 1],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [GenericPair { first: compute(value), second: 0 }];
+        cells
+    }
+
+    machine return_after_mixed_reborrow<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut RecordWithArray,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = RecordWithArray {
+            values: [compute(&mut value), 0],
+            marker: 0
+        };
+        cells
+    }
+
+    machine return_after_mixed_recursion<'cells, 'target>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [Pair; 2]
+    ) -> &'cells mut [u64; 2] {
+        target = [
+            Pair { first: recursive_value(), second: 0 },
+            Pair { first: 0, second: 1 }
+        ];
+        cells
+    }
+
+    machine return_after_reference_record_array<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut ReferenceHolder<'value>,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = ReferenceHolder {
+            values: [BorrowCell { value: return_reference(value) }]
+        };
+        cells
+    }
+
+    machine Main::array_records_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_records(
+            &mut self.cells,
+            &mut self.pairs,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::array_cases_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_cases(
+            &mut self.cells,
+            &mut self.choices,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::record_array_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_record_array(
+            &mut self.cells,
+            &mut self.record,
+            &mut self.first,
+            &mut self.second,
+            &mut self.marker
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::case_array_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_case_array(
+            &mut self.cells,
+            &mut self.choice_record,
+            &mut self.first,
+            &mut self.second,
+            &mut self.marker
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::array_record_array_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_record_array(
+            &mut self.cells,
+            &mut self.record_array,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::record_array_record_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_record_array_record(
+            &mut self.cells,
+            &mut self.pair_record,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::generic_array_record_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_generic_array_record(
+            &mut self.cells,
+            &mut self.generic_pairs,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::mixed_reborrow_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_mixed_reborrow(
+            &mut self.cells,
+            &mut self.record,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::mixed_recursion_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_mixed_recursion(
+            &mut self.cells,
+            &mut self.pairs
+        );
+        alias[0] = 3;
+    }
+
+    machine ReferenceMain::reference_record_array_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_reference_record_array(
+            &mut self.cells,
+            &mut self.holder,
+            self.source
+        );
+        alias[0] = 3;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for (name, expected_paths) in [
+        (
+            "Main::array_records_result",
+            vec!["self.cells", "self.first", "self.pairs", "self.second"],
+        ),
+        (
+            "Main::array_cases_result",
+            vec!["self.cells", "self.choices", "self.first", "self.second"],
+        ),
+        (
+            "Main::record_array_result",
+            vec![
+                "self.cells",
+                "self.first",
+                "self.marker",
+                "self.record",
+                "self.second",
+            ],
+        ),
+        (
+            "Main::case_array_result",
+            vec![
+                "self.cells",
+                "self.choice_record",
+                "self.first",
+                "self.marker",
+                "self.second",
+            ],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must preserve the mixed aggregate relation and every nested call write"
+        );
+    }
+
+    for name in [
+        "Main::array_record_array_result",
+        "Main::record_array_record_result",
+        "Main::generic_array_record_result",
+        "Main::mixed_reborrow_result",
+        "Main::mixed_recursion_result",
+        "ReferenceMain::reference_record_array_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded mixed-aggregate rung"
+        );
+    }
+}
+
+#[test]
 fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     let source = r#"
     data Main {
