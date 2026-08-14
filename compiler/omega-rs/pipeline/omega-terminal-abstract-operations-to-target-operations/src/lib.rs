@@ -310,7 +310,7 @@ fn lower_function(
             target,
             functions,
         )?;
-        let return_edges = bounded_boolean_cleanup_return_edges(&lowered.control).ok_or(
+        let return_edges = finite_boolean_cleanup_return_edges(&lowered.control).ok_or(
             LoweringError::UnsupportedOperationInScalarFunction(function.machine),
         )?;
         let cleanup_actions = uniform_conditional_cleanup(
@@ -2308,7 +2308,7 @@ fn validate_scalar_cleanup_frontier(
     Ok(())
 }
 
-fn bounded_boolean_cleanup_return_edges(
+fn finite_boolean_cleanup_return_edges(
     control: &TerminalTargetBooleanControl,
 ) -> Option<Vec<EdgeId>> {
     fn collect(
@@ -2351,8 +2351,8 @@ fn bounded_boolean_cleanup_return_edges(
     let mut decision_count = 0;
     let mut return_edges = Vec::new();
     collect(control, &mut decision_count, &mut return_edges)?;
-    if decision_count != 2
-        || return_edges.len() != 3
+    if decision_count == 0
+        || return_edges.len() < 2
         || return_edges.iter().copied().collect::<BTreeSet<_>>().len() != return_edges.len()
     {
         return None;
