@@ -37,9 +37,9 @@ use crate::places::declared_place_type_raw;
 /// `requires` clause places on its parameters (`requires amount <= 100`). Used to
 /// seed the ENTRY state's env so param arithmetic with a declared bound stays
 /// exact instead of being forced into a domain. Simple `param <OP> literal`
-/// comparisons seed intervals; the canonical `left <= MAX - right` relation
-/// additionally seeds the existing joint-add carrier. Other shapes are ignored
-/// (sound -- a missing bound just falls back to the type width).
+/// comparisons seed intervals; canonical joint addition and subtraction
+/// relations additionally seed their existing proof carriers. Other shapes are
+/// ignored (sound -- a missing bound just falls back to the type width).
 pub(crate) fn requires_value_env(
     program: &TypedTrees,
     machine: &Machine,
@@ -92,6 +92,29 @@ pub(crate) fn requires_value_env(
                 joint_add_lower_guard(program, machine, Some(entry_state), &env, comparison)
             {
                 env.mark_joint_add_lower_bound(left, right);
+            }
+            if let Some((left, right)) =
+                joint_subtract_guard(program, machine, Some(entry_state), comparison)
+            {
+                env.mark_joint_subtract_bound(left, right);
+            }
+            if let Some((left, right)) = signed_joint_subtract_lower_guard(
+                program,
+                machine,
+                Some(entry_state),
+                &env,
+                comparison,
+            ) {
+                env.mark_signed_joint_subtract_lower_bound(left, right);
+            }
+            if let Some((left, right)) = signed_joint_subtract_upper_guard(
+                program,
+                machine,
+                Some(entry_state),
+                &env,
+                comparison,
+            ) {
+                env.mark_signed_joint_subtract_upper_bound(left, right);
             }
         }
     }

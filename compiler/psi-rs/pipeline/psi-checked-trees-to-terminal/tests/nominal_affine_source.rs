@@ -411,6 +411,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         add_right: u8,
         positive_addend: i8,
         negative_addend: i8,
+        positive_subtrahend: i8,
+        negative_subtrahend: i8,
         enabled: bool
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -422,7 +424,9 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
         add_left <= 255u8 - add_right,
         0i8 <= positive_addend, signed_arithmetic <= 127i8 - positive_addend,
-        negative_addend <= 0i8, -128i8 - negative_addend <= signed_arithmetic
+        negative_addend <= 0i8, -128i8 - negative_addend <= signed_arithmetic,
+        0i8 <= positive_subtrahend, -128i8 + positive_subtrahend <= signed_arithmetic,
+        negative_subtrahend <= 0i8, signed_arithmetic <= 127i8 + negative_subtrahend
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (((input + 1u64) + 1u64) < 5u64)
@@ -459,6 +463,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((add_left + add_right) <= 255u8)
             && ((signed_arithmetic + positive_addend) <= 127i8)
             && ((signed_arithmetic + negative_addend) < 4i8)
+            && ((signed_arithmetic - positive_subtrahend) < 4i8)
+            && ((signed_arithmetic - negative_subtrahend) <= 127i8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1764,6 +1770,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::value(entry.parameters[11].id, entry.parameters[11].scalar_type);
     let negative_addend_term =
         ScalarTerm::value(entry.parameters[12].id, entry.parameters[12].scalar_type);
+    let positive_subtrahend_term =
+        ScalarTerm::value(entry.parameters[13].id, entry.parameters[13].scalar_type);
+    let negative_subtrahend_term =
+        ScalarTerm::value(entry.parameters[14].id, entry.parameters[14].scalar_type);
     let input_upper_requirement =
         Proposition::LessOrEqual(input_term.clone(), unsigned_term(64, 255));
     let shift_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 7));
@@ -1852,6 +1862,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .unwrap(),
         ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
     );
+    let positive_subtrahend_sign_requirement = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(0)).unwrap(),
+        positive_subtrahend_term.clone(),
+    );
+    let runtime_positive_subtract_requirement = Proposition::LessOrEqual(
+        ScalarTerm::exact_integer_add(
+            signed_arithmetic_type,
+            ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-128)).unwrap(),
+            positive_subtrahend_term,
+        )
+        .unwrap(),
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+    );
+    let negative_subtrahend_sign_requirement = Proposition::LessOrEqual(
+        negative_subtrahend_term.clone(),
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(0)).unwrap(),
+    );
+    let runtime_negative_subtract_requirement = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+        ScalarTerm::exact_integer_add(
+            signed_arithmetic_type,
+            ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(127)).unwrap(),
+            negative_subtrahend_term,
+        )
+        .unwrap(),
+    );
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
@@ -1876,6 +1912,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &runtime_positive_add_requirement,
         &negative_addend_sign_requirement,
         &runtime_negative_add_requirement,
+        &positive_subtrahend_sign_requirement,
+        &runtime_positive_subtract_requirement,
+        &negative_subtrahend_sign_requirement,
+        &runtime_negative_subtract_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -2313,6 +2353,33 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         })
         .collect::<Vec<_>>();
     for obligation in &runtime_signed_add_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let runtime_signed_subtract_obligations = [entry.parameters[13].id, entry.parameters[14].id]
+        .into_iter()
+        .map(|subtrahend| {
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match operation.kind {
+                    OperationKind::ExactIntegerSubtract {
+                        left,
+                        right,
+                        obligation,
+                    } if left == entry.parameters[5].id && right == subtrahend => Some(obligation),
+                    _ => None,
+                })
+                .expect("shared convergence retains each signed computed-bound runtime subtraction")
+        })
+        .collect::<Vec<_>>();
+    for obligation in &runtime_signed_subtract_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == *obligation
                 && matches!(
@@ -3039,6 +3106,79 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             }) if rejected == obligation
         ));
     }
+    for obligation in &runtime_signed_subtract_obligations {
+        let mut missing_runtime_signed_subtract_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_runtime_signed_subtract_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_runtime_signed_subtract_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+                if missing == *obligation
+        ));
+    }
+    let changed_positive_subtract_requirement = Proposition::LessOrEqual(
+        ScalarTerm::exact_integer_add(
+            signed_arithmetic_type,
+            ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-127)).unwrap(),
+            ScalarTerm::value(entry.parameters[13].id, entry.parameters[13].scalar_type),
+        )
+        .unwrap(),
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+    );
+    let changed_negative_subtract_requirement = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+        ScalarTerm::exact_integer_add(
+            signed_arithmetic_type,
+            ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(126)).unwrap(),
+            ScalarTerm::value(entry.parameters[14].id, entry.parameters[14].scalar_type),
+        )
+        .unwrap(),
+    );
+    for (original, replacement, obligation) in [
+        (
+            &runtime_positive_subtract_requirement,
+            changed_positive_subtract_requirement,
+            runtime_signed_subtract_obligations[0],
+        ),
+        (
+            &runtime_negative_subtract_requirement,
+            changed_negative_subtract_requirement,
+            runtime_signed_subtract_obligations[1],
+        ),
+    ] {
+        let mut changed_runtime_signed_subtract_bound =
+            decode_module(&semantics).expect("decode shared semantics");
+        let changed_entry = changed_runtime_signed_subtract_bound.entry;
+        let entry_contract = &mut changed_runtime_signed_subtract_bound
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed_entry)
+            .expect("changed shared entry")
+            .contract;
+        let position = entry_contract
+            .requires
+            .iter()
+            .position(|requirement| requirement == original)
+            .expect("shared convergence retains each signed computed runtime-subtract bound");
+        entry_contract.requires[position] = replacement;
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &changed_runtime_signed_subtract_bound,
+                &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+                obligation: rejected,
+                ..
+            }) if rejected == obligation
+        ));
+    }
     let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode shared proof");
     missing_shift_proof
         .evidence
@@ -3166,16 +3306,18 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         add_right,
         positive_addend,
         negative_addend,
+        positive_subtrahend,
+        negative_subtrahend,
         enabled,
     ) in [
         (
             3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, 2_i128, -2_i128, -1_i128, 200_u128,
-            55_u128, 3_i128, -3_i128, false,
+            55_u128, 3_i128, -3_i128, 3_i128, -3_i128, false,
         ),
-        (3, 4, 2, 1, -1, 2, 1, -3, -2, 100, 100, 1, -1, true),
-        (3, 5, 3, 2, 3, 3, 2, -4, -1, 254, 1, 2, -2, true),
-        (4, 4, 2, 2, 4, 2, 3, -2, -3, 0, 255, 4, -4, true),
-        (10, 4, 4, 1, -2, 0, 4, -5, -1, 42, 7, 5, -5, true),
+        (3, 4, 2, 1, -1, 2, 1, -3, -2, 100, 100, 1, -1, 1, -1, true),
+        (3, 5, 3, 2, 3, 3, 2, -4, -1, 254, 1, 2, -2, 2, -2, true),
+        (4, 4, 2, 2, 4, 2, 3, -2, -3, 0, 255, 4, -4, 4, -4, true),
+        (10, 4, 4, 1, -2, 0, 4, -5, -1, 42, 7, 5, -5, 5, -5, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -3239,6 +3381,14 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
                     value: IntegerValue::Signed(negative_addend),
                 },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+                    value: IntegerValue::Signed(positive_subtrahend),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+                    value: IntegerValue::Signed(negative_subtrahend),
+                },
                 TerminalScalarValue::Boolean(enabled),
             ],
             &structural_arguments,
@@ -3283,6 +3433,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && add_left + add_right <= 255
                     && signed_arithmetic + positive_addend <= 127
                     && signed_arithmetic + negative_addend < 4
+                    && signed_arithmetic - positive_subtrahend < 4
+                    && signed_arithmetic - negative_subtrahend <= 127
                     && input == 3
                     && enabled
             ))

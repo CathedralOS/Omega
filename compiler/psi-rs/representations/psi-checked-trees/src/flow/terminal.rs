@@ -347,6 +347,10 @@ pub enum CheckedStructuralScalarIntegerBoundPlan {
     MaximumMinusParameter(u32),
     /// The minimum of this signed carrier minus the named dense parameter.
     SignedMinimumMinusParameter(u32),
+    /// The minimum of this signed carrier plus the named dense parameter.
+    SignedMinimumPlusParameter(u32),
+    /// The maximum of this signed carrier plus the named dense parameter.
+    SignedMaximumPlusParameter(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

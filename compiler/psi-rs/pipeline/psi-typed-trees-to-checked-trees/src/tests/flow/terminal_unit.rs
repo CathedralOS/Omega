@@ -1219,6 +1219,28 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((left + right) < 4i8) && enabled;
             staged
         }
+        machine Root::runtime_signed_positive_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            left: i8,
+            right: i8,
+            enabled: bool
+        ) -> bool
+        requires 0i8 <= right, right + -128i8 <= left
+        {
+            let staged: bool = ((left - right) < 4i8) && enabled;
+            staged
+        }
+        machine Root::runtime_signed_negative_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            left: i8,
+            right: i8,
+            enabled: bool
+        ) -> bool
+        requires right <= 0i8, left <= right + 127i8
+        {
+            let staged: bool = ((left - right) <= 127i8) && enabled;
+            staged
+        }
         machine Root::exact_subtract_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1795,6 +1817,24 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             );
         assert!(
             runtime_signed_exact_add_integer_comparison
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
+    for machine in [
+        "runtime_signed_positive_exact_subtract_integer_comparison_convergence",
+        "runtime_signed_negative_exact_subtract_integer_comparison_convergence",
+    ] {
+        let runtime_signed_exact_subtract_integer_comparison = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect(
+                "one signed computed-bound runtime exact-subtract shell retains the scalar-return plan",
+            );
+        assert!(
+            runtime_signed_exact_subtract_integer_comparison
                 .shared_boolean_convergence
                 .is_some()
         );
