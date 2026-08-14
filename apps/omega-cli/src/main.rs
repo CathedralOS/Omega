@@ -395,7 +395,7 @@ fn write_operation_summary(
             )
             .expect("writing to a String cannot fail");
         }
-        OperationKind::BoundaryCallUnit {
+        OperationKind::BoundaryCall {
             boundary,
             structural_arguments,
             completion_receipts,
@@ -409,7 +409,7 @@ fn write_operation_summary(
                 .unwrap_or("unknown");
             writeln!(
                 output,
-                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCallUnit boundary=boundary:{} boundary_identity={} arguments={} completion_receipts={}",
+                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCall boundary=boundary:{} boundary_identity={} arguments={} completion_receipts={}",
                 operation.id.get(),
                 boundary.get(),
                 identity,
