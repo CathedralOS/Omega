@@ -2268,6 +2268,7 @@ pub enum Proposition {
     LessThan(ScalarTerm, ScalarTerm),
     LessOrEqual(ScalarTerm, ScalarTerm),
     Conjunction(Vec<Proposition>),
+    Disjunction(Vec<Proposition>),
     Implication {
         premise: Box<Proposition>,
         conclusion: Box<Proposition>,
@@ -2295,6 +2296,17 @@ impl Proposition {
                 }
                 for conjunct in conjuncts {
                     conjunct.validate()?;
+                }
+                Ok(())
+            }
+            Self::Disjunction(disjuncts) => {
+                if disjuncts.len() < 2 {
+                    return Err(PropositionError::NonCanonicalDisjunctionArity(
+                        disjuncts.len(),
+                    ));
+                }
+                for disjunct in disjuncts {
+                    disjunct.validate()?;
                 }
                 Ok(())
             }
@@ -2373,9 +2385,9 @@ impl PropositionContext {
                 self.validate_term(left)?;
                 self.validate_term(right)
             }
-            Proposition::Conjunction(conjuncts) => {
-                for conjunct in conjuncts {
-                    self.validate_value_terms(conjunct)?;
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                for proposition in propositions {
+                    self.validate_value_terms(proposition)?;
                 }
                 Ok(())
             }
@@ -2619,6 +2631,7 @@ pub enum PropositionError {
     },
     OrderedComparisonRequiresIntegers(ScalarType),
     NonCanonicalConjunctionArity(usize),
+    NonCanonicalDisjunctionArity(usize),
     EmptyContentAlgebraParameter,
     EmptyContentCaseName,
     EmptyContentFieldName,

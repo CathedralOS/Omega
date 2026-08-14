@@ -410,11 +410,16 @@ declared leaf. Whole-root and all-field-projected structural calls reconstruct
 those predicates across the callee boundary by prepending the caller's canonical
 argument path to every callee-relative integer-member path. The verifier repeats
 that substitution independently and rejects a redirected continuation even when
-the redirected path reaches another valid same-typed leaf. Disjunction,
-whole-aggregate equality, arithmetic over members, case-payload paths, and
-imported crash capsules remain fail-closed. Structural/content contracts reject
-because custody effects require their own vertical slice rather than an ordinary
-scalar flag.
+the redirected path reaches another valid same-typed leaf. A built-in Boolean
+disjunction retains two distinct canonically ordered proposition branches; each
+branch may contain the same accepted Boolean or integer-member predicate forms.
+Production and independent verification recursively rebase every branch across
+whole-root and all-field-projected calls. Both codecs retain the proposition;
+the semantic codec rejects nested, duplicate, or noncanonically ordered
+disjunction rows. Whole-aggregate equality, arithmetic over members,
+case-payload paths, and imported crash capsules remain fail-closed.
+Structural/content contracts reject because custody effects require their own
+vertical slice rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

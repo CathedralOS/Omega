@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 4;
+const FORMAT_MARKER: u16 = 5;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -225,9 +225,9 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
             validate_scalar_term_depth(left, 0)?;
             validate_scalar_term_depth(right, 0)?;
         }
-        Proposition::Conjunction(conjuncts) => {
-            for conjunct in conjuncts {
-                validate_proposition(conjunct, depth + 1)?;
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            for proposition in propositions {
+                validate_proposition(proposition, depth + 1)?;
             }
         }
         Proposition::Implication {
@@ -464,6 +464,13 @@ fn encode_proposition(
             encode_content_algebra(writer, conservation.algebra())?;
             encode_content_term(writer, conservation.left(), 0, format_marker)?;
             encode_content_term(writer, conservation.right(), 0, format_marker)?;
+        }
+        Proposition::Disjunction(disjuncts) => {
+            writer.u8(10);
+            writer.len("proof proposition disjuncts", disjuncts.len())?;
+            for disjunct in disjuncts {
+                encode_proposition(writer, disjunct, depth + 1, format_marker)?;
+            }
         }
     }
     Ok(())
@@ -1052,6 +1059,14 @@ fn decode_proposition(
             let left = decode_content_term(reader, 0, format_marker)?;
             let right = decode_content_term(reader, 0, format_marker)?;
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
+        }
+        10 => {
+            let count = reader.count()?;
+            let mut disjuncts = Vec::new();
+            for _ in 0..count {
+                disjuncts.push(decode_proposition(reader, depth + 1, format_marker)?);
+            }
+            Proposition::Disjunction(disjuncts)
         }
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
     })

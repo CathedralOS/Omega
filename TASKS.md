@@ -324,8 +324,10 @@ Remaining:
   path. Same-typed relevant fixed-integer members now retain canonical paths
   through equality, inequality, and ordered comparisons, including conjunction,
   whole-root and all-field-projected structural calls, both codecs, and
-  independent leaf-type checking. Continue with terminal proposition
-  disjunction, whole-aggregate equality, arithmetic over members, and
+  independent leaf-type checking. Terminal proposition disjunction now retains
+  distinct canonical branches, rebases every nested member path across
+  all-field-projected calls, and is independently reconstructed by the verifier.
+  Continue with whole-aggregate equality, arithmetic over members, and
   case-payload paths. Imported crash capsules remain design-blocked on artifact
   identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
