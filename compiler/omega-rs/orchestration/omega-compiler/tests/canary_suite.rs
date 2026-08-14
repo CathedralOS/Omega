@@ -6453,9 +6453,10 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
         outcome.exit_code
     );
     let scratch = std::env::temp_dir().join(format!("omega-system-time-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("system-time canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("system-time canary should run");
     assert_eq!(
@@ -45920,6 +45921,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_instant_elapsed_exit",
+    "time/runtime_system_time_after_2026_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
