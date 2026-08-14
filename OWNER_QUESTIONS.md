@@ -187,3 +187,22 @@ must define how body execution and specification evaluation relate, how callers
 reason about the trap edge, and what explicit term/effect and proof obligations
 terminal Psi carries. The compiler must not silently treat a potentially
 trapping contract term as a total mathematical operation.
+
+## Q11 — External-entry stack-domain accounting
+
+Terminal-Psi stack evidence derives the exact closure below a selected machine
+entry, but an external root also consumes provider-specific adapter and hardware
+arrival state. The provider must size that state; the current `EntryStack`
+contract does not say which stack domain owns it when entry interrupts an active
+stack and may switch to a dedicated or provider-selected stack. Adding all bytes
+to the terminal closure would silently assume one domain and can misstate both
+nesting peaks and dedicated-stack provisioning.
+
+Choose the resource evidence and composition rule for external-entry overhead.
+The decision must distinguish adapter frames from hardware arrival state when
+they occupy different domains, identify the interrupted and post-switch stack
+for each portion, define alignment and maximum nesting behavior, and bind every
+provider-authored size to validated entry-stub/arrival evidence. It must compose
+with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
+OS-specific interrupt-frame vocabulary in the language or treating a numeric
+provider assertion as compiler-derived terminal evidence.
