@@ -6382,7 +6382,7 @@ fn accountable_direct_integer_expression(expression: &TerminalAssignedIntegerExp
     match expression {
         TerminalAssignedIntegerExpression::Call { arguments, .. } => arguments
             .iter()
-            .all(|argument| linear_scalar_expression(&argument.expression)),
+            .all(|argument| accountable_call_argument_expression(&argument.expression)),
         TerminalAssignedIntegerExpression::Immediate { .. }
         | TerminalAssignedIntegerExpression::Parameter { .. } => true,
         TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
@@ -6427,6 +6427,17 @@ fn accountable_direct_integer_expression(expression: &TerminalAssignedIntegerExp
         | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
             accountable_direct_integer_expression(left)
                 && accountable_direct_integer_expression(right)
+        }
+    }
+}
+
+fn accountable_call_argument_expression(expression: &TerminalAssignedScalarExpression) -> bool {
+    match expression {
+        TerminalAssignedScalarExpression::Boolean(expression) => {
+            linear_boolean_expression(expression)
+        }
+        TerminalAssignedScalarExpression::Integer { expression, .. } => {
+            accountable_direct_integer_expression(expression)
         }
     }
 }
