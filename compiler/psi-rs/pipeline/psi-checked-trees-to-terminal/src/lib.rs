@@ -10545,7 +10545,7 @@ fn shared_boolean_runtime_parameters(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Some(BTreeSet::new()),
         LoweredBooleanReturnExpression::Parameter { position } => {
-            Some(BTreeSet::from([SharedBooleanRuntimeInput::Scalar(
+            Some(BTreeSet::from([SharedBooleanRuntimeInput::BooleanScalar(
                 *position,
             )]))
         }
@@ -10566,16 +10566,40 @@ fn shared_boolean_runtime_parameters(
             parameters.extend(shared_boolean_runtime_parameters(right)?);
             Some(parameters)
         }
+        LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
+            let mut parameters = shared_integer_runtime_parameters(left)?;
+            parameters.extend(shared_integer_runtime_parameters(right)?);
+            Some(parameters)
+        }
         LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
-        | LoweredBooleanReturnExpression::Equal { .. }
-        | LoweredBooleanReturnExpression::IntegerComparison { .. } => None,
+        | LoweredBooleanReturnExpression::Equal { .. } => None,
+    }
+}
+
+fn shared_integer_runtime_parameters(
+    expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    match expression {
+        LoweredDirectExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
+        LoweredDirectExpression::Parameter {
+            position,
+            scalar_type,
+        } => matches!(scalar_type, ScalarType::Integer(_))
+            .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])),
+        LoweredDirectExpression::Local { .. }
+        | LoweredDirectExpression::IntegerBinary { .. }
+        | LoweredDirectExpression::IntegerBitwiseNot { .. }
+        | LoweredDirectExpression::IntegerWiden { .. }
+        | LoweredDirectExpression::IntegerExactCast { .. }
+        | LoweredDirectExpression::Boolean { .. } => None,
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum SharedBooleanRuntimeInput {
-    Scalar(usize),
+    BooleanScalar(usize),
+    IntegerScalar(usize),
     StructuralField {
         source: PlaceId,
         field: StructuralFieldId,
@@ -10583,13 +10607,17 @@ enum SharedBooleanRuntimeInput {
 }
 
 fn valid_shared_boolean_runtime_inputs(inputs: &BTreeSet<SharedBooleanRuntimeInput>) -> bool {
+    let has_structural_field = inputs
+        .iter()
+        .any(|input| matches!(input, SharedBooleanRuntimeInput::StructuralField { .. }));
     !inputs.is_empty()
-        && (!inputs
-            .iter()
-            .any(|input| matches!(input, SharedBooleanRuntimeInput::StructuralField { .. }))
-            || inputs
+        && (!has_structural_field
+            || (inputs
                 .iter()
-                .any(|input| matches!(input, SharedBooleanRuntimeInput::Scalar(_))))
+                .any(|input| matches!(input, SharedBooleanRuntimeInput::BooleanScalar(_)))
+                && !inputs
+                    .iter()
+                    .any(|input| matches!(input, SharedBooleanRuntimeInput::IntegerScalar(_)))))
 }
 
 fn resolve_shared_boolean_member_fields(
@@ -10693,17 +10721,18 @@ fn resolve_shared_boolean_member_fields(
 }
 
 /// Normalize the comparison leaves accepted by the checked shared-convergence
-/// plan into the existing identity/negation carrier. Equality is admitted only
-/// when at least one operand is constant, so this cannot merge two runtime
-/// inputs or admit integer comparisons through the shared-join path. The one
-/// already-resolved structural-field leaf is preserved unchanged.
+/// plan into the existing identity/negation carrier. Boolean equality is
+/// admitted only when at least one operand is constant. Checked direct integer
+/// comparisons retain their exact operation. The one already-resolved
+/// structural-field leaf is preserved unchanged.
 fn normalize_shared_boolean_comparison_leaves(
     expression: &LoweredBooleanReturnExpression,
 ) -> Option<LoweredBooleanReturnExpression> {
     Some(match expression {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
-        | LoweredBooleanReturnExpression::StructuralField { .. } => expression.clone(),
+        | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => expression.clone(),
         LoweredBooleanReturnExpression::Not { operand } => LoweredBooleanReturnExpression::Not {
             operand: Box::new(normalize_shared_boolean_comparison_leaves(operand)?),
         },
@@ -10741,8 +10770,7 @@ fn normalize_shared_boolean_comparison_leaves(
             right: Box::new(normalize_shared_boolean_comparison_leaves(right)?),
         },
         LoweredBooleanReturnExpression::Local { .. }
-        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
-        | LoweredBooleanReturnExpression::IntegerComparison { .. } => return None,
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => return None,
     })
 }
 

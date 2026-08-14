@@ -1027,6 +1027,14 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (input < 1u64) && true;
             staged
         }
+        machine Root::member_integer_comparison_convergence(
+            token: Token,
+            input: u64,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = token.observed && ((input < 1u64) || enabled);
+            staged
+        }
         machine Root::short_circuit_return_expression(token: Token) -> bool {
             let staged: bool = true && false;
             !staged
@@ -1106,6 +1114,15 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .binding_ordinal,
         0
     );
+    let member_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "member_integer_comparison_convergence",
+        ));
+    assert!(member_integer_comparison.is_none());
     let nested_shared_convergence = checked
         .facts
         .flow
@@ -1182,8 +1199,14 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .flow
         .terminal_structural_scalar_returns
         .for_machine(machine_named(&checked, "integer_comparison_convergence"))
-        .expect("integer comparison retains the source-distributed scalar-return plan");
-    assert!(integer_comparison.shared_boolean_convergence.is_none());
+        .expect("integer comparison retains the scalar-return plan");
+    assert_eq!(
+        integer_comparison
+            .shared_boolean_convergence
+            .expect("integer comparison publishes shared convergence")
+            .binding_ordinal,
+        0
+    );
     let member = checked
         .facts
         .flow

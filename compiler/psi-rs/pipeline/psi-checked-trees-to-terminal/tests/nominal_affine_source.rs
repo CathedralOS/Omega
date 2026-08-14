@@ -1,4 +1,4 @@
-use psi_core::{IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType};
+use psi_core::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType};
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -385,6 +385,21 @@ const MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE: &str = r#"
     data Root {}
     machine Root::measure(token: Token, left: bool) -> bool {
         let staged: bool = token.ready && !left;
+        staged
+    }
+"#;
+
+const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::measure(token: Token, input: u64, enabled: bool) -> bool {
+        let staged: bool = ((input < 4u64) || (input <= 9u64))
+            && (input == 3u64)
+            && enabled;
         staged
     }
 "#;
@@ -1639,6 +1654,111 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(ready_value && !left))
         );
         assert!(measured.effects().is_empty());
+    }
+}
+
+#[test]
+fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return() {
+    let tokens = Lexer::new(MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE)
+        .tokenize()
+        .expect("tokenize shared integer-comparison convergence");
+    let syntax = parse_syntax_trees(&tokens).expect("parse shared integer-comparison convergence");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve shared integer convergence");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type shared integer convergence");
+    let checked = lower_typed_trees(typed).expect("check shared integer convergence");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("shared integer-comparison convergence lowers");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("shared integer convergence entry");
+    assert!(entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::IntegerLessThan { .. }))
+    }));
+    assert!(entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::IntegerLessOrEqual { .. }))
+    }));
+    assert!(entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::IntegerEqual { .. }))
+    }));
+    assert_eq!(
+        entry
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+            .count(),
+        1
+    );
+    let (convergence, control) = entry
+        .blocks
+        .split_last()
+        .expect("shared integer convergence has one cleanup tail");
+    assert!(control.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Terminator::Jump { target, .. } if target == convergence.id
+        )
+    }));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("shared integer convergence verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("shared integer convergence has fixed fuel");
+    validate_fixed_entry_fuel(&verified, &fixed)
+        .expect("shared integer convergence fuel recomputes");
+    drop(verified);
+    let semantics =
+        encode_module(&lowered.semantic_module).expect("shared integer convergence encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("shared integer convergence proof encodes");
+    let [token] = entry.structural_parameters.as_slice() else {
+        panic!("shared integer convergence retains its cleanup root")
+    };
+    let structural_arguments = [TerminalStructuralValue {
+        opaque_identity: token.place.get(),
+        structural_type: token.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    }];
+    for (input, enabled) in [(3, false), (3, true), (4, true), (9, false), (10, true)] {
+        let mut handler = AcceptTerminalEffects;
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &[
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    value: IntegerValue::Unsigned(input),
+                },
+                TerminalScalarValue::Boolean(enabled),
+            ],
+            &structural_arguments,
+            &mut handler,
+        )
+        .expect("shared integer convergence interprets");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
+                ((input < 4) || (input <= 9)) && input == 3 && enabled
+            ))
+        );
     }
 }
 
