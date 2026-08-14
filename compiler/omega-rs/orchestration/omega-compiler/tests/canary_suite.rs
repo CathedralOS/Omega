@@ -6639,9 +6639,10 @@ fn runtime_duration_totals_exit_canary_runs() {
         outcome.exit_code
     );
     let scratch = std::env::temp_dir().join(format!("omega-totals-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("duration totals canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("duration totals canary should run");
     assert_eq!(
@@ -45916,6 +45917,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
+    "time/runtime_duration_totals_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
