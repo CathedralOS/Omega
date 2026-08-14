@@ -10229,7 +10229,9 @@ fn lower_structural_crash_route_buckets(
                     right,
                 } if matches!(
                     kind,
-                    CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract
+                    CheckedIntegerBinaryKind::ExactAdd
+                        | CheckedIntegerBinaryKind::ExactSubtract
+                        | CheckedIntegerBinaryKind::ExactMultiply
                 ) =>
                 {
                     let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
@@ -10255,6 +10257,13 @@ fn lower_structural_crash_route_buckets(
                         },
                         CheckedIntegerBinaryKind::ExactSubtract => {
                             ScalarTerm::ExactIntegerSubtract {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::ExactMultiply => {
+                            ScalarTerm::ExactIntegerMultiply {
                                 scalar_type: integer_type,
                                 left,
                                 right,
@@ -10448,7 +10457,8 @@ fn substitute_structural_crash_route_roots(
             | ScalarTerm::IntegerLessThan { left, right, .. }
             | ScalarTerm::IntegerLessOrEqual { left, right, .. }
             | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
