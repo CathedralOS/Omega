@@ -45007,22 +45007,7 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        let source_dir = cross_dir.join("src");
-        let cross_build_dir = cross_dir.join("build");
-        fs::create_dir_all(&source_dir).expect("create compact-bit cross-target source");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy compact-bit canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compact-bit cross-target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(cross_build_dir),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target)
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "compact-bit plan-laid projection should cross-compile for {target}: {diagnostics:?}"
@@ -45064,25 +45049,11 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        let source_dir = cross_dir.join("src");
-        let cross_build_dir = cross_dir.join("build");
-        fs::create_dir_all(&source_dir).expect("create IntegerAt cross-target source");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy IntegerAt canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write IntegerAt cross-target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(cross_build_dir),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("IntegerAt projection should cross-compile for {target}: {diagnostics:?}")
-        });
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("IntegerAt projection should cross-compile for {target}: {diagnostics:?}")
+            },
+        );
         let _ = fs::remove_dir_all(&cross_dir);
     }
 }
@@ -45109,24 +45080,13 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        let source_dir = cross_dir.join("src");
-        fs::create_dir_all(&source_dir).expect("create IntegerAt write cross source");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy IntegerAt write canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(cross_dir.join("build")),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("total IntegerAt mutation should cross-compile for {target}: {diagnostics:?}")
-        });
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "total IntegerAt mutation should cross-compile for {target}: {diagnostics:?}"
+                )
+            },
+        );
         let _ = fs::remove_dir_all(&cross_dir);
     }
 }
@@ -45160,21 +45120,7 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        let source_dir = cross_dir.join("src");
-        fs::create_dir_all(&source_dir).expect("create proved-fit IntegerAt cross source");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy proved-fit IntegerAt canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(cross_dir.join("build")),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target)
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "proved-fit IntegerAt mutation should cross-compile for {target}: {diagnostics:?}"
@@ -45305,22 +45251,7 @@ fn plan_laid_record_view_exit_canary_runs() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        let source_dir = cross_dir.join("src");
-        let cross_build_dir = cross_dir.join("build");
-        fs::create_dir_all(&source_dir).expect("create cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy plan-laid view canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write cross-target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(cross_build_dir.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target)
         .unwrap_or_else(|diagnostics| {
             panic!("plan-laid projected scalar widening/narrowing should cross-compile for {target}: {diagnostics:?}")
         });
@@ -45358,7 +45289,7 @@ fn plan_laid_fixed_array_record_view_exit_canary_runs() {
             "omega-plan-laid-fixed-array-view-{target}-{}",
             std::process::id()
         ));
-        compile_single_file_hosted_main(&canary, &cross_dir, target).unwrap_or_else(
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "plan-laid fixed-array view should cross-compile for {target}: {diagnostics:?}"
@@ -45404,7 +45335,7 @@ fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
             "omega-plan-laid-fixed-array-mutable-view-{target}-{}",
             std::process::id()
         ));
-        compile_single_file_hosted_main(&canary, &cross_dir, target).unwrap_or_else(
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "mutable plan-laid fixed-array view should cross-compile for {target}: {diagnostics:?}"
@@ -45441,7 +45372,7 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
             "omega-plan-laid-nested-array-mutable-view-{target}-{}",
             std::process::id()
         ));
-        compile_single_file_hosted_main(&canary, &cross_dir, target).unwrap_or_else(
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "mutable plan-laid nested-array view should cross-compile for {target}: {diagnostics:?}"
@@ -45465,7 +45396,7 @@ fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let host_scratch = scratch.join("host");
-    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, host_scratch.join("out"))
         .expect("mutable plan-laid nested-record view should compile natively");
     let output = Command::new(host_scratch.join("out").join(executable_name()))
         .output()
@@ -45474,7 +45405,7 @@ fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
 
     for target in ["windows_x64", "linux_arm64"] {
         let cross_scratch = scratch.join(target);
-        compile_single_file_hosted_main(&canary, &cross_scratch, target).unwrap_or_else(
+        compile_rooted_canary_for_target(&canary, cross_scratch.join("out"), target).unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "mutable plan-laid nested-record view should cross-compile for {target}: {diagnostics:?}"
@@ -45497,7 +45428,7 @@ fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let host_scratch = scratch.join("host");
-    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, host_scratch.join("out"))
         .expect("mutable plan-laid fixed-record-array view should compile natively");
     let output = Command::new(host_scratch.join("out").join(executable_name()))
         .output()
@@ -45506,7 +45437,7 @@ fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
 
     for target in ["windows_x64", "linux_arm64"] {
         let cross_scratch = scratch.join(target);
-        compile_single_file_hosted_main(&canary, &cross_scratch, target).unwrap_or_else(
+        compile_rooted_canary_for_target(&canary, cross_scratch.join("out"), target).unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "mutable plan-laid fixed-record-array view should cross-compile for {target}: {diagnostics:?}"
@@ -45553,22 +45484,7 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        let source_dir = cross_dir.join("src");
-        let cross_build_dir = cross_dir.join("build");
-        fs::create_dir_all(&source_dir).expect("create mutable-view cross-target source");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy mutable plan-laid view canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write mutable-view cross-target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(cross_build_dir),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target)
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "mutable plan-laid record view should cross-compile for {target}: {diagnostics:?}"
@@ -45939,10 +45855,18 @@ fn compile_rooted_canary_for_native_host(
     canary_dir: &Path,
     build_dir: PathBuf,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_rooted_canary_for_target(canary_dir, build_dir, native_hosted_target())
+}
+
+fn compile_rooted_canary_for_target(
+    canary_dir: &Path,
+    build_dir: PathBuf,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
     production_compile(CompileOptions {
         root_path: canary_dir.join("main.omg"),
         build_dir: Some(build_dir),
-        target_name: Some(native_hosted_target().into()),
+        target_name: Some(target.into()),
         write_output: true,
     })
 }
