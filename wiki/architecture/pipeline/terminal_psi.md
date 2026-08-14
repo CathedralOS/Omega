@@ -818,9 +818,13 @@ construction partitions the ordered diamonds by expression prefix or return
 arm, validates their exact conditional/join targets, and independently replays
 the special and ordinary paths. These forms may also occur in typed call
 arguments in the condition or either arm; exact call relocation and closure
-evidence survives object, image, and installation custody. General nested and
-reconvergent control remains outside this bounded theorem. One or both direct
-arms may instead end in a crash. Evidence binds the crashing arm set; object
+evidence survives object, image, and installation custody. One outer arm may
+instead contain one further linear Boolean decision ending in three direct
+integer returns. Its two exact branch records and three physical leaf regions
+reuse the same replay and installation custody; affine cleanup records are only
+required when cleanup is actually present. Deeper, four-leaf, and reconvergent
+control remains outside this bounded theorem. One or both direct arms may end
+in a crash. Evidence binds the crashing arm set; object
 construction requires each such region to end in exact x86 `UD2` or AArch64
 `BRK #0` while independently replaying any returning region. The same evidence
 carries ordered x86 division diamonds from the condition or returning arm,
