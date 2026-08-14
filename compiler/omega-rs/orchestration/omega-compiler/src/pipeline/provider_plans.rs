@@ -1016,6 +1016,34 @@ pub fn selected_external_root_provider_plan(
     })
 }
 
+/// Resolve an external-root provider selection when the current artifact has
+/// one. An absent plan remains an honest pending installation dependency;
+/// multiple matching selections are still invalid.
+pub(crate) fn optional_selected_external_root_provider_plan(
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    boundary_trait: &str,
+) -> Result<Option<SelectedExternalRootProviderPlan>, omega_external_roots::ExternalRootDiagnostic>
+{
+    let matches = selected_provider_plans
+        .plans()
+        .iter()
+        .filter(|plan| same_semantic_name(&plan.schema.trait_name, boundary_trait))
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [] => Ok(None),
+        [plan] => Ok(Some(SelectedExternalRootProviderPlan {
+            identity: omega_external_roots::ProviderPlanId::from_normalized_identity(
+                plan.identity_fingerprint(),
+            )?,
+            schema: plan.schema.clone(),
+        })),
+        plans => Err(omega_external_roots::ExternalRootDiagnostic(format!(
+            "external-root boundary slot `{boundary_trait}` matches {} retained selected provider plans",
+            plans.len()
+        ))),
+    }
+}
+
 /// Resolve every routed entry claim on one selected external root onto the
 /// exact checked source-parameter fact consumed by its checked adapter.
 pub fn selected_external_root_entry_fact_bindings(

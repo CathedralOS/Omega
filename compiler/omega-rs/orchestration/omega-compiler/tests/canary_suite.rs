@@ -41072,7 +41072,12 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     .expect("UEFI program-storage entry should bind its generated captures");
     let binding = report
         .program_storage_entry
+        .as_ref()
         .expect("UEFI entry should retain a program-storage binding");
+    let bridge = report
+        .program_storage_entry_bridge
+        .as_ref()
+        .expect("UEFI entry should retain its emitted native-bridge handoff");
 
     assert!(
         binding
@@ -41088,6 +41093,16 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(receiver.type_identity().contains("Boot"));
     assert_eq!(receiver.byte_size(), 8);
     assert_eq!(receiver.byte_alignment(), 8);
+    assert_eq!(bridge.binding(), binding);
+    assert_eq!(bridge.target_profile(), "uefi_x64");
+    assert!(!bridge.entry_symbol().is_empty());
+    assert!(bridge.entry_text_size() > 0);
+    assert_eq!(bridge.continuation_machine(), "Boot::launch");
+    assert!(!bridge.continuation_state().is_empty());
+    assert!(
+        bridge.selected_provider().is_none(),
+        "the current UEFI profile has no physical provider selection to claim as installed"
+    );
 
     let manifest = fs::read_to_string(build_dir.join("10_program_storage_entry.json"))
         .expect("program-storage entry manifest should be emitted");
@@ -41098,6 +41113,10 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(manifest.contains("\"copy_stack_byte_offset\": 48"));
     assert!(manifest.contains("\"status\": \"reservation_required\""));
     assert!(manifest.contains("\"byte_size\": 8"));
+    assert!(manifest.contains("\"native_bridge\""));
+    assert!(manifest.contains("\"status\": \"pending_runtime_installation\""));
+    assert!(manifest.contains("\"target_profile\": \"uefi_x64\""));
+    assert!(manifest.contains("\"selected_physical_provider_plan\": null"));
     assert!(manifest.contains("\"status\": \"required\""));
     assert!(
         manifest

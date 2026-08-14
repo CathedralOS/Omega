@@ -355,12 +355,12 @@ pub(super) fn write_backend_report(
 
 pub(super) fn write_program_storage_entry_snapshot(
     options: &CompileOptions,
-    binding: &super::ProgramStorageEntryPlanBinding,
+    bridge: &super::ProgramStorageEntryNativeBridgePlan,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_json(
         options,
         "10_program_storage_entry.json",
-        &program_storage_entry_manifest_json(binding),
+        &program_storage_entry_manifest_json(bridge),
     )
 }
 
@@ -552,7 +552,10 @@ fn push_normalized_identity(output: &mut String, identity: u64) {
     output.push_str(&format!("0x{identity:016x}"));
 }
 
-fn program_storage_entry_manifest_json(binding: &super::ProgramStorageEntryPlanBinding) -> String {
+fn program_storage_entry_manifest_json(
+    bridge: &super::ProgramStorageEntryNativeBridgePlan,
+) -> String {
+    let binding = bridge.binding();
     let mut output = String::from("{\n  \"root_slot\": \"");
     output.push_str(&format!(
         "0x{:016x}",
@@ -581,6 +584,27 @@ fn program_storage_entry_manifest_json(binding: &super::ProgramStorageEntryPlanB
     } else {
         output.push_str("null");
     }
+    output.push_str(",\n  \"native_bridge\": {\n    \"status\": \"pending_runtime_installation\",\n    \"target_profile\": ");
+    push_json_string(&mut output, bridge.target_profile());
+    output.push_str(",\n    \"entry_symbol\": ");
+    push_json_string(&mut output, bridge.entry_symbol());
+    output.push_str(",\n    \"entry_text_offset\": ");
+    output.push_str(&bridge.entry_text_offset().to_string());
+    output.push_str(",\n    \"entry_text_size\": ");
+    output.push_str(&bridge.entry_text_size().to_string());
+    output.push_str(",\n    \"source_continuation\": {\"machine\": ");
+    push_json_string(&mut output, bridge.continuation_machine());
+    output.push_str(", \"state\": ");
+    push_json_string(&mut output, bridge.continuation_state());
+    output.push_str("},\n    \"selected_physical_provider_plan\": ");
+    if let Some(provider) = bridge.selected_provider() {
+        output.push('"');
+        push_normalized_identity(&mut output, provider.identity.normalized_identity());
+        output.push('"');
+    } else {
+        output.push_str("null");
+    }
+    output.push_str("\n  }");
     output.push_str(
         ",\n  \"runtime_installation\": {\n    \"status\": \"required\",\n    \"geometry_source\": \"selected_entry_provider\",\n    \"predicate\": \"no_wrap\",\n    \"admission_order\": \"validate_geometry_and_receiver_reservation_before_consuming_either_grant\"\n  }\n}\n",
     );
