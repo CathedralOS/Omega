@@ -444,6 +444,14 @@ pub enum TerminalScalarControlFlowEvidence {
         true_nested: TerminalScalarConditionalBranchEvidence,
         false_nested: TerminalScalarConditionalBranchEvidence,
     },
+    /// The same symmetric four-leaf tree with one or more canonical crash
+    /// terminals in physical true-before-false DFS order.
+    TopLevelThreeDecisionFourTerminal {
+        root: TerminalScalarConditionalBranchEvidence,
+        true_nested: TerminalScalarConditionalBranchEvidence,
+        false_nested: TerminalScalarConditionalBranchEvidence,
+        crash_leaves: [bool; 4],
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

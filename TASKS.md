@@ -653,11 +653,12 @@ reach or trust, and private proof improvements do not change public identity.
   leaves. The symmetric shape with one nested decision in both outer arms now
   retains three exact branches and four independently replayed return leaves.
   The three-leaf shape may bind any nested return leaf as a canonical crash and
-  validates its exact terminal independently. Extend accounting to nested
-  division, crash leaves in the four-leaf shape, deeper trees, genuinely
-  reconvergent conditionals, and provider-sized external adapter/arrival state
-  before calling it a complete root `StackPlan`; zero-byte internal closures
-  remain inadmissible until that adapter demand exists.
+  validates its exact terminal independently; the four-leaf shape retains the
+  same physical DFS crash bitmap. Extend accounting to nested division, deeper
+  trees, genuinely reconvergent conditionals, and provider-sized external
+  adapter/arrival state before calling it a complete root `StackPlan`;
+  zero-byte internal closures remain inadmissible until that adapter demand
+  exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

@@ -221,10 +221,10 @@ leaves are direct integer returns; the same evidence shape works with or
 without affine cleanup records. Both outer arms may each contain one linear
 decision, producing three exact branch records and four independently replayed
 return leaves. Any leaf of the three-leaf shape may instead be an exactly
-validated native crash terminal. Nested division, four-leaf crash terminals,
-deeper trees, and genuine reconvergence remain excluded. The bounded
-conditional theorem also admits one or both direct crash arms. Evidence binds
-the crashing arm set and
+validated native crash terminal; the four-leaf shape retains the same physical
+DFS crash bitmap. Nested division, deeper trees, and genuine reconvergence
+remain excluded. The bounded conditional theorem also admits one or both direct
+crash arms. Evidence binds the crashing arm set and
 object construction validates every exact native `UD2`/`BRK` terminal before
 installation; any returning arm stays directly accountable. Ordered x86
 division diamonds from the condition or returning arm use the same independent

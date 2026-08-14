@@ -209,6 +209,67 @@ fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
     }
 }
 
+#[test]
+fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = four_leaf_conditional_plan(target);
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerControl::Conditional { when_true, .. } =
+            when_false.control.as_mut()
+        else {
+            unreachable!()
+        };
+        when_true.control = Box::new(TerminalTargetIntegerControl::Crash {
+            psi_crash_edge: edge_id(11),
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        });
+        let assigned = assign_registers(&plan).expect("assign four-leaf crash conditional");
+        let emitted = emit_machine_code(&assigned).expect("emit four-leaf crash conditional");
+        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourTerminal {
+            false_nested,
+            crash_leaves,
+            ..
+        } = emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("four-leaf crash stack evidence")
+            .control_flow
+        else {
+            panic!("four-leaf crash conditional must retain terminal evidence")
+        };
+        assert_eq!(crash_leaves, [false, false, true, false]);
+
+        let mut forged = emitted.clone();
+        forged.functions[0].bytes[false_nested.false_arm_offset - 1] ^= 1;
+        assert!(build_terminal_object_artifact(&forged).is_err());
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays four return/crash leaves");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive four-leaf crash stack demand");
+        let image = emit_terminal_executable_image(&artifact, 37)
+            .expect("emit four-leaf crash executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(4).expect("profile decision"),
+        )
+        .expect("build four-leaf crash installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode four-leaf crash installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode four-leaf crash installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed four-leaf crash demand");
+        assert_eq!(installed, demand);
+    }
+}
+
 fn four_leaf_conditional_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
     let mut plan = nested_conditional_plan(target, false);
     let condition_register = match target.architecture {
