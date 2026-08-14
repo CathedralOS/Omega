@@ -4164,7 +4164,7 @@ fn lower_nominal_structural_scalar_return_machine(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let scalar_parameter_count = scalar_parameters.len();
-    let scalar_requirements = plan
+    let mut scalar_requirements = plan
         .scalar_requirements
         .iter()
         .map(|requirement| {
@@ -4194,6 +4194,11 @@ fn lower_nominal_structural_scalar_return_machine(
             ))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    scalar_requirements.sort_by_cached_key(|requirement| {
+        psi_terminal_codec::canonical_proposition_order_key(requirement)
+            .expect("validated scalar requirements have canonical encodings")
+    });
+    scalar_requirements.dedup();
     let mut operations = OperationBuffer::new(operation_identity_base);
     let mut scalar_values = Vec::with_capacity(
         scalar_parameter_count
@@ -10639,7 +10644,8 @@ fn shared_integer_runtime_parameters_with_shells(
                 | LoweredIntegerBinaryKind::WrappingMultiply
                 | LoweredIntegerBinaryKind::SaturatingMultiply
                 | LoweredIntegerBinaryKind::ExactAdd
-                | LoweredIntegerBinaryKind::ExactSubtract,
+                | LoweredIntegerBinaryKind::ExactSubtract
+                | LoweredIntegerBinaryKind::ExactMultiply,
             left,
             right,
             ..
@@ -14736,6 +14742,8 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
                             operation.kind,
                             OperationKind::IntegerExactCast { obligation, .. }
                                 | OperationKind::ExactIntegerAdd { obligation, .. }
+                                | OperationKind::ExactIntegerSubtract { obligation, .. }
+                                | OperationKind::ExactIntegerMultiply { obligation, .. }
                                 if obligation == site.obligation.id
                         )
                     })
