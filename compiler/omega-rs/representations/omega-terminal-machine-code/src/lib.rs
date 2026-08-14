@@ -405,15 +405,14 @@ pub enum TerminalScalarControlFlowEvidence {
         false_arm_offset: usize,
         branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
-    /// One top-level Boolean branch with exactly one direct scalar return arm
-    /// and one no-successor native crash arm. `crash_arm` binds which physical
-    /// region must end in the target's canonical crash instruction.
-    TopLevelReturnAndCrash {
+    /// One top-level Boolean branch with one or both physical arms ending in
+    /// the target's canonical no-successor crash instruction.
+    TopLevelWithCrash {
         condition: TerminalScalarConditionalCondition,
         branch_offset: usize,
         branch_byte_count: usize,
         false_arm_offset: usize,
-        crash_arm: TerminalScalarConditionalArm,
+        crash_arms: TerminalScalarConditionalCrashArms,
         /// Ordered compiler-generated x86 division diamonds contained in the
         /// expression prefix or returning arm. Empty on AArch64 and
         /// branch-free x86 paths.
@@ -453,6 +452,13 @@ pub struct TerminalScalarConditionalBranchEvidence {
 pub enum TerminalScalarConditionalArm {
     True,
     False,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalScalarConditionalCrashArms {
+    True,
+    False,
+    Both,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

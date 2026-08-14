@@ -217,11 +217,11 @@ partitions those diamonds by prefix/arm and replays both paths independently.
 The same division forms in typed call arguments in the condition or either arm
 retain exact relocation and closure evidence through installation. Further
 nesting and reconvergence remain excluded. The bounded conditional theorem also
-admits exactly one direct accountable return arm and one direct crash arm:
-evidence binds the crash arm and object construction validates its exact native
-`UD2`/`BRK` terminal before installation. Ordered x86 division diamonds from
-the condition or returning arm use the same independent path replay. Two-crash
-shapes remain excluded.
+admits one or both direct crash arms. Evidence binds the crashing arm set and
+object construction validates every exact native `UD2`/`BRK` terminal before
+installation; any returning arm stays directly accountable. Ordered x86
+division diamonds from the condition or returning arm use the same independent
+path replay.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 

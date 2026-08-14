@@ -193,8 +193,8 @@ fn signed_x86_return_crash_division_stack_facts_survive_installation() {
     let assigned = assign_registers(&plan).expect("assign signed x86 return/crash division");
     let emitted =
         emit_machine_code(&assigned).expect("emit signed x86 return/crash division evidence");
-    let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
-        crash_arm,
+    let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
+        crash_arms,
         branches,
         ..
     } = &emitted.functions[0]
@@ -206,8 +206,8 @@ fn signed_x86_return_crash_division_stack_facts_survive_installation() {
         panic!("signed x86 return/crash division must retain composite evidence")
     };
     assert_eq!(
-        *crash_arm,
-        omega_terminal_machine_code::TerminalScalarConditionalArm::False
+        *crash_arms,
+        omega_terminal_machine_code::TerminalScalarConditionalCrashArms::False
     );
     assert_eq!(branches.len(), 1);
 
@@ -239,11 +239,11 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
                 assign_registers(&conditional_return_crash_plan(target, crash_false_arm))
                     .expect("assign conditional return/crash");
             let emitted = emit_machine_code(&assigned).expect("emit conditional return/crash");
-            let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+            let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
                 branch_offset,
                 branch_byte_count,
                 false_arm_offset,
-                crash_arm,
+                crash_arms,
                 ..
             } = emitted.functions[0]
                 .scalar_stack
@@ -254,11 +254,11 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
                 panic!("conditional return/crash must retain terminal evidence")
             };
             assert_eq!(
-                crash_arm,
+                crash_arms,
                 if crash_false_arm {
-                    omega_terminal_machine_code::TerminalScalarConditionalArm::False
+                    omega_terminal_machine_code::TerminalScalarConditionalCrashArms::False
                 } else {
-                    omega_terminal_machine_code::TerminalScalarConditionalArm::True
+                    omega_terminal_machine_code::TerminalScalarConditionalCrashArms::True
                 }
             );
 
@@ -292,6 +292,69 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
             assert_eq!(installed, demand);
             assert!(branch_offset + branch_byte_count <= false_arm_offset);
         }
+    }
+}
+
+#[test]
+fn conditional_two_crash_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = conditional_return_crash_plan(target, false);
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
+            psi_crash_edge: edge_id(4),
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        });
+        let assigned = assign_registers(&plan).expect("assign two-crash conditional");
+        let emitted = emit_machine_code(&assigned).expect("emit two-crash conditional");
+        let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
+            false_arm_offset,
+            crash_arms,
+            branches,
+            ..
+        } = &emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("two-crash conditional stack evidence")
+            .control_flow
+        else {
+            panic!("two-crash conditional must retain terminal evidence")
+        };
+        assert_eq!(
+            *crash_arms,
+            omega_terminal_machine_code::TerminalScalarConditionalCrashArms::Both
+        );
+        assert!(branches.is_empty());
+
+        for crash_region_end in [*false_arm_offset, emitted.functions[0].bytes.len()] {
+            let mut forged = emitted.clone();
+            forged.functions[0].bytes[crash_region_end - 1] ^= 1;
+            assert!(build_terminal_object_artifact(&forged).is_err());
+        }
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays both crash terminals");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive two-crash conditional stack demand");
+        let image = emit_terminal_executable_image(&artifact, 27)
+            .expect("emit two-crash conditional executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(8).expect("profile decision"),
+        )
+        .expect("build two-crash conditional installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode two-crash conditional installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode two-crash conditional installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed two-crash conditional demand");
+        assert_eq!(installed, demand);
     }
 }
 

@@ -2307,12 +2307,12 @@ fn validate_scalar_stack(
             alignment: evidence.stack_alignment,
         });
     }
-    if let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+    if let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
         condition,
         branch_offset,
         branch_byte_count,
         false_arm_offset,
-        crash_arm,
+        crash_arms,
         branches,
     } = &evidence.control_flow
     {
@@ -2332,7 +2332,7 @@ fn validate_scalar_stack(
             *branch_byte_count,
             *false_arm_offset,
             Some(branches),
-            Some(*crash_arm),
+            Some(*crash_arms),
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
@@ -3472,7 +3472,7 @@ fn validate_top_level_two_return_scalar_stack(
     branch_byte_count: usize,
     false_arm_offset: usize,
     division_branches: Option<&[TerminalScalarDivisionBranchEvidence]>,
-    crash_arm: Option<omega_terminal_machine_code::TerminalScalarConditionalArm>,
+    crash_arms: Option<omega_terminal_machine_code::TerminalScalarConditionalCrashArms>,
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -3533,18 +3533,16 @@ fn validate_top_level_two_return_scalar_stack(
     let division_branches = division_branches.unwrap_or_default();
     let composite_divisions = match &evidence.control_flow {
         TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches { .. } => true,
-        TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { branches, .. } => {
+        TerminalScalarControlFlowEvidence::TopLevelWithCrash { branches, .. } => {
             !branches.is_empty()
         }
         _ => false,
     };
-    let return_and_crash = matches!(
+    let with_crash = matches!(
         evidence.control_flow,
-        TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { .. }
+        TerminalScalarControlFlowEvidence::TopLevelWithCrash { .. }
     );
-    if composite_divisions != !division_branches.is_empty()
-        || return_and_crash != crash_arm.is_some()
-    {
+    if composite_divisions != !division_branches.is_empty() || with_crash != crash_arms.is_some() {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
             machine,
             offset: branch_offset,
@@ -3584,7 +3582,13 @@ fn validate_top_level_two_return_scalar_stack(
         bytes,
         true_arm_offset,
         false_arm_offset,
-        crash_arm == Some(omega_terminal_machine_code::TerminalScalarConditionalArm::True),
+        matches!(
+            crash_arms,
+            Some(
+                omega_terminal_machine_code::TerminalScalarConditionalCrashArms::True
+                    | omega_terminal_machine_code::TerminalScalarConditionalCrashArms::Both
+            )
+        ),
         true_divisions,
         &mut claimed,
         &mut call_sites,
@@ -3597,7 +3601,13 @@ fn validate_top_level_two_return_scalar_stack(
         bytes,
         false_arm_offset,
         bytes.len(),
-        crash_arm == Some(omega_terminal_machine_code::TerminalScalarConditionalArm::False),
+        matches!(
+            crash_arms,
+            Some(
+                omega_terminal_machine_code::TerminalScalarConditionalCrashArms::False
+                    | omega_terminal_machine_code::TerminalScalarConditionalCrashArms::Both
+            )
+        ),
         false_divisions,
         &mut claimed,
         &mut call_sites,
