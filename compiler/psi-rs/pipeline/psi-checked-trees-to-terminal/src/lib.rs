@@ -312,6 +312,10 @@ struct PendingMixedTupleBindingBlocks {
 }
 
 const TERMINAL_MACHINE_IDENTITY_STRIDE: u64 = 1_u64 << 32;
+// Structural Unit call requirements occupy the upper half of the module-wide
+// obligation namespace. Existing contract and cleanup producers allocate from
+// the lower half, so composing their proof bundles cannot alias a call site.
+const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 
 /// Module-wide operation identities for one machine namespace. Machine zero
 /// uses the historical one-based range; additional machines receive disjoint
@@ -6651,6 +6655,8 @@ fn lower_attached_unit_closure_including(
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
+    let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
+    let mut call_evidence = Vec::new();
     let mut machines = Vec::with_capacity(closure.len());
 
     for machine_symbol in &closure {
@@ -6775,6 +6781,55 @@ fn lower_attached_unit_closure_including(
                         &mut crash_continuations,
                         &substitutions,
                     )?;
+                    let target_runtime_requirements = lowered_machine_runtime_requirements
+                        .iter()
+                        .find_map(|(symbol, requirements)| {
+                            (*symbol == *target_machine).then_some(requirements)
+                        })
+                        .expect("every closure target has lowered runtime requirements");
+                    if !target_runtime_requirements.is_empty()
+                        && terminal_arguments
+                            .iter()
+                            .any(|argument| !argument.path.is_empty())
+                    {
+                        return unsupported(
+                            "runtime structural requirements do not yet cross projected Unit calls",
+                        );
+                    }
+                    let requirement_obligations = target_runtime_requirements
+                        .iter()
+                        .map(|requirement| {
+                            let mut goal = requirement.clone();
+                            substitute_structural_requirement_roots(&mut goal, &substitutions)?;
+                            let assumption_index = runtime_requirements
+                                .iter()
+                                .position(|assumption| assumption == &goal)
+                                .ok_or(LoweringError::Unsupported(
+                                    "runtime structural call requirement is not an exact caller premise",
+                                ))?;
+                            let obligation = obligation_id(next_call_obligation);
+                            next_call_obligation = next_call_obligation
+                                .checked_add(1)
+                                .ok_or(LoweringError::Unsupported(
+                                    "runtime structural call obligation identity space is exhausted",
+                                ))?;
+                            call_evidence.push(ObligationEvidence {
+                                obligation,
+                                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                                    identity: EvidenceIdentity::new(obligation.get())
+                                        .expect("terminal obligation identity is nonzero"),
+                                    proof_system_marker: ProofSystemMarker::CURRENT,
+                                    proof: ProofNode {
+                                        conclusion: goal,
+                                        rule: ProofRule::Assumption {
+                                            index: assumption_index,
+                                        },
+                                    },
+                                }),
+                            });
+                            Ok(obligation)
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     OperationKind::CallUnit {
                         callee: lookup_machine_id(&machine_ids, *target_machine)?,
                         structural_arguments: terminal_arguments,
@@ -6790,7 +6845,7 @@ fn lower_attached_unit_closure_including(
                                 })
                             })
                             .collect::<Result<Vec<_>, LoweringError>>()?,
-                        requirement_obligations: Vec::new(),
+                        requirement_obligations,
                         crash_continuations,
                     }
                 }
@@ -7007,7 +7062,7 @@ fn lower_attached_unit_closure_including(
             machines,
         },
         proof_bundle: ProofBundle {
-            evidence: Vec::new(),
+            evidence: call_evidence,
         },
         debug_map: None,
     })
@@ -10767,6 +10822,99 @@ fn substitute_structural_crash_route_roots(
             let mut proposition = predicate.proposition().clone();
             substitute_proposition(&mut proposition, substitutions)?;
             *predicate = psi_terminal::CrashPredicateTerm::new(proposition);
+        }
+    }
+    Ok(())
+}
+
+fn substitute_structural_requirement_roots(
+    proposition: &mut Proposition,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+) -> Result<(), LoweringError> {
+    fn substitute_term(
+        term: &mut ScalarTerm,
+        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) {
+        match term {
+            ScalarTerm::BooleanField { root, path }
+            | ScalarTerm::IntegerField { root, path, .. } => {
+                let Some((replacement, prefix)) = substitutions.get(root) else {
+                    return;
+                };
+                *root = *replacement;
+                if !prefix.is_empty() {
+                    let mut rebased = Vec::with_capacity(prefix.len() + path.len());
+                    rebased.extend(prefix);
+                    rebased.append(path);
+                    *path = rebased;
+                }
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => {
+                substitute_term(operand, substitutions);
+            }
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                substitute_term(left, substitutions);
+                substitute_term(right, substitutions);
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                substitute_term(value, substitutions);
+                substitute_term(count, substitutions);
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+    }
+
+    match proposition {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            substitute_term(left, substitutions);
+            substitute_term(right, substitutions);
+        }
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            for proposition in propositions {
+                substitute_structural_requirement_roots(proposition, substitutions)?;
+            }
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            substitute_structural_requirement_roots(premise, substitutions)?;
+            substitute_structural_requirement_roots(conclusion, substitutions)?;
+        }
+        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+        Proposition::ContentConservation(_) => {
+            return unsupported(
+                "runtime structural requirements cannot carry content conservation",
+            );
         }
     }
     Ok(())
