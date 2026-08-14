@@ -425,10 +425,11 @@ retained direct subtrahend-to-minuend bound or signed under matching sign and
 `MIN + right` or `MAX + right` bounds, one exact
 right shift under a direct upper count bound for unsigned counts or direct
 zero-lower and upper bounds for signed counts, one exact left shift by a landed
-count under a direct unsigned value upper bound or by an unsigned runtime count
-under direct count and value upper bounds, or exact division/remainder by a
-landed nonzero unsigned constant, a landed signed constant other than `0` or
-`-1`, a runtime unsigned divisor under a direct positive lower bound, or a
+count under a direct unsigned value upper bound or by a runtime count under
+direct count and value upper bounds, plus a direct zero lower bound when that
+count is signed, or exact division/remainder by a landed nonzero unsigned
+constant, a landed signed constant other than `0` or `-1`, a runtime unsigned
+divisor under a direct positive lower bound, or a
 runtime signed divisor under a direct positive lower
 bound, `divisor <= -2` upper bound, or joint `divisor <= -1` and
 `MIN + 1 <= dividend` bounds, may form decision leaves. Psi retains every exact
