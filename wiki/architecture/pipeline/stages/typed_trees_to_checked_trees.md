@@ -189,7 +189,12 @@ Current ownership is:
   sibling branches are admitted independently and all nested-call writes remain
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
-  relational handling. One top-level concrete primitive-only record or
+  relational handling. A direct primitive scalar assignment value may wrap
+  complete caller-isolated call producers in up to two unary, binary,
+  primitive-cast, member-projection, or indexing shells under the same call
+  budget; a third shell and generic/reference/unknown call results remain
+  conservative.
+  One top-level concrete primitive-only record or
   selected-case literal may likewise contain an independently bounded call
   tree in each direct common or payload field. A direct field may instead be
   one nested concrete primitive-only record or selected-case literal whose

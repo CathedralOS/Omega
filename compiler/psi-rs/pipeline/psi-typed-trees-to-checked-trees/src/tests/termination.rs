@@ -7971,6 +7971,232 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
 }
 
 #[test]
+fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
+    let source = r#"
+    data Pair {
+        first: u64;
+        second: u64;
+    }
+
+    data Main {
+        cells: [u64; 2];
+        value: u64;
+        pair: Pair;
+    }
+
+    machine compute(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine recursive_value() -> u64 {
+        recursive_value()
+    }
+
+    machine return_pair(pair: &mut Pair) -> &mut Pair {
+        pair
+    }
+
+    machine make_pair(value: &mut u64) -> Pair {
+        value = 1;
+        Pair { first: 1, second: 2 }
+    }
+
+    machine make_cells(value: &mut u64) -> [u64; 2] {
+        value = 1;
+        [1, 2]
+    }
+
+    machine return_after_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = compute(value) + 1;
+        cells
+    }
+
+    machine return_after_nested_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = ~(compute(value) + 1);
+        cells
+    }
+
+    machine return_after_projected_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = make_pair(value).first + 1;
+        cells
+    }
+
+    machine return_after_indexed_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = make_cells(value)[0] + 1;
+        cells
+    }
+
+    machine return_after_three_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = (~compute(value) as u64) + 1;
+        cells
+    }
+
+    machine return_after_three_projected_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = ~(make_pair(value).first + 1);
+        cells
+    }
+
+    machine return_after_binding_reborrow_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = compute(&mut value) + 1;
+        cells
+    }
+
+    machine return_after_recursive_computed_scalar(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        cells[0] = recursive_value() + 1;
+        cells
+    }
+
+    machine return_after_reference_projection_computed_scalar<'cells, 'pair>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = return_pair(pair).first + 1;
+        cells
+    }
+
+    machine Main::computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::nested_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_nested_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::projected_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_projected_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::indexed_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_indexed_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::three_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_three_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::three_projected_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_three_projected_computed_scalar(
+            &mut self.cells,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::binding_reborrow_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_binding_reborrow_computed_scalar(
+            &mut self.cells,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::recursive_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_recursive_computed_scalar(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    machine Main::reference_projection_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_reference_projection_computed_scalar(
+            &mut self.cells,
+            &mut self.pair
+        );
+        alias[0] = 2;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for name in [
+        "Main::computed_scalar_result",
+        "Main::nested_computed_scalar_result",
+        "Main::projected_computed_scalar_result",
+        "Main::indexed_computed_scalar_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(["self.cells".to_owned(), "self.value".to_owned()].as_slice()),
+            "{name} must publish the computed call write without losing the returned place"
+        );
+    }
+
+    for name in [
+        "Main::three_computed_scalar_result",
+        "Main::three_projected_computed_scalar_result",
+        "Main::binding_reborrow_computed_scalar_result",
+        "Main::recursive_computed_scalar_result",
+        "Main::reference_projection_computed_scalar_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded primitive scalar rung"
+        );
+    }
+}
+
+#[test]
 fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     let source = r#"
     data Main {

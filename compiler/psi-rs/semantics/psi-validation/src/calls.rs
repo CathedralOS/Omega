@@ -2388,6 +2388,12 @@ fn transparent_callee_result_origin(
                         program,
                         callee_machine,
                         assignment.value,
+                        assignment_target_is_primitive(
+                            program,
+                            callee_machine,
+                            callee_state,
+                            assignment.target,
+                        ),
                         symbols,
                         active_states,
                         parameters,
@@ -2630,12 +2636,13 @@ fn statement_call_preserves_transparent_result(
 
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
-/// non-reference. One primitive-only record or selected-case literal may
-/// independently contain such a tree in each field, and one nested record or
-/// selected-case literal may do the same. A declared primitive field may wrap
-/// those calls in one binary operator. Reference-bearing or generic literals,
-/// wider aggregate depth, deeper computed field expressions, and unknown return
-/// types fail closed.
+/// non-reference. A direct primitive scalar value may wrap complete
+/// caller-isolated call producers in up to two unary, binary, primitive-cast,
+/// member-projection, or indexing shells. One
+/// primitive-only record or selected-case literal may independently contain
+/// such a tree in each field, and one nested record or selected-case literal
+/// may do the same. Reference-bearing or generic literals, wider aggregate or
+/// scalar-computation depth, and unknown return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
 const TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH: usize = 2;
@@ -2644,6 +2651,7 @@ fn value_expression_assignment_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
+    assignment_target_is_primitive: bool,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
@@ -2671,8 +2679,122 @@ fn value_expression_assignment_preserves_transparent_result(
                 TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
             )
         }
+        ExpressionNode::Binary(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Unary(_)
+            if assignment_target_is_primitive =>
+        {
+            primitive_computed_assignment_value_preserves_transparent_result(
+                program,
+                current_machine,
+                expression,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+            )
+        }
+        ExpressionNode::Cast(cast)
+            if assignment_target_is_primitive
+                && program.primitive_type_reference(cast.target_type).is_some() =>
+        {
+            primitive_computed_assignment_value_preserves_transparent_result(
+                program,
+                current_machine,
+                expression,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+            )
+        }
         _ => false,
     }
+}
+
+fn assignment_target_is_primitive(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: ExpressionHandle,
+) -> bool {
+    crate::places::declared_place_type_raw(program, machine, Some(state), target)
+        .or_else(|| {
+            crate::places::declared_indexed_projection_type_raw(
+                program,
+                machine,
+                Some(state),
+                target,
+            )
+        })
+        .is_some_and(|target_type| program.primitive_type_reference(target_type).is_some())
+}
+
+/// Apply the settled primitive aggregate-field computation algebra directly to
+/// a scalar assignment value. The primitive assignment target supplies the
+/// typed result fact; every effectful call producer must return a caller-
+/// isolated value, so generic/reference carriers remain fenced while concrete
+/// records and fixed arrays can feed member/index shells. A third computation
+/// shell fails closed.
+#[allow(clippy::too_many_arguments)]
+fn primitive_computed_assignment_value_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_computed_depth: usize,
+) -> bool {
+    primitive_computed_value_preserves_transparent_result(
+        program,
+        current_machine,
+        expression,
+        symbols,
+        active_states,
+        parameters,
+        aliases,
+        remaining_computed_depth,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn caller_isolated_value_call_assignment_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some((_, callee_state)) =
+        machine_state_by_symbol(program, call.target_symbol).or_else(|| {
+            (!call.receiver.is_valid())
+                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
+                .flatten()
+        })
+    else {
+        return false;
+    };
+    type_is_caller_isolated_local(program, callee_state.return_type)
+        && value_call_assignment_preserves_transparent_result(
+            program,
+            current_machine,
+            expression,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+        )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2729,7 +2851,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                 ExpressionNode::Binary(_)
                     if struct_literal_field_is_primitive(program, literal, field.name.as_str()) =>
                 {
-                    primitive_computed_aggregate_field_preserves_transparent_result(
+                    primitive_computed_value_preserves_transparent_result(
                         program,
                         current_machine,
                         field.value,
@@ -2738,6 +2860,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         parameters,
                         aliases,
                         TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        false,
                     )
                 }
                 ExpressionNode::Cast(cast)
@@ -2748,7 +2871,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                             field.name.as_str(),
                         ) =>
                 {
-                    primitive_computed_aggregate_field_preserves_transparent_result(
+                    primitive_computed_value_preserves_transparent_result(
                         program,
                         current_machine,
                         field.value,
@@ -2757,12 +2880,13 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         parameters,
                         aliases,
                         TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        false,
                     )
                 }
                 ExpressionNode::Unary(_)
                     if struct_literal_field_is_primitive(program, literal, field.name.as_str()) =>
                 {
-                    primitive_computed_aggregate_field_preserves_transparent_result(
+                    primitive_computed_value_preserves_transparent_result(
                         program,
                         current_machine,
                         field.value,
@@ -2771,12 +2895,13 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         parameters,
                         aliases,
                         TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        false,
                     )
                 }
                 ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                     if struct_literal_field_is_primitive(program, literal, field.name.as_str()) =>
                 {
-                    primitive_computed_aggregate_field_preserves_transparent_result(
+                    primitive_computed_value_preserves_transparent_result(
                         program,
                         current_machine,
                         field.value,
@@ -2785,6 +2910,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         parameters,
                         aliases,
                         TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        false,
                     )
                 }
                 _ => false,
@@ -2793,7 +2919,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn primitive_computed_aggregate_field_preserves_transparent_result(
+fn primitive_computed_value_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
@@ -2802,6 +2928,7 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
     remaining_computed_depth: usize,
+    require_caller_isolated_call_result: bool,
 ) -> bool {
     if remaining_computed_depth == 0 {
         return false;
@@ -2813,9 +2940,9 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
         {
             [Some(cast.value), None]
         }
-        ExpressionNode::Unary(unary) => [Some(unary.operand), None],
-        ExpressionNode::Member(member) => [Some(member.receiver), None],
         ExpressionNode::Indexed(indexed) => [Some(indexed.collection), Some(indexed.index)],
+        ExpressionNode::Member(member) => [Some(member.receiver), None],
+        ExpressionNode::Unary(unary) => [Some(unary.operand), None],
         _ => return false,
     };
     operands.into_iter().flatten().all(|operand| {
@@ -2823,6 +2950,17 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
             return true;
         }
         match program.expression_table.expression(operand) {
+            ExpressionNode::Call(_) if require_caller_isolated_call_result => {
+                caller_isolated_value_call_assignment_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    operand,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                )
+            }
             ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
                 program,
                 current_machine,
@@ -2832,10 +2970,14 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
                 parameters,
                 aliases,
             ),
-            ExpressionNode::Binary(_) | ExpressionNode::Cast(_) | ExpressionNode::Unary(_)
+            ExpressionNode::Binary(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Unary(_)
                 if remaining_computed_depth > 1 =>
             {
-                primitive_computed_aggregate_field_preserves_transparent_result(
+                primitive_computed_value_preserves_transparent_result(
                     program,
                     current_machine,
                     operand,
@@ -2844,6 +2986,7 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
                     parameters,
                     aliases,
                     remaining_computed_depth - 1,
+                    require_caller_isolated_call_result,
                 )
             }
             _ => false,
