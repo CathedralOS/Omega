@@ -594,6 +594,68 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         .map(|landing| landing.domain)
                         .unwrap_or(ArithmeticDomain::Exact),
                 )),
+                ExpressionNode::Unary(unary)
+                    if unary.operator == UnaryOperator::BitwiseNot
+                        && operator_is_builtin(operators, expression) =>
+                {
+                    let (operand, domain) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        unary.operand,
+                    )?;
+                    let primitive_type = scalar_expression_type(&operand)?;
+                    (is_integer(primitive_type) && primitive_type != PrimitiveType::Addr).then_some(
+                        (
+                            CheckedScalarExpression::IntegerBitwiseNot {
+                                primitive_type,
+                                operand: Box::new(operand),
+                            },
+                            domain,
+                        ),
+                    )
+                }
+                ExpressionNode::Binary(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::BitwiseAnd
+                            | BinaryOperator::BitwiseOr
+                            | BinaryOperator::BitwiseXor
+                    ) && operator_is_builtin(operators, expression) =>
+                {
+                    let (left, left_domain) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.left,
+                    )?;
+                    let (right, right_domain) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.right,
+                    )?;
+                    let primitive_type = scalar_expression_type(&left)?;
+                    let domain = combine_arithmetic_domains(left_domain, right_domain)?;
+                    let kind = match binary.operator {
+                        BinaryOperator::BitwiseAnd => CheckedIntegerBinaryKind::BitwiseAnd,
+                        BinaryOperator::BitwiseOr => CheckedIntegerBinaryKind::BitwiseOr,
+                        BinaryOperator::BitwiseXor => CheckedIntegerBinaryKind::BitwiseXor,
+                        _ => unreachable!("guarded structural bitwise operator"),
+                    };
+                    (is_integer(primitive_type)
+                        && primitive_type != PrimitiveType::Addr
+                        && scalar_expression_type(&right) == Some(primitive_type))
+                    .then_some((
+                        CheckedScalarExpression::IntegerBinary {
+                            kind,
+                            primitive_type,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        },
+                        domain,
+                    ))
+                }
                 ExpressionNode::Binary(binary)
                     if matches!(
                         binary.operator,

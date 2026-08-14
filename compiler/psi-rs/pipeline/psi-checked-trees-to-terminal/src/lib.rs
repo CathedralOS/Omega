@@ -10427,6 +10427,67 @@ fn lower_structural_crash_route_buckets(
                     ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
                         .map_err(LoweringError::InvalidCrashPredicate)
                 }
+                CheckedScalarExpression::IntegerBitwiseNot {
+                    primitive_type,
+                    operand,
+                } => {
+                    let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                    else {
+                        return unsupported("structural crash bitwise-not has a non-integer type");
+                    };
+                    let operand = lower_integer_term(
+                        operand,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?;
+                    ScalarTerm::integer_bitwise_not(integer_type, operand)
+                        .map_err(LoweringError::InvalidCrashPredicate)
+                }
+                CheckedScalarExpression::IntegerBinary {
+                    kind,
+                    primitive_type,
+                    left,
+                    right,
+                } if matches!(
+                    kind,
+                    CheckedIntegerBinaryKind::BitwiseAnd
+                        | CheckedIntegerBinaryKind::BitwiseOr
+                        | CheckedIntegerBinaryKind::BitwiseXor
+                ) =>
+                {
+                    let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                    else {
+                        return unsupported(
+                            "structural crash bitwise expression has a non-integer type",
+                        );
+                    };
+                    let left = lower_integer_term(
+                        left,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?;
+                    let right = lower_integer_term(
+                        right,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?;
+                    match kind {
+                        CheckedIntegerBinaryKind::BitwiseAnd => {
+                            ScalarTerm::integer_bitwise_and(integer_type, left, right)
+                        }
+                        CheckedIntegerBinaryKind::BitwiseOr => {
+                            ScalarTerm::integer_bitwise_or(integer_type, left, right)
+                        }
+                        CheckedIntegerBinaryKind::BitwiseXor => {
+                            ScalarTerm::integer_bitwise_xor(integer_type, left, right)
+                        }
+                        _ => unreachable!("guarded bitwise kind"),
+                    }
+                    .map_err(LoweringError::InvalidCrashPredicate)
+                }
                 CheckedScalarExpression::IntegerBinary {
                     kind,
                     primitive_type,
@@ -10713,10 +10774,16 @@ fn substitute_structural_crash_route_roots(
                 }
             }
             ScalarTerm::BooleanNot { operand } => substitute_term(operand, substitutions)?,
+            ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+                substitute_term(operand, substitutions)?
+            }
             ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
             | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
             | ScalarTerm::ExactIntegerAdd { left, right, .. }
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
             | ScalarTerm::ExactIntegerMultiply { left, right, .. }

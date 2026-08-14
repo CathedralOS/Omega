@@ -252,6 +252,30 @@ const PROJECTED_INTEGER_MEMBER_DIVISION_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_BITWISE_SOURCE: &str = r#"
+    data Bits { value: u8; other: u8; mask: u8; expected: u8; }
+    data Envelope { bits: Bits; spare: Bits; }
+    data Helper {}
+    machine Helper::inspect(bits: Bits)
+    crashes Abort
+        (bits.value & bits.mask) == bits.expected
+            && (bits.value | bits.other) != bits.expected
+            && (bits.value ^ bits.other) <= bits.expected
+            && ~bits.value == bits.other
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        (envelope.bits.value & envelope.bits.mask) == envelope.bits.expected
+            && (envelope.bits.value | envelope.bits.other) != envelope.bits.expected
+            && (envelope.bits.value ^ envelope.bits.other) <= envelope.bits.expected
+            && ~envelope.bits.value == envelope.bits.other
+    {
+        Helper::inspect(envelope.bits);
+    }
+"#;
+
 const RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
     data Metrics { current: u64; divisor: u64; limit: u64; }
     data Root {}
@@ -2192,6 +2216,197 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter").is_err(),
         "a runtime member divisor remains fenced without explicit terminal safety evidence"
     );
+}
+
+#[test]
+fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn inspect_term<'a>(
+        term: &'a ScalarTerm,
+        bitwise_counts: &mut [usize; 4],
+        paths: &mut Vec<&'a [CanonicalStructuralPathSegment]>,
+    ) {
+        match term {
+            ScalarTerm::IntegerField { path, .. } => paths.push(path),
+            ScalarTerm::BooleanNot { operand } => inspect_term(operand, bitwise_counts, paths),
+            ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+                bitwise_counts[3] += 1;
+                inspect_term(operand, bitwise_counts, paths);
+            }
+            ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
+                match term {
+                    ScalarTerm::IntegerBitwiseAnd { .. } => bitwise_counts[0] += 1,
+                    ScalarTerm::IntegerBitwiseOr { .. } => bitwise_counts[1] += 1,
+                    ScalarTerm::IntegerBitwiseXor { .. } => bitwise_counts[2] += 1,
+                    _ => unreachable!(),
+                }
+                inspect_term(left, bitwise_counts, paths);
+                inspect_term(right, bitwise_counts, paths);
+            }
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
+                inspect_term(left, bitwise_counts, paths);
+                inspect_term(right, bitwise_counts, paths);
+            }
+            _ => {}
+        }
+    }
+
+    fn inspect_proposition(
+        proposition: &Proposition,
+    ) -> ([usize; 4], Vec<&[CanonicalStructuralPathSegment]>) {
+        fn inspect<'a>(
+            proposition: &'a Proposition,
+            bitwise_counts: &mut [usize; 4],
+            paths: &mut Vec<&'a [CanonicalStructuralPathSegment]>,
+        ) {
+            match proposition {
+                Proposition::Equal(left, right)
+                | Proposition::LessThan(left, right)
+                | Proposition::LessOrEqual(left, right) => {
+                    inspect_term(left, bitwise_counts, paths);
+                    inspect_term(right, bitwise_counts, paths);
+                }
+                Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                    for proposition in propositions {
+                        inspect(proposition, bitwise_counts, paths);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut bitwise_counts = [0; 4];
+        let mut paths = Vec::new();
+        inspect(proposition, &mut bitwise_counts, &mut paths);
+        (bitwise_counts, paths)
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_BITWISE_SOURCE)
+        .tokenize()
+        .expect("bitwise tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("bitwise parse");
+    let resolved = lower_syntax_trees(&syntax).expect("bitwise resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("bitwise type");
+    let checked = lower_typed_trees(typed).expect("bitwise check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected bitwise member predicates lower");
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one bitwise route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one bitwise route")
+    };
+    let (root_counts, root_paths) = inspect_proposition(root_route.proposition());
+    let (helper_counts, helper_paths) = inspect_proposition(helper_route.proposition());
+    assert_eq!(root_counts, [1, 1, 1, 1]);
+    assert_eq!(helper_counts, root_counts);
+    assert_eq!(root_paths.len(), helper_paths.len());
+
+    let envelope = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_parameters[0].structural_type)
+        .expect("Envelope type");
+    let StructuralTypeShape::Record { fields } = &envelope.shape else {
+        panic!("Envelope is a record")
+    };
+    let bits = fields
+        .iter()
+        .find(|field| field.identity == "bits")
+        .expect("bits field");
+    assert!(
+        root_paths
+            .iter()
+            .all(|path| { path.first() == Some(&CanonicalStructuralPathSegment::Field(bits.id)) })
+    );
+    assert!(helper_paths.iter().all(|path| path.len() == 1));
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected Unit call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [StructuralPathSegment::Field(identity)] if identity == "bits"
+    ));
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call carries one bitwise crash continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the verifier independently rebases every nested bitwise member");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("bitwise member route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("bitwise fixed fuel recomputes");
+    let semantics = encode_module(&lowered.semantic_module).expect("bitwise semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("bitwise proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 59,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("bitwise crash predicates remain verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("spare".to_owned())];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
 }
 
 #[test]
