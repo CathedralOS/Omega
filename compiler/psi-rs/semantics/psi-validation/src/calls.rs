@@ -2854,8 +2854,11 @@ fn array_value_assignment_preserves_transparent_result(
 /// a scalar assignment value. The primitive assignment target supplies the
 /// typed result fact; every effectful call producer must return a caller-
 /// isolated value, so generic/reference carriers remain fenced while concrete
-/// records and fixed arrays can feed member/index shells. A third computation
-/// shell fails closed.
+/// records and fixed arrays returned by calls can feed member/index shells. A
+/// direct member projection may additionally select from one concrete literal
+/// whose effectful fields are bounded direct-call trees. Keeping that literal
+/// leaf to one projection shell prevents aggregate and computation budgets from
+/// resetting each other. A third computation shell fails closed.
 #[allow(clippy::too_many_arguments)]
 fn primitive_computed_assignment_value_preserves_transparent_result(
     program: &TypedTrees,
@@ -3067,6 +3070,12 @@ fn primitive_computed_value_preserves_transparent_result(
     if remaining_computed_depth == 0 {
         return false;
     }
+    let direct_concrete_literal_member = require_caller_isolated_call_result
+        && remaining_computed_depth == TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+        );
     let operands = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => [Some(binary.left), Some(binary.right)],
         ExpressionNode::Cast(cast)
@@ -3104,6 +3113,17 @@ fn primitive_computed_value_preserves_transparent_result(
                 parameters,
                 aliases,
             ),
+            ExpressionNode::StructLiteral(_) if direct_concrete_literal_member => {
+                concrete_literal_member_operand_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    operand,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                )
+            }
             ExpressionNode::Binary(_)
             | ExpressionNode::Cast(_)
             | ExpressionNode::Indexed(_)
@@ -3126,6 +3146,50 @@ fn primitive_computed_value_preserves_transparent_result(
             _ => false,
         }
     })
+}
+
+/// Admit one named concrete literal directly below a primitive member
+/// projection. The literal's type makes the aggregate shape explicit, unlike
+/// a projected array literal whose contextual fixed-array type is unavailable
+/// after the scalar projection. Effectful fields remain direct bounded call
+/// trees; nested aggregates or computed field shells stay outside this narrow
+/// cohort so neither established depth budget can be reset.
+#[allow(clippy::too_many_arguments)]
+fn concrete_literal_member_operand_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    struct_literal_type_is_caller_isolated(program, literal)
+        && program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| {
+                if !expression_is_effectful_for_transparent_result(program, field.value) {
+                    return true;
+                }
+                matches!(
+                    program.expression_table.expression(field.value),
+                    ExpressionNode::Call(_)
+                ) && value_call_assignment_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    field.value,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                )
+            })
 }
 
 fn struct_literal_field_is_primitive(
