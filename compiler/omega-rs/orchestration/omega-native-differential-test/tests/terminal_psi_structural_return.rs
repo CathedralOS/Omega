@@ -751,6 +751,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             negative_addend: i8,
             positive_subtrahend: i8,
             negative_subtrahend: i8,
+            signed_count: i8,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -770,7 +771,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             0i8 <= positive_addend, signed_arithmetic <= 127i8 - positive_addend,
             negative_addend <= 0i8, -128i8 - negative_addend <= signed_arithmetic,
             0i8 <= positive_subtrahend, -128i8 + positive_subtrahend <= signed_arithmetic,
-            negative_subtrahend <= 0i8, signed_arithmetic <= 127i8 + negative_subtrahend
+            negative_subtrahend <= 0i8, signed_arithmetic <= 127i8 + negative_subtrahend,
+            0i8 <= signed_count, signed_count <= 2i8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -789,6 +791,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic >> signed_divisor) < 4i8)
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
+                && ((small << signed_count) < 255u8)
                 && ((signed as i8) < 4i8)
                 && ((small as i8) < 4i8)
                 && ((signed_arithmetic as u8) < 4u8)
@@ -1374,6 +1377,30 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 )
         }));
     }
+    let runtime_signed_count_shift_left_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft {
+                value,
+                count,
+                obligation,
+            } if value == terminal_entry.parameters[1].id
+                && count == terminal_entry.parameters[15].id =>
+            {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the signed-count runtime exact left shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == runtime_signed_count_shift_left_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_multiply_obligation = terminal_entry
         .blocks
         .iter()
