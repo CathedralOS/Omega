@@ -2315,6 +2315,7 @@ fn validate_boolean_shared_convergence_stack(
     evidence: &TerminalScalarStackEvidence,
     decisions: &[TerminalScalarConditionalBranchEvidence],
     joins: &[TerminalScalarJoinBranchEvidence],
+    structural_conditions: &[omega_terminal_machine_code::TerminalBooleanStructuralConditionEvidence],
     merge_offset: usize,
     cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 ) -> Result<
@@ -2361,6 +2362,40 @@ fn validate_boolean_shared_convergence_stack(
     )?;
     if leaves.len() != decisions.len() + 1 {
         return Err(invalid());
+    }
+    let expression_prefixes = prefixes
+        .iter()
+        .filter(|(_, _, condition)| *condition == TerminalScalarConditionalCondition::Expression)
+        .map(|(start, end, _)| (*start, *end))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut previous_end = None;
+    let mut structural_identity = None;
+    let mut operations = std::collections::BTreeSet::new();
+    for condition in structural_conditions {
+        let end = condition
+            .code_offset
+            .checked_add(condition.byte_count)
+            .ok_or_else(invalid)?;
+        if condition.reads.is_empty()
+            || condition.byte_count == 0
+            || condition.byte_count != condition.bytes.len()
+            || end > merge_offset
+            || !expression_prefixes.contains(&(condition.code_offset, end))
+            || previous_end.is_some_and(|previous| previous > condition.code_offset)
+            || bytes.get(condition.code_offset..end) != Some(condition.bytes.as_slice())
+        {
+            return Err(invalid());
+        }
+        previous_end = Some(end);
+        for read in &condition.reads {
+            let identity = (read.source, read.field, read.field_byte_offset);
+            if structural_identity.is_some_and(|expected| expected != identity)
+                || !operations.insert(read.psi_operation)
+            {
+                return Err(invalid());
+            }
+            structural_identity = Some(identity);
+        }
     }
     let mut claimed = evidence
         .mutations
@@ -2527,6 +2562,7 @@ fn validate_scalar_stack(
     if let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
         decisions,
         joins,
+        structural_conditions,
         merge_offset,
     } = &evidence.control_flow
     {
@@ -2543,6 +2579,7 @@ fn validate_scalar_stack(
             evidence,
             decisions,
             joins,
+            structural_conditions,
             *merge_offset,
             scalar_affine_cleanup,
         );

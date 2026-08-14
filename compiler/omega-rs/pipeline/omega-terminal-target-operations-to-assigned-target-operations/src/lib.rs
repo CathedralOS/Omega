@@ -1042,7 +1042,8 @@ fn boolean_expression_contains_call(expression: &TerminalTargetBooleanExpression
     match expression {
         TerminalTargetBooleanExpression::Call { .. } => true,
         TerminalTargetBooleanExpression::Immediate { .. }
-        | TerminalTargetBooleanExpression::Parameter { .. } => false,
+        | TerminalTargetBooleanExpression::Parameter { .. }
+        | TerminalTargetBooleanExpression::StructuralField { .. } => false,
         TerminalTargetBooleanExpression::Not { operand, .. } => {
             boolean_expression_contains_call(operand)
         }
@@ -1621,6 +1622,21 @@ fn assign_boolean_expression(
                 },
             )?,
         }),
+        TerminalTargetBooleanExpression::StructuralField {
+            psi_operation,
+            source_value,
+            source,
+            field,
+            source_placement,
+            field_byte_offset,
+        } => Ok(TerminalAssignedBooleanExpression::StructuralField {
+            psi_operation: *psi_operation,
+            source_value: *source_value,
+            source: *source,
+            field: *field,
+            source_placement: source_placement.clone(),
+            field_byte_offset: *field_byte_offset,
+        }),
         TerminalTargetBooleanExpression::Not {
             psi_operation,
             operand,
@@ -1851,6 +1867,7 @@ fn boolean_expression_parameter_locations(
                 }
             }
             TerminalTargetBooleanExpression::Immediate { .. } => {}
+            TerminalTargetBooleanExpression::StructuralField { .. } => {}
             TerminalTargetBooleanExpression::Parameter {
                 source_value,
                 parameter_index,

@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
+    PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    ValueId,
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
@@ -55,13 +56,38 @@ pub fn interpret_terminal_artifact_with_effect_handler_measured(
     structural_arguments: &[TerminalStructuralValue],
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    interpret_terminal_artifact_with_structural_boolean_fields_measured(
         semantic_bytes,
         proof_bytes,
         profile,
         scalar_arguments,
         structural_arguments,
-    )?;
+        &[],
+        handler,
+    )
+}
+
+/// Execute with exact target-neutral values for direct Boolean fields of
+/// structural entry arguments. Field IDs are terminal semantic identities;
+/// this input never exposes or assumes native layout.
+pub fn interpret_terminal_artifact_with_structural_boolean_fields_measured(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+    scalar_arguments: &[TerminalScalarValue],
+    structural_arguments: &[TerminalStructuralValue],
+    structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
+    handler: &mut impl TerminalEffectHandler,
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let mut execution =
+        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            structural_arguments,
+            structural_boolean_fields,
+        )?;
     let mut meter = TerminalFuelMeter::unbounded();
     let value = match execution
         .resume_with_effect_handler(&mut meter, handler)
@@ -119,6 +145,13 @@ pub struct TerminalStructuralValue {
     pub structural_type: StructuralTypeId,
     pub qualifications: Vec<StructuralDomainId>,
     pub path: Vec<StructuralPathSegment>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalStructuralBooleanFieldValue {
+    pub argument_index: u32,
+    pub field: StructuralFieldId,
+    pub value: bool,
 }
 
 /// One externally observable terminal-Psi effect in semantic execution order.
@@ -287,6 +320,7 @@ pub struct TerminalExecution {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_boolean_fields: BTreeMap<(MachineId, PlaceId, StructuralFieldId), bool>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -303,6 +337,7 @@ pub struct TerminalExecution {
 
 #[derive(Clone)]
 struct ExecutableMachine {
+    id: MachineId,
     parameters: Vec<psi_terminal::ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
     structural_places: Vec<psi_terminal::StructuralPlaceDeclaration>,
@@ -368,14 +403,38 @@ impl TerminalExecution {
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
+        Self::start_artifact_with_structural_arguments_and_boolean_fields(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            structural_arguments,
+            &[],
+        )
+    }
+
+    pub fn start_artifact_with_structural_arguments_and_boolean_fields(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &psi_proof_kernel::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = psi_terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start(&verified, scalar_arguments, structural_arguments, None)
-            .map_err(TerminalArtifactInterpretError::Execution)
+        Self::start(
+            &verified,
+            scalar_arguments,
+            structural_arguments,
+            structural_boolean_fields,
+            None,
+        )
+        .map_err(TerminalArtifactInterpretError::Execution)
     }
 
     /// Begin execution with one explicit provider installation previously
@@ -398,6 +457,7 @@ impl TerminalExecution {
             &verified,
             scalar_arguments,
             structural_arguments,
+            &[],
             Some(installation),
         )
         .map_err(TerminalArtifactInterpretError::Execution)
@@ -407,6 +467,7 @@ impl TerminalExecution {
         verified: &VerifiedTerminalModule<'_>,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
+        structural_boolean_field_arguments: &[TerminalStructuralBooleanFieldValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
         let module = verified.module();
@@ -422,6 +483,7 @@ impl TerminalExecution {
                 (
                     machine.id,
                     ExecutableMachine {
+                        id: machine.id,
                         parameters: machine.parameters.clone(),
                         structural_parameters: machine.structural_parameters.clone(),
                         structural_places: machine.structural_places.clone(),
@@ -456,6 +518,8 @@ impl TerminalExecution {
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
+        let structural_boolean_fields =
+            bind_structural_boolean_fields(machine, structural_boolean_field_arguments)?;
         let live_affine_frontier =
             bind_affine_frontier(&machine.structural_parameters, &structural_values)?;
         let live_claims = bind_entry_claims(
@@ -481,6 +545,7 @@ impl TerminalExecution {
             blocks,
             values,
             structural_values,
+            structural_boolean_fields,
             live_affine_frontier,
             live_claims,
             current_machine: module.entry,
@@ -858,6 +923,23 @@ impl TerminalExecution {
                         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::Boolean(value),
+                        );
+                    }
+                    OperationKind::BooleanStructuralField { source, field } => {
+                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let value = self
+                            .structural_boolean_fields
+                            .get(&(self.current_machine, source, field))
+                            .copied()
+                            .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing {
+                                source,
+                                field,
+                            })?;
                         self.values.insert(
                             operation.result.expect_scalar().id,
                             TerminalScalarValue::Boolean(value),
@@ -2096,6 +2178,71 @@ fn bind_structural_arguments(
     Ok(values)
 }
 
+fn bind_structural_boolean_fields(
+    machine: &ExecutableMachine,
+    arguments: &[TerminalStructuralBooleanFieldValue],
+) -> Result<BTreeMap<(MachineId, PlaceId, StructuralFieldId), bool>, TerminalInterpretError> {
+    let required = machine
+        .blocks
+        .values()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::BooleanStructuralField { source, field } => {
+                let argument_index = machine
+                    .structural_parameters
+                    .iter()
+                    .position(|parameter| parameter.place == source)?;
+                Some((argument_index as u32, source, field))
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let mut values = BTreeMap::new();
+    for argument in arguments {
+        let parameter = machine
+            .structural_parameters
+            .get(argument.argument_index as usize)
+            .ok_or(
+                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                    argument_index: argument.argument_index,
+                    field: argument.field,
+                },
+            )?;
+        if !required.contains(&(argument.argument_index, parameter.place, argument.field)) {
+            return Err(
+                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                    argument_index: argument.argument_index,
+                    field: argument.field,
+                },
+            );
+        }
+        if values
+            .insert(
+                (machine.id, parameter.place, argument.field),
+                argument.value,
+            )
+            .is_some()
+        {
+            return Err(
+                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                    argument_index: argument.argument_index,
+                    field: argument.field,
+                },
+            );
+        }
+    }
+    if let Some((_, source, field)) = required
+        .iter()
+        .find(|(_, source, field)| !values.contains_key(&(machine.id, *source, *field)))
+    {
+        return Err(TerminalInterpretError::StructuralBooleanFieldMissing {
+            source: *source,
+            field: *field,
+        });
+    }
+    Ok(values)
+}
+
 fn bind_affine_frontier(
     parameters: &[StructuralParameterDeclaration],
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -2612,6 +2759,14 @@ pub enum TerminalInterpretError {
     StructuralQualificationsNonCanonical,
     StructuralQualificationMissing(PlaceId),
     StructuralArgumentAliasing(u64),
+    StructuralBooleanFieldArgumentInvalid {
+        argument_index: u32,
+        field: StructuralFieldId,
+    },
+    StructuralBooleanFieldMissing {
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
     BoundaryQualificationMissing {
         boundary: BoundaryMachineId,
         argument_index: u32,

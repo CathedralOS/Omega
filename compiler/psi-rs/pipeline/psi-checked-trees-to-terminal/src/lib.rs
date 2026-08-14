@@ -154,6 +154,14 @@ enum LoweredBooleanReturnExpression {
     Local {
         position: usize,
     },
+    UnresolvedStructuralParameterField {
+        parameter_position: u32,
+        path: Vec<String>,
+    },
+    StructuralField {
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
     Not {
         operand: Box<LoweredBooleanReturnExpression>,
     },
@@ -2106,6 +2114,20 @@ fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    // A result-bearing structural plan owns both the scalar result and its
+    // post-result cleanup.  It must win over the overlapping Unit-only
+    // nominal-cleanup eligibility for the same attached machine.
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural scalar return plan requires an attached signature");
+        }
+        return lower_structural_scalar_return_machine(checked, plan);
+    }
     let mut nominal_matches = checked
         .facts
         .flow
@@ -2159,17 +2181,6 @@ fn lower_selected_machine(
             return unsupported("structural result transfer requires an attached signature");
         }
         return lower_structural_return_machine(checked, plan);
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("structural scalar return plan requires an attached signature");
-        }
-        return lower_structural_scalar_return_machine(checked, plan);
     }
     if let Some(plan) = checked
         .facts
@@ -4480,13 +4491,19 @@ fn lower_nominal_structural_scalar_return_machine(
         else {
             return unsupported("shared Boolean convergence decision is not Boolean");
         };
+        let decision = resolve_shared_boolean_member_fields(
+            *decision,
+            &structural_parameters,
+            &lowered.semantic_module.structural_types,
+        )?;
         let decision = normalize_shared_boolean_comparison_leaves(&decision).ok_or(
             LoweringError::Unsupported(
                 "shared Boolean convergence contains a non-normalizable comparison leaf",
             ),
         )?;
         if binding_index >= plan.bindings.len()
-            || shared_boolean_runtime_parameters(&decision).is_none_or(|inputs| inputs.is_empty())
+            || shared_boolean_runtime_parameters(&decision)
+                .is_none_or(|inputs| !valid_shared_boolean_runtime_inputs(&inputs))
         {
             return unsupported("shared Boolean convergence has no normalized runtime input");
         }
@@ -4514,12 +4531,19 @@ fn lower_nominal_structural_scalar_return_machine(
         else {
             return unsupported("shared Boolean convergence decision is not Boolean");
         };
+        let decision = resolve_shared_boolean_member_fields(
+            *decision,
+            &structural_parameters,
+            &lowered.semantic_module.structural_types,
+        )?;
         let decision = normalize_shared_boolean_comparison_leaves(&decision).ok_or(
             LoweringError::Unsupported(
                 "shared Boolean convergence contains a non-normalizable comparison leaf",
             ),
         )?;
-        if shared_boolean_runtime_parameters(&decision).is_none_or(|inputs| inputs.is_empty()) {
+        if shared_boolean_runtime_parameters(&decision)
+            .is_none_or(|inputs| !valid_shared_boolean_runtime_inputs(&inputs))
+        {
             return unsupported("shared Boolean convergence has no normalized runtime input");
         }
         let decision = lower_boolean_value_decision(&decision);
@@ -4799,6 +4823,10 @@ fn is_structural_boolean_return_expression(
                 )
         }
         LoweredBooleanReturnExpression::Parameter { position } => *position < scalar_parameters,
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { path, .. } => {
+            path.len() == 1
+        }
+        LoweredBooleanReturnExpression::StructuralField { .. } => true,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -4891,6 +4919,10 @@ fn is_branch_free_structural_boolean_expression(
                 )
         }
         LoweredBooleanReturnExpression::Parameter { position } => *position < scalar_parameters,
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { path, .. } => {
+            path.len() == 1
+        }
+        LoweredBooleanReturnExpression::StructuralField { .. } => true,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -4927,6 +4959,8 @@ fn boolean_local_reference_count(
         }
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => 0,
     }
 }
@@ -10353,11 +10387,13 @@ fn lower_checked_boolean_expression(
         CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {
             position: *position,
         },
-        CheckedBooleanExpression::StructuralParameterField { .. } => {
-            return unsupported(
-                "structural field predicates are not executable scalar expressions",
-            );
-        }
+        CheckedBooleanExpression::StructuralParameterField {
+            parameter_position,
+            path,
+        } => LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
+            parameter_position: *parameter_position,
+            path: path.clone(),
+        },
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(lower_checked_boolean_expression(operand)?),
         },
@@ -10397,6 +10433,10 @@ fn validate_boolean_parameter_types(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
+        LoweredBooleanReturnExpression::StructuralField { .. } => Ok(()),
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
+            unsupported("unresolved structural field crossed Boolean type validation")
+        }
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => {
             if parameter_types.get(*position) == Some(&ScalarType::Boolean) {
@@ -10486,6 +10526,8 @@ fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => false,
         LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
         LoweredBooleanReturnExpression::Equal { left, right } => {
@@ -10499,10 +10541,22 @@ fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
 
 fn shared_boolean_runtime_parameters(
     expression: &LoweredBooleanReturnExpression,
-) -> Option<BTreeSet<usize>> {
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Some(BTreeSet::new()),
-        LoweredBooleanReturnExpression::Parameter { position } => Some(BTreeSet::from([*position])),
+        LoweredBooleanReturnExpression::Parameter { position } => {
+            Some(BTreeSet::from([SharedBooleanRuntimeInput::Scalar(
+                *position,
+            )]))
+        }
+        LoweredBooleanReturnExpression::StructuralField { source, field } => {
+            Some(BTreeSet::from([
+                SharedBooleanRuntimeInput::StructuralField {
+                    source: *source,
+                    field: *field,
+                },
+            ]))
+        }
         LoweredBooleanReturnExpression::Not { operand } => {
             shared_boolean_runtime_parameters(operand)
         }
@@ -10513,21 +10567,143 @@ fn shared_boolean_runtime_parameters(
             Some(parameters)
         }
         LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::Equal { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => None,
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SharedBooleanRuntimeInput {
+    Scalar(usize),
+    StructuralField {
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
+}
+
+fn valid_shared_boolean_runtime_inputs(inputs: &BTreeSet<SharedBooleanRuntimeInput>) -> bool {
+    !inputs.is_empty()
+        && (!inputs
+            .iter()
+            .any(|input| matches!(input, SharedBooleanRuntimeInput::StructuralField { .. }))
+            || inputs
+                .iter()
+                .any(|input| matches!(input, SharedBooleanRuntimeInput::Scalar(_))))
+}
+
+fn resolve_shared_boolean_member_fields(
+    expression: LoweredBooleanReturnExpression,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    Ok(match expression {
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
+            parameter_position,
+            path,
+        } => {
+            let [field_name] = path.as_slice() else {
+                return unsupported(
+                    "shared Boolean convergence admits only one direct structural field",
+                );
+            };
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.position == parameter_position)
+                .filter(|parameter| {
+                    parameter.multiplicity == StructuralMultiplicity::Affine
+                        && parameter.qualifications.is_empty()
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "shared Boolean member source is not one claim-free affine parameter",
+                ))?;
+            let declaration = structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "shared Boolean member source type is absent",
+                ))?;
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return unsupported("shared Boolean member source is not a record");
+            };
+            let field = fields
+                .iter()
+                .find(|field| field.identity == *field_name)
+                .filter(|field| {
+                    !field.relevance.is_erased()
+                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "shared Boolean member is absent, erased, or non-Boolean",
+                ))?;
+            LoweredBooleanReturnExpression::StructuralField {
+                source: parameter.place,
+                field: field.id,
+            }
+        }
+        LoweredBooleanReturnExpression::Not { operand } => LoweredBooleanReturnExpression::Not {
+            operand: Box::new(resolve_shared_boolean_member_fields(
+                *operand,
+                parameters,
+                structural_types,
+            )?),
+        },
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            LoweredBooleanReturnExpression::Equal {
+                left: Box::new(resolve_shared_boolean_member_fields(
+                    *left,
+                    parameters,
+                    structural_types,
+                )?),
+                right: Box::new(resolve_shared_boolean_member_fields(
+                    *right,
+                    parameters,
+                    structural_types,
+                )?),
+            }
+        }
+        LoweredBooleanReturnExpression::And { left, right } => {
+            LoweredBooleanReturnExpression::And {
+                left: Box::new(resolve_shared_boolean_member_fields(
+                    *left,
+                    parameters,
+                    structural_types,
+                )?),
+                right: Box::new(resolve_shared_boolean_member_fields(
+                    *right,
+                    parameters,
+                    structural_types,
+                )?),
+            }
+        }
+        LoweredBooleanReturnExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
+            left: Box::new(resolve_shared_boolean_member_fields(
+                *left,
+                parameters,
+                structural_types,
+            )?),
+            right: Box::new(resolve_shared_boolean_member_fields(
+                *right,
+                parameters,
+                structural_types,
+            )?),
+        },
+        expression => expression,
+    })
+}
+
 /// Normalize the comparison leaves accepted by the checked shared-convergence
 /// plan into the existing identity/negation carrier. Equality is admitted only
 /// when at least one operand is constant, so this cannot merge two runtime
-/// inputs or admit member/integer comparisons through the shared-join path.
+/// inputs or admit integer comparisons through the shared-join path. The one
+/// already-resolved structural-field leaf is preserved unchanged.
 fn normalize_shared_boolean_comparison_leaves(
     expression: &LoweredBooleanReturnExpression,
 ) -> Option<LoweredBooleanReturnExpression> {
     Some(match expression {
         LoweredBooleanReturnExpression::Constant { .. }
-        | LoweredBooleanReturnExpression::Parameter { .. } => expression.clone(),
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. } => expression.clone(),
         LoweredBooleanReturnExpression::Not { operand } => LoweredBooleanReturnExpression::Not {
             operand: Box::new(normalize_shared_boolean_comparison_leaves(operand)?),
         },
@@ -10565,6 +10741,7 @@ fn normalize_shared_boolean_comparison_leaves(
             right: Box::new(normalize_shared_boolean_comparison_leaves(right)?),
         },
         LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => return None,
     })
 }
@@ -10605,8 +10782,12 @@ fn validate_short_circuit_expression(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => Ok(()),
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
+            unsupported("unresolved structural field crossed Boolean validation")
+        }
         LoweredBooleanReturnExpression::Not { operand } => {
             validate_short_circuit_expression(operand)
         }
@@ -10800,6 +10981,8 @@ fn evaluate_compile_known_boolean_expression(
             };
             Some(value)
         }
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. } => None,
         LoweredBooleanReturnExpression::Not { operand } => Some(
             !evaluate_compile_known_boolean_expression(operand, parameters)?,
         ),
@@ -11158,6 +11341,8 @@ fn lower_boolean_value_decision(
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => {
             unreachable!("non-short-circuit expressions return above")
         }
@@ -13324,6 +13509,12 @@ fn checked_boolean_scalar_term_from_lowered(
                     "crash predicate Boolean value has a non-Boolean type",
                 ))
         }
+        LoweredBooleanReturnExpression::StructuralField { source, field } => {
+            Ok(ScalarTerm::boolean_field(*source, *field))
+        }
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
+            unsupported("unresolved structural field crossed crash-predicate lowering")
+        }
         LoweredBooleanReturnExpression::Not { operand } => {
             ScalarTerm::boolean_not(checked_boolean_scalar_term_from_lowered(operand, values)?)
                 .map_err(LoweringError::InvalidCrashPredicate)
@@ -14530,6 +14721,28 @@ fn emit_boolean_expression(
         }
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => parameters[*position].id,
+        LoweredBooleanReturnExpression::StructuralField { source, field } => {
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after a structural Boolean load");
+            let operation = operations.allocate();
+            operations.push(Operation {
+                id: operation,
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanStructuralField {
+                    source: *source,
+                    field: *field,
+                },
+            });
+            id
+        }
+        LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
+            unreachable!("shared Boolean members resolve before terminal operation emission")
+        }
         LoweredBooleanReturnExpression::Not { operand } => {
             let operand =
                 emit_boolean_expression(operand, parameters, next_value_identity, operations);

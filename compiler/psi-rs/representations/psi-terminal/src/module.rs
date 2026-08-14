@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        15
+        16
     }
 }
 
@@ -773,6 +773,14 @@ pub enum OperationKind {
     },
     BooleanConstant {
         value: bool,
+    },
+    /// Read one direct relevant Boolean field from an entry structural
+    /// parameter. The canonical field identity, rather than an authored name
+    /// or native byte offset, is part of terminal-Psi semantics; Omega selects
+    /// and validates the target ABI load.
+    BooleanStructuralField {
+        source: PlaceId,
+        field: StructuralFieldId,
     },
     BooleanNot {
         operand: ValueId,

@@ -526,12 +526,11 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
     let source = r#"
         data Helper {}
         machine Helper::touch() {}
-        data Token { value: u64; }
+        data Token { padding: bool; ready: bool; }
         machine Token::drop(&mut self) { Helper::touch(); }
-        data Plain { observed: bool; }
         data Root {}
-        machine Root::measure(token: Token, left: bool, plain: Plain, right: bool) -> bool {
-            let staged: bool = !(((left == false) && right) || false);
+        machine Root::measure(token: Token, left: bool) -> bool {
+            let staged: bool = token.ready && !left;
             staged
         }
     "#;
@@ -555,6 +554,12 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
             .operations
             .iter()
             .any(|operation| matches!(operation.kind, OperationKind::BooleanNot { .. }))
+    }));
+    assert!(terminal_entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::BooleanStructuralField { .. }))
     }));
     assert!(terminal_entry.blocks.iter().all(|block| {
         block
@@ -590,6 +595,9 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
                 if matches!(scalar.as_ref(),
                     TerminalTargetOperation::ReturnBooleanSharedConvergence { .. })
         ));
+        let target_debug = format!("{:?}", target_entry.operation);
+        assert!(target_debug.contains("StructuralField"));
+        assert!(target_debug.contains("field_byte_offset: 1"));
         let assigned = assign_registers(&target_plan)
             .unwrap_or_else(|error| panic!("{:?} assignment: {error:?}", case.target));
         assert!(matches!(
@@ -602,6 +610,17 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
                 if matches!(scalar.as_ref(),
                     TerminalAssignedOperation::ReturnBooleanSharedConvergence { .. })
         ));
+        let assigned_debug = format!(
+            "{:?}",
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry_machine)
+                .expect("assigned shared convergence entry")
+                .operation
+        );
+        assert!(assigned_debug.contains("StructuralField"));
+        assert!(assigned_debug.contains("field_byte_offset: 1"));
         let machine_code = emit_machine_code(&assigned)
             .unwrap_or_else(|error| panic!("{:?} emission: {error:?}", case.target));
         let emitted = machine_code
@@ -618,6 +637,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
             decisions,
             joins,
+            structural_conditions,
             merge_offset,
         } = &emitted
             .scalar_stack
@@ -630,8 +650,18 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         assert!(decisions.len() >= 2);
         assert_eq!(joins.len(), decisions.len());
         assert!(joins.iter().all(|join| join.join_offset < *merge_offset));
+        assert!(!structural_conditions.is_empty());
+        assert!(structural_conditions.iter().all(|condition| {
+            !condition.reads.is_empty()
+                && condition.byte_count == condition.bytes.len()
+                && condition
+                    .reads
+                    .iter()
+                    .all(|read| read.field_byte_offset == 1)
+        }));
         assert_eq!(*merge_offset, cleanup.code_offset);
         let forged_join_offset = joins[0].join_offset;
+        let forged_structural_offset = structural_conditions[0].code_offset;
 
         let object = build_terminal_object_artifact(&machine_code)
             .unwrap_or_else(|error| panic!("{:?} object replay: {error:?}", case.target));
@@ -655,6 +685,8 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
             decode_terminal_installation_record(&bytes),
             Ok(installation.clone())
         );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed shared convergence binds its exact image");
 
         let mut forged = machine_code.clone();
         let function = forged
@@ -664,6 +696,15 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
             .expect("forged shared convergence entry");
         function.bytes[forged_join_offset] ^= 1;
         assert!(build_terminal_object_artifact(&forged).is_err());
+
+        let mut forged_structural_read = machine_code.clone();
+        let function = forged_structural_read
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("forged structural read entry");
+        function.bytes[forged_structural_offset] ^= 1;
+        assert!(build_terminal_object_artifact(&forged_structural_read).is_err());
 
         let mut missing_join = machine_code.clone();
         let function = missing_join

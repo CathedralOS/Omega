@@ -18,7 +18,8 @@ use omega_terminal_assigned_target_operations::{
     TerminalExpressionFrame,
 };
 use omega_terminal_machine_code::{
-    TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
+    TerminalAarch64ReturnLinkEvidence, TerminalBooleanStructuralConditionEvidence,
+    TerminalBooleanStructuralFieldRead, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalInternalUnitCallArgumentRecord,
     TerminalInternalUnitCallRecord, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
@@ -3895,6 +3896,7 @@ fn emit_boolean_shared_convergence(
         TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
             decisions: emitted.decisions,
             joins: emitted.joins,
+            structural_conditions: emitted.structural_conditions,
             merge_offset,
         },
     ))
@@ -3904,6 +3906,7 @@ struct BooleanSharedConvergenceEmission {
     bytes: Vec<u8>,
     decisions: Vec<TerminalScalarConditionalBranchEvidence>,
     joins: Vec<TerminalScalarJoinBranchEvidence>,
+    structural_conditions: Vec<TerminalBooleanStructuralConditionEvidence>,
 }
 
 impl BooleanSharedConvergenceEmission {
@@ -3925,10 +3928,51 @@ impl BooleanSharedConvergenceEmission {
                 .checked_add(base)
                 .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
         }
+        for condition in &mut child.structural_conditions {
+            condition.code_offset = condition
+                .code_offset
+                .checked_add(base)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+        }
         self.bytes.append(&mut child.bytes);
         self.decisions.append(&mut child.decisions);
         self.joins.append(&mut child.joins);
+        self.structural_conditions
+            .append(&mut child.structural_conditions);
         Ok(())
+    }
+}
+
+fn boolean_structural_field_reads(
+    expression: &TerminalAssignedBooleanExpression,
+    reads: &mut Vec<TerminalBooleanStructuralFieldRead>,
+) {
+    match expression {
+        TerminalAssignedBooleanExpression::StructuralField {
+            psi_operation,
+            source,
+            field,
+            field_byte_offset,
+            ..
+        } => reads.push(TerminalBooleanStructuralFieldRead {
+            psi_operation: *psi_operation,
+            source: *source,
+            field: *field,
+            field_byte_offset: *field_byte_offset,
+        }),
+        TerminalAssignedBooleanExpression::Not { operand, .. } => {
+            boolean_structural_field_reads(operand, reads);
+        }
+        TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
+            boolean_structural_field_reads(left, reads);
+            boolean_structural_field_reads(right, reads);
+        }
+        TerminalAssignedBooleanExpression::Call { .. }
+        | TerminalAssignedBooleanExpression::Immediate { .. }
+        | TerminalAssignedBooleanExpression::Parameter { .. }
+        | TerminalAssignedBooleanExpression::IntegerEqual { .. }
+        | TerminalAssignedBooleanExpression::IntegerLessThan { .. }
+        | TerminalAssignedBooleanExpression::IntegerLessOrEqual { .. } => {}
     }
 }
 
@@ -3936,7 +3980,14 @@ fn emit_boolean_shared_convergence_tree(
     architecture: Architecture,
     control: &TerminalAssignedBooleanControl,
 ) -> Result<BooleanSharedConvergenceEmission, EmissionError> {
-    let (mut prefix, condition, aarch64_condition_register, when_true, when_false) = match control {
+    let (
+        mut prefix,
+        condition,
+        aarch64_condition_register,
+        when_true,
+        when_false,
+        structural_reads,
+    ) = match control {
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -3957,6 +4008,7 @@ fn emit_boolean_shared_convergence_tree(
                     None,
                     when_true,
                     when_false,
+                    Vec::new(),
                 )
             }
             Architecture::Aarch64 => {
@@ -3968,6 +4020,7 @@ fn emit_boolean_shared_convergence_tree(
                     Some(register),
                     when_true,
                     when_false,
+                    Vec::new(),
                 )
             }
         },
@@ -3978,6 +4031,8 @@ fn emit_boolean_shared_convergence_tree(
             when_false,
             ..
         } if linear_boolean_expression(condition) => {
+            let mut structural_reads = Vec::new();
+            boolean_structural_field_reads(condition, &mut structural_reads);
             let bytes = match architecture {
                 Architecture::X86_64 => {
                     emit_x86_64_boolean_condition_value(condition_frame, condition, None)?
@@ -3992,6 +4047,7 @@ fn emit_boolean_shared_convergence_tree(
                 None,
                 when_true,
                 when_false,
+                structural_reads,
             )
         }
         TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
@@ -4024,6 +4080,7 @@ fn emit_boolean_shared_convergence_tree(
                     join_offset,
                     join_byte_count,
                 }],
+                structural_conditions: Vec::new(),
             });
         }
         _ => return Err(EmissionError::UnsupportedScalarCleanup),
@@ -4066,6 +4123,16 @@ fn emit_boolean_shared_convergence_tree(
         .len()
         .checked_add(when_true.bytes.len())
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let structural_conditions = if structural_reads.is_empty() {
+        Vec::new()
+    } else {
+        vec![TerminalBooleanStructuralConditionEvidence {
+            reads: structural_reads,
+            code_offset: 0,
+            byte_count: branch_offset,
+            bytes: prefix[..branch_offset].to_vec(),
+        }]
+    };
     let mut emitted = BooleanSharedConvergenceEmission {
         bytes: prefix,
         decisions: vec![TerminalScalarConditionalBranchEvidence {
@@ -4075,6 +4142,7 @@ fn emit_boolean_shared_convergence_tree(
             false_arm_offset,
         }],
         joins: Vec::new(),
+        structural_conditions,
     };
     emitted.append(when_true)?;
     emitted.append(when_false)?;
@@ -4443,6 +4511,22 @@ fn emit_x86_64_boolean_expression_node(
             }
             bytes.extend_from_slice(&[0x83, 0xe0, 0x01]); // and eax, 1
         }
+        TerminalAssignedBooleanExpression::StructuralField {
+            source_value,
+            source_placement,
+            field_byte_offset,
+            ..
+        } => {
+            emit_x86_64_boolean_structural_field(
+                bytes,
+                *source_value,
+                source_placement,
+                *field_byte_offset,
+                frame_byte_size,
+                stack_depth,
+            )?;
+            bytes.extend_from_slice(&[0x83, 0xe0, 0x01]);
+        }
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             emit_x86_64_boolean_expression_node(
                 bytes,
@@ -4563,6 +4647,107 @@ fn emit_x86_64_boolean_expression_node(
         }
     }
     Ok(())
+}
+
+fn emit_x86_64_boolean_structural_field(
+    bytes: &mut Vec<u8>,
+    source_value: ValueId,
+    placement: &ValuePlacement,
+    field_byte_offset: u32,
+    frame_byte_size: u32,
+    stack_depth: u32,
+) -> Result<(), EmissionError> {
+    if field_byte_offset >= u32::from(placement.shape.byte_size) {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    }
+    if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
+        let base = match *pointer {
+            IndirectPointerLocation::Register(register) => {
+                let base = x86_unit_register(register)?;
+                if base == 0 {
+                    return Err(EmissionError::ExpressionScratchRegisterConflict {
+                        value: source_value,
+                        register,
+                    });
+                }
+                base
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                let incoming = stack_byte_offset
+                    .checked_add(8)
+                    .and_then(|offset| offset.checked_add(frame_byte_size))
+                    .and_then(|offset| offset.checked_add(stack_depth))
+                    .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
+                        value: source_value,
+                        byte_offset: stack_byte_offset,
+                    })?;
+                emit_x86_64_stack_load_width(bytes, 11, incoming, 8)?;
+                11
+            }
+        };
+        return emit_x86_64_memory_load_width(bytes, 0, base, field_byte_offset, 1);
+    }
+    let location = placement
+        .locations
+        .iter()
+        .find(|location| match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => {
+                let start = u32::from(*value_byte_offset);
+                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+            }
+            ValueLocation::Indirect { .. } => false,
+        })
+        .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
+    match *location {
+        ValueLocation::Register {
+            register,
+            value_byte_offset,
+            ..
+        } => {
+            let register = x86_unit_register(register)?;
+            if register == 0 {
+                return Err(EmissionError::ExpressionScratchRegisterConflict {
+                    value: source_value,
+                    register: MachineRegister::X86Rax,
+                });
+            }
+            let rex = 0x48 | (((register >> 3) & 1) << 2);
+            bytes.extend_from_slice(&[rex, 0x89, 0xc0 | ((register & 7) << 3)]);
+            let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
+            if shift != 0 {
+                bytes.extend_from_slice(&[0x48, 0xc1, 0xe8, shift as u8]);
+            }
+            Ok(())
+        }
+        ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            ..
+        } => {
+            let incoming = stack_byte_offset
+                .checked_add(field_byte_offset - u32::from(value_byte_offset))
+                .and_then(|offset| offset.checked_add(8))
+                .and_then(|offset| offset.checked_add(frame_byte_size))
+                .and_then(|offset| offset.checked_add(stack_depth))
+                .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
+                    value: source_value,
+                    byte_offset: stack_byte_offset,
+                })?;
+            emit_x86_64_stack_load_width(bytes, 0, incoming, 1)
+        }
+        ValueLocation::Indirect { .. } => Err(EmissionError::UnsupportedAggregatePlacement),
+    }
 }
 
 fn emit_x86_64_integer_expression(
@@ -5681,6 +5866,22 @@ fn emit_aarch64_boolean_expression_node(
             )?);
             instructions.push(0x1200_0000); // and w0, w0, #1
         }
+        TerminalAssignedBooleanExpression::StructuralField {
+            source_value,
+            source_placement,
+            field_byte_offset,
+            ..
+        } => {
+            emit_aarch64_boolean_structural_field(
+                instructions,
+                *source_value,
+                source_placement,
+                *field_byte_offset,
+                frame,
+                stack_depth,
+            )?;
+            instructions.push(0x1200_0000);
+        }
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             emit_aarch64_boolean_expression_node(
                 instructions,
@@ -5833,6 +6034,116 @@ fn emit_aarch64_boolean_expression_node(
         }
     }
     Ok(())
+}
+
+fn emit_aarch64_boolean_structural_field(
+    instructions: &mut Vec<u32>,
+    source_value: ValueId,
+    placement: &ValuePlacement,
+    field_byte_offset: u32,
+    frame: &TerminalExpressionFrame,
+    stack_depth: u32,
+) -> Result<(), EmissionError> {
+    if field_byte_offset >= u32::from(placement.shape.byte_size) {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    }
+    if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
+        let base = match *pointer {
+            IndirectPointerLocation::Register(register) => {
+                let base = aarch64_unit_register(register)?;
+                if base == 0 {
+                    return Err(EmissionError::ExpressionScratchRegisterConflict {
+                        value: source_value,
+                        register,
+                    });
+                }
+                base
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                let incoming = stack_depth
+                    .checked_add(frame.byte_size)
+                    .and_then(|offset| offset.checked_add(stack_byte_offset))
+                    .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
+                        value: source_value,
+                        byte_offset: stack_byte_offset,
+                    })?;
+                instructions.push(aarch64_unit_stack_access(0xf940_0000, 9, incoming, 8)?);
+                9
+            }
+        };
+        instructions.push(aarch64_unit_memory_access(
+            aarch64_load_base(1)?,
+            0,
+            base,
+            field_byte_offset,
+            1,
+        )?);
+        return Ok(());
+    }
+    let location = placement
+        .locations
+        .iter()
+        .find(|location| match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => {
+                let start = u32::from(*value_byte_offset);
+                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+            }
+            ValueLocation::Indirect { .. } => false,
+        })
+        .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
+    match *location {
+        ValueLocation::Register {
+            register,
+            value_byte_offset,
+            ..
+        } => {
+            let register = aarch64_unit_register(register)?;
+            if register == 0 {
+                return Err(EmissionError::ExpressionScratchRegisterConflict {
+                    value: source_value,
+                    register: MachineRegister::Aarch64X(0),
+                });
+            }
+            let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
+            instructions.push(0xd340_fc00 | (shift << 16) | (u32::from(register) << 5));
+            Ok(())
+        }
+        ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            ..
+        } => {
+            let incoming = stack_depth
+                .checked_add(frame.byte_size)
+                .and_then(|offset| offset.checked_add(stack_byte_offset))
+                .and_then(|offset| {
+                    offset.checked_add(field_byte_offset - u32::from(value_byte_offset))
+                })
+                .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
+                    value: source_value,
+                    byte_offset: stack_byte_offset,
+                })?;
+            instructions.push(aarch64_unit_stack_access(
+                aarch64_load_base(1)?,
+                0,
+                incoming,
+                1,
+            )?);
+            Ok(())
+        }
+        ValueLocation::Indirect { .. } => Err(EmissionError::UnsupportedAggregatePlacement),
+    }
 }
 
 fn emit_aarch64_integer_expression(
@@ -6695,7 +7006,8 @@ fn linear_boolean_expression(expression: &TerminalAssignedBooleanExpression) -> 
             .iter()
             .all(|argument| linear_scalar_expression(&argument.expression)),
         TerminalAssignedBooleanExpression::Immediate { .. }
-        | TerminalAssignedBooleanExpression::Parameter { .. } => true,
+        | TerminalAssignedBooleanExpression::Parameter { .. }
+        | TerminalAssignedBooleanExpression::StructuralField { .. } => true,
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             linear_boolean_expression(operand)
         }
@@ -7014,7 +7326,8 @@ fn accountable_conditional_boolean_expression(
             .iter()
             .all(|argument| accountable_conditional_call_argument_expression(&argument.expression)),
         TerminalAssignedBooleanExpression::Immediate { .. }
-        | TerminalAssignedBooleanExpression::Parameter { .. } => true,
+        | TerminalAssignedBooleanExpression::Parameter { .. }
+        | TerminalAssignedBooleanExpression::StructuralField { .. } => true,
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             accountable_conditional_boolean_expression(operand)
         }
@@ -7307,7 +7620,8 @@ fn boolean_expression_source(expression: &TerminalAssignedBooleanExpression) -> 
     match expression {
         TerminalAssignedBooleanExpression::Call { source_value, .. } => *source_value,
         TerminalAssignedBooleanExpression::Immediate { source_value, .. }
-        | TerminalAssignedBooleanExpression::Parameter { source_value, .. } => *source_value,
+        | TerminalAssignedBooleanExpression::Parameter { source_value, .. }
+        | TerminalAssignedBooleanExpression::StructuralField { source_value, .. } => *source_value,
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             boolean_expression_source(operand)
         }

@@ -25,7 +25,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, StructuralTypeId, ValueId,
+    ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -309,6 +309,8 @@ fn lower_function(
             BTreeSet::new(),
             target,
             functions,
+            &target_structural_parameters,
+            structural_types,
         )?;
         if let Some(shared_return_edge) = shared_boolean_cleanup_convergence_return_edge(function) {
             if shared_boolean_control_return_edge(&lowered.control) != Some(shared_return_edge) {
@@ -452,6 +454,12 @@ fn lower_function(
             } => {
                 insert_value(&mut values, *result, KnownScalar::Boolean(*value))?;
                 provenance.operations.push(*psi_operation);
+            }
+            TerminalAbstractOperation::BooleanStructuralField { psi_operation, .. } => {
+                return Err(LoweringError::UnitOperationInScalarFunction {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
             }
             TerminalAbstractOperation::BooleanNot {
                 psi_operation,
@@ -1549,6 +1557,7 @@ fn shared_boolean_cleanup_convergence_return_edge(
                 }
             }
             TerminalAbstractOperation::BooleanConstant { .. }
+            | TerminalAbstractOperation::BooleanStructuralField { .. }
             | TerminalAbstractOperation::BooleanNot { .. } => {}
             _ => return None,
         }
@@ -2355,6 +2364,7 @@ fn lower_unit_function(
             | TerminalAbstractOperation::Call { .. }
             | TerminalAbstractOperation::IntegerConstant { .. }
             | TerminalAbstractOperation::BooleanConstant { .. }
+            | TerminalAbstractOperation::BooleanStructuralField { .. }
             | TerminalAbstractOperation::BooleanNot { .. }
             | TerminalAbstractOperation::BooleanEqual { .. }
             | TerminalAbstractOperation::IntegerEqual { .. }
@@ -2728,6 +2738,54 @@ fn structural_shape(
     Ok(shape)
 }
 
+fn direct_boolean_field_offset(
+    structural_type: StructuralTypeId,
+    field: StructuralFieldId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<u32, LoweringError> {
+    let declaration = declarations
+        .get(&structural_type)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(LoweringError::UnknownStructuralType(structural_type));
+    };
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let mut offset = 0_u32;
+    for candidate in fields
+        .iter()
+        .filter(|candidate| !candidate.relevance.is_erased())
+    {
+        let shape = match candidate.field_type {
+            StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
+            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                let size = integer.bits().div_ceil(8);
+                ValueShape::integer(size, size.next_power_of_two().min(16))
+            }
+            StructuralFieldType::Structural(nested) => {
+                structural_shape(nested, declarations, &mut cache, &mut active)?
+            }
+            StructuralFieldType::Erased { .. } => {
+                return Err(LoweringError::RelevantOpaqueStructuralField(
+                    structural_type,
+                ));
+            }
+        };
+        offset = checked_align_up_u32(offset, u32::from(shape.alignment))
+            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+        if candidate.id == field {
+            return (candidate.field_type == StructuralFieldType::Scalar(ScalarType::Boolean))
+                .then_some(offset)
+                .ok_or(LoweringError::UnknownStructuralType(structural_type));
+        }
+        offset = offset
+            .checked_add(u32::from(shape.byte_size))
+            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+    }
+    Err(LoweringError::UnknownStructuralType(structural_type))
+}
+
 fn resolve_structural_field_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -3008,6 +3066,8 @@ fn lower_boolean_conditional(
         BTreeSet::new(),
         target,
         functions,
+        &[],
+        &BTreeMap::new(),
     )?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
@@ -3030,6 +3090,8 @@ fn lower_boolean_arm(
     visited: &BTreeSet<BlockId>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_parameters: &[TerminalTargetStructuralParameter],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<LoweredBooleanArm, LoweringError> {
     let mut values = values.clone();
     bind_conditional_values(&mut values, &successor.bindings, successor.psi_edge)?;
@@ -3040,6 +3102,8 @@ fn lower_boolean_arm(
         visited.clone(),
         target,
         functions,
+        structural_parameters,
+        structural_types,
     )?;
     lowered.edges.insert(0, successor.psi_edge);
     Ok(LoweredBooleanArm {
@@ -3065,6 +3129,8 @@ fn lower_boolean_block(
     mut visited: BTreeSet<BlockId>,
     native_target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_parameters: &[TerminalTargetStructuralParameter],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<LoweredBooleanControl, LoweringError> {
     if !visited.insert(block) {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
@@ -3098,10 +3164,13 @@ fn lower_boolean_block(
     for operation in body {
         if !lower_conditional_scalar_operation(
             operation,
+            function.machine,
             &mut values,
             &mut operations,
             native_target,
             functions,
+            structural_parameters,
+            structural_types,
         )? {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
@@ -3115,8 +3184,16 @@ fn lower_boolean_block(
             bindings,
         } => {
             bind_conditional_values(&mut values, bindings, *psi_edge)?;
-            let mut lowered =
-                lower_boolean_block(function, values, *target, visited, native_target, functions)?;
+            let mut lowered = lower_boolean_block(
+                function,
+                values,
+                *target,
+                visited,
+                native_target,
+                functions,
+                structural_parameters,
+                structural_types,
+            )?;
             operations.append(&mut lowered.operations);
             lowered.operations = operations;
             lowered.edges.insert(0, *psi_edge);
@@ -3144,6 +3221,8 @@ fn lower_boolean_block(
                     &visited,
                     native_target,
                     functions,
+                    structural_parameters,
+                    structural_types,
                 )?;
                 operations.append(&mut lowered.operations);
                 Ok(LoweredBooleanControl {
@@ -3167,6 +3246,8 @@ fn lower_boolean_block(
                     &visited,
                     native_target,
                     functions,
+                    structural_parameters,
+                    structural_types,
                 )?;
                 let lowered_false = lower_boolean_arm(
                     function,
@@ -3175,6 +3256,8 @@ fn lower_boolean_block(
                     &visited,
                     native_target,
                     functions,
+                    structural_parameters,
+                    structural_types,
                 )?;
                 operations.extend(lowered_true.operations);
                 operations.extend(lowered_false.operations);
@@ -3461,10 +3544,13 @@ fn lower_conditional_block(
     for operation in body {
         if !lower_conditional_scalar_operation(
             operation,
+            function.machine,
             &mut values,
             &mut operations,
             native_target,
             functions,
+            &[],
+            &BTreeMap::new(),
         )? {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
@@ -3745,10 +3831,13 @@ fn target_operation_from_integer_control(
 
 fn lower_conditional_scalar_operation(
     operation: &TerminalAbstractOperation,
+    machine: MachineId,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut Vec<psi_core::OperationId>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_parameters: &[TerminalTargetStructuralParameter],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<bool, LoweringError> {
     if let TerminalAbstractOperation::Call {
         psi_operation,
@@ -3779,6 +3868,34 @@ fn lower_conditional_scalar_operation(
     } = operation
     {
         insert_value(values, *result, KnownScalar::Boolean(*value))?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    if let TerminalAbstractOperation::BooleanStructuralField {
+        psi_operation,
+        result,
+        source,
+        field,
+    } = operation
+    {
+        let parameter = structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *source)
+            .ok_or(LoweringError::UnsupportedOperationInScalarFunction(machine))?;
+        let field_byte_offset =
+            direct_boolean_field_offset(parameter.structural_type, *field, structural_types)?;
+        insert_value(
+            values,
+            *result,
+            KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::StructuralField {
+                psi_operation: *psi_operation,
+                source_value: *result,
+                source: *source,
+                field: *field,
+                source_placement: parameter.placement.clone(),
+                field_byte_offset,
+            }),
+        )?;
         provenance.push(*psi_operation);
         return Ok(true);
     }
@@ -5050,6 +5167,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::Call { psi_operation, .. }
             | TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
+            | TerminalAbstractOperation::BooleanStructuralField { psi_operation, .. }
             | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
             | TerminalAbstractOperation::BooleanEqual { psi_operation, .. }
             | TerminalAbstractOperation::IntegerEqual { psi_operation, .. }

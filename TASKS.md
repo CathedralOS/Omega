@@ -214,7 +214,13 @@ Remaining:
   decisions, non-final-leaf join branches, and final-leaf fallthrough into one
   physical cleanup tail through target assignment, native emission, decoded
   object/image custody, and installation on all targets. Extend shared
-  convergence to member/integer comparisons, then
+  convergence now also admits one direct relevant Boolean field identity from
+  one claim-free affine nominal-cleanup root, combined with the existing
+  Boolean parameters and constants and with at least one Boolean parameter
+  retaining the source across native expression scratch. Nested paths, a
+  field-only tree, a second field identity, erased or non-Boolean fields, and
+  integer comparisons remain fenced. Extend
+  shared convergence to integer comparisons, then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

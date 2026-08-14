@@ -10,8 +10,10 @@ use psi_terminal::{
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_interpreter::{
-    AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    AcceptTerminalEffects, TerminalArtifactInterpretError, TerminalExecutionResult,
+    TerminalInterpretError, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_with_structural_boolean_fields_measured,
 };
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
@@ -378,13 +380,11 @@ const MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
 
-    data Token {}
+    data Token { ready: bool; }
     machine Token::drop(&mut self) { Helper::touch(); }
-    data Plain { observed: bool; }
-
     data Root {}
-    machine Root::measure(token: Token, left: bool, plain: Plain, right: bool) -> bool {
-        let staged: bool = (left == false) && right;
+    machine Root::measure(token: Token, left: bool) -> bool {
+        let staged: bool = token.ready && !left;
         staged
     }
 "#;
@@ -1498,8 +1498,8 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         .iter()
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("shared nominal Boolean convergence entry");
-    let [token, plain] = entry.structural_parameters.as_slice() else {
-        panic!("shared convergence retains both structural roots")
+    let [token] = entry.structural_parameters.as_slice() else {
+        panic!("shared convergence retains its nominal cleanup root")
     };
     let (convergence, control_blocks) = entry
         .blocks
@@ -1536,6 +1536,26 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
             .iter()
             .any(|operation| matches!(operation.kind, OperationKind::BooleanNot { .. }))
     }));
+    let token_type = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == token.structural_type)
+        .expect("shared member source type");
+    let StructuralTypeShape::Record { fields } = &token_type.shape else {
+        panic!("shared member source is a record")
+    };
+    let ready = fields
+        .iter()
+        .find(|field| field.identity == "ready")
+        .expect("canonical ready field identity");
+    assert!(entry.blocks.iter().any(|block| {
+        block.operations.iter().any(|operation| {
+            matches!(operation.kind,
+                OperationKind::BooleanStructuralField { source, field }
+                    if source == token.place && field == ready.id)
+        })
+    }));
     assert_eq!(
         jump_targets,
         [convergence.id, convergence.id, convergence.id]
@@ -1552,10 +1572,8 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
     };
     assert!(matches!(
         cleanup_actions.as_slice(),
-        [
-            TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
-            TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
-        ] if *plain_cleanup == plain.place && token_cleanup.place == token.place
+        [TerminalAffineCleanupAction::InvokeNominal(token_cleanup)]
+            if token_cleanup.place == token.place
     ));
 
     let verified = psi_terminal_verifier::verify_module(
@@ -1577,29 +1595,48 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
     );
     let proof = encode_proof_bundle(&lowered.proof_bundle)
         .expect("shared nominal Boolean convergence proof encodes");
-    let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
+    let structural_arguments = [token].map(|parameter| TerminalStructuralValue {
         opaque_identity: parameter.place.get(),
         structural_type: parameter.structural_type,
         qualifications: Vec::new(),
         path: Vec::new(),
     });
-    for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
+    let mut handler = AcceptTerminalEffects;
+    let missing = interpret_terminal_artifact_with_structural_boolean_fields_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Boolean(true)],
+        &structural_arguments,
+        &[],
+        &mut handler,
+    )
+    .expect_err("every retained structural field input must be supplied before execution");
+    assert!(matches!(
+        missing,
+        TerminalArtifactInterpretError::Execution(
+            TerminalInterpretError::StructuralBooleanFieldMissing { source, field }
+        ) if source == token.place && field == ready.id
+    ));
+    for (left, ready_value) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_with_structural_boolean_fields_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
-            &[
-                TerminalScalarValue::Boolean(left),
-                TerminalScalarValue::Boolean(right),
-            ],
+            &[TerminalScalarValue::Boolean(left)],
             &structural_arguments,
+            &[TerminalStructuralBooleanFieldValue {
+                argument_index: 0,
+                field: ready.id,
+                value: ready_value,
+            }],
             &mut handler,
         )
         .expect("shared nominal Boolean convergence interprets");
         assert_eq!(
             measured.value(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(!left && right))
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(ready_value && !left))
         );
         assert!(measured.effects().is_empty());
     }
