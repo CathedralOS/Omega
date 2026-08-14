@@ -749,6 +749,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             add_right: u8,
             positive_addend: i8,
             negative_addend: i8,
+            positive_subtrahend: i8,
+            negative_subtrahend: i8,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -760,7 +762,9 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
             add_left <= 255u8 - add_right,
             0i8 <= positive_addend, signed_arithmetic <= 127i8 - positive_addend,
-            negative_addend <= 0i8, -128i8 - negative_addend <= signed_arithmetic
+            negative_addend <= 0i8, -128i8 - negative_addend <= signed_arithmetic,
+            0i8 <= positive_subtrahend, -128i8 + positive_subtrahend <= signed_arithmetic,
+            negative_subtrahend <= 0i8, signed_arithmetic <= 127i8 + negative_subtrahend
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -797,6 +801,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((add_left + add_right) <= 255u8)
                 && ((signed_arithmetic + positive_addend) <= 127i8)
                 && ((signed_arithmetic + negative_addend) < 4i8)
+                && ((signed_arithmetic - positive_subtrahend) < 4i8)
+                && ((signed_arithmetic - negative_subtrahend) <= 127i8)
                 && enabled;
             staged
         }
@@ -1193,6 +1199,33 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 _ => None,
             })
             .expect("shared convergence retains each signed computed-bound runtime addition");
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    for subtrahend in [
+        terminal_entry.parameters[13].id,
+        terminal_entry.parameters[14].id,
+    ] {
+        let obligation = terminal_entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation.kind {
+                OperationKind::ExactIntegerSubtract {
+                    left,
+                    right,
+                    obligation,
+                } if left == terminal_entry.parameters[5].id && right == subtrahend => {
+                    Some(obligation)
+                }
+                _ => None,
+            })
+            .expect("shared convergence retains each signed computed-bound runtime subtraction");
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(

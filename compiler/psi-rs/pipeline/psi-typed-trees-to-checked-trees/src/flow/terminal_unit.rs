@@ -3157,6 +3157,70 @@ fn direct_integer_requirement(
                 CheckedStructuralScalarIntegerBoundPlan::SignedMinimumMinusParameter(subtrahend),
             ))?
         }
+        (BinaryOperator::LessOrEqual, ExpressionNode::Binary(bound), _)
+            if bound.operator == BinaryOperator::Add =>
+        {
+            let (position, primitive_type) = parameter(binary.right)?;
+            let (addend, addend_type, minimum) = match (
+                program.expression_table.expression(bound.left),
+                program.expression_table.expression(bound.right),
+            ) {
+                (ExpressionNode::Integer(minimum), _) => {
+                    let (addend, addend_type) = parameter(bound.right)?;
+                    (addend, addend_type, minimum)
+                }
+                (_, ExpressionNode::Integer(minimum)) => {
+                    let (addend, addend_type) = parameter(bound.left)?;
+                    (addend, addend_type, minimum)
+                }
+                _ => return None,
+            };
+            let minimum_matches = match primitive_type {
+                PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
+                PrimitiveType::I16 => minimum.value_i64() == Some(i64::from(i16::MIN)),
+                PrimitiveType::I32 => minimum.value_i64() == Some(i64::from(i32::MIN)),
+                PrimitiveType::I64 => minimum.value_i64() == Some(i64::MIN),
+                _ => false,
+            };
+            (minimum_matches && primitive_type == addend_type).then_some((
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Lower,
+                CheckedStructuralScalarIntegerBoundPlan::SignedMinimumPlusParameter(addend),
+            ))?
+        }
+        (BinaryOperator::LessOrEqual, _, ExpressionNode::Binary(bound))
+            if bound.operator == BinaryOperator::Add =>
+        {
+            let (position, primitive_type) = parameter(binary.left)?;
+            let (addend, addend_type, maximum) = match (
+                program.expression_table.expression(bound.left),
+                program.expression_table.expression(bound.right),
+            ) {
+                (ExpressionNode::Integer(maximum), _) => {
+                    let (addend, addend_type) = parameter(bound.right)?;
+                    (addend, addend_type, maximum)
+                }
+                (_, ExpressionNode::Integer(maximum)) => {
+                    let (addend, addend_type) = parameter(bound.left)?;
+                    (addend, addend_type, maximum)
+                }
+                _ => return None,
+            };
+            let maximum_matches = match primitive_type {
+                PrimitiveType::I8 => maximum.value_i64() == Some(i64::from(i8::MAX)),
+                PrimitiveType::I16 => maximum.value_i64() == Some(i64::from(i16::MAX)),
+                PrimitiveType::I32 => maximum.value_i64() == Some(i64::from(i32::MAX)),
+                PrimitiveType::I64 => maximum.value_i64() == Some(i64::MAX),
+                _ => false,
+            };
+            (maximum_matches && primitive_type == addend_type).then_some((
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Upper,
+                CheckedStructuralScalarIntegerBoundPlan::SignedMaximumPlusParameter(addend),
+            ))?
+        }
         (BinaryOperator::LessOrEqual, _, _) => {
             let (left, primitive_type) = parameter(binary.left)?;
             let (right, right_type) = parameter(binary.right)?;

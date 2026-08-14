@@ -230,10 +230,11 @@ Remaining:
   subtrahend, or multiplication with a landed factor under retained matching
   direct parameter bounds, one runtime unsigned addition under the retained
   canonical `left <= MAX - right` bound, one runtime signed addition under
-  retained matching sign and `MAX - right` or `MIN - right` bounds, or exact
-  unsigned subtraction under a retained direct subtrahend-to-minuend bound,
-  one exact right shift under a direct unsigned count upper bound, one exact
-  left shift by a landed count
+  retained matching sign and `MAX - right` or `MIN - right` bounds, runtime
+  subtraction unsigned under a retained direct subtrahend-to-minuend bound or
+  signed under retained matching sign and `MIN + right` or `MAX + right`
+  bounds, one exact right shift under a direct unsigned count upper bound, one
+  exact left shift by a landed count
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
   landed nonzero unsigned constant, a landed signed constant other than `0` or
