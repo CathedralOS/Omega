@@ -530,8 +530,8 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         machine Token::drop(&mut self) { Helper::touch(); }
         data Plain { observed: bool; }
         data Root {}
-        machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
-            let staged: bool = !(((input == false) && true) || false);
+        machine Root::measure(token: Token, left: bool, plain: Plain, right: bool) -> bool {
+            let staged: bool = !(((left == false) && right) || false);
             staged
         }
     "#;
@@ -616,9 +616,9 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         assert!(emitted.scalar_control_affine_cleanups.is_empty());
         assert_eq!(emitted.internal_unit_calls.len(), 1);
         let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
-            join_offset,
+            decisions,
+            joins,
             merge_offset,
-            ..
         } = &emitted
             .scalar_stack
             .as_ref()
@@ -627,8 +627,11 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         else {
             panic!("native shared convergence must retain its exact join")
         };
-        assert!(join_offset < merge_offset);
+        assert!(decisions.len() >= 2);
+        assert_eq!(joins.len(), decisions.len());
+        assert!(joins.iter().all(|join| join.join_offset < *merge_offset));
         assert_eq!(*merge_offset, cleanup.code_offset);
+        let forged_join_offset = joins[0].join_offset;
 
         let object = build_terminal_object_artifact(&machine_code)
             .unwrap_or_else(|error| panic!("{:?} object replay: {error:?}", case.target));
@@ -659,8 +662,26 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
             .iter_mut()
             .find(|function| function.machine == entry_machine)
             .expect("forged shared convergence entry");
-        function.bytes[*join_offset] ^= 1;
+        function.bytes[forged_join_offset] ^= 1;
         assert!(build_terminal_object_artifact(&forged).is_err());
+
+        let mut missing_join = machine_code.clone();
+        let function = missing_join
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("missing-join shared convergence entry");
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence { joins, .. } =
+            &mut function
+                .scalar_stack
+                .as_mut()
+                .expect("missing-join stack evidence")
+                .control_flow
+        else {
+            unreachable!("shared convergence evidence shape was already checked")
+        };
+        joins.pop();
+        assert!(build_terminal_object_artifact(&missing_join).is_err());
     }
 }
 

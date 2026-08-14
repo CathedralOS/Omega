@@ -394,15 +394,21 @@ pub enum TerminalScalarControlFlowEvidence {
         crash_leaves: Vec<bool>,
         branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
-    /// One native Boolean decision whose two value arms reconverge at an exact
-    /// shared return/cleanup tail. The true arm ends in the retained
-    /// unconditional join branch; the false arm falls through to `merge_offset`.
+    /// One native Boolean decision tree whose ordered value leaves reconverge
+    /// at an exact shared return/cleanup tail. Every non-final leaf ends in one
+    /// retained unconditional branch targeting `merge_offset`; the final leaf
+    /// falls through to that same offset.
     BooleanSharedConvergence {
-        decision: TerminalScalarConditionalBranchEvidence,
-        join_offset: usize,
-        join_byte_count: usize,
+        decisions: Vec<TerminalScalarConditionalBranchEvidence>,
+        joins: Vec<TerminalScalarJoinBranchEvidence>,
         merge_offset: usize,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalScalarJoinBranchEvidence {
+    pub join_offset: usize,
+    pub join_byte_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

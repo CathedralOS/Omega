@@ -113,11 +113,7 @@ pub enum TerminalAssignedOperation {
     },
     ReturnBooleanSharedConvergence {
         psi_edge: EdgeId,
-        condition_source: ValueId,
-        condition_parameter_index: usize,
-        condition_location: TerminalAssignedScalarLocation,
-        when_true: bool,
-        when_false: bool,
+        control: TerminalAssignedBooleanControl,
     },
     ReturnBooleanExpression {
         psi_edge: EdgeId,

@@ -1134,18 +1134,33 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             0
         );
     }
-    for machine in [
-        "multiple_input_convergence",
-        "multiple_input_comparison_convergence",
-    ] {
-        let multiple_inputs = checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine_named(&checked, machine))
-            .expect("multiple-input Boolean tree retains the source-distributed fallback");
-        assert!(multiple_inputs.shared_boolean_convergence.is_none());
-    }
+    let multiple_inputs = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "multiple_input_convergence"))
+        .expect("multiple-input Boolean tree retains its scalar-return plan");
+    assert_eq!(
+        multiple_inputs
+            .shared_boolean_convergence
+            .expect("finite multiple-input tree publishes shared convergence")
+            .binding_ordinal,
+        0
+    );
+    let multiple_input_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "multiple_input_comparison_convergence",
+        ))
+        .expect("two-runtime-side equality retains the source-distributed fallback");
+    assert!(
+        multiple_input_comparison
+            .shared_boolean_convergence
+            .is_none()
+    );
     let integer_comparison = checked
         .facts
         .flow

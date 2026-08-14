@@ -339,15 +339,11 @@ pub enum TerminalTargetOperation {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
-    /// One verified terminal-Psi Boolean convergence realized as two native
-    /// value arms joining one physical return/cleanup tail.
+    /// One verified terminal-Psi Boolean convergence tree whose value leaves
+    /// join one physical return/cleanup tail.
     ReturnBooleanSharedConvergence {
         psi_edge: EdgeId,
-        condition_source: ValueId,
-        condition_parameter_index: usize,
-        condition_location: TerminalScalarParameterLocation,
-        when_true: bool,
-        when_false: bool,
+        control: TerminalTargetBooleanControl,
     },
     /// Return a runtime Boolean expression lowered from terminal-Psi logical
     /// operations. Every node produces a canonical zero/one Boolean.

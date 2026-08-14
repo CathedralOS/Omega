@@ -25,9 +25,10 @@ use omega_terminal_machine_code::{
     TerminalScalarCallStackEvidence, TerminalScalarCleanupPreservationEvidence,
     TerminalScalarConditionalBranchEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlAffineCleanupRecord, TerminalScalarControlFlowEvidence,
-    TerminalScalarDivisionBranchEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarDivisionBranchEvidence, TerminalScalarJoinBranchEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{MachineRegister, TerminalCallSiteOwner};
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -260,21 +261,9 @@ fn emit_function(
                 }
             }
         }
-        TerminalAssignedOperation::ReturnBooleanSharedConvergence {
-            condition_source,
-            condition_location,
-            when_true,
-            when_false,
-            ..
-        } => {
+        TerminalAssignedOperation::ReturnBooleanSharedConvergence { control, .. } => {
             scalar_stack_eligible = true;
-            let (emitted, control_flow) = emit_boolean_shared_convergence(
-                architecture,
-                *condition_source,
-                *condition_location,
-                *when_true,
-                *when_false,
-            )?;
+            let (emitted, control_flow) = emit_boolean_shared_convergence(architecture, control)?;
             scalar_control_flow = control_flow;
             emitted
         }
@@ -3850,74 +3839,246 @@ fn emit_aarch64_boolean_return(value: bool) -> Vec<u8> {
 
 fn emit_boolean_shared_convergence(
     architecture: Architecture,
-    condition_source: ValueId,
-    condition_location: TerminalAssignedScalarLocation,
-    when_true: bool,
-    when_false: bool,
+    control: &TerminalAssignedBooleanControl,
 ) -> Result<(Vec<u8>, TerminalScalarControlFlowEvidence), EmissionError> {
-    match architecture {
-        Architecture::X86_64 => {
-            let mut bytes =
-                emit_x86_64_parameter_return(condition_source, false, condition_location)?;
-            if bytes.pop() != Some(0xc3) {
-                return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    let mut emitted = emit_boolean_shared_convergence_tree(architecture, control)?;
+    if emitted.decisions.is_empty()
+        || emitted.joins.len() != emitted.decisions.len().checked_add(1).unwrap_or(0)
+    {
+        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    }
+    let fallthrough = emitted
+        .joins
+        .pop()
+        .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?;
+    if fallthrough.join_offset + fallthrough.join_byte_count != emitted.bytes.len() {
+        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    }
+    emitted.bytes.truncate(fallthrough.join_offset);
+    let merge_offset = emitted.bytes.len();
+    for join in &emitted.joins {
+        let join_end = join
+            .join_offset
+            .checked_add(join.join_byte_count)
+            .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+        match architecture {
+            Architecture::X86_64 => {
+                let displacement = merge_offset
+                    .checked_sub(join_end)
+                    .and_then(|distance| i32::try_from(distance).ok())
+                    .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+                emitted.bytes[join.join_offset] = 0xe9;
+                emitted.bytes[join.join_offset + 1..join_end]
+                    .copy_from_slice(&displacement.to_le_bytes());
             }
-            bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
-            let branch_offset = bytes.len();
-            bytes.extend_from_slice(&[0x0f, 0x84, 10, 0, 0, 0]); // jz false
-            bytes.extend_from_slice(&[0xb8, u8::from(when_true), 0, 0, 0]);
-            let join_offset = bytes.len();
-            bytes.extend_from_slice(&[0xe9, 5, 0, 0, 0]); // jmp shared tail
-            let false_arm_offset = bytes.len();
-            bytes.extend_from_slice(&[0xb8, u8::from(when_false), 0, 0, 0]);
-            let merge_offset = bytes.len();
-            bytes.push(0xc3);
-            Ok((
-                bytes,
-                TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
-                    decision: TerminalScalarConditionalBranchEvidence {
-                        condition: TerminalScalarConditionalCondition::Parameter,
-                        branch_offset,
-                        branch_byte_count: 6,
-                        false_arm_offset,
-                    },
-                    join_offset,
-                    join_byte_count: 5,
-                    merge_offset,
-                },
-            ))
-        }
-        Architecture::Aarch64 => {
-            let (mut bytes, condition_register) =
-                emit_aarch64_condition_load(condition_source, condition_location)?;
-            let branch_offset = bytes.len();
-            let cbz = 0x3400_0000_u32 | (3 << 5) | u32::from(condition_register);
-            bytes.extend_from_slice(&cbz.to_le_bytes());
-            let true_value = 0x5280_0000_u32 | (u32::from(when_true) << 5);
-            bytes.extend_from_slice(&true_value.to_le_bytes());
-            let join_offset = bytes.len();
-            bytes.extend_from_slice(&(0x1400_0000_u32 | 2).to_le_bytes());
-            let false_arm_offset = bytes.len();
-            let false_value = 0x5280_0000_u32 | (u32::from(when_false) << 5);
-            bytes.extend_from_slice(&false_value.to_le_bytes());
-            let merge_offset = bytes.len();
-            bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes());
-            Ok((
-                bytes,
-                TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
-                    decision: TerminalScalarConditionalBranchEvidence {
-                        condition: TerminalScalarConditionalCondition::Parameter,
-                        branch_offset,
-                        branch_byte_count: 4,
-                        false_arm_offset,
-                    },
-                    join_offset,
-                    join_byte_count: 4,
-                    merge_offset,
-                },
-            ))
+            Architecture::Aarch64 => {
+                let words = merge_offset
+                    .checked_sub(join.join_offset)
+                    .filter(|distance| distance.is_multiple_of(4))
+                    .map(|distance| distance / 4)
+                    .and_then(|words| u32::try_from(words).ok())
+                    .filter(|words| *words <= 0x01ff_ffff)
+                    .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+                emitted.bytes[join.join_offset..join_end]
+                    .copy_from_slice(&(0x1400_0000 | words).to_le_bytes());
+            }
         }
     }
+    match architecture {
+        Architecture::X86_64 => emitted.bytes.push(0xc3),
+        Architecture::Aarch64 => emitted
+            .bytes
+            .extend_from_slice(&0xd65f_03c0_u32.to_le_bytes()),
+    }
+    Ok((
+        emitted.bytes,
+        TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            decisions: emitted.decisions,
+            joins: emitted.joins,
+            merge_offset,
+        },
+    ))
+}
+
+struct BooleanSharedConvergenceEmission {
+    bytes: Vec<u8>,
+    decisions: Vec<TerminalScalarConditionalBranchEvidence>,
+    joins: Vec<TerminalScalarJoinBranchEvidence>,
+}
+
+impl BooleanSharedConvergenceEmission {
+    fn append(&mut self, mut child: Self) -> Result<(), EmissionError> {
+        let base = self.bytes.len();
+        for decision in &mut child.decisions {
+            decision.branch_offset = decision
+                .branch_offset
+                .checked_add(base)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            decision.false_arm_offset = decision
+                .false_arm_offset
+                .checked_add(base)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+        }
+        for join in &mut child.joins {
+            join.join_offset = join
+                .join_offset
+                .checked_add(base)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+        }
+        self.bytes.append(&mut child.bytes);
+        self.decisions.append(&mut child.decisions);
+        self.joins.append(&mut child.joins);
+        Ok(())
+    }
+}
+
+fn emit_boolean_shared_convergence_tree(
+    architecture: Architecture,
+    control: &TerminalAssignedBooleanControl,
+) -> Result<BooleanSharedConvergenceEmission, EmissionError> {
+    let (mut prefix, condition, aarch64_condition_register, when_true, when_false) = match control {
+        TerminalAssignedBooleanControl::Conditional {
+            condition_source,
+            condition_location,
+            when_true,
+            when_false,
+            ..
+        } => match architecture {
+            Architecture::X86_64 => {
+                let mut bytes =
+                    emit_x86_64_parameter_return(*condition_source, false, *condition_location)?;
+                if bytes.pop() != Some(0xc3) {
+                    return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                }
+                bytes.extend_from_slice(&[0x85, 0xc0]);
+                (
+                    bytes,
+                    TerminalScalarConditionalCondition::Parameter,
+                    None,
+                    when_true,
+                    when_false,
+                )
+            }
+            Architecture::Aarch64 => {
+                let (bytes, register) =
+                    emit_aarch64_condition_load(*condition_source, *condition_location)?;
+                (
+                    bytes,
+                    TerminalScalarConditionalCondition::Parameter,
+                    Some(register),
+                    when_true,
+                    when_false,
+                )
+            }
+        },
+        TerminalAssignedBooleanControl::ConditionalExpression {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } if linear_boolean_expression(condition) => {
+            let bytes = match architecture {
+                Architecture::X86_64 => {
+                    emit_x86_64_boolean_condition_value(condition_frame, condition, None)?
+                }
+                Architecture::Aarch64 => {
+                    emit_aarch64_boolean_condition_value(condition_frame, condition, None)?
+                }
+            };
+            (
+                bytes,
+                TerminalScalarConditionalCondition::Expression,
+                None,
+                when_true,
+                when_false,
+            )
+        }
+        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
+            let mut bytes = match architecture {
+                Architecture::X86_64 => emit_x86_64_boolean_return(*value),
+                Architecture::Aarch64 => emit_aarch64_boolean_return(*value),
+            };
+            match architecture {
+                Architecture::X86_64 if bytes.pop() == Some(0xc3) => {}
+                Architecture::Aarch64
+                    if bytes.len() >= 4
+                        && bytes.split_off(bytes.len() - 4) == 0xd65f_03c0_u32.to_le_bytes() => {}
+                _ => return Err(EmissionError::ConditionalBranchEncodingInvalid),
+            }
+            let join_offset = bytes.len();
+            let join_byte_count = match architecture {
+                Architecture::X86_64 => {
+                    bytes.extend_from_slice(&[0xe9, 0, 0, 0, 0]);
+                    5
+                }
+                Architecture::Aarch64 => {
+                    bytes.extend_from_slice(&0x1400_0000_u32.to_le_bytes());
+                    4
+                }
+            };
+            return Ok(BooleanSharedConvergenceEmission {
+                bytes,
+                decisions: Vec::new(),
+                joins: vec![TerminalScalarJoinBranchEvidence {
+                    join_offset,
+                    join_byte_count,
+                }],
+            });
+        }
+        _ => return Err(EmissionError::UnsupportedScalarCleanup),
+    };
+    let when_true = emit_boolean_shared_convergence_tree(architecture, &when_true.control)?;
+    let when_false = emit_boolean_shared_convergence_tree(architecture, &when_false.control)?;
+    let branch_offset = prefix.len();
+    let branch_byte_count = match architecture {
+        Architecture::X86_64 => {
+            let displacement = i32::try_from(when_true.bytes.len())
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            prefix.extend_from_slice(&[0x0f, 0x84]);
+            prefix.extend_from_slice(&displacement.to_le_bytes());
+            6
+        }
+        Architecture::Aarch64 => {
+            let branch_words = when_true
+                .bytes
+                .len()
+                .checked_div(4)
+                .and_then(|words| words.checked_add(1))
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            if branch_words > 0x3ffff {
+                return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+            }
+            let branch = match (condition, aarch64_condition_register) {
+                (TerminalScalarConditionalCondition::Parameter, Some(register)) => {
+                    0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(register)
+                }
+                (TerminalScalarConditionalCondition::Expression, None) => {
+                    0x5400_0000_u32 | ((branch_words as u32) << 5)
+                }
+                _ => return Err(EmissionError::ConditionalBranchEncodingInvalid),
+            };
+            prefix.extend_from_slice(&branch.to_le_bytes());
+            4
+        }
+    };
+    let false_arm_offset = prefix
+        .len()
+        .checked_add(when_true.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let mut emitted = BooleanSharedConvergenceEmission {
+        bytes: prefix,
+        decisions: vec![TerminalScalarConditionalBranchEvidence {
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+        }],
+        joins: Vec::new(),
+    };
+    emitted.append(when_true)?;
+    emitted.append(when_false)?;
+    Ok(emitted)
 }
 
 fn integer_bits(

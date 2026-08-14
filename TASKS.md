@@ -207,15 +207,16 @@ Remaining:
   source-distributing each stage's value leaves through the remaining
   branch-free or short-circuit continuation locals; each continuation may use
   its immediate predecessor one or more times. One finite `!`/`&&`/`||` binding
-  containing exactly one runtime Boolean input plus constants now retains its
-  typed value exits into one terminal-Psi convergence parameter and one shared
-  cleanup return. Boolean equality against a constant normalizes to that same
-  identity/negation carrier; Omega collapses the nested semantic tree to one
-  physical two-arm join through target assignment, native emission, decoded
+  over a finite nonempty set of runtime Boolean parameters plus constants now
+  retains its typed value exits into one terminal-Psi convergence parameter and
+  one shared cleanup return. Boolean equality against a constant normalizes to
+  that same identity/negation carrier. Omega retains the ordered native
+  decisions, non-final-leaf join branches, and final-leaf fallthrough into one
+  physical cleanup tail through target assignment, native emission, decoded
   object/image custody, and installation on all targets. Extend shared
-  convergence to multiple inputs or member/integer comparisons, then add
-  complete slices for
-  calls and effects, wider partial-value cleanup, nested nominal ownership,
+  convergence to member/integer comparisons, then
+  add complete slices for calls and effects, wider partial-value cleanup,
+  nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail
   recursion. Dynamic or
   nested indexing, wider projections/signatures, content-bearing splits, and
@@ -454,7 +455,7 @@ reach or trust, and private proof improvements do not change public identity.
   obligations through terminal verification, interpretation, fuel, and all
   native artifact paths. Nominal scalar cleanup admits finite continuation
   chains whose stages contain arbitrarily nested finite short-circuit Boolean
-  decisions. One exact identity/negation-shaped decision, including Boolean
+  decisions. One finite parameter/constant decision tree, including Boolean
   equality against a constant, can instead feed a typed shared terminal-Psi
   convergence value and one native cleanup tail. Extend contextual
   cleanup beyond the current receiver-independent Boolean subset, finite
@@ -471,10 +472,11 @@ reach or trust, and private proof improvements do not change public identity.
   instruction selection through decoded installation and artifact-wide closure
   composition. One depth-independent conditional-tree carrier accounts nested
   decisions and mutually exclusive source-distributed convergence calls.
-  One bounded Boolean carrier additionally accounts an actual unconditional
-  native join into one affine-cleanup tail. Extend that accounting to general
-  shared native joins and general affine cleanup rather than claiming
-  convergence from duplicated leaves.
+  One bounded Boolean carrier additionally accounts ordered actual
+  unconditional native join branches plus the final fallthrough into one
+  affine-cleanup tail. Extend that accounting to general shared native joins
+  and general affine cleanup rather than claiming convergence from duplicated
+  leaves.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root

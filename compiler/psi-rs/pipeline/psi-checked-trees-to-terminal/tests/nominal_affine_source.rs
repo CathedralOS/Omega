@@ -383,8 +383,8 @@ const MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE: &str = r#"
     data Plain { observed: bool; }
 
     data Root {}
-    machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
-        let staged: bool = (input == false) && true;
+    machine Root::measure(token: Token, left: bool, plain: Plain, right: bool) -> bool {
+        let staged: bool = (left == false) && right;
         staged
     }
 "#;
@@ -1558,12 +1558,17 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         ] if *plain_cleanup == plain.place && token_cleanup.place == token.place
     ));
 
-    psi_terminal_verifier::verify_module(
+    let verified = psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
     .expect("shared nominal Boolean convergence verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("shared multiple-input convergence has an exact maximum path");
+    validate_fixed_entry_fuel(&verified, &fixed)
+        .expect("shared multiple-input convergence fuel recomputes");
+    drop(verified);
     let semantics = encode_module(&lowered.semantic_module)
         .expect("shared nominal Boolean convergence encodes");
     assert_eq!(
@@ -1578,20 +1583,23 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         qualifications: Vec::new(),
         path: Vec::new(),
     });
-    for input in [false, true] {
+    for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut handler = AcceptTerminalEffects;
         let measured = interpret_terminal_artifact_with_effect_handler_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
-            &[TerminalScalarValue::Boolean(input)],
+            &[
+                TerminalScalarValue::Boolean(left),
+                TerminalScalarValue::Boolean(right),
+            ],
             &structural_arguments,
             &mut handler,
         )
         .expect("shared nominal Boolean convergence interprets");
         assert_eq!(
             measured.value(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(!input))
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(!left && right))
         );
         assert!(measured.effects().is_empty());
     }
