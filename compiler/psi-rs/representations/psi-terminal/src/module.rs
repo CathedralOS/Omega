@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        14
+        15
     }
 }
 
@@ -339,12 +339,15 @@ pub enum EvidenceContractLaneKind {
     Ensures,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvidenceContractLane {
     pub machine: MachineId,
     pub kind: EvidenceContractLaneKind,
     pub position: u32,
     pub term: EvidenceTermId,
+    /// Public compiler-generated result-package field. Present exactly on an
+    /// `ensures` lane; `requires` names remain local input aliases.
+    pub output_field: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

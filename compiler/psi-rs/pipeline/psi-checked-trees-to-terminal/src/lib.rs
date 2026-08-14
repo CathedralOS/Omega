@@ -1795,6 +1795,8 @@ fn lower_evidence_contract_lanes(
                     )
                 })?,
                 term: term_id,
+                output_field: (kind == EvidenceContractLaneKind::Ensures)
+                    .then(|| term.name.clone()),
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

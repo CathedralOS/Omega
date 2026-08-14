@@ -55,7 +55,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 8;
+const FORMAT_MARKER: u16 = 9;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1406,6 +1406,10 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
         });
         writer.u32(lane.position);
         writer.id(lane.term);
+        writer.boolean(lane.output_field.is_some());
+        if let Some(field) = &lane.output_field {
+            writer.string("evidence output field", field)?;
+        }
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -2975,6 +2979,10 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
             kind,
             position: reader.u32()?,
             term: reader.id("EvidenceTermId")?,
+            output_field: reader
+                .boolean()?
+                .then(|| reader.string("evidence output field"))
+                .transpose()?,
         })
     })?;
     let machine_count = reader.count()?;
@@ -4298,6 +4306,10 @@ impl Writer {
 
     fn u8(&mut self, value: u8) {
         self.bytes.push(value);
+    }
+
+    fn boolean(&mut self, value: bool) {
+        self.u8(u8::from(value));
     }
 
     fn u16(&mut self, value: u16) {
