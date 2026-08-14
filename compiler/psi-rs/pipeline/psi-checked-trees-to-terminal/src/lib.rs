@@ -10931,7 +10931,11 @@ fn shared_integer_runtime_parameters_with_shells(
             )
         }
         LoweredDirectExpression::IntegerWiden { operand, .. } if remaining_shells > 0 => {
-            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1, false)
+            shared_integer_runtime_parameters_with_shells(
+                operand,
+                remaining_shells - 1,
+                proof_shell_allowed,
+            )
         }
         LoweredDirectExpression::IntegerExactCast { operand, .. }
             if proof_shell_allowed && remaining_shells > 0 =>

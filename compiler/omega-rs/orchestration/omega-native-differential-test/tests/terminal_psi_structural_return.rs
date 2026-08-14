@@ -756,7 +756,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 252u8,
             small <= 127u8, small <= 63u8,
-            small <= 7u8, 1u8 <= divisor, divisor <= small,
+            small <= 7u8, 3u8 <= small, 1u8 <= divisor, divisor <= small,
             small <= 255u8 / divisor, count <= 2u8,
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
@@ -780,8 +780,10 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && (((input + 1u64) + 1u64) < 5u64)
                 && ((small as u16) < 5u16)
                 && ((input as u8) < 5u8)
+                && (((input as u8) as u16) < 256u16)
                 && ((small + 1u8) < 6u8)
                 && ((~(small + 3u8)) < 255u8)
+                && (((small - 3u8) as u16) < 255u16)
                 && ((127u8 - small) < 125u8)
                 && ((small - divisor) < 4u8)
                 && ((small * 2u8) < 10u8)
@@ -1435,6 +1437,42 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .collect::<Vec<_>>();
     assert!(!bitwise_not_exact_add_obligations.is_empty());
     for obligation in bitwise_not_exact_add_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let widen_exact_subtract_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation,
+            } if left == terminal_entry.parameters[1].id => terminal_entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .filter(|value| *value == IntegerValue::Unsigned(3))
+                .map(|_| obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!widen_exact_subtract_obligations.is_empty());
+    for obligation in widen_exact_subtract_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(

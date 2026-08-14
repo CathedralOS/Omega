@@ -1494,6 +1494,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((~(input + 3u8)) < 255u8) && enabled;
             staged
         }
+        machine Root::widen_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 3u8 <= input
+        {
+            let staged: bool = (((input - 3u8) as u16) < 255u16) && enabled;
+            staged
+        }
         machine Root::nested_exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -2170,6 +2180,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    let widen_exact_subtract_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "widen_exact_subtract_integer_comparison_convergence",
+        ))
+        .expect("one exact-subtract shell beneath widening retains the scalar-return plan");
+    assert!(
+        widen_exact_subtract_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
     let nested_exact_add_integer_comparison = checked
         .facts
         .flow
@@ -2192,11 +2216,11 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             &checked,
             "nested_exact_cast_integer_comparison_convergence",
         ))
-        .expect("nested exact-cast shells retain the source-distributed fallback");
+        .expect("one exact-cast shell beneath widening retains the scalar-return plan");
     assert!(
         nested_exact_cast_integer_comparison
             .shared_boolean_convergence
-            .is_none()
+            .is_some()
     );
     let member = checked
         .facts
