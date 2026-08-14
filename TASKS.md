@@ -381,9 +381,12 @@ Remaining:
   requirement package. Exact left shifts additionally reconstruct carrier-tight
   value bounds at the greatest possible count. Projected calls preserve the
   canonically ordered package and one exact obligation per requirement; missing
-  count or overflow evidence rejects independently. Continue with Trapping
-  arithmetic, case-payload paths, and wider aggregate equality involving text,
-  floats, sums, or erased fields.
+  count or overflow evidence rejects independently. Continue with case-payload
+  paths and wider aggregate equality involving text, floats, sums, or erased
+  fields. Trapping arithmetic in contract predicates is design-blocked on
+  `OWNER_QUESTIONS.md` Q10: the language must settle whether a trapping subterm
+  contributes a `Trap` route, denotes a partial/false proposition, or requires
+  independent nontrapping evidence.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
@@ -816,6 +819,8 @@ These entries are pointers, not duplicate specifications.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
   arithmetic earns a distinct public carrier beyond exact-by-default
   obligations and existing policy families.
+- **TRAPPING-CONTRACT-ARITHMETIC:** blocked on owner Q10's definition of a
+  potentially trapping arithmetic subterm inside a specification predicate.
 - **IMPORTED-CRASH-CAPSULES:** blocked on the separately compiled realization
   artifact, import/export identity, and certificate-binding model in
   `wiki/language_guide/appendix_open_questions.md`.

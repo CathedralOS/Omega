@@ -169,3 +169,21 @@ completion, retain the selected provider and operation in checked/terminal
 evidence, and expose only the authority actually used by that realization. It
 must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
 without treating either mechanism as universally reachable.
+
+## Q10 — Trapping arithmetic inside contract predicates
+
+`Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
+and the other policy-defined failures trap instead of producing a value. A
+`requires`, `ensures`, or `crashes` predicate is specification evidence rather
+than an ordinary runtime expression, however, and the language does not define
+what happens when evaluating a trapping arithmetic subterm would trap.
+
+Choose whether trapping arithmetic is permitted in contract predicates and, if
+it is, what proposition it denotes on a trapping input. In particular, decide
+whether the trap contributes an exact `Trap` crash route for the governed
+machine, makes the proposition partial or false, or requires separate
+nontrapping evidence (collapsing that occurrence to Exact behavior). The ruling
+must define how body execution and specification evaluation relate, how callers
+reason about the trap edge, and what explicit term/effect and proof obligations
+terminal Psi carries. The compiler must not silently treat a potentially
+trapping contract term as a total mathematical operation.
