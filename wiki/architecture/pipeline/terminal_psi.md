@@ -812,12 +812,14 @@ validation, installation serialization, and installed-closure recomposition.
 The same replay now accepts direct division or remainder in the Boolean
 condition operands or either arm of the one top-level two-return conditional.
 AArch64 admits every emitted policy form; x86 admits only byte streams with no
-compiler-generated division diamond. Division inside condition/arm call
-arguments and signed x86 Wrapping/Saturating diamonds within the conditional
-remain outside the bounded theorem with general nested and reconvergent
-control. Crashes in arms, external adapter/interrupt-arrival state, and other
-terminal function forms are not yet part of that theorem, so the inspection
-surface still makes no installed-root WCSU claim.
+compiler-generated division diamond. The same branch-free forms may occur in
+typed call arguments in the condition or either arm; exact call relocation and
+closure evidence survives object, image, and installation custody. Signed x86
+Wrapping/Saturating diamonds within the conditional remain outside the bounded
+theorem with general nested and reconvergent control. Crashes in arms, external
+adapter/interrupt-arrival state, and other terminal function forms are not yet
+part of that theorem, so the inspection surface still makes no installed-root
+WCSU claim.
 
 ## Implementation queue
 

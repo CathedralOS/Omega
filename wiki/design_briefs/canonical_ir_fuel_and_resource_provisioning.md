@@ -211,9 +211,11 @@ maximum peak. Typed scalar calls in the prefix or either arm reuse exact
 outbound/link validation and closure composition. Direct branch-free division
 and remainder in Boolean condition operands or either return arm reuse the
 same replay and maximum: all AArch64 forms qualify, while x86 qualifies only
-when emission contains no compiler-generated division diamond. Division in
-condition/arm call arguments, signed x86 policy diamonds within the
-conditional, nesting, crashes in arms, and reconvergence remain excluded.
+when emission contains no compiler-generated division diamond. Branch-free
+division in typed call arguments in the condition or either arm also retains
+exact relocation and closure evidence through installation. Signed x86 policy
+diamonds within the conditional, nesting, crashes in arms, and reconvergence
+remain excluded.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 
