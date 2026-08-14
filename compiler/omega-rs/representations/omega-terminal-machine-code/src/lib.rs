@@ -414,6 +414,10 @@ pub enum TerminalScalarControlFlowEvidence {
         branch_byte_count: usize,
         false_arm_offset: usize,
         crash_arm: TerminalScalarConditionalArm,
+        /// Ordered compiler-generated x86 division diamonds contained in the
+        /// expression prefix or returning arm. Empty on AArch64 and
+        /// branch-free x86 paths.
+        branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
     /// Exactly two Boolean decisions and three independently returning leaves.
     /// The root is followed by its true arm and then its false arm; `nested_arm`

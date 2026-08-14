@@ -347,13 +347,8 @@ fn emit_function(
                 } else {
                     Vec::new()
                 };
-                if let Some(evidence) =
-                    conditional_with_terminal_shape(conditional, terminal_shape, branches)?
-                {
-                    scalar_control_flow = evidence;
-                } else {
-                    scalar_stack_eligible = false;
-                }
+                scalar_control_flow =
+                    conditional_with_terminal_shape(conditional, terminal_shape, branches)?;
             }
             internal_calls = fragment.internal_calls;
             fragment.bytes
@@ -396,13 +391,8 @@ fn emit_function(
                 } else {
                     Vec::new()
                 };
-                if let Some(evidence) =
-                    conditional_with_terminal_shape(conditional, terminal_shape, branches)?
-                {
-                    scalar_control_flow = evidence;
-                } else {
-                    scalar_stack_eligible = false;
-                }
+                scalar_control_flow =
+                    conditional_with_terminal_shape(conditional, terminal_shape, branches)?;
             }
             internal_calls = fragment.internal_calls;
             fragment.bytes
@@ -6524,7 +6514,7 @@ fn conditional_with_terminal_shape(
     conditional: TerminalScalarControlFlowEvidence,
     terminal_shape: DirectConditionalIntegerShape,
     branches: Vec<TerminalScalarDivisionBranchEvidence>,
-) -> Result<Option<TerminalScalarControlFlowEvidence>, EmissionError> {
+) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
     let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
         condition,
         branch_offset,
@@ -6536,32 +6526,32 @@ fn conditional_with_terminal_shape(
     };
     Ok(match (terminal_shape, branches.is_empty()) {
         (DirectConditionalIntegerShape::TwoReturn, true) => {
-            Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
                 condition,
                 branch_offset,
                 branch_byte_count,
                 false_arm_offset,
-            })
+            }
         }
-        (DirectConditionalIntegerShape::TwoReturn, false) => Some(
+        (DirectConditionalIntegerShape::TwoReturn, false) => {
             TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
                 condition,
                 branch_offset,
                 branch_byte_count,
                 false_arm_offset,
                 branches,
-            },
-        ),
-        (DirectConditionalIntegerShape::ReturnAndCrash(crash_arm), true) => {
-            Some(TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+            }
+        }
+        (DirectConditionalIntegerShape::ReturnAndCrash(crash_arm), _) => {
+            TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
                 condition,
                 branch_offset,
                 branch_byte_count,
                 false_arm_offset,
                 crash_arm,
-            })
+                branches,
+            }
         }
-        (DirectConditionalIntegerShape::ReturnAndCrash(_), false) => None,
     })
 }
 
@@ -9473,6 +9463,35 @@ mod tests {
                 .control_flow,
             TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
         ));
+
+        let mut signed_return_crash = signed_division_plan(NativeTarget::linux_x64());
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
+            &mut signed_return_crash.functions[0].operation
+        else {
+            unreachable!()
+        };
+        when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
+            psi_crash_edge: EdgeId::new(10).expect("crash edge"),
+            cause: psi_terminal::CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        });
+        let emitted = emit_machine_code(&signed_return_crash)
+            .expect("signed x86 division plus crash emits with stack evidence");
+        let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+            crash_arm,
+            branches,
+            ..
+        } = &emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("signed x86 return/crash division stack evidence")
+            .control_flow
+        else {
+            panic!("signed x86 return/crash division must retain composite evidence")
+        };
+        assert_eq!(*crash_arm, TerminalScalarConditionalArm::False);
+        assert_eq!(branches.len(), 1);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             for crash_false_arm in [false, true] {

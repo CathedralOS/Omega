@@ -645,11 +645,12 @@ reach or trust, and private proof improvements do not change public identity.
   arm and retain exact relocation and closure custody through installation.
   A bounded return/crash conditional with exactly one direct accountable return
   and one direct crash now binds the crash arm and replays its exact `UD2`/`BRK`
-  terminal through installation. Extend accounting to division-bearing
-  return/crash combinations, two-crash shapes, broader language-level
-  nested/reconvergent conditionals, and the external entry adapter before
-  calling it a complete root `StackPlan`; zero-byte internal closures remain
-  inadmissible until that adapter demand exists.
+  terminal through installation. Its evidence carries the same ordered x86
+  division diamonds from the condition or returning arm, so signed policy forms
+  retain the full composite path proof. Extend accounting to two-crash shapes,
+  broader language-level nested/reconvergent conditionals, and the external
+  entry adapter before calling it a complete root `StackPlan`; zero-byte
+  internal closures remain inadmissible until that adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

@@ -2313,7 +2313,8 @@ fn validate_scalar_stack(
         branch_byte_count,
         false_arm_offset,
         crash_arm,
-    } = evidence.control_flow
+        branches,
+    } = &evidence.control_flow
     {
         if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
@@ -2326,12 +2327,12 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
-            condition,
-            branch_offset,
-            branch_byte_count,
-            false_arm_offset,
-            None,
-            Some(crash_arm),
+            *condition,
+            *branch_offset,
+            *branch_byte_count,
+            *false_arm_offset,
+            Some(branches),
+            Some(*crash_arm),
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
@@ -3530,17 +3531,19 @@ fn validate_top_level_two_return_scalar_stack(
         false_arm_offset,
     )?;
     let division_branches = division_branches.unwrap_or_default();
-    let composite_divisions = matches!(
-        evidence.control_flow,
-        TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches { .. }
-    );
+    let composite_divisions = match &evidence.control_flow {
+        TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches { .. } => true,
+        TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { branches, .. } => {
+            !branches.is_empty()
+        }
+        _ => false,
+    };
     let return_and_crash = matches!(
         evidence.control_flow,
         TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { .. }
     );
     if composite_divisions != !division_branches.is_empty()
         || return_and_crash != crash_arm.is_some()
-        || return_and_crash && composite_divisions
     {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
             machine,

@@ -219,8 +219,9 @@ retain exact relocation and closure evidence through installation. Further
 nesting and reconvergence remain excluded. The bounded conditional theorem also
 admits exactly one direct accountable return arm and one direct crash arm:
 evidence binds the crash arm and object construction validates its exact native
-`UD2`/`BRK` terminal before installation. Division-bearing return/crash and
-two-crash shapes remain excluded.
+`UD2`/`BRK` terminal before installation. Ordered x86 division diamonds from
+the condition or returning arm use the same independent path replay. Two-crash
+shapes remain excluded.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 
