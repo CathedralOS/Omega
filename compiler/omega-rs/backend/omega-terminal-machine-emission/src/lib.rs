@@ -380,8 +380,15 @@ fn emit_function(
                 )?,
             };
             let terminal_shape = direct_conditional_integer_shape(when_true, when_false);
-            scalar_stack_eligible =
-                accountable_conditional_boolean_expression(condition) && terminal_shape.is_some();
+            scalar_stack_eligible = terminal_shape.is_some_and(|shape| match shape {
+                DirectConditionalIntegerShape::TwoDecisionThreeReturn => {
+                    linear_boolean_expression(condition)
+                }
+                DirectConditionalIntegerShape::TwoReturn
+                | DirectConditionalIntegerShape::WithCrash(_) => {
+                    accountable_conditional_boolean_expression(condition)
+                }
+            });
             if let Some(terminal_shape) = terminal_shape.filter(|_| scalar_stack_eligible) {
                 let conditional = fragment
                     .conditional
@@ -3095,6 +3102,69 @@ impl EmissionFragment {
     }
 }
 
+fn top_level_integer_conditional_evidence(
+    condition: TerminalScalarConditionalCondition,
+    branch_offset: usize,
+    branch_byte_count: usize,
+    false_arm_offset: usize,
+    true_conditional: Option<&TerminalScalarControlFlowEvidence>,
+    false_conditional: Option<&TerminalScalarControlFlowEvidence>,
+) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
+    let root = TerminalScalarConditionalBranchEvidence {
+        condition,
+        branch_offset,
+        branch_byte_count,
+        false_arm_offset,
+    };
+    let shifted = |evidence: &TerminalScalarControlFlowEvidence,
+                   base: usize|
+     -> Result<Option<TerminalScalarConditionalBranchEvidence>, EmissionError> {
+        let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+        } = evidence
+        else {
+            return Ok(None);
+        };
+        Ok(Some(TerminalScalarConditionalBranchEvidence {
+            condition: *condition,
+            branch_offset: branch_offset
+                .checked_add(base)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?,
+            branch_byte_count: *branch_byte_count,
+            false_arm_offset: false_arm_offset
+                .checked_add(base)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?,
+        }))
+    };
+    let true_arm_offset = branch_offset
+        .checked_add(branch_byte_count)
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let nested = match (true_conditional, false_conditional) {
+        (Some(evidence), None) => shifted(evidence, true_arm_offset)?
+            .map(|nested| (nested, TerminalScalarConditionalArm::True)),
+        (None, Some(evidence)) => shifted(evidence, false_arm_offset)?
+            .map(|nested| (nested, TerminalScalarConditionalArm::False)),
+        (None, None) | (Some(_), Some(_)) => None,
+    };
+    Ok(if let Some((nested, nested_arm)) = nested {
+        TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+            root,
+            nested,
+            nested_arm,
+        }
+    } else {
+        TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+        }
+    })
+}
+
 fn emit_x86_64_conditional_integer_control(
     condition_source: ValueId,
     condition_location: TerminalAssignedScalarLocation,
@@ -3120,12 +3190,14 @@ fn emit_x86_64_conditional_integer_control(
         .checked_add(true_fragment.bytes.len())
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
-    fragment.conditional = Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-        condition: TerminalScalarConditionalCondition::Parameter,
+    fragment.conditional = Some(top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Parameter,
         branch_offset,
-        branch_byte_count: 6,
+        6,
         false_arm_offset,
-    });
+        true_fragment.conditional.as_ref(),
+        false_fragment.conditional.as_ref(),
+    )?);
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
     Ok(fragment)
@@ -3216,15 +3288,18 @@ fn emit_x86_64_conditional_integer_expression_control(
         .len()
         .checked_add(true_fragment.bytes.len())
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let conditional = top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Expression,
+        branch_offset,
+        6,
+        false_arm_offset,
+        true_fragment.conditional.as_ref(),
+        false_fragment.conditional.as_ref(),
+    )?;
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
-        conditional: Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-            condition: TerminalScalarConditionalCondition::Expression,
-            branch_offset,
-            branch_byte_count: 6,
-            false_arm_offset,
-        }),
+        conditional: Some(conditional),
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -3382,12 +3457,14 @@ fn emit_aarch64_conditional_integer_control(
         .checked_add(true_fragment.bytes.len())
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
-    fragment.conditional = Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-        condition: TerminalScalarConditionalCondition::Parameter,
+    fragment.conditional = Some(top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Parameter,
         branch_offset,
-        branch_byte_count: 4,
+        4,
         false_arm_offset,
-    });
+        true_fragment.conditional.as_ref(),
+        false_fragment.conditional.as_ref(),
+    )?);
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
     Ok(fragment)
@@ -3485,15 +3562,18 @@ fn emit_aarch64_conditional_integer_expression_control(
         .len()
         .checked_add(true_fragment.bytes.len())
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let conditional = top_level_integer_conditional_evidence(
+        TerminalScalarConditionalCondition::Expression,
+        branch_offset,
+        4,
+        false_arm_offset,
+        true_fragment.conditional.as_ref(),
+        false_fragment.conditional.as_ref(),
+    )?;
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
-        conditional: Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-            condition: TerminalScalarConditionalCondition::Expression,
-            branch_offset,
-            branch_byte_count: 4,
-            false_arm_offset,
-        }),
+        conditional: Some(conditional),
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -6508,6 +6588,7 @@ fn collect_x86_division_branch_evidence(
 enum DirectConditionalIntegerShape {
     TwoReturn,
     WithCrash(TerminalScalarConditionalCrashArms),
+    TwoDecisionThreeReturn,
 }
 
 fn conditional_with_terminal_shape(
@@ -6515,6 +6596,20 @@ fn conditional_with_terminal_shape(
     terminal_shape: DirectConditionalIntegerShape,
     branches: Vec<TerminalScalarDivisionBranchEvidence>,
 ) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
+    if matches!(
+        terminal_shape,
+        DirectConditionalIntegerShape::TwoDecisionThreeReturn
+    ) {
+        return match (conditional, branches.is_empty()) {
+            (
+                evidence @ TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                    ..
+                },
+                true,
+            ) => Ok(evidence),
+            _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
+        };
+    }
     let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
         condition,
         branch_offset,
@@ -6552,6 +6647,7 @@ fn conditional_with_terminal_shape(
                 branches,
             }
         }
+        (DirectConditionalIntegerShape::TwoDecisionThreeReturn, _) => unreachable!(),
     })
 }
 
@@ -6579,18 +6675,49 @@ fn direct_conditional_integer_shape(
         TerminalAssignedIntegerControl::Crash { .. } => Some(true),
         _ => None,
     };
-    match (classify(when_true)?, classify(when_false)?) {
-        (false, false) => Some(DirectConditionalIntegerShape::TwoReturn),
-        (true, false) => Some(DirectConditionalIntegerShape::WithCrash(
-            TerminalScalarConditionalCrashArms::True,
-        )),
-        (false, true) => Some(DirectConditionalIntegerShape::WithCrash(
-            TerminalScalarConditionalCrashArms::False,
-        )),
-        (true, true) => Some(DirectConditionalIntegerShape::WithCrash(
-            TerminalScalarConditionalCrashArms::Both,
-        )),
+    if let (Some(true_crash), Some(false_crash)) = (classify(when_true), classify(when_false)) {
+        return match (true_crash, false_crash) {
+            (false, false) => Some(DirectConditionalIntegerShape::TwoReturn),
+            (true, false) => Some(DirectConditionalIntegerShape::WithCrash(
+                TerminalScalarConditionalCrashArms::True,
+            )),
+            (false, true) => Some(DirectConditionalIntegerShape::WithCrash(
+                TerminalScalarConditionalCrashArms::False,
+            )),
+            (true, true) => Some(DirectConditionalIntegerShape::WithCrash(
+                TerminalScalarConditionalCrashArms::Both,
+            )),
+        };
     }
+    let linear_return = |arm: &TerminalAssignedConditionalIntegerArm| {
+        matches!(
+            arm.control.as_ref(),
+            TerminalAssignedIntegerControl::Return { expression, .. }
+                if linear_integer_expression(expression)
+        )
+    };
+    let one_linear_decision =
+        |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
+            TerminalAssignedIntegerControl::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => linear_return(when_true) && linear_return(when_false),
+            TerminalAssignedIntegerControl::ConditionalExpression {
+                condition,
+                when_true,
+                when_false,
+                ..
+            } => {
+                linear_boolean_expression(condition)
+                    && linear_return(when_true)
+                    && linear_return(when_false)
+            }
+            _ => false,
+        };
+    (one_linear_decision(when_true) && linear_return(when_false)
+        || linear_return(when_true) && one_linear_decision(when_false))
+    .then_some(DirectConditionalIntegerShape::TwoDecisionThreeReturn)
 }
 
 /// Expression-condition WCSU evidence admits division and remainder in the
@@ -9369,6 +9496,114 @@ mod tests {
             }
         );
         assert_eq!(aarch64_stack.mutations.len(), 4);
+    }
+
+    #[test]
+    fn retains_one_nested_integer_decision_and_fences_a_third() {
+        let nested_plan = |target: NativeTarget, nested_false_arm: bool| {
+            let mut plan = conditional_plan(target);
+            let nested_register = match (target.architecture, nested_false_arm) {
+                (Architecture::X86_64, false) => MachineRegister::X86Rsi,
+                (Architecture::X86_64, true) => MachineRegister::X86Rdx,
+                (Architecture::Aarch64, false) => MachineRegister::Aarch64X(1),
+                (Architecture::Aarch64, true) => MachineRegister::Aarch64X(2),
+            };
+            let returned = |edge, return_edge, source, value| TerminalTargetConditionalIntegerArm {
+                psi_edge: EdgeId::new(edge).expect("edge"),
+                control: Box::new(TerminalTargetIntegerControl::Return {
+                    psi_return_edge: EdgeId::new(return_edge).expect("return edge"),
+                    source_value: ValueId::new(source).expect("source value"),
+                    expression: TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(source).expect("source value"),
+                        value: IntegerValue::Unsigned(value),
+                    },
+                }),
+            };
+            let TerminalTargetOperation::ReturnIntegerConditionalControl {
+                when_true,
+                when_false,
+                ..
+            } = &mut plan.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let nested_arm = if nested_false_arm {
+                when_false
+            } else {
+                when_true
+            };
+            nested_arm.control = Box::new(TerminalTargetIntegerControl::Conditional {
+                condition_source: ValueId::new(8).expect("nested condition"),
+                condition_parameter_index: if nested_false_arm { 2 } else { 1 },
+                condition_location: TerminalScalarParameterLocation::Register(nested_register),
+                when_true: returned(5, 7, 9, 7),
+                when_false: returned(6, 8, 10, 9),
+            });
+            plan
+        };
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            for nested_false_arm in [false, true] {
+                let emitted = emit_machine_code(&nested_plan(target, nested_false_arm))
+                    .expect("emit one nested integer decision");
+                let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                    root,
+                    nested,
+                    nested_arm,
+                } = emitted.functions[0]
+                    .scalar_stack
+                    .as_ref()
+                    .expect("nested conditional stack evidence")
+                    .control_flow
+                else {
+                    panic!("one nested decision must retain three-leaf evidence")
+                };
+                assert!(root.branch_offset < nested.branch_offset);
+                assert_eq!(
+                    nested_arm,
+                    if nested_false_arm {
+                        TerminalScalarConditionalArm::False
+                    } else {
+                        TerminalScalarConditionalArm::True
+                    }
+                );
+            }
+        }
+
+        let mut too_deep = nested_plan(NativeTarget::linux_x64(), false);
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
+            &mut too_deep.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerControl::Conditional {
+            when_true: nested_true,
+            ..
+        } = when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        let leaf = nested_true.control.clone();
+        nested_true.control = Box::new(TerminalTargetIntegerControl::Conditional {
+            condition_source: ValueId::new(11).expect("third condition"),
+            condition_parameter_index: 1,
+            condition_location: TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            when_true: TerminalTargetConditionalIntegerArm {
+                psi_edge: EdgeId::new(9).expect("edge"),
+                control: leaf.clone(),
+            },
+            when_false: TerminalTargetConditionalIntegerArm {
+                psi_edge: EdgeId::new(10).expect("edge"),
+                control: leaf,
+            },
+        });
+        assert_eq!(
+            emit_machine_code(&too_deep)
+                .expect("third decision still emits")
+                .functions[0]
+                .scalar_stack,
+            None
+        );
     }
 
     #[test]

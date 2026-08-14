@@ -421,8 +421,8 @@ pub enum TerminalScalarControlFlowEvidence {
     /// Exactly two Boolean decisions and three independently returning leaves.
     /// The root is followed by its true arm and then its false arm; `nested_arm`
     /// identifies which root arm contains the sole nested decision. The three
-    /// corresponding cleanup records remain in physical true-before-false DFS
-    /// order on the containing function.
+    /// corresponding cleanup records, when present, remain in physical
+    /// true-before-false DFS order on the containing function.
     TopLevelTwoDecisionThreeReturn {
         root: TerminalScalarConditionalBranchEvidence,
         nested: TerminalScalarConditionalBranchEvidence,

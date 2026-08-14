@@ -3027,6 +3027,13 @@ fn validate_scalar_control_cleanup_evidence(
             Err(invalid())
         };
     };
+    if records.is_empty() {
+        return if stack.cleanup_preservation.is_none() {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
+    }
     let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
     if records.len() != leaf_regions.len() || stack.cleanup_preservation.is_some() {
         return Err(invalid());
@@ -3651,7 +3658,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
     TerminalObjectError,
 > {
     let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
-    if cleanups.len() != leaf_regions.len()
+    if !cleanups.is_empty() && cleanups.len() != leaf_regions.len()
         || evidence.cleanup_preservation.is_some()
         || evidence
             .mutations
@@ -3752,7 +3759,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
         });
     }
     peak = peak.max(nested_peak);
-    for ((start, end), cleanup) in leaf_regions.into_iter().zip(cleanups) {
+    for (index, (start, end)) in leaf_regions.into_iter().enumerate() {
         peak = peak.max(replay_scalar_conditional_region(
             architecture,
             machine,
@@ -3765,7 +3772,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
             true,
             evidence,
             &mut validated_calls,
-            Some(&cleanup.cleanup),
+            cleanups.get(index).map(|cleanup| &cleanup.cleanup),
         )?);
     }
     if let Some((&offset, _)) = claimed.first_key_value() {
