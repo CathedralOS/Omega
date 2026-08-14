@@ -3205,7 +3205,7 @@ fn lower_nominal_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    let source_distributed_short_circuit_bindings = plan
+    let candidate_source_distributed_short_circuit_bindings = plan
         .bindings
         .len()
         .checked_sub(1)
@@ -3372,6 +3372,11 @@ fn lower_nominal_structural_scalar_return_machine(
                 Some((short_circuit_index, decision))
             })
         });
+    let source_distributed_short_circuit_bindings = plan
+        .shared_boolean_convergence
+        .is_none()
+        .then_some(candidate_source_distributed_short_circuit_bindings)
+        .flatten();
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
         let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
             LoweringError::Unsupported("nominal scalar return binding index exceeds u32")
@@ -3386,6 +3391,9 @@ fn lower_nominal_structural_scalar_return_machine(
         if source_distributed_short_circuit_bindings
             .as_ref()
             .is_some_and(|(first_distributed, _)| binding_index >= *first_distributed)
+            || plan.shared_boolean_convergence.is_some_and(|convergence| {
+                usize::try_from(convergence.binding_ordinal).ok() == Some(binding_index)
+            })
         {
             continue;
         }
@@ -3491,12 +3499,132 @@ fn lower_nominal_structural_scalar_return_machine(
         .iter()
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
-    if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
+    if let Some(convergence) = plan.shared_boolean_convergence {
+        let binding_index = usize::try_from(convergence.binding_ordinal).map_err(|_| {
+            LoweringError::Unsupported("shared Boolean convergence binding exceeds usize")
+        })?;
+        let decision = lower_checked_scalar_expression_at(
+            checked,
+            plan.state,
+            convergence.binding_ordinal,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: convergence.binding_ordinal,
+            },
+        )?;
+        let LoweredDirectExpression::Boolean {
+            expression: decision,
+        } = decision
+        else {
+            return unsupported("shared Boolean convergence decision is not Boolean");
+        };
+        if binding_index >= plan.bindings.len()
+            || boolean_decision_test_count(&lower_boolean_value_decision(&decision)) != 2
+        {
+            return unsupported("shared Boolean convergence is not one exact short-circuit");
+        }
+        validate_boolean_parameter_types(&decision, &parameter_types)?;
+    } else if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
         validate_boolean_decision_parameter_types(decision, &parameter_types)?;
     } else {
         validate_direct_parameter_types(&expression, &parameter_types)?;
     }
-    let blocks = if nominal_short_circuit_return {
+    let blocks = if let Some(convergence) = plan.shared_boolean_convergence {
+        usize::try_from(convergence.binding_ordinal).map_err(|_| {
+            LoweringError::Unsupported("shared Boolean convergence binding exceeds usize")
+        })?;
+        let decision = lower_checked_scalar_expression_at(
+            checked,
+            plan.state,
+            convergence.binding_ordinal,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: convergence.binding_ordinal,
+            },
+        )?;
+        let LoweredDirectExpression::Boolean {
+            expression: decision,
+        } = decision
+        else {
+            return unsupported("shared Boolean convergence decision is not Boolean");
+        };
+        let decision = lower_boolean_value_decision(&decision);
+        if boolean_decision_test_count(&decision) != 2 {
+            return unsupported("shared Boolean convergence is not one exact short-circuit");
+        }
+        let decision_block_count = boolean_decision_block_count(&decision);
+        let continuation_block = block_id(
+            first_unused_block
+                .checked_add(
+                    u64::try_from(decision_block_count.saturating_sub(1)).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "shared Boolean convergence block count exceeds u64",
+                        )
+                    })?,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "shared Boolean convergence block identity overflows",
+                ))?,
+        );
+        let entry_operation_count = operations.operations.len();
+        let mut next_edge = first_unused_edge;
+        let (mut root, mut children) = emit_inlined_boolean_value_blocks(
+            &decision,
+            &scalar_values,
+            Vec::new(),
+            LoweredBooleanDecisionExit::Jump {
+                target: continuation_block,
+            },
+            entry.entry,
+            block_id(first_unused_block),
+            &mut next_value,
+            &mut next_edge,
+            &mut operations,
+        );
+        let mut entry_operations = operations.operations[..entry_operation_count].to_vec();
+        entry_operations.extend(root.operations);
+        root.operations = entry_operations;
+        let convergence_value = ValueDeclaration {
+            id: value_id(allocate_dense(&mut next_value)?),
+            scalar_type: ScalarType::Boolean,
+        };
+        scalar_values.push(convergence_value);
+        validate_direct_parameter_types(
+            &expression,
+            &scalar_values
+                .iter()
+                .map(|value| value.scalar_type)
+                .collect::<Vec<_>>(),
+        )?;
+        let continuation_operation_start = operations.operations.len();
+        let value = emit_direct_expression(
+            &expression,
+            &scalar_values,
+            &mut next_value,
+            &mut operations,
+        );
+        let return_edge = edge_id(next_edge);
+        let mut blocks = Vec::with_capacity(2_usize.checked_add(children.len()).ok_or(
+            LoweringError::Unsupported("shared Boolean convergence block count exceeds usize"),
+        )?);
+        blocks.push(root);
+        blocks.append(&mut children);
+        blocks.push(Block {
+            id: continuation_block,
+            parameters: vec![convergence_value],
+            operations: operations.operations[continuation_operation_start..].to_vec(),
+            terminator: Terminator::Return {
+                edge: return_edge,
+                value,
+                cleanup_actions: cleanup_actions.clone(),
+            },
+        });
+        attach_edge_local_cleanup_proofs(
+            &mut blocks,
+            &cleanup_actions,
+            operations.next_identity,
+            &mut lowered.proof_bundle,
+        )?;
+        blocks
+    } else if nominal_short_circuit_return {
         let entry_operation_count = operations.operations.len();
         let decision = if let Some((_, decision)) = source_distributed_short_circuit_bindings {
             decision
@@ -15162,6 +15290,7 @@ mod tests {
                     bindings: Vec::new(),
                     result_type: PrimitiveType::I32,
                     return_statement_ordinal: 0,
+                    shared_boolean_convergence: None,
                     caller_requirements: Vec::new(),
                     cleanup_actions: vec![
                         CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),

@@ -260,6 +260,24 @@ fn emit_function(
                 }
             }
         }
+        TerminalAssignedOperation::ReturnBooleanSharedConvergence {
+            condition_source,
+            condition_location,
+            when_true,
+            when_false,
+            ..
+        } => {
+            scalar_stack_eligible = true;
+            let (emitted, control_flow) = emit_boolean_shared_convergence(
+                architecture,
+                *condition_source,
+                *condition_location,
+                *when_true,
+                *when_false,
+            )?;
+            scalar_control_flow = control_flow;
+            emitted
+        }
         TerminalAssignedOperation::ReturnBooleanExpression {
             frame, expression, ..
         } => {
@@ -556,6 +574,11 @@ fn emit_scalar_return_with_cleanup(
         target,
         functions,
     )?;
+    let scalar_control_flow = emitted
+        .scalar_stack
+        .as_ref()
+        .map(|stack| stack.control_flow.clone())
+        .ok_or(EmissionError::UnsupportedScalarCleanup)?;
     if emitted.unit_stack.is_some()
         || emitted.unit_affine_cleanup.is_some()
         || emitted.scalar_affine_cleanup.is_some()
@@ -563,11 +586,9 @@ fn emit_scalar_return_with_cleanup(
         || !emitted.internal_unit_calls.is_empty()
         || emitted.structural_return.is_some()
         || !matches!(
-            emitted
-                .scalar_stack
-                .as_ref()
-                .map(|stack| stack.control_flow.clone()),
-            Some(TerminalScalarControlFlowEvidence::Linear)
+            &scalar_control_flow,
+            TerminalScalarControlFlowEvidence::Linear
+                | TerminalScalarControlFlowEvidence::BooleanSharedConvergence { .. }
         )
     {
         return Err(EmissionError::UnsupportedScalarCleanup);
@@ -765,7 +786,7 @@ fn emit_scalar_return_with_cleanup(
     emitted.scalar_stack = Some(collect_scalar_stack_evidence(
         target.architecture,
         &emitted.bytes,
-        TerminalScalarControlFlowEvidence::Linear,
+        scalar_control_flow,
         Some(cleanup_preservation),
     )?);
     emitted.internal_unit_calls = internal_unit_calls;
@@ -1382,6 +1403,7 @@ fn scalar_operation_edge(operation: &TerminalAssignedOperation) -> Option<psi_co
         | TerminalAssignedOperation::ReturnIntegerParameter { psi_edge, .. }
         | TerminalAssignedOperation::ReturnBooleanParameter { psi_edge, .. }
         | TerminalAssignedOperation::ReturnBooleanNotParameter { psi_edge, .. }
+        | TerminalAssignedOperation::ReturnBooleanSharedConvergence { psi_edge, .. }
         | TerminalAssignedOperation::ReturnBooleanExpression { psi_edge, .. }
         | TerminalAssignedOperation::ReturnIntegerExpression { psi_edge, .. } => Some(*psi_edge),
         _ => None,
@@ -3824,6 +3846,78 @@ fn emit_aarch64_boolean_return(value: bool) -> Vec<u8> {
         .into_iter()
         .flat_map(u32::to_le_bytes)
         .collect()
+}
+
+fn emit_boolean_shared_convergence(
+    architecture: Architecture,
+    condition_source: ValueId,
+    condition_location: TerminalAssignedScalarLocation,
+    when_true: bool,
+    when_false: bool,
+) -> Result<(Vec<u8>, TerminalScalarControlFlowEvidence), EmissionError> {
+    match architecture {
+        Architecture::X86_64 => {
+            let mut bytes =
+                emit_x86_64_parameter_return(condition_source, false, condition_location)?;
+            if bytes.pop() != Some(0xc3) {
+                return Err(EmissionError::ConditionalBranchEncodingInvalid);
+            }
+            bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&[0x0f, 0x84, 10, 0, 0, 0]); // jz false
+            bytes.extend_from_slice(&[0xb8, u8::from(when_true), 0, 0, 0]);
+            let join_offset = bytes.len();
+            bytes.extend_from_slice(&[0xe9, 5, 0, 0, 0]); // jmp shared tail
+            let false_arm_offset = bytes.len();
+            bytes.extend_from_slice(&[0xb8, u8::from(when_false), 0, 0, 0]);
+            let merge_offset = bytes.len();
+            bytes.push(0xc3);
+            Ok((
+                bytes,
+                TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+                    decision: TerminalScalarConditionalBranchEvidence {
+                        condition: TerminalScalarConditionalCondition::Parameter,
+                        branch_offset,
+                        branch_byte_count: 6,
+                        false_arm_offset,
+                    },
+                    join_offset,
+                    join_byte_count: 5,
+                    merge_offset,
+                },
+            ))
+        }
+        Architecture::Aarch64 => {
+            let (mut bytes, condition_register) =
+                emit_aarch64_condition_load(condition_source, condition_location)?;
+            let branch_offset = bytes.len();
+            let cbz = 0x3400_0000_u32 | (3 << 5) | u32::from(condition_register);
+            bytes.extend_from_slice(&cbz.to_le_bytes());
+            let true_value = 0x5280_0000_u32 | (u32::from(when_true) << 5);
+            bytes.extend_from_slice(&true_value.to_le_bytes());
+            let join_offset = bytes.len();
+            bytes.extend_from_slice(&(0x1400_0000_u32 | 2).to_le_bytes());
+            let false_arm_offset = bytes.len();
+            let false_value = 0x5280_0000_u32 | (u32::from(when_false) << 5);
+            bytes.extend_from_slice(&false_value.to_le_bytes());
+            let merge_offset = bytes.len();
+            bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes());
+            Ok((
+                bytes,
+                TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+                    decision: TerminalScalarConditionalBranchEvidence {
+                        condition: TerminalScalarConditionalCondition::Parameter,
+                        branch_offset,
+                        branch_byte_count: 4,
+                        false_arm_offset,
+                    },
+                    join_offset,
+                    join_byte_count: 4,
+                    merge_offset,
+                },
+            ))
+        }
+    }
 }
 
 fn integer_bits(

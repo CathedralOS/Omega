@@ -194,8 +194,12 @@ Remaining:
   finite short-circuit trees of arbitrary nesting once per stage,
   source-distributing each stage's value leaves through the remaining
   branch-free or short-circuit continuation locals; each continuation may use
-  its immediate predecessor one or more times. Add complete slices for explicit
-  shared convergence, calls and effects,
+  its immediate predecessor one or more times. One exact top-level Boolean
+  identity binding now retains its typed value exits into one terminal-Psi
+  convergence parameter and one shared cleanup return; Omega preserves that
+  join through target assignment, native emission, decoded object/image
+  custody, and installation on both targets. Extend shared convergence beyond
+  that deliberately narrow shape, then add complete slices for calls and effects,
   wider partial-value cleanup, nested nominal ownership, returned transfer,
   loops, suspension, scoped ordering, and ranked tail recursion. Dynamic or
   nested indexing, wider projections/signatures, content-bearing splits, and
@@ -416,8 +420,10 @@ reach or trust, and private proof improvements do not change public identity.
   obligations through terminal verification, interpretation, fuel, and all
   native artifact paths. Nominal scalar cleanup admits finite continuation
   chains whose stages contain arbitrarily nested finite short-circuit Boolean
-  decisions. Extend contextual cleanup beyond the current receiver-independent
-  Boolean subset and finite continuation trees; add typed shared convergence,
+  decisions. One exact identity-shaped decision can instead feed a typed shared
+  terminal-Psi convergence value and one native cleanup tail. Extend contextual
+  cleanup beyond the current receiver-independent Boolean subset, finite
+  continuation trees, and that narrow shared-convergence shape; add
   wider structural partial values, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
@@ -430,8 +436,10 @@ reach or trust, and private proof improvements do not change public identity.
   instruction selection through decoded installation and artifact-wide closure
   composition. One depth-independent conditional-tree carrier accounts nested
   decisions and mutually exclusive source-distributed convergence calls.
-  Extend that accounting to actual shared native joins and general affine
-  cleanup rather than claiming convergence from duplicated leaves.
+  One bounded Boolean carrier additionally accounts an actual unconditional
+  native join into one affine-cleanup tail. Extend that accounting to general
+  shared native joins and general affine cleanup rather than claiming
+  convergence from duplicated leaves.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root

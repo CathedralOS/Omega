@@ -1084,6 +1084,17 @@ fn build_structural_scalar_return_machine(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
+    let shared_boolean_convergence = has_nominal_cleanup
+        .then(|| {
+            checked_shared_boolean_convergence(
+                facts,
+                state.symbol,
+                &bindings,
+                return_expression,
+                scalar_parameters.len(),
+            )
+        })
+        .flatten();
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -1093,9 +1104,64 @@ fn build_structural_scalar_return_machine(
         bindings,
         result_type,
         return_statement_ordinal,
+        shared_boolean_convergence,
         caller_requirements,
         cleanup_actions,
     })
+}
+
+fn checked_shared_boolean_convergence(
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    bindings: &[CheckedScalarBinding],
+    return_expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<psi_checked_trees::CheckedStructuralBooleanConvergencePlan> {
+    let [binding] = bindings else {
+        return None;
+    };
+    if binding.statement_ordinal != 0 || binding.primitive_type != PrimitiveType::Bool {
+        return None;
+    }
+    let expression = facts.values.scalar_expressions.expression_at(
+        state,
+        0,
+        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+    )?;
+    let CheckedScalarExpression::Boolean(expression) = expression else {
+        return None;
+    };
+    let single_decision = match expression.as_ref() {
+        psi_checked_trees::CheckedBooleanExpression::And { left, right }
+            if matches!(
+                right.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::Constant(true)
+            ) =>
+        {
+            is_branch_free_structural_boolean_expression(left, scalar_parameter_count, 0)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Or { left, right }
+            if matches!(
+                right.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::Constant(false)
+            ) =>
+        {
+            is_branch_free_structural_boolean_expression(left, scalar_parameter_count, 0)
+        }
+        _ => false,
+    };
+    if !single_decision
+        || !matches!(
+            return_expression,
+            CheckedScalarExpression::Boolean(expression)
+                if matches!(expression.as_ref(),
+                    psi_checked_trees::CheckedBooleanExpression::Local { position }
+                        if *position == scalar_parameter_count)
+        )
+    {
+        return None;
+    }
+    Some(psi_checked_trees::CheckedStructuralBooleanConvergencePlan { binding_ordinal: 0 })
 }
 
 fn is_bounded_scalar_nominal_cleanup_target(
