@@ -10223,15 +10223,19 @@ fn lower_structural_crash_route_buckets(
                         .map_err(LoweringError::InvalidCrashPredicate)
                 }
                 CheckedScalarExpression::IntegerBinary {
-                    kind: CheckedIntegerBinaryKind::ExactAdd,
+                    kind,
                     primitive_type,
                     left,
                     right,
-                } => {
+                } if matches!(
+                    kind,
+                    CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract
+                ) =>
+                {
                     let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
                     else {
                         return unsupported(
-                            "structural crash exact addition has a non-integer type",
+                            "structural crash exact arithmetic has a non-integer type",
                         );
                     };
                     let left = Box::new(lower_integer_term(left, parameters, structural_types)?);
@@ -10240,13 +10244,23 @@ fn lower_structural_crash_route_buckets(
                         || right.scalar_type() != ScalarType::Integer(integer_type)
                     {
                         return unsupported(
-                            "structural crash exact-add operands do not match its integer type",
+                            "structural crash exact-arithmetic operands do not match its integer type",
                         );
                     }
-                    Ok(ScalarTerm::ExactIntegerAdd {
-                        scalar_type: integer_type,
-                        left,
-                        right,
+                    Ok(match kind {
+                        CheckedIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
+                            scalar_type: integer_type,
+                            left,
+                            right,
+                        },
+                        CheckedIntegerBinaryKind::ExactSubtract => {
+                            ScalarTerm::ExactIntegerSubtract {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        _ => unreachable!("guarded exact arithmetic kind"),
                     })
                 }
                 _ => unsupported(
@@ -10433,7 +10447,8 @@ fn substitute_structural_crash_route_roots(
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
             | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. } => {
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }

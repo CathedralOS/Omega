@@ -594,8 +594,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         .unwrap_or(ArithmeticDomain::Exact),
                 )),
                 ExpressionNode::Binary(binary)
-                    if binary.operator == BinaryOperator::Add
-                        && operator_is_builtin(operators, expression) =>
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Add | BinaryOperator::Subtract
+                    ) && operator_is_builtin(operators, expression) =>
                 {
                     let (left, left_domain) = lower_structural_integer_expression(
                         program,
@@ -611,12 +613,17 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     )?;
                     let primitive_type = scalar_expression_type(&left)?;
                     let domain = combine_arithmetic_domains(left_domain, right_domain)?;
+                    let kind = match binary.operator {
+                        BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
+                        BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
+                        _ => return None,
+                    };
                     (domain == ArithmeticDomain::Exact
                         && is_integer(primitive_type)
                         && scalar_expression_type(&right) == Some(primitive_type))
                     .then_some((
                         CheckedScalarExpression::IntegerBinary {
-                            kind: CheckedIntegerBinaryKind::ExactAdd,
+                            kind,
                             primitive_type,
                             left: Box::new(left),
                             right: Box::new(right),
