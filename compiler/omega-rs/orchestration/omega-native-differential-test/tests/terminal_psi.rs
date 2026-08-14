@@ -134,6 +134,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {

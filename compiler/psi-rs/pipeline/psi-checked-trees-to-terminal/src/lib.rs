@@ -72,7 +72,10 @@ use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
     TerminalDebugMap, source_digest, terminal_psi_identity, validate_debug_map,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle, reconstruct_operation_obligations};
+use psi_terminal_verifier::{
+    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
+    ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
+};
 
 /// Semantic module and separate replaceable proof artifact produced by the
 /// Psi frontend producer.
@@ -1420,6 +1423,8 @@ pub fn lower_machine(
         lowered.semantic_module.entry,
         &evidence_terms.term_ids,
     )?;
+    lowered.proof_bundle.evidence_producers =
+        lower_evidence_producer_provenance(checked, selection.machine, &evidence_terms.term_ids)?;
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
@@ -1572,8 +1577,8 @@ fn lower_proposition_vocabulary(
 
 /// Retain one terminal identity per distinct checked evidence term. Direct
 /// forwarding aliases its output to the exact source term and therefore does
-/// not mint a second identity. Selected-conformance provenance remains fenced
-/// until the proof bundle has a separate source-handle-free provenance row.
+/// not mint a second identity. A selected producer keeps its output identity
+/// distinct; its conformance provenance is lowered into the proof bundle.
 struct LoweredEvidenceTerms {
     declarations: Vec<EvidenceTermDeclaration>,
     term_ids: Vec<Option<EvidenceTermId>>,
@@ -1600,11 +1605,7 @@ fn lower_evidence_terms(
                 let source_root = evidence_term_root(&mut parents, source);
                 parents[output_root] = source_root;
             }
-            psi_checked_trees::EvidenceAssignmentSource::ProducerConformance { .. } => {
-                return Err(LoweringError::Unsupported(
-                    "terminal evidence producer provenance is not yet serialized separately",
-                ));
-            }
+            psi_checked_trees::EvidenceAssignmentSource::ProducerConformance { .. } => {}
         }
     }
 
@@ -1799,6 +1800,161 @@ fn lower_evidence_contract_lanes(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     lanes.sort_unstable();
     Ok(lanes)
+}
+
+fn lower_evidence_producer_provenance(
+    checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
+    term_ids: &[Option<EvidenceTermId>],
+) -> Result<Vec<EvidenceProducerProvenance>, LoweringError> {
+    let mut producers =
+        checked
+            .facts
+            .proof
+            .evidence_forwardings
+            .iter()
+            .filter_map(|(_, forwarding)| {
+                if forwarding.machine_symbol != selected_machine {
+                    return None;
+                }
+                let psi_checked_trees::EvidenceAssignmentSource::ProducerConformance {
+                    conformance,
+                    evidence_trait,
+                    rows,
+                } = &forwarding.source
+                else {
+                    return None;
+                };
+                let output_index = usize::try_from(forwarding.output.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                Some((
+                    term_ids.get(output_index).copied().flatten().ok_or(
+                        LoweringError::Unsupported(
+                            "selected evidence producer has no terminal term identity",
+                        ),
+                    ),
+                    *conformance,
+                    *evidence_trait,
+                    rows,
+                ))
+            })
+            .map(|(term, conformance, evidence_trait, rows)| {
+                let mut lowered_rows = rows
+                    .iter()
+                    .map(|row| {
+                        Ok(EvidenceProducerRealization {
+                            declaring_trait_identity: checked
+                                .symbols
+                                .display_path(row.declaring_trait, "::"),
+                            requirement_identity: checked_evidence_requirement_identity(
+                                checked,
+                                row.declaring_trait,
+                                row.requirement,
+                            )?,
+                            realization_machine_identity: checked_evidence_machine_identity(
+                                checked,
+                                row.realization_machine,
+                            )?,
+                            realization_state_identity: checked
+                                .symbols
+                                .display_path(row.realization_state, "::"),
+                            source: match row.source {
+                                psi_checked_trees::DynamicConformanceRowSource::Inline => {
+                                    EvidenceProducerRowSource::Inline
+                                }
+                                psi_checked_trees::DynamicConformanceRowSource::Reference => {
+                                    EvidenceProducerRowSource::Reference
+                                }
+                                psi_checked_trees::DynamicConformanceRowSource::TraitDefault => {
+                                    EvidenceProducerRowSource::TraitDefault
+                                }
+                            },
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                lowered_rows.sort();
+                Ok(EvidenceProducerProvenance {
+                    id: EvidenceIdentity::new(1).expect("placeholder identity is nonzero"),
+                    term: term?,
+                    conformance_identity: checked.symbols.display_path(conformance, "::"),
+                    evidence_trait_identity: checked.symbols.display_path(evidence_trait, "::"),
+                    rows: lowered_rows,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+    producers.sort_by_key(|producer| producer.term);
+    for (index, producer) in producers.iter_mut().enumerate() {
+        producer.id = EvidenceIdentity::new(
+            u64::try_from(index)
+                .expect("evidence producer count fits u64")
+                .checked_add(1)
+                .expect("one-based evidence producer identity fits u64"),
+        )
+        .expect("one-based evidence producer identity is nonzero");
+    }
+    Ok(producers)
+}
+
+fn checked_evidence_requirement_identity(
+    checked: &CheckedTrees,
+    declaring_trait: psi_symbols::SymbolHandle,
+    requirement: psi_symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let mut matches = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == declaring_trait)
+        .flat_map(|definition| {
+            checked
+                .typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == requirement)
+                .map(move |signature| (definition, signature))
+        });
+    let (definition, signature) = matches.next().ok_or(LoweringError::Unsupported(
+        "evidence producer row has no exact trait requirement",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("evidence producer row has an ambiguous trait requirement");
+    }
+    let identity = checked
+        .typed
+        .normalized_trait_requirement_overload_identity(definition, signature)
+        .identity();
+    if identity.is_empty() {
+        return unsupported("evidence producer row has an empty requirement identity");
+    }
+    Ok(identity)
+}
+
+fn checked_evidence_machine_identity(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let mut matches = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine);
+    let machine = matches.next().ok_or(LoweringError::Unsupported(
+        "evidence producer row has no exact realization machine",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("evidence producer row has an ambiguous realization machine");
+    }
+    let identity = checked
+        .typed
+        .normalized_machine_overload_identity(machine)
+        .ok_or(LoweringError::Unsupported(
+            "evidence producer realization has no callable identity",
+        ))?
+        .identity();
+    if identity.is_empty() {
+        return unsupported("evidence producer realization has an empty machine identity");
+    }
+    Ok(identity)
 }
 
 fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
@@ -7642,6 +7798,7 @@ fn lower_attached_unit_closure_including(
             machines,
         },
         proof_bundle: ProofBundle {
+            evidence_producers: Vec::new(),
             evidence: call_evidence,
         },
         debug_map: None,
@@ -8847,7 +9004,10 @@ fn lower_scalar_call_closure(
             evidence_contract_lanes: Vec::new(),
             machines,
         },
-        proof_bundle: ProofBundle { evidence },
+        proof_bundle: ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence,
+        },
         debug_map: None,
     };
     finalize_operation_proofs(&mut lowered)?;
@@ -13628,7 +13788,10 @@ fn build_scalar_graph_module(
                 },
             }],
         },
-        proof_bundle: ProofBundle { evidence },
+        proof_bundle: ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence,
+        },
         debug_map: None,
     })
 }

@@ -498,12 +498,13 @@ vocabulary row, and the verifier requires the term interface to equal the
 application interface. Canonical positional contract-lane rows for the selected
 terminal machine now reference the exact term IDs, with forwarding preserving
 one ID across its required and ensured endpoints. Known IDs, dense positions,
-and absence of orphan terms are verified; until producer provenance exists,
-every ensured ID must also occur in that machine's required lanes. Generated
+and absence of orphan terms are verified. A producer-backed ensured term has a
+separate canonical proof-bundle provenance identity retaining its exact
+conformance, evidence trait, and complete normalized realization rows. The
+verifier accepts an ensures-only ID only through one matching row; that row
+changes proof identity, not semantic identity, runtime, or fuel. Generated
 package fields do not yet reference the ID, so package projection remains
-future work. Producer-backed terms remain fail-closed until the proof bundle
-can carry their separate conformance/row provenance; a display spelling is
-never an identity oracle.
+future work. A display spelling is never an identity oracle.
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.

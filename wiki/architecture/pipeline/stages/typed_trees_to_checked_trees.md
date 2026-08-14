@@ -417,11 +417,13 @@ Current ownership is:
   application and term rows to agree, and forwarding contributes one row.
   Canonical positional rows connect the selected terminal machine's named
   requires/ensures lanes to exact term IDs, with one shared ID across a
-  forwarded pair. Until selected-conformance provenance has a separate
-  proof-bundle row, the verifier admits only ensured IDs also supplied by that
-  machine's required lanes and the terminal producer fences selected producers.
-  Generated package fields do not yet reference term IDs. Boolean, membership,
-  fact-only, or non-nominal bindings reject.
+  forwarded pair. A selected producer emits a separate canonical proof-bundle
+  provenance identity keyed to its ensured term, retaining the exact
+  conformance, evidence trait, and normalized realization rows without source
+  handles. The verifier admits an ensures-only term exactly through that row;
+  provenance affects proof identity, never terminal semantic identity or
+  execution. Generated package fields do not yet reference term IDs. Boolean,
+  membership, fact-only, or non-nominal bindings reject.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query

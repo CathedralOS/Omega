@@ -130,13 +130,16 @@ that interface and each term row to agree with it. A forwarded output
 contributes only its source vocabulary identity. Canonical positional rows for
 the selected terminal machine's named `requires` and `ensures` lanes reference
 those exact IDs, and forwarding places the same ID at both endpoints. The
-verifier requires known machine/term IDs, dense positions per lane kind, no
-orphan term rows, and—until producer provenance exists—every ensured term to be
-one of the same machine's required terms. Generated output fields do not yet
-reference `EvidenceTermId`, so stable package projection remains future work. A
-producer-backed term is rejected at the terminal boundary until its selected
-conformance and complete normalized rows can be serialized as separate proof
-provenance; the diagnostic evidence-type spelling is not consulted as identity.
+verifier requires known machine/term IDs, dense positions per lane kind, and no
+orphan term rows. A fresh ensured term is accepted only when the proof bundle
+contains one canonical provenance row keyed to that exact term. The row has its
+own proof identity and retains the selected conformance, evidence trait, and
+complete normalized realization rows without source handles. Missing, unused,
+malformed, reordered, or interface-mismatched provenance rejects. The row
+changes the proof fingerprint, not terminal semantic identity, runtime, or
+fuel. Generated output fields do not yet reference `EvidenceTermId`, so stable
+package projection remains future work; diagnostic display spelling is never
+an identity oracle.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

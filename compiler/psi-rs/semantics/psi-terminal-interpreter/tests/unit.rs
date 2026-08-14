@@ -1983,7 +1983,10 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
         })
         .collect::<Vec<_>>();
     evidence.sort_by_key(|evidence| evidence.obligation);
-    let proof_bundle = ProofBundle { evidence };
+    let proof_bundle = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence,
+    };
     let semantic = encode_module(&module).expect("contextual scalar cleanup encodes");
     let proof = encode_proof_bundle(&proof_bundle).expect("contextual cleanup proof encodes");
     let structural_arguments = [
