@@ -20,13 +20,10 @@
 //!
 //! Known exceptions
 //! ----------------
-//! The current graph is not a perfect DAG of layers: nine layer-pairs are
-//! genuinely *cyclic* (crates in both layers depend on each other). For each
-//! such pair the minority / "upward" direction is recorded in
-//! `KNOWN_EXCEPTIONS`. These are documented architecture smells: the test
-//! stays green for them today, but any NEW upward pair (or any new edge that
-//! is upward and not already covered) fails the test. See the comments on
-//! each exception for the architectural reason.
+//! The current graph is not a perfect DAG of layers. Broad cyclic layer pairs
+//! are recorded in `KNOWN_EXCEPTIONS`; deliberate single-crate seams that must
+//! not authorize the whole layer pair are recorded in
+//! `KNOWN_EDGE_EXCEPTIONS`. Any other upward edge fails the test.
 //!
 //! To run just this test:  `cargo test -p omega-architecture-test`
 
@@ -76,6 +73,28 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
     ("object", "backend"),
     // `omega-backend-plan` (a representation) depends on `omega-object-file`.
     ("representations", "object"),
+];
+
+/// Exact upward crate edges whose ownership is documented but whose layer pair
+/// must remain closed to every other crate.
+const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
+    // This target-neutral semantic service owns the pre-resolution/pre-check
+    // conveyors documented in canonical_ir_fuel_and_resource_provisioning.md.
+    // Its probe evaluations deliberately invoke these four Psi frontend passes
+    // while keeping target/provider realization outside Psi.
+    ("psi-build-time-evaluation", "psi-generic-instances"),
+    (
+        "psi-build-time-evaluation",
+        "psi-symbol-resolved-trees-to-typed-trees",
+    ),
+    (
+        "psi-build-time-evaluation",
+        "psi-syntax-trees-to-symbol-resolved-trees",
+    ),
+    (
+        "psi-build-time-evaluation",
+        "psi-typed-trees-to-checked-trees",
+    ),
 ];
 
 /// Classify a governed Omega or Psi crate into an architectural layer from its
@@ -166,6 +185,11 @@ fn load_graph() -> BTreeMap<String, Crate> {
             .as_array()
             .map(|arr| {
                 arr.iter()
+                    // Architecture ownership governs production edges. Test
+                    // fixtures may deliberately cross the firewall to compare
+                    // independent layers without making either layer a
+                    // production dependency of the other.
+                    .filter(|d| d["kind"].as_str() != Some("dev"))
                     .filter_map(|d| d["name"].as_str())
                     .filter(|n| is_governed_crate(n))
                     .map(|n| n.to_string())
@@ -203,11 +227,13 @@ fn workspace_layering_is_respected() {
     );
 
     let exceptions: BTreeSet<(&str, &str)> = KNOWN_EXCEPTIONS.iter().copied().collect();
+    let edge_exceptions: BTreeSet<(&str, &str)> = KNOWN_EDGE_EXCEPTIONS.iter().copied().collect();
 
     // Collect every upward (forbidden) edge that is NOT covered by an exception.
     let mut violations: Vec<String> = Vec::new();
     // Track which exceptions were actually exercised so we can flag stale ones.
     let mut used_exceptions: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut used_edge_exceptions: BTreeSet<(&str, &str)> = BTreeSet::new();
 
     for (name, krate) in &graph {
         let from_layer = krate.layer;
@@ -225,6 +251,11 @@ fn workspace_layering_is_respected() {
                 continue; // downward / sideways: allowed.
             }
             // Upward edge.
+            let edge = (name.as_str(), dep.as_str());
+            if edge_exceptions.contains(&edge) {
+                used_edge_exceptions.insert(edge);
+                continue;
+            }
             let pair = (from_layer, to_layer);
             if exceptions.contains(&pair) {
                 used_exceptions.insert(pair);
@@ -259,6 +290,15 @@ fn workspace_layering_is_respected() {
         stale.is_empty(),
         "These KNOWN_EXCEPTIONS no longer match any edge in the graph and should be removed \
          (the architecture has improved!): {stale:?}",
+    );
+    let stale_edges: Vec<(&str, &str)> = edge_exceptions
+        .iter()
+        .copied()
+        .filter(|edge| !used_edge_exceptions.contains(edge))
+        .collect();
+    assert!(
+        stale_edges.is_empty(),
+        "These KNOWN_EDGE_EXCEPTIONS no longer match any edge in the graph and should be removed: {stale_edges:?}",
     );
 }
 

@@ -106,7 +106,7 @@ impl TerminalObjectArtifact {
     }
 }
 
-impl omega_external_roots::TerminalObjectEvidence for TerminalObjectArtifact {
+impl omega_terminal_installation_evidence::TerminalObjectEvidence for TerminalObjectArtifact {
     fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
     }
@@ -238,7 +238,7 @@ impl TerminalStackDemand {
     }
 }
 
-impl omega_external_roots::TerminalStackDemandEvidence for TerminalStackDemand {
+impl omega_terminal_installation_evidence::TerminalStackDemandEvidence for TerminalStackDemand {
     fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
     }

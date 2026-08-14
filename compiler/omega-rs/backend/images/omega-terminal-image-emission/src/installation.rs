@@ -225,7 +225,13 @@ pub fn build_terminal_installation_record(
     image: &TerminalExecutableImage,
     profile_decision: ProfileDecisionId,
 ) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
-    build_terminal_installation_record_with_provider_executions(image, profile_decision, [])
+    build_terminal_installation_record_with_provider_executions(
+        image,
+        profile_decision,
+        std::iter::empty::<
+            &dyn omega_terminal_installation_evidence::TerminalProviderExecutionEvidence,
+        >(),
+    )
 }
 
 /// Build an installation record from the same ledger-owned provider
@@ -234,11 +240,16 @@ pub fn build_terminal_installation_record(
 /// The execution closure must match the image's retained settlement evidence
 /// exactly. Numeric provider-plan identities are derived here and cannot be
 /// supplied independently by the caller.
-pub fn build_terminal_installation_record_with_provider_executions<'execution>(
+pub fn build_terminal_installation_record_with_provider_executions<'execution, Execution>(
     image: &TerminalExecutableImage,
     profile_decision: ProfileDecisionId,
-    provider_executions: impl IntoIterator<Item = &'execution omega_external_roots::ProviderExecution>,
-) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -246,18 +257,17 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
     let mut admitted_executions = std::collections::BTreeSet::new();
     let mut selected_provider_plans = std::collections::BTreeSet::new();
     for execution in provider_executions {
-        let admitted = execution.terminal_binding();
         if !admitted_executions.insert((
-            admitted.provider_plan(),
-            admitted.provider_execution_identity(),
-            admitted.provider_execution_fingerprint(),
-            admitted.normalized_root_identity(),
-            admitted.boundary_contract_fingerprint(),
+            execution.provider_plan(),
+            execution.provider_execution_identity(),
+            execution.provider_execution_fingerprint(),
+            execution.normalized_root_identity(),
+            execution.boundary_contract_fingerprint(),
         )) {
             return Err(TerminalInstallationError::DuplicateProviderExecution);
         }
         selected_provider_plans.insert(
-            SelectedProviderPlanIdentity::new(admitted.provider_plan())
+            SelectedProviderPlanIdentity::new(execution.provider_plan())
                 .ok_or(TerminalInstallationError::ZeroProviderPlan)?,
         );
     }

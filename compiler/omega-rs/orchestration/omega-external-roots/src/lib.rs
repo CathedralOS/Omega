@@ -18,6 +18,9 @@ pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{
     InstalledCode, InstalledCodeContext, ResolvedPostHandoffEntryWriterContext,
 };
+pub use omega_terminal_installation_evidence::{
+    TerminalObjectEvidence, TerminalStackDemandEvidence,
+};
 pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::{
     EntryStubId, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
@@ -182,18 +185,6 @@ impl InstalledTerminalEntryStackDemand {
             && self.installed_code_context == installed_code.receipt_context()
             && self.artifact == installed_code.artifact()
     }
-}
-
-/// Narrow read-only surface implemented by the terminal image crate's sealed
-/// stack-demand value. This keeps the root ledger independent of image
-/// emission while preserving the exact semantic entry and derived closure.
-pub trait TerminalStackDemandEvidence {
-    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
-    fn architecture(&self) -> omega_target::Architecture;
-    fn entry(&self) -> psi_core::MachineId;
-    fn ceiling_bytes(&self) -> u64;
-    fn stack_alignment(&self) -> u32;
-    fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId>;
 }
 
 /// Bind one emitter-derived terminal stack closure to exact installed bytes
@@ -888,16 +879,6 @@ pub struct InstalledTerminalSegmentFuelCertificate {
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     entry: EntryStubId,
-}
-
-/// Narrow, read-only evidence required to bind terminal fixed-fuel theorems to
-/// installed bytes. Object/image crates implement this without becoming an
-/// authority dependency of the external-root ledger.
-pub trait TerminalObjectEvidence {
-    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
-    fn architecture(&self) -> omega_target::Architecture;
-    fn text_bytes(&self) -> &[u8];
-    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize>;
 }
 
 impl InstalledTerminalSegmentFuelCertificate {
@@ -1812,6 +1793,28 @@ impl AdmittedTerminalProviderExecution {
     }
 
     pub const fn boundary_contract_fingerprint(&self) -> u64 {
+        self.boundary_contract_fingerprint
+    }
+}
+
+impl omega_terminal_installation_evidence::TerminalProviderExecutionEvidence for ProviderExecution {
+    fn provider_plan(&self) -> u64 {
+        self.provider_plan.normalized_identity()
+    }
+
+    fn provider_execution_identity(&self) -> u64 {
+        self.identity.normalized_identity()
+    }
+
+    fn provider_execution_fingerprint(&self) -> u64 {
+        self.normalized_identity
+    }
+
+    fn normalized_root_identity(&self) -> u64 {
+        self.normalized_root_identity
+    }
+
+    fn boundary_contract_fingerprint(&self) -> u64 {
         self.boundary_contract_fingerprint
     }
 }

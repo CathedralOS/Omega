@@ -9,7 +9,6 @@ name = "omega_terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
-omega-effects = { path = "../../representations/omega-effects" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }

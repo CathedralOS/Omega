@@ -12,7 +12,6 @@ path = "src/lib.rs"
 omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
 psi-diagnostics = { path = "../../../../psi-rs/foundation/psi-diagnostics" }
 omega-image = { path = "../omega-image" }
-omega-external-roots = { path = "../../../orchestration/omega-external-roots" }
 omega-image-elf = { path = "../omega-image-elf" }
 omega-image-macho = { path = "../omega-image-macho" }
 omega-image-pe = { path = "../omega-image-pe" }
@@ -20,6 +19,7 @@ omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../foundation/omega-target" }
 omega-x86-encoding = { path = "../../../foundation/omega-x86-encoding" }
 omega-terminal-machine-code = { path = "../../../representations/omega-terminal-machine-code" }
+omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }
 omega-terminal-target-operations = { path = "../../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi-rs/representations/psi-terminal" }
