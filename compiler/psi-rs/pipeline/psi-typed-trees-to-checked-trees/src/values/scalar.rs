@@ -680,15 +680,25 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     )?;
                     let primitive_type = scalar_expression_type(&left)?;
                     let domain = combine_arithmetic_domains(left_domain, right_domain)?;
-                    let kind = match binary.operator {
-                        BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
-                        BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
-                        BinaryOperator::Multiply => CheckedIntegerBinaryKind::ExactMultiply,
-                        BinaryOperator::Divide => CheckedIntegerBinaryKind::ExactDivide,
-                        BinaryOperator::Modulo => CheckedIntegerBinaryKind::ExactRemainder,
-                        _ => return None,
-                    };
-                    (domain == ArithmeticDomain::Exact
+                    let kind = checked_integer_binary_kind(binary.operator, domain)?;
+                    let supported = matches!(
+                        kind,
+                        CheckedIntegerBinaryKind::ExactAdd
+                            | CheckedIntegerBinaryKind::ExactSubtract
+                            | CheckedIntegerBinaryKind::ExactMultiply
+                            | CheckedIntegerBinaryKind::ExactDivide
+                            | CheckedIntegerBinaryKind::ExactRemainder
+                    ) || (primitive_type != PrimitiveType::Addr
+                        && matches!(
+                            kind,
+                            CheckedIntegerBinaryKind::WrappingAdd
+                                | CheckedIntegerBinaryKind::SaturatingAdd
+                                | CheckedIntegerBinaryKind::WrappingSubtract
+                                | CheckedIntegerBinaryKind::SaturatingSubtract
+                                | CheckedIntegerBinaryKind::WrappingMultiply
+                                | CheckedIntegerBinaryKind::SaturatingMultiply
+                        ));
+                    (supported
                         && is_integer(primitive_type)
                         && scalar_expression_type(&right) == Some(primitive_type))
                     .then_some((

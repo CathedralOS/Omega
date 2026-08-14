@@ -276,6 +276,47 @@ const PROJECTED_INTEGER_MEMBER_BITWISE_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_POLICY_ARITHMETIC_SOURCE: &str = r#"
+    data PolicyValues {
+        wrapping_left: u8 in Wrapping;
+        wrapping_right: u8 in Wrapping;
+        wrapping_expected: u8 in Wrapping;
+        saturating_left: i8 in Saturating;
+        saturating_right: i8 in Saturating;
+        saturating_expected: i8 in Saturating;
+    }
+    data Envelope { values: PolicyValues; spare: PolicyValues; }
+    data Helper {}
+    machine Helper::inspect(values: PolicyValues)
+    crashes Abort
+        values.wrapping_left + values.wrapping_right == values.wrapping_expected
+            && values.wrapping_left - values.wrapping_right == values.wrapping_expected
+            && values.wrapping_left * values.wrapping_right == values.wrapping_expected
+            && values.saturating_left + values.saturating_right == values.saturating_expected
+            && values.saturating_left - values.saturating_right == values.saturating_expected
+            && values.saturating_left * values.saturating_right == values.saturating_expected
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.values.wrapping_left + envelope.values.wrapping_right
+                == envelope.values.wrapping_expected
+            && envelope.values.wrapping_left - envelope.values.wrapping_right
+                == envelope.values.wrapping_expected
+            && envelope.values.wrapping_left * envelope.values.wrapping_right
+                == envelope.values.wrapping_expected
+            && envelope.values.saturating_left + envelope.values.saturating_right
+                == envelope.values.saturating_expected
+            && envelope.values.saturating_left - envelope.values.saturating_right
+                == envelope.values.saturating_expected
+            && envelope.values.saturating_left * envelope.values.saturating_right
+                == envelope.values.saturating_expected
+    {
+        Helper::inspect(envelope.values);
+    }
+"#;
+
 const RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
     data Metrics { current: u64; divisor: u64; limit: u64; }
     data Root {}
@@ -2391,6 +2432,173 @@ fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
         &mut Accept,
     )
     .expect("bitwise crash predicates remain verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("spare".to_owned())];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
+fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn inspect_policy_terms(
+        proposition: &Proposition,
+    ) -> ([usize; 6], Vec<&[CanonicalStructuralPathSegment]>) {
+        let Proposition::Conjunction(conjuncts) = proposition else {
+            panic!("policy arithmetic route is one conjunction")
+        };
+        let mut counts = [0; 6];
+        let mut paths = Vec::new();
+        for conjunct in conjuncts {
+            let Proposition::Equal(
+                ScalarTerm::Boolean(true),
+                ScalarTerm::IntegerEqual { left, right, .. },
+            ) = conjunct
+            else {
+                panic!("each policy arithmetic clause remains an integer equality")
+            };
+            let (index, operation_left, operation_right) = match left.as_ref() {
+                ScalarTerm::WrappingIntegerAdd { left, right, .. } => (0, left, right),
+                ScalarTerm::WrappingIntegerSubtract { left, right, .. } => (1, left, right),
+                ScalarTerm::WrappingIntegerMultiply { left, right, .. } => (2, left, right),
+                ScalarTerm::SaturatingIntegerAdd { left, right, .. } => (3, left, right),
+                ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => (4, left, right),
+                ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => (5, left, right),
+                _ => panic!("unexpected policy arithmetic term"),
+            };
+            counts[index] += 1;
+            for term in [
+                operation_left.as_ref(),
+                operation_right.as_ref(),
+                right.as_ref(),
+            ] {
+                let ScalarTerm::IntegerField { path, .. } = term else {
+                    panic!("policy arithmetic operand remains a typed member path")
+                };
+                paths.push(path.as_slice());
+            }
+        }
+        (counts, paths)
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_POLICY_ARITHMETIC_SOURCE)
+        .tokenize()
+        .expect("policy arithmetic tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("policy arithmetic parse");
+    let resolved = lower_syntax_trees(&syntax).expect("policy arithmetic resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("policy arithmetic type");
+    let checked = lower_typed_trees(typed).expect("policy arithmetic check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected wrapping and saturating member arithmetic lowers");
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one policy arithmetic route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one policy arithmetic route")
+    };
+    let (root_counts, root_paths) = inspect_policy_terms(root_route.proposition());
+    let (helper_counts, helper_paths) = inspect_policy_terms(helper_route.proposition());
+    assert_eq!(root_counts, [1; 6]);
+    assert_eq!(helper_counts, root_counts);
+    assert_eq!(root_paths.len(), 18);
+    assert_eq!(helper_paths.len(), root_paths.len());
+
+    let envelope = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_parameters[0].structural_type)
+        .expect("Envelope type");
+    let StructuralTypeShape::Record { fields } = &envelope.shape else {
+        panic!("Envelope is a record")
+    };
+    let values = fields
+        .iter()
+        .find(|field| field.identity == "values")
+        .expect("values field");
+    assert!(
+        root_paths.iter().all(|path| {
+            path.first() == Some(&CanonicalStructuralPathSegment::Field(values.id))
+        })
+    );
+    assert!(helper_paths.iter().all(|path| path.len() == 1));
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected Unit call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [StructuralPathSegment::Field(identity)] if identity == "values"
+    ));
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call carries one policy arithmetic continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently rebases every policy arithmetic operand");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("policy arithmetic route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("policy arithmetic fixed fuel recomputes");
+    let semantics = encode_module(&lowered.semantic_module).expect("policy semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("policy proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 67,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("policy arithmetic predicates remain verified metadata at interpretation");
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
 
