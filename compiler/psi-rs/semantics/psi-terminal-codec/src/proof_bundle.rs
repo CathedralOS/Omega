@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 6;
+const FORMAT_MARKER: u16 = 7;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -412,6 +412,13 @@ fn encode_evidence_producer(
             "evidence producer declaring trait",
             &row.declaring_trait_identity,
         )?;
+        writer.len(
+            "evidence producer declaring trait arguments",
+            row.declaring_trait_arguments.len(),
+        )?;
+        for argument in &row.declaring_trait_arguments {
+            writer.string("evidence producer declaring trait argument", argument)?;
+        }
         writer.string("evidence producer requirement", &row.requirement_identity)?;
         writer.string(
             "evidence producer machine",
@@ -437,8 +444,16 @@ fn decode_evidence_producer(
     let row_count = reader.count()?;
     let mut rows = Vec::new();
     for _ in 0..row_count {
+        let declaring_trait_identity = reader.string("evidence producer declaring trait")?;
+        let argument_count = reader.count()?;
+        let mut declaring_trait_arguments = Vec::new();
+        for _ in 0..argument_count {
+            declaring_trait_arguments
+                .push(reader.string("evidence producer declaring trait argument")?);
+        }
         rows.push(EvidenceProducerRealization {
-            declaring_trait_identity: reader.string("evidence producer declaring trait")?,
+            declaring_trait_identity,
+            declaring_trait_arguments,
             requirement_identity: reader.string("evidence producer requirement")?,
             realization_machine_identity: reader.string("evidence producer machine")?,
             realization_state_identity: reader.string("evidence producer state")?,

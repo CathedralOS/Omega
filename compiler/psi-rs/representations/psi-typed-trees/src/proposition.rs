@@ -154,18 +154,106 @@ fn normalize_evidence_interface(
         .zip(binder_identities)
         .filter_map(|(binder, replacement)| replacement.clone().map(|value| (binder.symbol, value)))
         .collect::<Vec<_>>();
+    let arguments = arguments
+        .iter()
+        .map(|argument| {
+            program.normalized_type_identity_with_binders(*argument, &exact_substitutions)
+        })
+        .collect::<Vec<_>>();
+    let root_arguments = arguments
+        .iter()
+        .map(|argument| argument.as_str().to_owned())
+        .collect::<Vec<_>>();
     Some((
         label,
         Some(NormalizedEvidenceInterfaceIdentity {
             trait_symbol,
-            arguments: arguments
-                .iter()
-                .map(|argument| {
-                    program.normalized_type_identity_with_binders(*argument, &exact_substitutions)
-                })
-                .collect(),
+            arguments,
+            requirements: normalized_evidence_requirements(program, trait_symbol, &root_arguments),
         }),
     ))
+}
+
+fn normalized_evidence_requirements(
+    program: &crate::TypedTrees,
+    root: SymbolHandle,
+    root_arguments: &[String],
+) -> Vec<NormalizedEvidenceRequirementIdentity> {
+    fn collect(
+        program: &crate::TypedTrees,
+        trait_symbol: SymbolHandle,
+        trait_arguments: &[String],
+        visited: &mut Vec<(SymbolHandle, Vec<String>)>,
+        requirements: &mut Vec<NormalizedEvidenceRequirementIdentity>,
+    ) {
+        let visit = (trait_symbol, trait_arguments.to_vec());
+        if visited.contains(&visit) {
+            return;
+        }
+        visited.push(visit);
+        let Some(definition) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == trait_symbol)
+        else {
+            return;
+        };
+        for requirement in program.trait_machine_signatures(definition) {
+            if !requirements.iter().any(|candidate| {
+                candidate.declaring_trait == definition.symbol
+                    && candidate.declaring_trait_arguments == trait_arguments
+                    && candidate.requirement == requirement.symbol
+            }) {
+                requirements.push(NormalizedEvidenceRequirementIdentity {
+                    declaring_trait: definition.symbol,
+                    declaring_trait_arguments: trait_arguments.to_vec(),
+                    requirement: requirement.symbol,
+                });
+            }
+        }
+        let substitutions = program
+            .trait_type_parameters(definition)
+            .iter()
+            .zip(trait_arguments)
+            .map(|(parameter, argument)| (parameter.symbol, argument.clone()))
+            .collect::<Vec<_>>();
+        for parent in program.trait_requirements(definition) {
+            let parent_arguments = program
+                .type_reference_table
+                .type_reference_handles(parent.arguments)
+                .iter()
+                .map(|argument| {
+                    program
+                        .normalized_type_identity_with_binders(*argument, &substitutions)
+                        .into_string()
+                })
+                .collect::<Vec<_>>();
+            collect(
+                program,
+                parent.symbol,
+                &parent_arguments,
+                visited,
+                requirements,
+            );
+        }
+    }
+
+    let mut requirements = Vec::new();
+    collect(
+        program,
+        root,
+        root_arguments,
+        &mut Vec::new(),
+        &mut requirements,
+    );
+    requirements.sort_by_key(|requirement| {
+        (
+            requirement.declaring_trait.arena_index(),
+            requirement.requirement.arena_index(),
+            requirement.declaring_trait_arguments.clone(),
+        )
+    });
+    requirements
 }
 
 fn type_reference_mentions_any(
@@ -354,6 +442,15 @@ fn render_evidence_type(
 pub struct NormalizedEvidenceInterfaceIdentity {
     pub trait_symbol: SymbolHandle,
     pub arguments: Vec<crate::type_identity::NormalizedTypeIdentity>,
+    /// Complete direct and inherited proof-static requirement surface.
+    pub requirements: Vec<NormalizedEvidenceRequirementIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedEvidenceRequirementIdentity {
+    pub declaring_trait: SymbolHandle,
+    pub declaring_trait_arguments: Vec<String>,
+    pub requirement: SymbolHandle,
 }
 
 /// Structured endpoint of transparent-alias expansion for consumers that

@@ -53,7 +53,12 @@ pub(crate) fn append_machine_contract_facts(
                     psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
                         interface,
-                    } => (evidence.clone(), interface.clone()),
+                    } => (
+                        evidence.clone(),
+                        interface
+                            .as_ref()
+                            .map(super::lower_checked_evidence_interface),
+                    ),
                     psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named contract must bind witness evidence")
                     }
@@ -96,49 +101,53 @@ pub(crate) fn append_state_contract_facts(
             continue;
         };
         for fact in super::fact_handles(contract.facts) {
-            let evidence_term = contract.binding.as_ref().map(|binding| {
-                let lane_position = match kind {
-                    ContractProofFactKind::Requires => {
-                        let position = requires_position;
-                        requires_position += 1;
-                        position
-                    }
-                    ContractProofFactKind::Ensures | ContractProofFactKind::Boundary => {
-                        unreachable!("states admit only arrival requires contracts")
-                    }
-                };
-                let psi_typed_trees::domain::ProofFact::Proposition(application) =
-                    program.proof_facts.get(fact)
-                else {
-                    unreachable!("validated named state contract must bind a proposition")
-                };
-                let normalized = program
+            let evidence_term =
+                contract.binding.as_ref().map(|binding| {
+                    let lane_position = match kind {
+                        ContractProofFactKind::Requires => {
+                            let position = requires_position;
+                            requires_position += 1;
+                            position
+                        }
+                        ContractProofFactKind::Ensures | ContractProofFactKind::Boundary => {
+                            unreachable!("states admit only arrival requires contracts")
+                        }
+                    };
+                    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+                        program.proof_facts.get(fact)
+                    else {
+                        unreachable!("validated named state contract must bind a proposition")
+                    };
+                    let normalized = program
                     .normalize_nominal_proposition_application(application)
                     .expect(
                         "validated named state contract must have a nominal proposition endpoint",
                     );
-                let (evidence_type, evidence_interface) = match &normalized.classification {
+                    let (evidence_type, evidence_interface) = match &normalized.classification {
                     psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
                         interface,
-                    } => (evidence.clone(), interface.clone()),
+                    } => (
+                        evidence.clone(),
+                        interface.as_ref().map(super::lower_checked_evidence_interface),
+                    ),
                     psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named state contract must bind witness evidence")
                     }
                 };
-                evidence_terms.append(CheckedEvidenceTerm {
-                    name: binding.as_str().to_owned(),
-                    owner: ContractProofFactOwner::MachineState {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                    },
-                    kind,
-                    lane_position,
-                    proposition: super::lower_checked_proposition_application(normalized),
-                    evidence_type,
-                    evidence_interface,
-                })
-            });
+                    evidence_terms.append(CheckedEvidenceTerm {
+                        name: binding.as_str().to_owned(),
+                        owner: ContractProofFactOwner::MachineState {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                        },
+                        kind,
+                        lane_position,
+                        proposition: super::lower_checked_proposition_application(normalized),
+                        evidence_type,
+                        evidence_interface,
+                    })
+                });
             contract_facts.append(ContractProofFact {
                 kind,
                 owner: ContractProofFactOwner::MachineState {

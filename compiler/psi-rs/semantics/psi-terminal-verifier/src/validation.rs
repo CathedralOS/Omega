@@ -404,7 +404,20 @@ fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), Module
                     PropositionBinderKind::Machine
                 )
             );
-            if !kind_matches || argument.identity.is_empty() {
+            let identity_matches = match (&argument.identity, &argument.evidence_projection) {
+                (identity, None) => !identity.is_empty(),
+                (identity, Some(projection)) => {
+                    identity.is_empty()
+                        && argument.kind == PropositionBinderArgumentKind::Machine
+                        && !projection.declaring_trait_identity.is_empty()
+                        && !projection
+                            .declaring_trait_arguments
+                            .iter()
+                            .any(String::is_empty)
+                        && !projection.requirement_identity.is_empty()
+                }
+            };
+            if !kind_matches || !identity_matches {
                 return Err(ModuleError::PropositionApplicationBinderMismatch(
                     application.id,
                 ));
@@ -463,11 +476,53 @@ fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), Module
             return Err(ModuleError::EvidenceTermInterfaceMismatch(term.id));
         }
     }
+    let terms = module
+        .evidence_terms
+        .iter()
+        .map(|term| (term.id, term))
+        .collect::<BTreeMap<_, _>>();
+    for application in &module.proposition_applications {
+        for projection in application
+            .binder_arguments
+            .iter()
+            .filter_map(|argument| argument.evidence_projection.as_ref())
+        {
+            let Some(term) = terms.get(&projection.term) else {
+                return Err(ModuleError::UnknownEvidenceProjectionTerm {
+                    proposition: application.id,
+                    term: projection.term,
+                });
+            };
+            if !term.interface.requirements.iter().any(|requirement| {
+                requirement.declaring_trait_identity == projection.declaring_trait_identity
+                    && requirement.declaring_trait_arguments == projection.declaring_trait_arguments
+                    && requirement.requirement_identity == projection.requirement_identity
+            }) {
+                return Err(ModuleError::EvidenceProjectionRequirementMismatch {
+                    proposition: application.id,
+                    term: projection.term,
+                });
+            }
+        }
+    }
     Ok(())
 }
 
 fn valid_evidence_interface(interface: &psi_terminal::EvidenceInterfaceIdentity) -> bool {
-    !interface.trait_identity.is_empty() && !interface.arguments.iter().any(String::is_empty)
+    !interface.trait_identity.is_empty()
+        && !interface.arguments.iter().any(String::is_empty)
+        && !interface.requirements.iter().any(|requirement| {
+            requirement.declaring_trait_identity.is_empty()
+                || requirement
+                    .declaring_trait_arguments
+                    .iter()
+                    .any(String::is_empty)
+                || requirement.requirement_identity.is_empty()
+        })
+        && !interface
+            .requirements
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
 }
 
 fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleError> {
@@ -6435,6 +6490,14 @@ pub enum ModuleError {
     FactOnlyEvidenceTerm(PropositionId),
     InvalidEvidenceInterface(EvidenceTermId),
     EvidenceTermInterfaceMismatch(EvidenceTermId),
+    UnknownEvidenceProjectionTerm {
+        proposition: PropositionId,
+        term: EvidenceTermId,
+    },
+    EvidenceProjectionRequirementMismatch {
+        proposition: PropositionId,
+        term: EvidenceTermId,
+    },
     UnknownEvidenceContractMachine(MachineId),
     UnknownEvidenceContractTerm(EvidenceTermId),
     EvidenceContractTermMismatch(EvidenceTermId),

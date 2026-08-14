@@ -311,7 +311,18 @@ pub struct PropositionApplicationIdentity {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PropositionBinderArgumentIdentity {
     pub kind: PropositionBinderArgumentKind,
+    /// Canonical identity of an ordinary static argument. Evidence
+    /// projections leave this empty and use the structured carrier below.
     pub identity: String,
+    pub evidence_projection: Option<EvidenceProjectionIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceProjectionIdentity {
+    pub term: EvidenceTermId,
+    pub declaring_trait_identity: String,
+    pub declaring_trait_arguments: Vec<String>,
+    pub requirement_identity: String,
 }
 
 /// One exact carrierless witness identity retained independently of both its
@@ -331,6 +342,15 @@ pub struct EvidenceTermDeclaration {
 pub struct EvidenceInterfaceIdentity {
     pub trait_identity: String,
     pub arguments: Vec<String>,
+    /// Complete canonical direct and inherited proof-static surface.
+    pub requirements: Vec<EvidenceRequirementIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceRequirementIdentity {
+    pub declaring_trait_identity: String,
+    pub declaring_trait_arguments: Vec<String>,
+    pub requirement_identity: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

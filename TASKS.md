@@ -518,7 +518,12 @@ Remaining N6/N8 work:
   not terminal semantic identity, runtime, or fuel. Each ensured lane now also
   retains its public generated-package field name beside the exact
   `EvidenceTermId`; required lanes have no output field, `value` remains
-  reserved, and missing or duplicate names reject. Continue with package
+  reserved, and missing or duplicate names reject. The retained carrierless
+  interface includes its complete direct and inherited requirement surface
+  with exact declaring-trait argument packs. Proof-static `term.member` binds
+  to one checked term and exact normalized row; terminal Psi canonicalizes
+  forwarding before retaining the opaque projection, and its codec and
+  verifier reject unknown terms or rows. Continue with generated-package
   projection without folding provenance into the term or treating display
   spelling as an identity oracle.
   `value` is the runtime result;
@@ -542,15 +547,6 @@ Remaining N6/N8 work:
   specialization. Identity retains declared name, telescope, optional subject,
   instantiated trait, and normalized rows. No visibility-, priority-, or
   specificity-based selection.
-- Project carrierless evidence from the complete conformance map. Projection is
-  stable per retained term and forwarding preserves it; separate introductions
-  may differ. The settled `term.member` spelling now remains structurally
-  distinct from declaration paths through syntax, resolved, and typed Psi,
-  including snapshots and semantic storage accounting; attempting to use it as
-  an executable static-machine selection rejects explicitly. Still bind legal
-  proof-static projections to the named checked term's exact normalized row and
-  retain their opaque stable identities through terminal Psi. Evidence cannot
-  eliminate into runtime computation.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records

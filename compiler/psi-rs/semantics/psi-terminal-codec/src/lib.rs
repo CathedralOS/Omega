@@ -55,7 +55,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 9;
+const FORMAT_MARKER: u16 = 10;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1626,7 +1626,31 @@ fn encode_proposition_application(
             PropositionBinderArgumentKind::Const => 2,
             PropositionBinderArgumentKind::Machine => 3,
         });
-        writer.string("proposition binder argument", &argument.identity)?;
+        match &argument.evidence_projection {
+            None => {
+                writer.u8(0);
+                writer.string("proposition binder argument", &argument.identity)?;
+            }
+            Some(projection) => {
+                writer.u8(1);
+                writer.id(projection.term);
+                writer.string(
+                    "evidence projection declaring trait",
+                    &projection.declaring_trait_identity,
+                )?;
+                writer.len(
+                    "evidence projection declaring trait arguments",
+                    projection.declaring_trait_arguments.len(),
+                )?;
+                for argument in &projection.declaring_trait_arguments {
+                    writer.string("evidence projection declaring trait argument", argument)?;
+                }
+                writer.string(
+                    "evidence projection requirement",
+                    &projection.requirement_identity,
+                )?;
+            }
+        }
     }
     writer.len("proposition arguments", application.arguments.len())?;
     for argument in &application.arguments {
@@ -1653,6 +1677,27 @@ fn encode_evidence_interface(
     writer.len("evidence interface arguments", interface.arguments.len())?;
     for argument in &interface.arguments {
         writer.string("evidence interface argument", argument)?;
+    }
+    writer.len(
+        "evidence interface requirements",
+        interface.requirements.len(),
+    )?;
+    for requirement in &interface.requirements {
+        writer.string(
+            "evidence requirement declaring trait",
+            &requirement.declaring_trait_identity,
+        )?;
+        writer.len(
+            "evidence requirement declaring trait arguments",
+            requirement.declaring_trait_arguments.len(),
+        )?;
+        for argument in &requirement.declaring_trait_arguments {
+            writer.string("evidence requirement declaring trait argument", argument)?;
+        }
+        writer.string(
+            "evidence requirement identity",
+            &requirement.requirement_identity,
+        )?;
     }
     Ok(())
 }
@@ -3236,9 +3281,26 @@ fn decode_proposition_application(
                 return Err(CodecError::InvalidTag("PropositionBinderArgumentKind", tag));
             }
         };
+        let (identity, evidence_projection) = match reader.u8()? {
+            0 => (reader.string("proposition binder argument")?, None),
+            1 => (
+                String::new(),
+                Some(psi_terminal::EvidenceProjectionIdentity {
+                    term: reader.id("EvidenceTermId")?,
+                    declaring_trait_identity: reader
+                        .string("evidence projection declaring trait")?,
+                    declaring_trait_arguments: decode_counted(reader, |reader| {
+                        reader.string("evidence projection declaring trait argument")
+                    })?,
+                    requirement_identity: reader.string("evidence projection requirement")?,
+                }),
+            ),
+            tag => return Err(CodecError::InvalidTag("PropositionBinderArgument", tag)),
+        };
         binder_arguments.push(PropositionBinderArgumentIdentity {
             kind,
-            identity: reader.string("proposition binder argument")?,
+            identity,
+            evidence_projection,
         });
     }
     let argument_count = reader.count()?;
@@ -3267,6 +3329,15 @@ fn decode_evidence_interface(
         trait_identity: reader.string("evidence interface trait identity")?,
         arguments: decode_counted(reader, |reader| {
             reader.string("evidence interface argument")
+        })?,
+        requirements: decode_counted(reader, |reader| {
+            Ok(psi_terminal::EvidenceRequirementIdentity {
+                declaring_trait_identity: reader.string("evidence requirement declaring trait")?,
+                declaring_trait_arguments: decode_counted(reader, |reader| {
+                    reader.string("evidence requirement declaring trait argument")
+                })?,
+                requirement_identity: reader.string("evidence requirement identity")?,
+            })
         })?,
     })
 }

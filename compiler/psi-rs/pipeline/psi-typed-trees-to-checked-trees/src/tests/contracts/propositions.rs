@@ -46,7 +46,7 @@ fn carrierless_evidence_projection_cannot_select_an_executable_machine_parameter
 }
 
 #[test]
-fn carrierless_evidence_projection_in_a_proposition_fails_closed_until_bound() {
+fn carrierless_evidence_projection_binds_the_exact_term_and_requirement_row() {
     let source = r#"
         trait Evidence {
             machine modulus() -> i32;
@@ -62,11 +62,77 @@ fn carrierless_evidence_projection_in_a_proposition_fails_closed_until_bound() {
         }
     "#;
 
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("a proof-static projection should bind to checked evidence");
+    let projection = checked
+        .facts
+        .proof
+        .proposition_vocabulary
+        .applications
+        .iter()
+        .flat_map(|application| &application.binder_arguments)
+        .find_map(|argument| argument.evidence_projection.as_ref())
+        .expect("the checked proposition argument should retain a structured projection");
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(projection.term).name,
+        "proof"
+    );
+    assert_eq!(checked.symbols.name(projection.requirement), "modulus");
+    assert_eq!(checked.symbols.name(projection.declaring_trait), "Evidence");
+}
+
+#[test]
+fn carrierless_evidence_projection_rejects_an_unknown_requirement() {
+    let source = r#"
+        trait Evidence {
+            machine modulus() -> i32;
+        }
+
+        proposition holds() evidence Evidence;
+        proposition selected<machine Witness>();
+
+        machine caller()
+        requires proof: holds()
+        requires selected<proof.missing>()
+        {
+        }
+    "#;
+
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("an unbound proof-static projection must not enter checked proof identity");
+        .expect_err("an unknown proof-static requirement must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "carrierless evidence projection `proof.modulus` has no checked retained-term and normalized-row binding",
+            "carrierless evidence interface `Evidence` does not contain `missing` for projection `proof.missing`",
+        )
+    }));
+}
+
+#[test]
+fn carrierless_evidence_projection_rejects_an_ambiguous_inherited_requirement() {
+    let source = r#"
+        trait First {
+            machine modulus() -> i32;
+        }
+        trait Second {
+            machine modulus() -> i32;
+        }
+        trait Evidence: First + Second {}
+
+        proposition holds() evidence Evidence;
+        proposition selected<machine Witness>();
+
+        machine caller()
+        requires proof: holds()
+        requires selected<proof.modulus>()
+        {
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an ambiguous inherited proof-static requirement must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "carrierless evidence interface `Evidence` contains more than one requirement named `modulus` for projection `proof.modulus`",
         )
     }));
 }
@@ -518,7 +584,9 @@ fn instantiated_generic_producer_interface_selects_exact_conformance() {
     };
     assert_eq!(
         interface.arguments[0],
-        checked.normalized_type_identity(*selected_argument)
+        checked
+            .normalized_type_identity(*selected_argument)
+            .as_str()
     );
 }
 

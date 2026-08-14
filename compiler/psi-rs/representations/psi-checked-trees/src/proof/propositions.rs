@@ -41,14 +41,39 @@ pub struct CheckedPropositionApplication {
     pub arguments: Vec<String>,
     /// Exact instantiated carrierless interface for witness-bearing
     /// applications. Fact-only applications carry no interface.
-    pub evidence_interface:
-        Option<psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity>,
+    pub evidence_interface: Option<CheckedEvidenceInterfaceIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedEvidenceInterfaceIdentity {
+    pub trait_symbol: SymbolHandle,
+    pub arguments: Vec<String>,
+    pub requirements: Vec<CheckedEvidenceRequirementIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedEvidenceRequirementIdentity {
+    pub declaring_trait: SymbolHandle,
+    pub declaring_trait_arguments: Vec<String>,
+    pub requirement: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPropositionBinderArgument {
     pub kind: CheckedPropositionBinderArgumentKind,
+    /// Diagnostic rendering for ordinary static arguments. Projection
+    /// identity is carried structurally below and never derives from this
+    /// spelling.
     pub identity: String,
+    pub evidence_projection: Option<CheckedEvidenceProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedEvidenceProjection {
+    pub term: psi_arena::Handle<crate::CheckedEvidenceTerm>,
+    pub declaring_trait: SymbolHandle,
+    pub declaring_trait_arguments: Vec<String>,
+    pub requirement: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

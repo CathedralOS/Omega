@@ -176,20 +176,180 @@ pub(crate) fn bind_evidence_forwarding_facts(
     }
 }
 
+pub(crate) fn bind_evidence_projection_facts(
+    program: &psi_typed_trees::TypedTrees,
+    proof: &mut ProofFacts,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    use psi_checked_trees::CheckedEvidenceProjection;
+    use psi_typed_trees::domain::ProofFact;
+
+    let mut diagnostics = Vec::new();
+    let mut applications = Vec::new();
+    for (fact_handle, fact) in program.proof_facts.iter() {
+        let ProofFact::Proposition(application) = fact else {
+            continue;
+        };
+        let Some(normalized) = program.normalize_nominal_proposition_application(application)
+        else {
+            continue;
+        };
+        let projections = application
+            .binder_arguments
+            .iter()
+            .filter(|argument| argument.evidence_projection.is_some())
+            .count();
+        if projections == 0 {
+            applications.push(lower_checked_proposition_application(normalized));
+            continue;
+        }
+        let owners = proof
+            .contract_facts
+            .iter()
+            .filter_map(|(_, contract)| (contract.fact == fact_handle).then_some(contract.owner))
+            .collect::<Vec<_>>();
+        let [owner] = owners.as_slice() else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "carrierless evidence projection in proposition `{}` has no unique named-contract scope",
+                application.name
+            )));
+            continue;
+        };
+        let mut checked = lower_checked_proposition_application(normalized);
+        let mut bound_projections = Vec::new();
+        for typed_argument in application.binder_arguments.iter() {
+            let Some(projection) = &typed_argument.evidence_projection else {
+                continue;
+            };
+            let Some(term) =
+                evidence_term_in_scope(&proof.evidence_terms, *owner, projection.term.as_str())
+            else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "carrierless evidence projection `{}.{}` names no retained evidence term in this contract scope",
+                    projection.term, projection.member
+                )));
+                continue;
+            };
+            let term_definition = proof.evidence_terms.get(term);
+            let Some(interface) = &term_definition.evidence_interface else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "carrierless evidence projection `{}.{}` uses an unresolved evidence interface",
+                    projection.term, projection.member
+                )));
+                continue;
+            };
+            let matching_rows = interface
+                .requirements
+                .iter()
+                .filter(|row| program.symbols.name(row.requirement) == projection.member.as_str())
+                .collect::<Vec<_>>();
+            let [row] = matching_rows.as_slice() else {
+                let reason = if matching_rows.is_empty() {
+                    "does not contain"
+                } else {
+                    "contains more than one requirement named"
+                };
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "carrierless evidence interface `{}` {reason} `{}` for projection `{}.{}`",
+                    term_definition.evidence_type,
+                    projection.member,
+                    projection.term,
+                    projection.member
+                )));
+                continue;
+            };
+            bound_projections.push((
+                format!("{}.{}", projection.term, projection.member),
+                CheckedEvidenceProjection {
+                    term,
+                    declaring_trait: row.declaring_trait,
+                    declaring_trait_arguments: row.declaring_trait_arguments.clone(),
+                    requirement: row.requirement,
+                },
+            ));
+        }
+        for (label, projection) in bound_projections {
+            let mut matched = false;
+            for checked_argument in &mut checked.binder_arguments {
+                if checked_argument.identity == label {
+                    checked_argument.identity.clear();
+                    checked_argument.evidence_projection = Some(projection.clone());
+                    matched = true;
+                }
+            }
+            if !matched {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "carrierless evidence projection `{label}` is not retained by the normalized proposition endpoint"
+                )));
+            }
+        }
+        applications.push(checked);
+    }
+    if diagnostics.is_empty() {
+        proof.proposition_vocabulary.applications = applications;
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn evidence_term_in_scope(
+    terms: &psi_arena::Arena<CheckedEvidenceTerm>,
+    owner: ContractProofFactOwner,
+    name: &str,
+) -> Option<psi_arena::Handle<CheckedEvidenceTerm>> {
+    let local = terms.iter().find_map(|(handle, term)| {
+        (term.owner == owner && term.kind == ContractProofFactKind::Requires && term.name == name)
+            .then_some(handle)
+    });
+    if local.is_some() {
+        return local;
+    }
+    let ContractProofFactOwner::MachineState { machine_symbol, .. } = owner else {
+        return None;
+    };
+    terms.iter().find_map(|(handle, term)| {
+        (term.owner == ContractProofFactOwner::Machine { machine_symbol }
+            && term.kind == ContractProofFactKind::Requires
+            && term.name == name)
+            .then_some(handle)
+    })
+}
+
 fn checked_evidence_producer(
     program: &psi_typed_trees::TypedTrees,
     output: &CheckedEvidenceTerm,
     conformance_symbol: SymbolHandle,
     source_name: &str,
 ) -> Option<psi_checked_trees::EvidenceAssignmentSource> {
-    use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceRowSource};
+    use psi_typed_trees::trait_definition::{
+        ConformanceImplementation, ConformanceRowSource, ConformanceSubject,
+    };
 
-    let (conformance, evidence_trait) = psi_validation::select_subjectless_evidence_conformance(
-        program,
-        conformance_symbol,
-        source_name,
-        output.evidence_interface.as_ref()?,
-    )?;
+    let expected_interface = output.evidence_interface.as_ref()?;
+    let conformance = program
+        .conformances()
+        .iter()
+        .find(|candidate| candidate.symbol == conformance_symbol)?;
+    if !matches!(conformance.subject, ConformanceSubject::Subjectless)
+        || conformance.alias.as_ref()?.as_str() != source_name
+    {
+        return None;
+    }
+    let evidence_trait = program
+        .traits()
+        .iter()
+        .find(|candidate| candidate.name == conformance.trait_name)?;
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+        .iter()
+        .map(|argument| program.normalized_type_identity(*argument).into_string())
+        .collect::<Vec<_>>();
+    if evidence_trait.symbol != expected_interface.trait_symbol
+        || arguments != expected_interface.arguments
+    {
+        return None;
+    }
     let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
         unreachable!("selected evidence producers are closed")
     };
@@ -197,7 +357,7 @@ fn checked_evidence_producer(
     Some(
         psi_checked_trees::EvidenceAssignmentSource::ProducerConformance {
             conformance: conformance.symbol,
-            evidence_trait,
+            evidence_trait: evidence_trait.symbol,
             rows: rows
                 .iter()
                 .map(|row| psi_checked_trees::DynamicConformanceRowFact {
@@ -503,7 +663,7 @@ fn lower_checked_proposition_application(
         psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
             interface,
             ..
-        } => interface.clone(),
+        } => interface.as_ref().map(lower_checked_evidence_interface),
     };
     psi_checked_trees::CheckedPropositionApplication {
         declaration: normalized.declaration,
@@ -524,11 +684,36 @@ fn lower_checked_proposition_application(
                         }
                     },
                     identity: argument.identity,
+                    evidence_projection: None,
                 },
             )
             .collect(),
         arguments: normalized.arguments,
         evidence_interface,
+    }
+}
+
+fn lower_checked_evidence_interface(
+    interface: &psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
+) -> psi_checked_trees::CheckedEvidenceInterfaceIdentity {
+    psi_checked_trees::CheckedEvidenceInterfaceIdentity {
+        trait_symbol: interface.trait_symbol,
+        arguments: interface
+            .arguments
+            .iter()
+            .map(|argument| argument.as_str().to_owned())
+            .collect(),
+        requirements: interface
+            .requirements
+            .iter()
+            .map(
+                |requirement| psi_checked_trees::CheckedEvidenceRequirementIdentity {
+                    declaring_trait: requirement.declaring_trait,
+                    declaring_trait_arguments: requirement.declaring_trait_arguments.clone(),
+                    requirement: requirement.requirement,
+                },
+            )
+            .collect(),
     }
 }
 

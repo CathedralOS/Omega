@@ -26,6 +26,7 @@ pub(crate) fn build_check_facts(
     let mut operators = build_operator_facts(program, &values);
     let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators);
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
+    crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
