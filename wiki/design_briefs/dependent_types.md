@@ -390,10 +390,12 @@ top-level concrete primitive-only record or selected-case literal may likewise
 contain an independently bounded call tree in each direct common or payload
 field. A direct field may instead be one nested concrete primitive-only record
 or selected-case literal whose direct common or payload fields obey the same
-rule. This aggregate depth-two rail composes without changing the call-depth
-budget. A third aggregate level, generic, recursive, or reference-bearing
-carriers, and calls under operators or other computed field shapes remain
-fences.
+rule. At either aggregate level, a declared primitive field may wrap those call
+leaves in up to two scalar computation shells formed from unary or binary
+operators, primitive value casts, member projections, or indexing. The
+aggregate-depth-two and computed-depth-two rails do not widen the depth-four
+call budget. A third aggregate or computed level, generic, recursive, or
+reference-bearing carriers, and other computed field shapes remain fences.
 A value-shaped assignment through an indexed target likewise preserves a
 separately returned parameter origin when the collection projects through a
 stable helper-local mutable alias or an exact transparent helper result and
