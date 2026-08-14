@@ -31,6 +31,7 @@ psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifie
 psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
 psi-checked-trees-to-terminal = { path = "../../../psi-rs/pipeline/psi-checked-trees-to-terminal" }
 omega-compiler = { path = "../omega-compiler" }
+omega-artifacts = { path = "../omega-artifacts" }
 omega-external-roots = { path = "../omega-external-roots" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }

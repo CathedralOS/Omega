@@ -572,10 +572,14 @@ reach or trust, and private proof improvements do not change public identity.
   replay exact code-positioned frame/link/temporary evidence and compose an
   acyclic closure demand. The canonical terminal installation record now seals
   those per-function and per-call facts, and a decoded record reproduces the
-  same internal closure demand. Extend accounting to nested/reconvergent
-  conditionals, crashes in arms, division/remainder, and the external entry
-  adapter; then compose the decoded demand with selected-provider admission in
-  the installed-root report before calling it a complete root `StackPlan`.
+  same internal closure demand. That decoded demand can now bind the exact
+  installed bytes and entry, enter artifact-wide nesting composition, survive
+  selected-provider admission, and appear as recomputable terminal evidence in
+  the installed-root report; opaque providers retain a distinct admitted-summary
+  path. Extend accounting to nested/reconvergent conditionals, crashes in arms,
+  division/remainder, and the external entry adapter before calling it a
+  complete root `StackPlan`; zero-byte internal closures remain inadmissible
+  until that adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

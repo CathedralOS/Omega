@@ -1027,6 +1027,56 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
             .iter()
             .map(|identity| identity.normalized_identity()),
     );
+    output.push_str("], \"summary_evidence\": [");
+    for (index, (root, summary)) in record.stack.realization.summary_evidence().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        output.push_str("{\"root\": ");
+        push_hex_identity(output, root.normalized_identity());
+        output.push_str(", \"provider\": ");
+        push_hex_identity(output, summary.provider.normalized_identity());
+        output.push_str(", \"local_wcsu_bytes\": ");
+        output.push_str(&summary.local_wcsu_bytes().to_string());
+        output.push_str(", \"alignment\": ");
+        output.push_str(&summary.wcsu_alignment().to_string());
+        match &summary.local_evidence {
+            omega_external_roots::StackLocalEvidence::TerminalEntry(binding) => {
+                output
+                    .push_str(", \"origin\": \"terminal_entry\", \"terminal_vocabulary_marker\": ");
+                output.push_str(&binding.terminal_psi().vocabulary_marker.get().to_string());
+                output.push_str(", \"terminal_fingerprint\": \"");
+                output.push_str(&binding.terminal_psi().program_fingerprint.to_string());
+                output.push_str("\", \"terminal_entry\": ");
+                push_hex_identity(output, binding.terminal_entry().get());
+                output.push_str(", \"installed_code\": ");
+                push_hex_identity(output, binding.installed_code().normalized_identity());
+                output.push_str(", \"artifact\": ");
+                push_hex_identity(output, binding.artifact().normalized_identity());
+                output.push_str(", \"entry_stub\": ");
+                push_hex_identity(output, binding.entry().normalized_identity());
+                output.push_str(", \"contributing_machines\": [");
+                push_identity_set(
+                    output,
+                    binding
+                        .contributing_machines()
+                        .iter()
+                        .map(|machine| machine.get()),
+                );
+                output.push(']');
+            }
+            omega_external_roots::StackLocalEvidence::AdmittedProvider {
+                validation_receipt,
+                ..
+            } => {
+                output.push_str(
+                    ", \"origin\": \"admitted_provider\", \"provider_validation_receipt\": ",
+                );
+                push_hex_identity(output, validation_receipt.normalized_identity());
+            }
+        }
+        output.push('}');
+    }
     output.push(']');
     output.push_str(", \"validation_receipt\": ");
     push_hex_identity(
@@ -2601,14 +2651,14 @@ mod tests {
             compose_fixed_fuel(work_root.identity, [&work_root, &leaf]).expect("fixed fuel");
         let root_identity = root_id(1, ExternalRootId::from_normalized_identity);
         let nesting_identity = root_id(11, NestingRelationId::from_normalized_identity);
-        let stack_summary = ProviderStackSummary {
-            root: root_identity,
-            provider: root_id(8, RootProviderId::from_normalized_identity),
-            stack: EntryStack::ProviderSelected,
-            local_wcsu_bytes: 2048,
-            wcsu_alignment: 16,
-            validation_receipt: root_id(29, StackValidationReceiptId::from_normalized_identity),
-        };
+        let stack_summary = ProviderStackSummary::from_admitted_provider(
+            root_identity,
+            root_id(8, RootProviderId::from_normalized_identity),
+            EntryStack::ProviderSelected,
+            2048,
+            16,
+            root_id(29, StackValidationReceiptId::from_normalized_identity),
+        );
         let composed_stack = compose_artifact_stacks(
             &StackNestingRelation {
                 identity: nesting_identity,
@@ -2708,6 +2758,10 @@ mod tests {
         assert_eq!(
             parsed["roots"][0]["resources"]["stack"]["composed_wcsu_bytes"],
             2048
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["origin"],
+            "admitted_provider"
         );
         assert_eq!(
             parsed["roots"][0]["resources"]["logical_fuel"]["composed_units"],

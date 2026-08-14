@@ -353,15 +353,17 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
 /// outside this artifact-owned closure.
 pub fn derive_terminal_installation_stack_demand(
     record: &TerminalInstallationRecord,
+    image: &TerminalExecutableImage,
     entry: MachineId,
-) -> Result<crate::TerminalStackDemand, crate::TerminalObjectError> {
+) -> Result<crate::TerminalStackDemand, TerminalInstallationStackError> {
+    validate_terminal_installation_record(record, image)?;
     let functions = record
         .functions
         .iter()
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
     if !functions.contains_key(&entry) {
-        return Err(crate::TerminalObjectError::EntryFunctionMissing(entry));
+        return Err(crate::TerminalObjectError::EntryFunctionMissing(entry).into());
     }
     let mut active = std::collections::BTreeSet::new();
     let mut memoized = std::collections::BTreeMap::new();
@@ -382,6 +384,32 @@ pub fn derive_terminal_installation_stack_demand(
         contributing_machines,
     })
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalInstallationStackError {
+    Installation(TerminalInstallationError),
+    Stack(crate::TerminalObjectError),
+}
+
+impl From<TerminalInstallationError> for TerminalInstallationStackError {
+    fn from(error: TerminalInstallationError) -> Self {
+        Self::Installation(error)
+    }
+}
+
+impl From<crate::TerminalObjectError> for TerminalInstallationStackError {
+    fn from(error: crate::TerminalObjectError) -> Self {
+        Self::Stack(error)
+    }
+}
+
+impl std::fmt::Display for TerminalInstallationStackError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for TerminalInstallationStackError {}
 
 fn derive_installed_stack_peak(
     machine: MachineId,
