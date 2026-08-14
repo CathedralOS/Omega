@@ -2998,6 +2998,37 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_after_discarded_write<'returned, 'side>(
+        returned: &'returned mut u64,
+        side: &'side mut u64
+    ) -> &'returned mut u64 {
+        _ = impure_scratch(side);
+        returned
+    }
+
+    machine return_after_discarded_reference_call(value: &mut u64) -> &mut u64 {
+        _ = return_alias(value);
+        value
+    }
+
+    machine make_cell() -> Cell {
+        Cell { value: 0 }
+    }
+
+    machine return_after_discarded_aggregate_call(value: &mut u64) -> &mut u64 {
+        _ = make_cell();
+        value
+    }
+
+    machine recursive_scratch() -> u64 {
+        recursive_scratch()
+    }
+
+    machine return_after_discarded_recursive_call(value: &mut u64) -> &mut u64 {
+        _ = recursive_scratch();
+        value
+    }
+
     machine return_after_transparent_call_target_write(value: &mut u64) -> &mut u64 {
         write_then_return(value) = 4;
         value
@@ -3238,6 +3269,30 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::discarded_call_helper_result(&mut self) {
         let alias: &mut u64 = return_after_discarded_call(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::discarded_write_call_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_after_discarded_write(&mut self.value, &mut self.other);
+        alias = 3;
+    }
+
+    machine Main::discarded_reference_call_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_after_discarded_reference_call(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::discarded_aggregate_call_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_after_discarded_aggregate_call(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::discarded_recursive_call_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_after_discarded_recursive_call(&mut self.value);
         alias = 3;
     }
 
@@ -3515,6 +3570,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::isolated_write_statement_call_helper_result",
             "self.value",
         ),
+        ("Main::discarded_call_helper_result", "self.value"),
         (
             "Main::mixed_write_statement_call_helper_result",
             "self.value",
@@ -3640,6 +3696,23 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "the attached helper's own write and returned-alias write must both remain exact"
     );
 
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::discarded_write_call_helper_result")
+        .expect("discarded primitive write caller");
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .expect("discarded primitive write caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(machine, entry)
+            .complete_paths(),
+        Some(["self.other".to_owned(), "self.value".to_owned()].as_slice()),
+        "the discarded primitive result must preserve both the call's side write and the returned-place write"
+    );
+
     for name in [
         "reference_bearing_named_local_origin",
         "Main::call_rebound_alias",
@@ -3650,7 +3723,9 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::reference_scratch_helper_result",
         "Main::impure_call_scratch_helper_result",
         "Main::mixed_write_call_scratch_helper_result",
-        "Main::discarded_call_helper_result",
+        "Main::discarded_reference_call_helper_result",
+        "Main::discarded_aggregate_call_helper_result",
+        "Main::discarded_recursive_call_helper_result",
         "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",
         "Main::call_rebound_mutable_local_alias_helper_result",
