@@ -116,6 +116,11 @@ pub(crate) fn requires_value_env(
             ) {
                 env.mark_signed_joint_subtract_upper_bound(left, right);
             }
+            if let Some((left, right)) =
+                joint_multiply_guard(program, machine, Some(entry_state), &env, comparison)
+            {
+                env.mark_joint_multiply_bound(left, right);
+            }
         }
     }
     env

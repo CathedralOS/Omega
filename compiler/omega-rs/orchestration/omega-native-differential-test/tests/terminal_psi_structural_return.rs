@@ -754,7 +754,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
-            small <= 7u8, 1u8 <= divisor, divisor <= small, count <= 2u8,
+            small <= 7u8, 1u8 <= divisor, divisor <= small,
+            small <= 255u8 / divisor, count <= 2u8,
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
@@ -774,6 +775,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((127u8 - small) < 125u8)
                 && ((small - divisor) < 4u8)
                 && ((small * 2u8) < 10u8)
+                && ((small * divisor) < 50u8)
                 && ((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
                 && ((small / divisor) < 6u8)
@@ -1351,6 +1353,30 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .expect("shared convergence retains the bounded exact multiplication");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_multiply_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let runtime_exact_multiply_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply {
+                left,
+                right,
+                obligation,
+            } if left == terminal_entry.parameters[1].id
+                && right == terminal_entry.parameters[2].id =>
+            {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the computed-bound runtime multiplication");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == runtime_exact_multiply_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)

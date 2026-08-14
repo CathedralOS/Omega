@@ -3221,6 +3221,29 @@ fn direct_integer_requirement(
                 CheckedStructuralScalarIntegerBoundPlan::SignedMaximumPlusParameter(addend),
             ))?
         }
+        (BinaryOperator::LessOrEqual, _, ExpressionNode::Binary(bound))
+            if bound.operator == BinaryOperator::Divide =>
+        {
+            let (position, primitive_type) = parameter(binary.left)?;
+            let (divisor, divisor_type) = parameter(bound.right)?;
+            let ExpressionNode::Integer(maximum) = program.expression_table.expression(bound.left)
+            else {
+                return None;
+            };
+            let maximum_matches = match primitive_type {
+                PrimitiveType::U8 => maximum.value_u64() == Some(u64::from(u8::MAX)),
+                PrimitiveType::U16 => maximum.value_u64() == Some(u64::from(u16::MAX)),
+                PrimitiveType::U32 => maximum.value_u64() == Some(u64::from(u32::MAX)),
+                PrimitiveType::U64 => maximum.value_u64() == Some(u64::MAX),
+                _ => false,
+            };
+            (maximum_matches && primitive_type == divisor_type).then_some((
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Upper,
+                CheckedStructuralScalarIntegerBoundPlan::UnsignedMaximumDivideParameter(divisor),
+            ))?
+        }
         (BinaryOperator::LessOrEqual, _, _) => {
             let (left, primitive_type) = parameter(binary.left)?;
             let (right, right_type) = parameter(binary.right)?;
