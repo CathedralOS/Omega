@@ -513,6 +513,8 @@ pub enum StatementSnapshot {
         target: String,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        evidence_arguments: Vec<String>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
@@ -586,6 +588,8 @@ pub enum ExpressionSnapshot {
         target: String,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        evidence_arguments: Vec<String>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
@@ -1272,6 +1276,11 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
                 .iter()
                 .map(|expression| table_expression_snapshot(program, *expression))
                 .collect(),
+            evidence_arguments: call
+                .evidence_arguments
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -1415,6 +1424,11 @@ fn table_expression_snapshot(
                 .expression_handles(call.arguments)
                 .iter()
                 .map(|argument| table_expression_snapshot(program, *argument))
+                .collect(),
+            evidence_arguments: call
+                .evidence_arguments
+                .iter()
+                .map(ToString::to_string)
                 .collect(),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,

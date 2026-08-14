@@ -203,6 +203,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         target: typed::name::Identifier::generated_static("equals"),
                         machine_arguments: Box::default(),
                         arguments,
+                        evidence_arguments: Box::default(),
                         operational_acknowledgement:
                             psi_language_semantics::CallOperationalAcknowledgement {
                                 origin: psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,

@@ -145,6 +145,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
+                    evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 }));
         let type_reference = program
@@ -539,6 +540,7 @@ fn collect_expected_expression_calls(
                             target: call.target.clone(),
                             machine_arguments: call.machine_arguments.clone(),
                             arguments: call.arguments,
+                            evidence_arguments: call.evidence_arguments.clone(),
                             operational_acknowledgement: call.operational_acknowledgement,
                         };
                         collect_call_argument_expectations(
@@ -762,6 +764,7 @@ mod tests {
                 target: Identifier::generated("convert"),
                 machine_arguments: Box::default(),
                 arguments,
+                evidence_arguments: Box::default(),
                 operational_acknowledgement: Default::default(),
             }))
     }

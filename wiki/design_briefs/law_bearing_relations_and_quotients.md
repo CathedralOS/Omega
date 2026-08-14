@@ -141,7 +141,12 @@ forwarding assigns an existing term and preserves its identity.
 
 Named requirements are positional erased inputs. Calls pass them explicitly in
 clause order after a `;` lane separator, never through visible-fact or
-conformance inference. Named guarantees are public fields of an inferred,
+conformance inference. Each position checks the supplied term against the
+callee proposition after ordinary call-argument substitution; source and
+callee binding names do not participate in matching. The separator remains in
+an evidence-only call (`callee(; proof)`) and is omitted only when there is no
+evidence lane. Named guarantees are
+public fields of an inferred,
 source-unnameable, compiler-generated nominal output package. The package may
 be retained, projected, or completely destructured; evidence fields erase and
 remain subject to ordinary multiplicity. Outcome-specific evidence appears

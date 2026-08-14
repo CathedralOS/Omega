@@ -102,3 +102,225 @@ fn named_witness_contracts_mint_distinct_positional_checked_terms() {
         .collect::<Vec<_>>();
     assert_eq!(bound_terms, vec![terms[0].0, terms[1].0, terms[2].0]);
 }
+
+#[test]
+fn named_requires_arguments_bind_exact_checked_terms_by_position() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine consume(value: i32)
+        requires required: carries(value)
+        {
+        }
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            consume(value; incoming);
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an explicit matching evidence term should satisfy the erased call lane");
+    let call = checked
+        .facts
+        .proof
+        .contract_calls
+        .iter()
+        .map(|(_, call)| call)
+        .find(|call| !call.evidence_arguments.is_empty())
+        .expect("checked call evidence binding");
+    let [binding] = checked
+        .facts
+        .proof
+        .contract_evidence_arguments
+        .span_or_empty(call.evidence_arguments)
+    else {
+        panic!("one positional evidence binding expected");
+    };
+    let source = checked.facts.proof.evidence_terms.get(binding.source);
+    let parameter = checked.facts.proof.evidence_terms.get(binding.parameter);
+    assert_eq!(source.name, "incoming");
+    assert_eq!(parameter.name, "required");
+    assert_eq!(binding.lane_position, 0);
+}
+
+#[test]
+fn expression_call_binds_named_requires_evidence_lane() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine consume(value: i32) -> i32
+        requires required: carries(value)
+        {
+            value
+        }
+
+        machine forward(value: i32) -> i32
+        requires incoming: carries(value)
+        {
+            let result: i32 = consume(value; incoming);
+            result
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("value calls must bind the same checked evidence lane as statement calls");
+    let call = checked
+        .facts
+        .proof
+        .contract_calls
+        .iter()
+        .map(|(_, call)| call)
+        .find(|call| !call.evidence_arguments.is_empty())
+        .expect("checked expression-call evidence binding");
+    let [binding] = checked
+        .facts
+        .proof
+        .contract_evidence_arguments
+        .span_or_empty(call.evidence_arguments)
+    else {
+        panic!("one positional expression-call evidence binding expected");
+    };
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(binding.source).name,
+        "incoming"
+    );
+}
+
+#[test]
+fn evidence_only_call_binds_after_leading_semicolon() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        machine consume()
+        requires required: ready()
+        {
+        }
+
+        machine forward()
+        requires incoming: ready()
+        {
+            consume(; incoming);
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("the leading semicolon must distinguish an evidence-only call lane");
+    assert_eq!(checked.facts.proof.contract_evidence_arguments.len(), 1);
+}
+
+#[test]
+fn named_requires_call_rejects_ambient_fact_inference() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine consume(value: i32)
+        requires required: carries(value)
+        {
+        }
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            consume(value);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a visible matching fact must not synthesize an erased argument");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("supplies 0 erased evidence arguments but its named requires lane has 1")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn named_requires_call_rejects_wrong_proposition_term() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        proposition differs(value: i32) evidence Evidence;
+
+        machine consume(value: i32)
+        requires required: carries(value)
+        {
+        }
+
+        machine forward(value: i32)
+        requires carries(value)
+        requires incoming: differs(value)
+        {
+            consume(value; incoming);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an explicit term of another proposition must not bind by name or visibility");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not inhabit erased requires position 0")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn erased_call_lane_rejects_extra_terms_for_unnamed_callee() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine consume(value: i32) {
+        }
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            consume(value; incoming);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an erased argument cannot be silently dropped");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("supplies 1 erased evidence argument but its named requires lane has 0")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn erased_call_lane_rejects_unknown_source_term() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine consume(value: i32)
+        requires required: carries(value)
+        {
+        }
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            consume(value; absent);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an evidence-lane name must resolve to a caller requires term");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("unknown incoming evidence term `absent`")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}

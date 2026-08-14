@@ -4,6 +4,7 @@ mod calls;
 mod direct;
 mod domains;
 mod evaluator;
+mod evidence;
 mod exits;
 mod writes;
 // `pub(super)` so the operator-`requires` discharge (checks/operators) can
@@ -89,6 +90,19 @@ pub(crate) fn check_flow_call_contracts(
         check_domain_field_writes(program, facts, state_flow, &mut diagnostics);
     }
 
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+pub(crate) fn bind_call_evidence_arguments(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    evidence::bind_call_evidence_arguments(program, facts, &mut diagnostics);
     if diagnostics.is_empty() {
         Ok(())
     } else {

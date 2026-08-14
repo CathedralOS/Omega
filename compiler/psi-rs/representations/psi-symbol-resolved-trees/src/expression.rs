@@ -248,6 +248,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments,
+                    evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
@@ -649,6 +650,7 @@ impl ExpressionTable {
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
+                    evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
@@ -1023,6 +1025,8 @@ pub struct TableCallExpression {
     pub target: DiagnosticName,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+    /// Erased evidence-term spellings remain outside runtime name resolution.
+    pub evidence_arguments: Box<[DiagnosticName]>,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 

@@ -2132,6 +2132,7 @@ fn resolve_leaf_call_expression_handle(
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments: copied_arguments,
+                    evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 },
             ))

@@ -140,7 +140,8 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::LeftParen) {
         input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        let (arguments, rest) = parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
+        let ((arguments, evidence_arguments), rest) =
+            parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
         input = rest;
         expression = match syntax_trees.expressions.expression(expression).clone() {
             ExpressionNode::Name(path) => {
@@ -173,6 +174,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                         target,
                         machine_arguments: Box::default(),
                         arguments,
+                        evidence_arguments,
                         operational_acknowledgement: Default::default(),
                     }))
             }
@@ -184,6 +186,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                         target: member.member,
                         machine_arguments: Box::default(),
                         arguments,
+                        evidence_arguments,
                         operational_acknowledgement: Default::default(),
                     }))
             }
@@ -198,6 +201,11 @@ fn classify_call_target_handle(
     syntax_trees: &mut SyntaxTrees,
     call: TableCallExpression,
 ) -> Result<TransitionTargetNode, ParseError> {
+    if !call.evidence_arguments.is_empty() {
+        return Err(ParseError::new(
+            "erased evidence arguments are not yet supported on named transition targets",
+        ));
+    }
     let receiver_depth = if call.receiver.is_valid() {
         expression_handle_identifier_depth(syntax_trees, call.receiver)
     } else {

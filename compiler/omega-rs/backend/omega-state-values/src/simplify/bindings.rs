@@ -372,6 +372,7 @@ fn simple_local_binding_value_from_table(
                 .iter()
                 .map(|argument| simple_local_binding_value_from_table(table, *argument))
                 .collect::<Option<Arc<[_]>>>()?,
+            evidence_arguments: Arc::from(call.evidence_arguments.clone()),
             operational_acknowledgement: call.operational_acknowledgement,
         }))),
         ExpressionNode::Mutable(inner) => simple_local_binding_value_from_table(table, *inner)

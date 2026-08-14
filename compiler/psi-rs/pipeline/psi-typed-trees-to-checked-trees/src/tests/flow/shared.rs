@@ -64,6 +64,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         target_symbol: callee_state_symbol,
         machine_arguments: Box::default(),
         arguments: call_arguments,
+        evidence_arguments: Box::default(),
         operational_acknowledgement: Default::default(),
         discards_result: false,
     });
@@ -307,6 +308,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             target_symbol: target_state_symbol,
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
         }));

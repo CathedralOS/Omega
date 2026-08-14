@@ -135,6 +135,7 @@ pub(crate) fn resolve_branch_expression_handle(
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
+                    evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 }),
             )
@@ -227,6 +228,7 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
+                    evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 }),
             )

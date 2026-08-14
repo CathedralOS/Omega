@@ -1582,6 +1582,7 @@ fn resolve_prior_local_initializers_in_table(
                         target: call.target,
                         machine_arguments: call.machine_arguments,
                         arguments,
+                        evidence_arguments: call.evidence_arguments,
                         operational_acknowledgement: call.operational_acknowledgement,
                     },
                 ))

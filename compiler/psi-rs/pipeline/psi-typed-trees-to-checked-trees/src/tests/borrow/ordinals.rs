@@ -19,6 +19,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         target_symbol: inner_symbol,
         target: Identifier::generated("inner"),
         arguments: Arc::from(vec![item_argument].into_boxed_slice()),
+        evidence_arguments: Arc::default(),
         operational_acknowledgement: Default::default(),
     }));
 
@@ -64,6 +65,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             target: Identifier::generated("outer"),
             machine_arguments: Box::default(),
             arguments: outer_arguments,
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
         }),

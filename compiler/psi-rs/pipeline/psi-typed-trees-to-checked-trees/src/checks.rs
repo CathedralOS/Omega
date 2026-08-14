@@ -33,6 +33,10 @@ pub(crate) fn check_checked_facts_recording(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
+    if let Err(mut evidence_diagnostics) = contracts::bind_call_evidence_arguments(program, facts) {
+        diagnostics.append(&mut evidence_diagnostics);
+    }
+
     if let Err(mut borrow_diagnostics) = borrows::check_flow_call_borrows(program, facts) {
         diagnostics.append(&mut borrow_diagnostics);
     }

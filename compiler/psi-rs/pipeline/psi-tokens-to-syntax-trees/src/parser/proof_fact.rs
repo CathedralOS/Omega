@@ -240,6 +240,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                         target: predicate,
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
+                        evidence_arguments: Box::default(),
                         operational_acknowledgement: Default::default(),
                     }))
             } else {
