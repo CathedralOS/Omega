@@ -372,6 +372,9 @@ compiler concept is introduced.
   non-reference direct-call expression class is complete through depth two,
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
+  A direct primitive scalar assignment value may wrap complete caller-isolated
+  call producers in up to two unary, binary, primitive-cast, member-projection,
+  or indexing shells without widening that call budget.
   One top-level concrete primitive-only record or selected-case literal may
   likewise contain an independently bounded non-reference call tree in each
   direct common or payload field while publishing every write. One direct

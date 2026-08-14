@@ -385,7 +385,11 @@ when its right-hand side is a typed non-reference direct-call tree of maximum
 depth four and every frame is complete. Sibling branches are admitted
 independently, and every nested-call write remains published. One deeper,
 binding-reborrow, recursive, or opaque branch fences the whole right-hand side;
-reference-valued roots retain their existing relational handling. One
+reference-valued roots retain their existing relational handling. A direct
+primitive scalar value may wrap complete caller-isolated call producers in up
+to two unary, binary, primitive-cast, member-projection, or indexing shells
+under that same call budget. A third shell or a generic, reference-valued, or
+unknown call result remains a fence. One
 top-level concrete primitive-only record or selected-case literal may likewise
 contain an independently bounded call tree in each direct common or payload
 field. A direct field may instead be one nested concrete primitive-only record
