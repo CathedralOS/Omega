@@ -143,14 +143,15 @@ The initial forwarding form is a bare-name assignment from a current machine's
 named `requires` term to one of its named `ensures` terms. It erases before the
 runtime statement stream and records an exact checked source-to-output binding;
 both normalized proposition application and evidence interface must match. It
-does not search visible facts or mint another witness. A concrete non-generic
-subjectless conformance alias may instead introduce the output. That selection
-retains its exact conformance and evidence-trait symbols plus the complete
-normalized realization rows; a different interface rejects. Instantiated
-generic producer aliases remain fenced. Producer assignment and path-sensitive
-outgoing definite assignment stay separate. Definite assignment records each
-erased assignment's exact statement coordinate and carries assignment state
-through the finite named-state graph.
+does not search visible facts or mint another witness. A concrete subjectless
+conformance alias may instead introduce the output. That selection retains its
+exact conformance and evidence-trait symbols, canonical instantiated
+type-argument identities, and complete normalized realization rows. A wrong
+argument or unresolved open endpoint rejects; no name-only or visible-fact
+search participates. Producer assignment and path-sensitive outgoing definite
+assignment stay separate. Definite assignment records each erased assignment's
+exact statement coordinate and carries assignment state through the finite
+named-state graph.
 Every ordinary outcome must assign each outgoing slot exactly once; duplicate
 assignment rejects, and a crash-only outcome has no outgoing package. A
 state-level named `requires` binds an exact arrival term, and every named

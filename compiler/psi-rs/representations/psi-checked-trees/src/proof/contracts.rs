@@ -68,6 +68,11 @@ pub struct CheckedEvidenceTerm {
     pub proposition: crate::CheckedPropositionApplication,
     /// Canonical carrierless interface retained by the proposition endpoint.
     pub evidence_type: String,
+    /// Exact instantiated interface identity. `None` keeps an unresolved
+    /// generic endpoint fail-closed for producer selection while preserving
+    /// the diagnostic spelling above.
+    pub evidence_interface:
+        Option<psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity>,
 }
 
 impl Default for CheckedEvidenceTerm {
@@ -83,6 +88,7 @@ impl Default for CheckedEvidenceTerm {
                 arguments: Vec::new(),
             },
             evidence_type: String::new(),
+            evidence_interface: None,
         }
     }
 }

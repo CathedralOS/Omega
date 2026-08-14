@@ -177,10 +177,12 @@ A named `ensures` binding is definitely assigned exactly once on every exit
 whose outcome guard makes that clause applicable. Assignment selects a named
 complete producer conformance privately in the proof body. The checker still
 checks the nominal proposition and the producer's complete normalized evidence
-rows. The checked frontend currently accepts this introduction directly for a
-concrete non-generic subjectless conformance alias and retains its exact
-conformance, trait, and realization rows. Instantiated generic producer aliases
-remain fenced while their proposition evidence interface is normalized.
+rows. The checked frontend accepts this introduction directly for a concrete
+subjectless conformance alias and retains its exact conformance, trait,
+canonical instantiated argument identities, and realization rows. Thus an
+application whose evidence declaration is `Evidence<T>` selects
+`Evidence<i32>` only when its exact proposition binder argument is `i32`;
+another argument and an unresolved open endpoint both reject.
 Forwarding instead uses ordinary assignment:
 
 ```omega

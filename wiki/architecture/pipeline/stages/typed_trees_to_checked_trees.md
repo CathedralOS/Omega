@@ -408,9 +408,10 @@ Current ownership is:
   proposition application, and carrierless evidence interface. The term
   identity is deliberately separate from proposition identity and producer
   provenance. Bare-name forwarding retains the exact incoming term. A concrete
-  non-generic subjectless producer assignment instead retains the exact
-  conformance, evidence trait, and complete normalized realization rows;
-  interface mismatch rejects. Boolean, membership, fact-only, or non-nominal
+  subjectless producer assignment instead retains the exact conformance,
+  evidence-trait symbol, canonical instantiated type-argument identities, and
+  complete normalized realization rows. Wrong arguments and unresolved open
+  evidence endpoints reject. Boolean, membership, fact-only, or non-nominal
   bindings reject.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather

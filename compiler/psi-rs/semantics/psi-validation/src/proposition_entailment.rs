@@ -92,7 +92,7 @@ fn produced_evidence_labels(
         }) else {
             continue;
         };
-        let Some(expected_interface) = program
+        let Some((expected_interface_label, expected_interface)) = program
             .proof_facts
             .span_or_empty(contract.facts)
             .iter()
@@ -104,13 +104,21 @@ fn produced_evidence_labels(
                 match normalized.classification {
                     psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
-                    } => Some(evidence),
+                        interface,
+                    } => Some((evidence, interface)),
                     psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         None
                     }
                 }
             })
         else {
+            continue;
+        };
+        let Some(expected_interface) = expected_interface else {
+            diagnostics.push(Diagnostic::error(format!(
+                "subjectless conformance `{}` cannot provide unresolved generic evidence interface `{expected_interface_label}` required by `{}`",
+                assignment.source, assignment.target
+            )));
             continue;
         };
         if select_subjectless_evidence_conformance(
@@ -122,7 +130,7 @@ fn produced_evidence_labels(
         .is_none()
         {
             diagnostics.push(Diagnostic::error(format!(
-                "subjectless conformance `{}` does not provide the exact `{expected_interface}` evidence interface required by `{}`",
+                "subjectless conformance `{}` does not provide the exact `{expected_interface_label}` evidence interface required by `{}`",
                 assignment.source, assignment.target
             )));
             continue;
@@ -142,7 +150,7 @@ pub fn select_subjectless_evidence_conformance<'program>(
     program: &'program TypedTrees,
     conformance_symbol: psi_symbols::SymbolHandle,
     source_name: &str,
-    expected_interface: &str,
+    expected_interface: &psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
 ) -> Option<(
     &'program psi_typed_trees::trait_definition::Conformance,
     psi_symbols::SymbolHandle,
@@ -166,23 +174,16 @@ pub fn select_subjectless_evidence_conformance<'program>(
         .traits()
         .iter()
         .find(|candidate| candidate.name == conformance.trait_name)?;
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(conformance.arguments);
-    let selected_interface = if arguments.is_empty() {
-        conformance.trait_name.to_string()
-    } else {
-        format!(
-            "{}<{}>",
-            conformance.trait_name,
-            arguments
-                .iter()
-                .map(|argument| program.display_type_reference(*argument))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+    let selected_interface = psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity {
+        trait_symbol: evidence_trait.symbol,
+        arguments: program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .iter()
+            .map(|argument| program.normalized_type_identity(*argument))
+            .collect(),
     };
-    (selected_interface == expected_interface).then_some((conformance, evidence_trait.symbol))
+    (&selected_interface == expected_interface).then_some((conformance, evidence_trait.symbol))
 }
 
 fn intake_call_propositions(

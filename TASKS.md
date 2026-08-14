@@ -479,16 +479,17 @@ Remaining N6/N8 work:
   proof-only and retains an exact source/output handle pair plus its statement
   coordinate. A path-sensitive must-analysis carries those assignments through
   the finite named-state graph, requires every ordinary outcome to assign each
-  output exactly once, and exempts crash-only outcomes. A concrete non-generic
-  subjectless conformance alias may now privately introduce a named output;
-  resolved and typed trees retain its exact symbol, while checked facts retain
-  the selected trait and complete normalized realization rows. Interface drift
-  rejects before the assignment can discharge the proposition. Continue with
-  instantiated/generic producer identities, generated nominal output packages,
-  and terminal evidence identity. `value` is the runtime result; evidence
-  erases, destructuring is complete or explicitly `_`, and guarded fields exist
-  only in the matching refinement. Keep proposition, evidence-term, and
-  provenance identities separate.
+  output exactly once, and exempts crash-only outcomes. A concrete subjectless
+  conformance alias may now privately introduce a named output, including an
+  exact instantiated generic evidence interface. Resolved and typed trees
+  retain its conformance symbol; checked facts retain the selected trait,
+  canonical type-argument identities, and complete normalized realization
+  rows. Wrong arguments and unresolved open endpoints reject before the
+  assignment can discharge the proposition. Continue with generated nominal
+  output packages and terminal evidence identity. `value` is the runtime
+  result; evidence erases, destructuring is complete or explicitly `_`, and
+  guarded fields exist only in the matching refinement. Keep proposition,
+  evidence-term, and provenance identities separate.
 - Finish name-owned generic telescopes and explicit binders:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares an
   implementation; `Evidence: Subject satisfies Trait` binds one. Identity
