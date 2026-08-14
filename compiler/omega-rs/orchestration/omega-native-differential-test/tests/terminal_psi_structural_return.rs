@@ -751,6 +751,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
                 && ((small >> small) < 1u8)
+                && ((small << 1u8) < 11u8)
                 && enabled;
             staged
         }
@@ -849,6 +850,22 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .expect("shared convergence retains the bounded exact right shift");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_shift_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let exact_shift_left_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the bounded exact left shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_shift_left_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)

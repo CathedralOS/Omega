@@ -10682,6 +10682,25 @@ fn shared_integer_runtime_parameters_with_shells(
             )?);
             Some(parameters)
         }
+        LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+            left,
+            right,
+            ..
+        } if remaining_shells > 0
+            && matches!(
+                right.as_ref(),
+                LoweredDirectExpression::IntegerLiteral { .. }
+            ) =>
+        {
+            let mut parameters =
+                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
+            parameters.extend(shared_integer_runtime_parameters_with_shells(
+                right,
+                remaining_shells - 1,
+            )?);
+            Some(parameters)
+        }
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. } if remaining_shells > 0 => {
             shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
         }
@@ -14769,6 +14788,7 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
                                 | OperationKind::ExactIntegerSubtract { obligation, .. }
                                 | OperationKind::ExactIntegerMultiply { obligation, .. }
                                 | OperationKind::ExactIntegerShiftRight { obligation, .. }
+                                | OperationKind::ExactIntegerShiftLeft { obligation, .. }
                                 if obligation == site.obligation.id
                         )
                     })
