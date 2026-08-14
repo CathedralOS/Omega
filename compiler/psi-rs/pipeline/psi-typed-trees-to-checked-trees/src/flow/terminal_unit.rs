@@ -1402,8 +1402,9 @@ enum SharedBooleanRuntimeInput {
 /// relevant Boolean field. Integer-comparison leaves separately admit scalar
 /// parameters and landed constants beneath at most one total binary,
 /// bitwise-not, integer-widening, proof-bearing exact-cast, exact-add,
-/// exact-subtract, or exact-multiply computation shell. Constants and Boolean
-/// equality against a constant add no new runtime input.
+/// exact-subtract, exact-multiply, exact-divide, or exact-remainder computation
+/// shell. Constants and Boolean equality against a constant add no new runtime
+/// input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1502,6 +1503,31 @@ fn shared_integer_runtime_inputs_with_shells(
             right,
             ..
         } if remaining_shells > 0 => {
+            let mut inputs = shared_integer_runtime_inputs_with_shells(
+                left,
+                scalar_parameter_count,
+                remaining_shells - 1,
+            )?;
+            inputs.extend(shared_integer_runtime_inputs_with_shells(
+                right,
+                scalar_parameter_count,
+                remaining_shells - 1,
+            )?);
+            Some(inputs)
+        }
+        CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+            primitive_type:
+                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64,
+            left,
+            right,
+        } if remaining_shells > 0
+            && matches!(
+                right.as_ref(),
+                CheckedScalarExpression::IntegerLiteral { literal }
+                    if literal.value_i64().is_some_and(|value| value > 0)
+            ) =>
+        {
             let mut inputs = shared_integer_runtime_inputs_with_shells(
                 left,
                 scalar_parameter_count,

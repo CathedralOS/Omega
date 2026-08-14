@@ -1109,6 +1109,22 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input * 2u8) < 4u8) && enabled;
             staged
         }
+        machine Root::exact_divide_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((input / 2u8) < 4u8) && enabled;
+            staged
+        }
+        machine Root::exact_remainder_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((input % 2u8) < 1u8) && enabled;
+            staged
+        }
         machine Root::nested_exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1446,6 +1462,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one bounded exact-multiply shell retains the scalar-return plan");
     assert!(
         exact_multiply_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let exact_divide_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_divide_integer_comparison_convergence",
+        ))
+        .expect("one constant-divisor exact-divide shell retains the scalar-return plan");
+    assert!(
+        exact_divide_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let exact_remainder_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_remainder_integer_comparison_convergence",
+        ))
+        .expect("one constant-divisor exact-remainder shell retains the scalar-return plan");
+    assert!(
+        exact_remainder_integer_comparison
             .shared_boolean_convergence
             .is_some()
     );

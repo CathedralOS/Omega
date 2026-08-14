@@ -410,6 +410,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small + 1u8) < 6u8)
             && ((127u8 - small) < 125u8)
             && ((small * 2u8) < 10u8)
+            && ((small / 2u8) < 3u8)
+            && ((small % 2u8) <= 1u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1726,6 +1728,38 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_divide_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains exact division by a nonzero constant");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_divide_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let exact_remainder_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerRemainder { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains exact remainder by a nonzero constant");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_remainder_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_multiply_obligation = entry
         .blocks
         .iter()
@@ -1970,6 +2004,21 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == exact_subtract_obligation || obligation == exact_multiply_obligation
     ));
+    for obligation in [exact_divide_obligation, exact_remainder_obligation] {
+        let mut missing_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+                if missing == obligation
+        ));
+    }
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -2018,6 +2067,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small + 1 < 6
                     && 127 - small < 125
                     && small * 2 < 10
+                    && small / 2 < 3
+                    && small % 2 <= 1
                     && input == 3
                     && enabled
             ))
