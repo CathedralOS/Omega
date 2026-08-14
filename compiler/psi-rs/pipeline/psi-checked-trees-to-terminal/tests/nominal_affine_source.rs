@@ -416,7 +416,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         signed_count: i8,
         enabled: bool
     ) -> bool
-    requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
+    requires input <= 255u64, small <= 254u8, small <= 252u8,
+        small <= 127u8, small <= 63u8,
         small <= 7u8, 1u8 <= divisor, divisor <= small,
         small <= 255u8 / divisor, count <= 2u8,
         -128i64 <= signed, signed <= 127i64,
@@ -442,6 +443,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
             && ((small + 1u8) < 6u8)
+            && ((~(small + 3u8)) < 255u8)
             && ((127u8 - small) < 125u8)
             && ((small - divisor) < 4u8)
             && ((small * 2u8) < 10u8)
@@ -1801,6 +1803,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let left_shift_value_requirement =
         Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 63));
     let add_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 254));
+    let bitwise_not_exact_add_requirement =
+        Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 252));
     let divisor_lower_requirement =
         Proposition::LessOrEqual(unsigned_term(8, 1), divisor_term.clone());
     let runtime_subtract_requirement =
@@ -1983,6 +1987,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &exact_upper_requirement,
         &left_shift_value_requirement,
         &add_upper_requirement,
+        &bitwise_not_exact_add_requirement,
         &divisor_lower_requirement,
         &runtime_subtract_requirement,
         &runtime_multiply_requirement,
@@ -2723,6 +2728,42 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let bitwise_not_exact_add_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation,
+            } if left == entry.parameters[1].id => entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .filter(|value| *value == IntegerValue::Unsigned(3))
+                .map(|_| obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!bitwise_not_exact_add_obligations.is_empty());
+    for obligation in &bitwise_not_exact_add_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     assert!(entry.blocks.iter().any(|block| {
         block
             .operations
@@ -3371,6 +3412,50 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == runtime_exact_add_obligation
     ));
+    let nested_bitwise_add_obligation = bitwise_not_exact_add_obligations[0];
+    let mut missing_nested_bitwise_add_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_nested_bitwise_add_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != nested_bitwise_add_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_nested_bitwise_add_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == nested_bitwise_add_obligation
+    ));
+    let mut changed_nested_bitwise_add_bound =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_nested_bitwise_add_bound.entry;
+    let entry_contract = &mut changed_nested_bitwise_add_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let nested_bitwise_add_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &bitwise_not_exact_add_requirement)
+        .expect("shared convergence retains the nested bitwise exact-add bound");
+    entry_contract.requires[nested_bitwise_add_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
+        unsigned_term(8, 253),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_nested_bitwise_add_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == nested_bitwise_add_obligation
+    ));
     for obligation in &runtime_signed_add_obligations {
         let mut missing_runtime_signed_add_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -3909,6 +3994,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small < 5
                     && input < 5
                     && small + 1 < 6
+                    && (!(small + 3) & u128::from(u8::MAX)) < 255
                     && 127 - small < 125
                     && small - divisor < 4
                     && small * 2 < 10
