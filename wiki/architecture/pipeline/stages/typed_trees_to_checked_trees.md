@@ -194,12 +194,13 @@ Current ownership is:
   tree in each direct common or payload field. A direct field may instead be
   one nested concrete primitive-only record or selected-case literal whose
   direct common or payload fields obey the same rule. A declared primitive
-  field at either aggregate level may also contain one unary or binary operator
-  or primitive value cast whose effectful operands are independently bounded
-  non-reference call trees. This aggregate depth-two rail and scalar computed
-  shell do not change the depth-four call budget. A third aggregate level,
-  generic, recursive, or reference-bearing carriers, nested computed shells,
-  and other computed field shapes remain fences.
+  field at either aggregate level may also contain up to two nested scalar
+  computation shells made from unary or binary operators and primitive value
+  casts; their effectful leaves are independently bounded non-reference call
+  trees. This aggregate depth-two rail and computed depth-two rail do not change
+  the depth-four call budget. A third aggregate or computed level, generic,
+  recursive, or reference-bearing carriers, and other computed field shapes
+  remain fences.
   Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are
