@@ -28,7 +28,9 @@
 //!   declaration harvested from the same authoritative build machine. It
 //!   selects the exact source entry and performs no name-based discovery.
 
-use psi_checked_interpreter::BuildTimeValue;
+use psi_build_time_evaluation::{
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
+};
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
@@ -618,25 +620,21 @@ pub(crate) fn compute_build_config(
         ],
     };
 
-    // Service-free builds keep the pure engine; an admitted staging-service
-    // build runs the granted entry (real filesystem, unscoped under the
-    // current owner policy).
-    let measured = if transitive.is_empty() {
-        psi_checked_interpreter::evaluate_build_time_machine_arguments_measured(
-            typed,
-            machine_name,
-            vec![zero_build],
-        )
+    // Omega owns the grant decision. Psi owns the target-neutral interpreter
+    // entry selected by that explicit mode.
+    let execution_mode = if transitive.is_empty() {
+        BuildMachineExecutionMode::Pure
     } else {
-        psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(
-            typed,
-            machine_name,
-            vec![zero_build],
-            psi_checked_interpreter::InterpretOptions {
-                filesystem: psi_checked_interpreter::FilesystemAccess::RealUnscoped,
-            },
-        )
-    }
+        BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::RealUnscoped,
+        }
+    };
+    let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
+        typed,
+        machine_name,
+        vec![zero_build],
+        execution_mode,
+    )
     .map_err(|reason| {
         vec![Diagnostic::error(format!(
             "build-time evaluation of `{machine_name}` failed: {reason}"
