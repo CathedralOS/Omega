@@ -71,6 +71,16 @@ fn exact_acknowledgements_cover_all_four_operational_envelopes() {
             .collect::<Vec<_>>(),
         vec![(false, false), (true, false), (false, true), (true, true)]
     );
+    assert_eq!(
+        calls
+            .iter()
+            .map(|(_, call)| (
+                call.suspension.transitive_may_suspend,
+                call.blocking.transitive_may_block,
+            ))
+            .collect::<Vec<_>>(),
+        vec![(false, false), (true, false), (false, true), (true, true)]
+    );
     assert!(calls.iter().all(|(_, call)| {
         call.operational_acknowledgement.origin == CallOperationalAcknowledgementOrigin::Source
     }));
@@ -193,8 +203,8 @@ machine Main::main(&mut self) { }
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 1);
     let call = calls[0];
-    assert!(!call.operational.transitive_may_suspend);
-    assert!(!call.operational.transitive_may_block);
+    assert!(!call.suspension.transitive_may_suspend);
+    assert!(!call.blocking.transitive_may_block);
     assert!(!call.operational_acknowledgement.acknowledges_suspend);
     assert!(!call.operational_acknowledgement.acknowledges_block);
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
@@ -235,8 +245,8 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
         .collect::<Vec<_>>();
     assert_eq!(start_calls.len(), 2);
     assert!(start_calls.iter().all(|(_, call)| {
-        !call.operational.transitive_may_suspend
-            && !call.operational.transitive_may_block
+        !call.suspension.transitive_may_suspend
+            && !call.blocking.transitive_may_block
             && !call.operational_acknowledgement.acknowledges_suspend
             && !call.operational_acknowledgement.acknowledges_block
     }));
@@ -280,8 +290,8 @@ fn compiler_synthesized_calls_record_acknowledgements_without_source_tokens() {
     );
     assert!(synthesized.iter().all(|(_, call)| {
         call.operational_acknowledgement.acknowledges_suspend
-            == call.operational.transitive_may_suspend
+            == call.suspension.transitive_may_suspend
             && call.operational_acknowledgement.acknowledges_block
-                == call.operational.transitive_may_block
+                == call.blocking.transitive_may_block
     }));
 }

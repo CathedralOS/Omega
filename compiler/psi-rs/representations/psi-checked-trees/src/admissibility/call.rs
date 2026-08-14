@@ -19,8 +19,8 @@ impl<'facts> AcceptanceView for CallAcceptance<'facts> {
                 + borrow_constraint_count(&self.facts.flow, self.call.exit_constraints),
             self.call.requires.len() + self.call.ensures.len(),
             service_reach_evidence_count(self.facts, self.call.service_reach),
-            suspension_evidence_count(self.call.operational),
-            blocking_evidence_count(self.call.operational),
+            suspension_evidence_count(self.call.suspension),
+            blocking_evidence_count(self.call.blocking),
             self.call.boundary_edges.len(),
             0,
         )
@@ -106,7 +106,11 @@ impl<'facts> CallAcceptance<'facts> {
         self.call.service_reach
     }
 
-    pub fn operational(&self) -> psi_language_semantics::OperationalMaySummary {
-        self.call.operational
+    pub fn suspension(&self) -> psi_language_semantics::SuspensionSummary {
+        self.call.suspension
+    }
+
+    pub fn blocking(&self) -> psi_language_semantics::BlockingSummary {
+        self.call.blocking
     }
 }

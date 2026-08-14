@@ -124,6 +124,7 @@ pub(super) fn build_state_flow_fact(
         calls: state_calls,
         exits: state_exits,
         service_reach: Default::default(),
-        operational: Default::default(),
+        suspension: Default::default(),
+        blocking: Default::default(),
     });
 }

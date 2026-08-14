@@ -1,5 +1,5 @@
 use psi_checked_trees::{FlowControlFacts, FlowFacts};
-use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};
+use psi_language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
 
 pub(super) fn attach_reach_summaries(
     flow: &mut FlowFacts,
@@ -21,7 +21,7 @@ pub(super) fn attach_reach_summaries(
             .iter()
             .flat_map(|machine| operational.states.span_or_empty(machine.states))
             .find(|summary| summary.symbol == state.state_symbol);
-        state.operational = operational_state
+        state.suspension = operational_state
             .map(|summary| {
                 let direct_may_suspend = summary.direct_may_suspend
                     || operational
@@ -29,15 +29,21 @@ pub(super) fn attach_reach_summaries(
                         .span_or_empty(summary.calls)
                         .iter()
                         .any(|call| call.direct_may_suspend);
+                SuspensionSummary {
+                    direct_may_suspend,
+                    transitive_may_suspend: summary.transitive_may_suspend,
+                }
+            })
+            .unwrap_or_default();
+        state.blocking = operational_state
+            .map(|summary| {
                 let direct_may_block = summary.direct_may_block
                     || operational
                         .calls
                         .span_or_empty(summary.calls)
                         .iter()
                         .any(|call| call.direct_may_block);
-                OperationalMaySummary {
-                    direct_may_suspend,
-                    transitive_may_suspend: summary.transitive_may_suspend,
+                BlockingSummary {
                     direct_may_block,
                     transitive_may_block: summary.transitive_may_block,
                 }
@@ -70,10 +76,14 @@ pub(super) fn attach_reach_summaries(
                             && summary.target_state_symbol == call.target_symbol
                     })
             });
-            call.operational = operational_call
-                .map(|summary| OperationalMaySummary {
+            call.suspension = operational_call
+                .map(|summary| SuspensionSummary {
                     direct_may_suspend: summary.direct_may_suspend,
                     transitive_may_suspend: summary.transitive_may_suspend,
+                })
+                .unwrap_or_default();
+            call.blocking = operational_call
+                .map(|summary| BlockingSummary {
                     direct_may_block: summary.direct_may_block,
                     transitive_may_block: summary.transitive_may_block,
                 })

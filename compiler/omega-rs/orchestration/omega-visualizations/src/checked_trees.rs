@@ -2338,13 +2338,14 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
     let writable_root_count = borrow_state
         .map(|borrow| borrow.writable_roots.len())
         .unwrap_or(0);
-    let (invalidation_count, mutable_parameter_count, service_reach, operational) =
+    let (invalidation_count, mutable_parameter_count, service_reach, suspension, blocking) =
         if let Some(flow) = flow_state {
             (
                 flow.invalidations.len(),
                 flow.mutable_parameter_count,
                 flow.service_reach,
-                flow.operational,
+                flow.suspension,
+                flow.blocking,
             )
         } else {
             (
@@ -2352,6 +2353,7 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
                 borrow_state
                     .map(|borrow| borrow.mutable_parameter_count)
                     .unwrap_or(0),
+                Default::default(),
                 Default::default(),
                 Default::default(),
             )
@@ -2371,8 +2373,8 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
         &program.facts.service_reaches.services,
         &program.facts.service_reaches.rows,
         service_reach,
-        suspension_summary(operational),
-        blocking_summary(operational),
+        suspension,
+        blocking,
     );
 
     if let Some(flow) = flow_state {
@@ -2589,8 +2591,8 @@ fn checked_call_label(
         &program.facts.service_reaches.services,
         &program.facts.service_reaches.rows,
         call.service_reach,
-        suspension_summary(call.operational),
-        blocking_summary(call.operational),
+        call.suspension,
+        call.blocking,
     );
     let acknowledgement = call.operational_acknowledgement;
     let acknowledgement_text = match (
@@ -2872,7 +2874,7 @@ fn machine_suspension_summary(
         .map(|(_, state)| state)
         .filter(|state| state.machine_symbol == symbol)
     {
-        summary.direct_may_suspend |= flow.operational.direct_may_suspend;
+        summary.direct_may_suspend |= flow.suspension.direct_may_suspend;
     }
     if let Some(machine) = program
         .facts
@@ -2900,7 +2902,7 @@ fn machine_blocking_summary(
         .map(|(_, state)| state)
         .filter(|state| state.machine_symbol == symbol)
     {
-        summary.direct_may_block |= flow.operational.direct_may_block;
+        summary.direct_may_block |= flow.blocking.direct_may_block;
     }
     if let Some(machine) = program
         .facts
@@ -2912,24 +2914,6 @@ fn machine_blocking_summary(
         summary.transitive_may_block = machine.transitive_may_block;
     }
     summary
-}
-
-fn suspension_summary(
-    operational: psi_language_semantics::OperationalMaySummary,
-) -> psi_language_semantics::SuspensionSummary {
-    psi_language_semantics::SuspensionSummary {
-        direct_may_suspend: operational.direct_may_suspend,
-        transitive_may_suspend: operational.transitive_may_suspend,
-    }
-}
-
-fn blocking_summary(
-    operational: psi_language_semantics::OperationalMaySummary,
-) -> psi_language_semantics::BlockingSummary {
-    psi_language_semantics::BlockingSummary {
-        direct_may_block: operational.direct_may_block,
-        transitive_may_block: operational.transitive_may_block,
-    }
 }
 
 fn state_id_for_symbol(

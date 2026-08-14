@@ -362,16 +362,6 @@ pub struct ServiceReachSummary {
     pub transitive: ServiceReachRowId,
 }
 
-/// Independent operational possibilities attached to one flow/graph scope.
-/// These booleans are never reconstructed from service rows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct OperationalMaySummary {
-    pub direct_may_suspend: bool,
-    pub transitive_may_suspend: bool,
-    pub direct_may_block: bool,
-    pub transitive_may_block: bool,
-}
-
 /// Suspension possibility attached to one flow/graph scope. Kept separate
 /// from blocking so downstream consumers cannot accidentally treat parking an
 /// activation as occupying its worker.
