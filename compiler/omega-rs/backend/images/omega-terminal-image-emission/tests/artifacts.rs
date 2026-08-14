@@ -6,10 +6,10 @@ use omega_terminal_image_emission::{
     TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
     build_terminal_installation_record, build_terminal_object_artifact,
     can_emit_terminal_executable_image, decode_terminal_installation_record,
-    derive_terminal_stack_demand, derive_terminal_unit_stack_demand,
-    emit_terminal_executable_image, emit_terminal_object_container,
-    encode_terminal_installation_record, terminal_installation_fingerprint,
-    validate_terminal_installation_record,
+    derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
+    derive_terminal_unit_stack_demand, emit_terminal_executable_image,
+    emit_terminal_object_container, encode_terminal_installation_record,
+    terminal_installation_fingerprint, validate_terminal_installation_record,
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
@@ -488,10 +488,19 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
     assert!(installed.custody.arguments.is_empty());
     assert!(installed.custody.claim_transfers.is_empty());
     assert_eq!(installation.internal_unit_calls().len(), 3);
+    let installed_caller = installation
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("installed cleanup caller");
+    assert_eq!(installed_caller.unit_stack, caller.unit_stack);
+    assert_eq!(installed_caller.unit_call_stacks, caller.unit_call_stacks);
     let encoded = encode_terminal_installation_record(&installation).expect("encoded cleanup");
+    let decoded = decode_terminal_installation_record(&encoded).expect("decoded cleanup");
+    assert_eq!(decoded, installation);
     assert_eq!(
-        decode_terminal_installation_record(&encoded),
-        Ok(installation.clone())
+        derive_terminal_installation_stack_demand(&decoded, machine_id(3)),
+        derive_terminal_stack_demand(&artifact, machine_id(3))
     );
     validate_terminal_installation_record(&installation, &image)
         .expect("installed cleanup binding");
@@ -547,18 +556,25 @@ fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
         .expect("installed scalar cleanup caller");
     assert!(!installed.unit_body);
     assert!(installed.scalar_affine_cleanup.is_some());
+    assert_eq!(installed.scalar_stack, object_caller.scalar_stack);
+    assert_eq!(
+        installed.scalar_call_stacks,
+        object_caller.scalar_call_stacks
+    );
     assert_eq!(installed.scalar_structural_parameter_homes.len(), 1);
     let encoded = encode_terminal_installation_record(&installation).expect("canonical install");
-    assert_eq!(
-        decode_terminal_installation_record(&encoded),
-        Ok(installation.clone())
-    );
+    let decoded = decode_terminal_installation_record(&encoded).expect("decoded install");
+    assert_eq!(decoded, installation);
     validate_terminal_installation_record(&installation, &image)
         .expect("scalar cleanup image binding");
 
     let demand = derive_terminal_stack_demand(&artifact, machine_id(3))
         .expect("scalar cleanup stack closure");
     assert_eq!(demand.ceiling_bytes(), 48);
+    assert_eq!(
+        derive_terminal_installation_stack_demand(&decoded, machine_id(3)),
+        Ok(demand.clone())
+    );
     assert_eq!(
         demand
             .contributing_machines()
@@ -1622,7 +1638,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "66350a9ee3df47421541bcec6af749990d0b5a58dec604618a694be12fee9cc3"
+        "cd34c72fb62c1addaca49931fb7924785fb88416730bbb1447bd9e0f53138a79"
     );
 
     let mut changed_plan = plan;

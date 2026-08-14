@@ -31,7 +31,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 18;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 19;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -181,6 +181,13 @@ pub struct TerminalInstalledFunction {
     pub attachment: Option<StructuralTypeId>,
     pub text_offset: usize,
     pub byte_count: usize,
+    /// Stack facts recomputed from exact target instructions at object
+    /// construction. Retaining them here seals the emitter-derived local frame
+    /// and call-edge inputs needed by later installed-root WCSU composition.
+    pub unit_stack: Option<crate::TerminalObjectUnitStack>,
+    pub scalar_stack: Option<crate::TerminalObjectScalarStack>,
+    pub unit_call_stacks: Vec<crate::TerminalObjectUnitCallStack>,
+    pub scalar_call_stacks: Vec<crate::TerminalObjectScalarCallStack>,
     pub unit_body: bool,
     pub unit_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
@@ -284,6 +291,10 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 machine: function.machine,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
+                unit_stack: function.unit_stack,
+                scalar_stack: function.scalar_stack,
+                unit_call_stacks: function.unit_call_stacks.clone(),
+                scalar_call_stacks: function.scalar_call_stacks.clone(),
                 unit_body: function.unit_affine_cleanup.is_some(),
                 unit_parameters: function.unit_parameters.clone(),
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
@@ -334,6 +345,108 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
     };
     validate_record_shape(&record)?;
     Ok(record)
+}
+
+/// Recompose the exact internal stack closure retained by a canonical
+/// installation record. The selected entry is supplied by installed-root
+/// realization; external entry-adapter and interrupt-arrival demand remain
+/// outside this artifact-owned closure.
+pub fn derive_terminal_installation_stack_demand(
+    record: &TerminalInstallationRecord,
+    entry: MachineId,
+) -> Result<crate::TerminalStackDemand, crate::TerminalObjectError> {
+    let functions = record
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if !functions.contains_key(&entry) {
+        return Err(crate::TerminalObjectError::EntryFunctionMissing(entry));
+    }
+    let mut active = std::collections::BTreeSet::new();
+    let mut memoized = std::collections::BTreeMap::new();
+    let mut contributing_machines = std::collections::BTreeSet::new();
+    let ceiling_bytes = derive_installed_stack_peak(
+        entry,
+        &functions,
+        &mut active,
+        &mut memoized,
+        &mut contributing_machines,
+    )?;
+    Ok(crate::TerminalStackDemand {
+        terminal_psi: record.terminal_psi,
+        target: record.target,
+        entry,
+        ceiling_bytes,
+        stack_alignment: 16,
+        contributing_machines,
+    })
+}
+
+fn derive_installed_stack_peak(
+    machine: MachineId,
+    functions: &std::collections::BTreeMap<MachineId, &TerminalInstalledFunction>,
+    active: &mut std::collections::BTreeSet<MachineId>,
+    memoized: &mut std::collections::BTreeMap<MachineId, u64>,
+    contributing_machines: &mut std::collections::BTreeSet<MachineId>,
+) -> Result<u64, crate::TerminalObjectError> {
+    if let Some(peak) = memoized.get(&machine) {
+        contributing_machines.insert(machine);
+        return Ok(*peak);
+    }
+    if !active.insert(machine) {
+        return Err(crate::TerminalObjectError::TerminalStackCycle(machine));
+    }
+    contributing_machines.insert(machine);
+    let function = functions.get(&machine).copied().ok_or(
+        crate::TerminalObjectError::UnknownInternalCallTarget {
+            caller: machine,
+            target: machine,
+        },
+    )?;
+    let mut peak = match (function.unit_stack, function.scalar_stack) {
+        (Some(_), Some(_)) => {
+            return Err(crate::TerminalObjectError::ConflictingTerminalStackEvidence(machine));
+        }
+        (Some(stack), None) => u64::from(stack.local_peak_bytes),
+        (None, Some(stack)) => u64::from(stack.local_peak_bytes),
+        (None, None) => {
+            return Err(crate::TerminalObjectError::UnaccountedTerminalStack(
+                machine,
+            ));
+        }
+    };
+    for (owner, target, caller_live_bytes) in function
+        .unit_call_stacks
+        .iter()
+        .map(|call| (call.owner, call.target, call.caller_live_bytes))
+        .chain(
+            function
+                .scalar_call_stacks
+                .iter()
+                .map(|call| (call.owner, call.target, call.caller_live_bytes)),
+        )
+    {
+        let callee_peak = derive_installed_stack_peak(
+            target,
+            functions,
+            active,
+            memoized,
+            contributing_machines,
+        )?;
+        let composed = u64::from(caller_live_bytes)
+            .checked_add(callee_peak)
+            .ok_or(
+                crate::TerminalObjectError::TerminalStackCompositionOverflow {
+                    caller: machine,
+                    owner,
+                },
+            )?;
+        peak = peak.max(composed);
+    }
+    active.remove(&machine);
+    memoized.insert(machine, peak);
+    Ok(peak)
 }
 
 pub fn encode_terminal_installation_record(
@@ -446,6 +559,7 @@ pub fn encode_terminal_installation_record(
             u64::try_from(function.byte_count)
                 .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
         );
+        encode_function_stack_facts(&mut bytes, function)?;
         bytes.push(u8::from(function.unit_body));
         bytes.extend_from_slice(&[0; 3]);
         push_u32(
@@ -635,6 +749,84 @@ pub fn encode_terminal_installation_record(
     Ok(bytes)
 }
 
+fn encode_function_stack_facts(
+    bytes: &mut Vec<u8>,
+    function: &TerminalInstalledFunction,
+) -> Result<(), TerminalInstallationError> {
+    match function.unit_stack {
+        Some(stack) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u32(bytes, stack.frame_bytes);
+            push_u32(bytes, stack.local_peak_bytes);
+            push_u32(bytes, stack.stack_alignment);
+        }
+        None => bytes.extend_from_slice(&[0; 16]),
+    }
+    match function.scalar_stack {
+        Some(stack) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u32(bytes, stack.local_peak_bytes);
+            push_u32(bytes, stack.stack_alignment);
+        }
+        None => bytes.extend_from_slice(&[0; 12]),
+    }
+    push_u32(
+        bytes,
+        u32::try_from(function.unit_call_stacks.len())
+            .map_err(|_| TerminalInstallationError::TooManyStackCallFacts)?,
+    );
+    for call in &function.unit_call_stacks {
+        encode_call_site_owner(bytes, call.owner);
+        push_u64(bytes, call.target.get());
+        push_u64(
+            bytes,
+            u64::try_from(call.text_offset)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+        );
+        push_u32(bytes, call.active_frame_bytes);
+        push_u32(bytes, call.transient_bytes);
+        push_u32(bytes, call.caller_live_bytes);
+    }
+    push_u32(
+        bytes,
+        u32::try_from(function.scalar_call_stacks.len())
+            .map_err(|_| TerminalInstallationError::TooManyStackCallFacts)?,
+    );
+    for call in &function.scalar_call_stacks {
+        encode_call_site_owner(bytes, call.owner);
+        push_u64(bytes, call.target.get());
+        push_u64(
+            bytes,
+            u64::try_from(call.text_offset)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+        );
+        push_u32(bytes, call.caller_live_bytes);
+    }
+    Ok(())
+}
+
+fn encode_call_site_owner(bytes: &mut Vec<u8>, owner: TerminalCallSiteOwner) {
+    match owner {
+        TerminalCallSiteOwner::Operation(operation) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, operation.get());
+        }
+        TerminalCallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, edge.get());
+            push_u32(bytes, action_ordinal);
+            push_u32(bytes, 0);
+        }
+    }
+}
+
 fn encode_structural_argument(
     bytes: &mut Vec<u8>,
     argument: &StructuralArgument,
@@ -769,6 +961,8 @@ pub fn decode_terminal_installation_record(
             .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
         let byte_count = usize::try_from(reader.u64()?)
             .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
+        let (unit_stack, scalar_stack, unit_call_stacks, scalar_call_stacks) =
+            decode_function_stack_facts(&mut reader)?;
         let unit_body = decode_boolean(reader.u8()?)?;
         if reader.take(3)? != [0; 3] {
             return Err(TerminalInstallationError::NonzeroReservedField);
@@ -832,6 +1026,10 @@ pub fn decode_terminal_installation_record(
             attachment,
             text_offset,
             byte_count,
+            unit_stack,
+            scalar_stack,
+            unit_call_stacks,
+            scalar_call_stacks,
             unit_body,
             unit_parameters,
             unit_parameter_homes,
@@ -1096,6 +1294,128 @@ pub fn decode_terminal_installation_record(
     Ok(record)
 }
 
+fn decode_function_stack_facts(
+    reader: &mut Reader<'_>,
+) -> Result<
+    (
+        Option<crate::TerminalObjectUnitStack>,
+        Option<crate::TerminalObjectScalarStack>,
+        Vec<crate::TerminalObjectUnitCallStack>,
+        Vec<crate::TerminalObjectScalarCallStack>,
+    ),
+    TerminalInstallationError,
+> {
+    let unit_stack = match reader.u8()? {
+        0 => {
+            if reader.take(3)? != [0; 3]
+                || reader.u32()? != 0
+                || reader.u32()? != 0
+                || reader.u32()? != 0
+            {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            None
+        }
+        1 => {
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            Some(crate::TerminalObjectUnitStack {
+                frame_bytes: reader.u32()?,
+                local_peak_bytes: reader.u32()?,
+                stack_alignment: reader.u32()?,
+            })
+        }
+        tag => return Err(TerminalInstallationError::InvalidPresenceFlag(tag)),
+    };
+    let scalar_stack = match reader.u8()? {
+        0 => {
+            if reader.take(3)? != [0; 3] || reader.u32()? != 0 || reader.u32()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            None
+        }
+        1 => {
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            Some(crate::TerminalObjectScalarStack {
+                local_peak_bytes: reader.u32()?,
+                stack_alignment: reader.u32()?,
+            })
+        }
+        tag => return Err(TerminalInstallationError::InvalidPresenceFlag(tag)),
+    };
+    let unit_call_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStackCallFacts)?;
+    if unit_call_count > reader.remaining() / 40 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut unit_call_stacks = Vec::with_capacity(unit_call_count);
+    for _ in 0..unit_call_count {
+        unit_call_stacks.push(crate::TerminalObjectUnitCallStack {
+            owner: decode_call_site_owner(reader)?,
+            target: MachineId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+            text_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+            active_frame_bytes: reader.u32()?,
+            transient_bytes: reader.u32()?,
+            caller_live_bytes: reader.u32()?,
+        });
+    }
+    let scalar_call_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStackCallFacts)?;
+    if scalar_call_count > reader.remaining() / 32 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut scalar_call_stacks = Vec::with_capacity(scalar_call_count);
+    for _ in 0..scalar_call_count {
+        scalar_call_stacks.push(crate::TerminalObjectScalarCallStack {
+            owner: decode_call_site_owner(reader)?,
+            target: MachineId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+            text_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+            caller_live_bytes: reader.u32()?,
+        });
+    }
+    Ok((
+        unit_stack,
+        scalar_stack,
+        unit_call_stacks,
+        scalar_call_stacks,
+    ))
+}
+
+fn decode_call_site_owner(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalCallSiteOwner, TerminalInstallationError> {
+    let tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    match tag {
+        1 => Ok(TerminalCallSiteOwner::Operation(
+            OperationId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+        )),
+        2 => {
+            let edge = EdgeId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+            let action_ordinal = reader.u32()?;
+            if reader.u32()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            Ok(TerminalCallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            })
+        }
+        tag => Err(TerminalInstallationError::InvalidCallSiteOwnerTag(tag)),
+    }
+}
+
 fn decode_structural_argument(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralArgument, TerminalInstallationError> {
@@ -1185,6 +1505,10 @@ pub fn validate_terminal_installation_record(
                     || installed.attachment != emitted.attachment
                     || installed.text_offset != emitted.text_offset
                     || installed.byte_count != emitted.byte_count
+                    || installed.unit_stack != emitted.unit_stack
+                    || installed.scalar_stack != emitted.scalar_stack
+                    || installed.unit_call_stacks != emitted.unit_call_stacks
+                    || installed.scalar_call_stacks != emitted.scalar_call_stacks
                     || installed.unit_body != emitted.unit_affine_cleanup.is_some()
                     || installed.unit_parameters != emitted.unit_parameters
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
@@ -1278,7 +1602,8 @@ fn validate_record_shape(
         let has_scalar_control_cleanup = !function.scalar_control_affine_cleanups.is_empty();
         let has_scalar_cleanup =
             function.scalar_affine_cleanup.is_some() || has_scalar_control_cleanup;
-        if function.unit_parameters.len() != function.unit_parameter_homes.len()
+        if !installed_stack_facts_are_canonical(function, &attachments)
+            || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (!function.unit_body
                 && !has_scalar_cleanup
@@ -2247,6 +2572,50 @@ fn validate_record_shape(
         previous_operation_ordinal = installed.settlement.operation_ordinal;
     }
     Ok(())
+}
+
+fn installed_stack_facts_are_canonical(
+    function: &TerminalInstalledFunction,
+    functions: &std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
+) -> bool {
+    let valid_alignment = |alignment: u32| alignment != 0 && alignment.is_power_of_two();
+    if function.unit_stack.is_some() && function.scalar_stack.is_some()
+        || function
+            .unit_stack
+            .is_some_and(|stack| !valid_alignment(stack.stack_alignment))
+        || function
+            .scalar_stack
+            .is_some_and(|stack| !valid_alignment(stack.stack_alignment))
+        || (!function.unit_call_stacks.is_empty() && function.unit_stack.is_none())
+        || (!function.scalar_call_stacks.is_empty() && function.scalar_stack.is_none())
+    {
+        return false;
+    }
+    let call_in_function = |target: MachineId, text_offset: usize| {
+        functions.contains_key(&target)
+            && text_offset >= function.text_offset
+            && text_offset < function.text_offset.saturating_add(function.byte_count)
+    };
+    let unit_calls_valid = function.unit_call_stacks.iter().all(|call| {
+        call_in_function(call.target, call.text_offset)
+            && call
+                .active_frame_bytes
+                .checked_add(call.transient_bytes)
+                .is_some_and(|sum| sum == call.caller_live_bytes)
+    });
+    let scalar_calls_valid = function
+        .scalar_call_stacks
+        .iter()
+        .all(|call| call_in_function(call.target, call.text_offset));
+    let unit_ordered = function.unit_call_stacks.windows(2).all(|pair| {
+        (pair[0].text_offset, pair[0].owner, pair[0].target)
+            < (pair[1].text_offset, pair[1].owner, pair[1].target)
+    });
+    let scalar_ordered = function.scalar_call_stacks.windows(2).all(|pair| {
+        (pair[0].text_offset, pair[0].owner, pair[0].target)
+            < (pair[1].text_offset, pair[1].owner, pair[1].target)
+    });
+    unit_calls_valid && scalar_calls_valid && unit_ordered && scalar_ordered
 }
 
 fn validate_scalar_affine_cleanup_shape(
@@ -3945,6 +4314,7 @@ pub enum TerminalInstallationError {
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
+    TooManyStackCallFacts,
     TooManyStructuralReturns,
     TooManyInternalUnitCalls,
     TooManyInternalUnitCallArguments,
@@ -4055,6 +4425,40 @@ impl std::error::Error for TerminalInstallationError {}
 #[cfg(test)]
 mod resource_tests {
     use super::*;
+
+    fn installed_function_with_unit_call() -> TerminalInstalledFunction {
+        TerminalInstalledFunction {
+            machine: MachineId::new(1).expect("function"),
+            attachment: None,
+            text_offset: 24,
+            byte_count: 16,
+            unit_stack: Some(crate::TerminalObjectUnitStack {
+                frame_bytes: 0,
+                local_peak_bytes: 16,
+                stack_alignment: 16,
+            }),
+            scalar_stack: None,
+            unit_call_stacks: vec![crate::TerminalObjectUnitCallStack {
+                owner: TerminalCallSiteOwner::Operation(
+                    OperationId::new(1).expect("call operation"),
+                ),
+                target: MachineId::new(2).expect("callee"),
+                text_offset: 28,
+                active_frame_bytes: 0,
+                transient_bytes: 16,
+                caller_live_bytes: 16,
+            }],
+            scalar_call_stacks: Vec::new(),
+            unit_body: false,
+            unit_parameters: Vec::new(),
+            unit_parameter_homes: Vec::new(),
+            unit_affine_cleanup: None,
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+        }
+    }
 
     fn scalar_control_cleanup(
         edge: u64,
@@ -4207,12 +4611,68 @@ mod resource_tests {
     }
 
     #[test]
+    fn stack_fact_codec_round_trips_exact_emitter_evidence() {
+        let function = installed_function_with_unit_call();
+        let mut bytes = Vec::new();
+        encode_function_stack_facts(&mut bytes, &function).expect("encode stack facts");
+        let mut reader = Reader::new(&bytes);
+        let (unit, scalar, unit_calls, scalar_calls) =
+            decode_function_stack_facts(&mut reader).expect("decode stack facts");
+        assert_eq!(unit, function.unit_stack);
+        assert_eq!(scalar, function.scalar_stack);
+        assert_eq!(unit_calls, function.unit_call_stacks);
+        assert_eq!(scalar_calls, function.scalar_call_stacks);
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn installed_stack_fact_shape_rejects_nonlocal_or_forged_call_inputs() {
+        let functions = [
+            (MachineId::new(1).expect("caller"), None),
+            (MachineId::new(2).expect("callee"), None),
+        ]
+        .into_iter()
+        .collect::<std::collections::BTreeMap<_, _>>();
+        let valid = installed_function_with_unit_call();
+        assert!(installed_stack_facts_are_canonical(&valid, &functions));
+
+        let mut nonlocal_offset = valid.clone();
+        nonlocal_offset.unit_call_stacks[0].text_offset =
+            nonlocal_offset.text_offset + nonlocal_offset.byte_count;
+        assert!(!installed_stack_facts_are_canonical(
+            &nonlocal_offset,
+            &functions
+        ));
+
+        let mut forged_live_bytes = valid.clone();
+        forged_live_bytes.unit_call_stacks[0].caller_live_bytes += 1;
+        assert!(!installed_stack_facts_are_canonical(
+            &forged_live_bytes,
+            &functions
+        ));
+
+        let mut invalid_alignment = valid;
+        invalid_alignment
+            .unit_stack
+            .as_mut()
+            .expect("unit stack")
+            .stack_alignment = 3;
+        assert!(!installed_stack_facts_are_canonical(
+            &invalid_alignment,
+            &functions
+        ));
+    }
+
+    #[test]
     fn previous_installation_marker_is_not_accepted() {
         let mut bytes = MAGIC.to_vec();
-        push_u16(&mut bytes, 17);
+        let previous_marker = TERMINAL_INSTALLATION_FORMAT_MARKER - 1;
+        push_u16(&mut bytes, previous_marker);
         assert_eq!(
             decode_terminal_installation_record(&bytes),
-            Err(TerminalInstallationError::UnsupportedFormatMarker(17))
+            Err(TerminalInstallationError::UnsupportedFormatMarker(
+                previous_marker
+            ))
         );
     }
 }

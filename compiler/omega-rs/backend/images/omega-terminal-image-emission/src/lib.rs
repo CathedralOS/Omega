@@ -167,6 +167,7 @@ impl TerminalObjectFunction {
 pub struct TerminalObjectUnitCallStack {
     pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
+    /// Absolute offset in the object `.text` section.
     pub text_offset: usize,
     pub active_frame_bytes: u32,
     pub transient_bytes: u32,
@@ -177,6 +178,7 @@ pub struct TerminalObjectUnitCallStack {
 pub struct TerminalObjectScalarCallStack {
     pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
+    /// Absolute offset in the object `.text` section.
     pub text_offset: usize,
     pub caller_live_bytes: u32,
 }

@@ -564,10 +564,12 @@ reach or trust, and private proof improvements do not change public identity.
   park/resume, and implement the suspension-safe-loan subset. Accepted Unit,
   branch-free scalar, and one two-arm scalar conditional native shape retain and
   replay exact code-positioned frame/link/temporary evidence and compose an
-  acyclic closure demand. Extend accounting to nested/reconvergent conditionals,
-  crashes in arms, division/remainder, the external entry adapter, and
-  installed-root/provider admission before calling it a complete root
-  `StackPlan`.
+  acyclic closure demand. The canonical terminal installation record now seals
+  those per-function and per-call facts, and a decoded record reproduces the
+  same internal closure demand. Extend accounting to nested/reconvergent
+  conditionals, crashes in arms, division/remainder, and the external entry
+  adapter; then compose the decoded demand with selected-provider admission in
+  the installed-root report before calling it a complete root `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;
