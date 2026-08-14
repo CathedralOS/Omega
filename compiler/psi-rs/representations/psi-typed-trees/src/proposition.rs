@@ -371,6 +371,31 @@ fn exact_binder_argument_identity(
     (!identity.is_empty()).then_some(identity)
 }
 
+fn binder_argument_identities_for_labels(
+    program: &crate::TypedTrees,
+    application: &PropositionApplication,
+    binder_labels: &[String],
+) -> Option<Vec<Option<String>>> {
+    if application.binder_arguments.len() == binder_labels.len() {
+        return Some(
+            application
+                .binder_arguments
+                .iter()
+                .map(|argument| exact_binder_argument_identity(program, argument))
+                .collect(),
+        );
+    }
+    // A proposition-family law has no concrete binder arguments until the
+    // selected family is substituted. Validation synthesizes its labels from
+    // the satisfier's representative telescope. Those labels remain
+    // intentionally unresolved semantic identities, but their arity must
+    // still reach primitive/fact-only normalization.
+    application
+        .binder_arguments
+        .is_empty()
+        .then(|| vec![None; binder_labels.len()])
+}
+
 fn render_evidence_type(
     program: &crate::TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -517,11 +542,8 @@ impl crate::TypedTrees {
         binder_labels: &[String],
         argument_labels: &[String],
     ) -> Option<NormalizedPropositionApplicationIdentity> {
-        let binder_identities = application
-            .binder_arguments
-            .iter()
-            .map(|argument| exact_binder_argument_identity(self, argument))
-            .collect::<Vec<_>>();
+        let binder_identities =
+            binder_argument_identities_for_labels(self, application, binder_labels)?;
         self.normalize_nominal_proposition_application_inner(
             application,
             binder_labels,
@@ -701,11 +723,8 @@ impl crate::TypedTrees {
         binder_labels: &[String],
         argument_labels: &[String],
     ) -> Option<NormalizedPropositionFormula> {
-        let binder_identities = application
-            .binder_arguments
-            .iter()
-            .map(|argument| exact_binder_argument_identity(self, argument))
-            .collect::<Vec<_>>();
+        let binder_identities =
+            binder_argument_identities_for_labels(self, application, binder_labels)?;
         let mut visiting = Vec::new();
         self.normalize_proposition_application_inner(
             application,
