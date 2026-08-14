@@ -1,4 +1,4 @@
-// dual_float is deployable on every hosted target.
+// sensor_min_max is deployable on every hosted target.
 
 target windows_x64 {
 }

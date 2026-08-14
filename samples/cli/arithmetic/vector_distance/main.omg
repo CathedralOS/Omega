@@ -7,6 +7,7 @@
 // Exits with the magnitude as its code.
 // Expected exit: 5.
 
+use omega::language::core::float_operations;
 use omega::language::std::console;
 
 data Main {

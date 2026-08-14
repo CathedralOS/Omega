@@ -1,4 +1,4 @@
-// dual_float is deployable on every hosted target.
+// vector_distance is deployable on every hosted target.
 
 target windows_x64 {
 }

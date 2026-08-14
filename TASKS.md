@@ -73,9 +73,10 @@ Remaining:
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
   `temperature_convert`, now lowers directly from its authored host entry. The
-  seventeen deployable CLI arithmetic samples now author all four hosted roots
-  and lower through the same production entry matrix without staging; the four
-  float-lowering fixtures remain explicitly checked-only. All fifteen CLI
+  all twenty-one CLI arithmetic samples now author all four hosted roots and
+  lower through the same production entry matrix without staging, including
+  the four float-heavy samples through explicitly selected core float
+  operations. All fifteen CLI
   systems samples likewise author all four hosted roots and lower through the
   production entry matrix, including `note_vault`'s multiple contained
   `SystemTime` receivers. Eleven
