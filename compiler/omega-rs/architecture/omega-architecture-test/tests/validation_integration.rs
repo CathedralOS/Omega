@@ -228,6 +228,93 @@ fn witness_proposition_accepts_bound_generic_evidence_interface() {
 }
 
 #[test]
+fn named_contract_evidence_rejects_fact_only_propositions() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition visible(value: i32);
+
+        machine consume(value: i32)
+        requires proof: visible(value)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("fact-only propositions have no evidence term");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("named requires evidence `proof` binds fact-only proposition `visible`")
+    }));
+}
+
+#[test]
+fn named_contract_evidence_rejects_boolean_facts() {
+    let typed = typed_program_from_source(
+        r#"
+        machine consume(value: i32)
+        requires proof: value == value
+        {
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a Boolean fact has no projectable evidence term");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "named requires evidence `proof` must bind exactly one proposition application",
+        )
+    }));
+}
+
+#[test]
+fn named_contract_evidence_rejects_domain_memberships() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        domain Token::Issued;
+
+        machine consume(value: Token)
+        requires proof: value in Token::Issued
+        {
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a domain membership has no projectable evidence term");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "named requires evidence `proof` must bind exactly one proposition application",
+        )
+    }));
+}
+
+#[test]
+fn named_contract_evidence_rejects_transparent_boolean_propositions() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition positive(value: i32) = value > 0;
+
+        machine consume(value: i32)
+        requires proof: positive(value)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a transparent Boolean proposition has no nominal evidence endpoint");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "named requires evidence `proof` does not resolve to one nominal proposition endpoint",
+        )
+    }));
+}
+
+#[test]
 fn proposition_contract_requires_exact_normalized_application() {
     let typed = typed_program_from_source(
         r#"

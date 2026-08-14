@@ -32,13 +32,14 @@ pub(crate) fn build_proof_facts_with_operators(
     let mut obligations = psi_arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts =
         psi_arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
+    let mut evidence_terms = psi_arena::Arena::default();
 
     for (_, obligation) in proof_plan.obligations.iter() {
         obligations.append(lower_proof_obligation(obligation));
     }
 
     for machine in program.machines() {
-        append_machine_contract_facts(program, machine, &mut contract_facts);
+        append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
         for state in program.machine_states(machine) {
             append_state_contract_facts(program, machine, state, &mut contract_facts);
         }
@@ -79,6 +80,7 @@ pub(crate) fn build_proof_facts_with_operators(
     ProofFacts::with_roots(
         obligations,
         contract_facts,
+        evidence_terms,
         contract_fact_refs,
         contract_calls,
         contract_exits,
@@ -147,33 +149,41 @@ fn build_checked_proposition_vocabulary(
                 return None;
             };
             let normalized = program.normalize_nominal_proposition_application(application)?;
-            Some(psi_checked_trees::CheckedPropositionApplication {
-                declaration: normalized.declaration,
-                binder_arguments: normalized
-                    .binder_arguments
-                    .into_iter()
-                    .map(|argument| psi_checked_trees::CheckedPropositionBinderArgument {
-                        kind: match argument.kind {
-                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
-                                psi_checked_trees::CheckedPropositionBinderArgumentKind::Type
-                            }
-                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-                                psi_checked_trees::CheckedPropositionBinderArgumentKind::Const
-                            }
-                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
-                                psi_checked_trees::CheckedPropositionBinderArgumentKind::Machine
-                            }
-                        },
-                        identity: argument.identity,
-                    })
-                    .collect(),
-                arguments: normalized.arguments,
-            })
+            Some(lower_checked_proposition_application(normalized))
         })
         .collect();
     psi_checked_trees::CheckedPropositionVocabulary {
         declarations,
         applications,
+    }
+}
+
+fn lower_checked_proposition_application(
+    normalized: psi_typed_trees::proposition::NormalizedPropositionApplicationIdentity,
+) -> psi_checked_trees::CheckedPropositionApplication {
+    psi_checked_trees::CheckedPropositionApplication {
+        declaration: normalized.declaration,
+        binder_arguments: normalized
+            .binder_arguments
+            .into_iter()
+            .map(
+                |argument| psi_checked_trees::CheckedPropositionBinderArgument {
+                    kind: match argument.kind {
+                        psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                            psi_checked_trees::CheckedPropositionBinderArgumentKind::Type
+                        }
+                        psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                            psi_checked_trees::CheckedPropositionBinderArgumentKind::Const
+                        }
+                        psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                            psi_checked_trees::CheckedPropositionBinderArgumentKind::Machine
+                        }
+                    },
+                    identity: argument.identity,
+                },
+            )
+            .collect(),
+        arguments: normalized.arguments,
     }
 }
 
