@@ -432,8 +432,14 @@ exact checked carrier, nested operations remain typed `ExactIntegerAdd`,
 all-field-projected calls rebase every member leaf recursively. The verifier
 independently repeats that substitution and validates every declared leaf and
 arithmetic-node type; both codecs preserve the nested term. Other arithmetic
-policies and operators,
-case-payload paths, and imported crash capsules remain fail-closed.
+policies and operators remain fail-closed except for Exact division and
+remainder by a same-carrier literal divisor. The accepted divisor is nonzero
+and, for a signed carrier, not `-1`, so the operation is total for every member
+dividend. Checked production repeats that gate while terminal validation
+independently requires the exact safe literal; changing it to zero, signed
+`-1`, or an arbitrary term rejects. Runtime divisors remain outside the slice
+until their nonzero and signed-overflow obligations are explicit terminal
+evidence. Case-payload paths and imported crash capsules also remain fail-closed.
 Structural/content contracts reject because custody effects require their own
 vertical slice rather than an ordinary scalar flag.
 

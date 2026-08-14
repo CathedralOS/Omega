@@ -10192,6 +10192,20 @@ fn lower_structural_crash_route_buckets(
             parameters: &[StructuralParameterDeclaration],
             structural_types: &[StructuralTypeDeclaration],
         ) -> Result<ScalarTerm, LoweringError> {
+            fn safe_exact_literal_divisor(term: &ScalarTerm, integer_type: IntegerType) -> bool {
+                match term {
+                    ScalarTerm::Integer {
+                        scalar_type,
+                        value: IntegerValue::Unsigned(value),
+                    } => *scalar_type == integer_type && *value != 0,
+                    ScalarTerm::Integer {
+                        scalar_type,
+                        value: IntegerValue::Signed(value),
+                    } => *scalar_type == integer_type && *value != 0 && *value != -1,
+                    _ => false,
+                }
+            }
+
             match expression {
                 CheckedScalarExpression::StructuralParameterField {
                     parameter_position,
@@ -10232,6 +10246,8 @@ fn lower_structural_crash_route_buckets(
                     CheckedIntegerBinaryKind::ExactAdd
                         | CheckedIntegerBinaryKind::ExactSubtract
                         | CheckedIntegerBinaryKind::ExactMultiply
+                        | CheckedIntegerBinaryKind::ExactDivide
+                        | CheckedIntegerBinaryKind::ExactRemainder
                 ) =>
                 {
                     let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
@@ -10249,6 +10265,16 @@ fn lower_structural_crash_route_buckets(
                             "structural crash exact-arithmetic operands do not match its integer type",
                         );
                     }
+                    if matches!(
+                        kind,
+                        CheckedIntegerBinaryKind::ExactDivide
+                            | CheckedIntegerBinaryKind::ExactRemainder
+                    ) && !safe_exact_literal_divisor(&right, integer_type)
+                    {
+                        return unsupported(
+                            "structural crash exact division requires a statically safe literal divisor",
+                        );
+                    }
                     Ok(match kind {
                         CheckedIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
                             scalar_type: integer_type,
@@ -10264,6 +10290,18 @@ fn lower_structural_crash_route_buckets(
                         }
                         CheckedIntegerBinaryKind::ExactMultiply => {
                             ScalarTerm::ExactIntegerMultiply {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::ExactDivide => ScalarTerm::ExactIntegerDivide {
+                            scalar_type: integer_type,
+                            left,
+                            right,
+                        },
+                        CheckedIntegerBinaryKind::ExactRemainder => {
+                            ScalarTerm::ExactIntegerRemainder {
                                 scalar_type: integer_type,
                                 left,
                                 right,
@@ -10458,7 +10496,9 @@ fn substitute_structural_crash_route_roots(
             | ScalarTerm::IntegerLessOrEqual { left, right, .. }
             | ScalarTerm::ExactIntegerAdd { left, right, .. }
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }

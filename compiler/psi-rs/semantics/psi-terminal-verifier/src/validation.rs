@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    PropositionContext, PropositionError, PropositionId, ScalarTerm, ScalarType, ServiceId,
-    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContractId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    Proposition, PropositionContext, PropositionError, PropositionId, ScalarTerm, ScalarType,
+    ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
     content_conservation_fingerprint,
 };
 use psi_terminal::{
@@ -3219,6 +3219,20 @@ fn validate_boolean_field_terms(
         machine: &TerminalMachine,
         term: &ScalarTerm,
     ) -> Result<(), ModuleError> {
+        fn safe_exact_literal_divisor(term: &ScalarTerm, integer_type: IntegerType) -> bool {
+            match term {
+                ScalarTerm::Integer {
+                    scalar_type,
+                    value: IntegerValue::Unsigned(value),
+                } => *scalar_type == integer_type && *value != 0,
+                ScalarTerm::Integer {
+                    scalar_type,
+                    value: IntegerValue::Signed(value),
+                } => *scalar_type == integer_type && *value != 0 && *value != -1,
+                _ => false,
+            }
+        }
+
         match term {
             ScalarTerm::BooleanField { root, path } => {
                 let mut structural_type = machine
@@ -3388,8 +3402,6 @@ fn validate_boolean_field_terms(
             | ScalarTerm::ExactIntegerAdd { left, right, .. }
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
             | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
             | ScalarTerm::WrappingIntegerDivide { left, right, .. }
             | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
             | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
@@ -3400,6 +3412,25 @@ fn validate_boolean_field_terms(
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
             | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
             | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                validate_term(module, machine, left)?;
+                validate_term(module, machine, right)?;
+            }
+            ScalarTerm::ExactIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } => {
+                if !safe_exact_literal_divisor(right, *scalar_type) {
+                    return Err(ModuleError::UnsafeStructuralCrashExactDivisor {
+                        machine: machine.id,
+                        scalar_type: *scalar_type,
+                    });
+                }
                 validate_term(module, machine, left)?;
                 validate_term(module, machine, right)?;
             }
@@ -6221,6 +6252,10 @@ pub enum ModuleError {
         machine: MachineId,
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: psi_core::IntegerType,
+    },
+    UnsafeStructuralCrashExactDivisor {
+        machine: MachineId,
         scalar_type: psi_core::IntegerType,
     },
     NonCanonicalCrashRoutes(MachineId),
