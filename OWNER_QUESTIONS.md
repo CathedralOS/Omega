@@ -206,3 +206,23 @@ provider-authored size to validated entry-stub/arrival evidence. It must compose
 with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
+
+## Q12 — Generic conformance application syntax
+
+A named conformance may own lifetime, type, const, and static-machine binders,
+and its subject and trait application may depend on them. The language guide
+settles declaration syntax such as
+`SequenceEncoding<Element, Message>: Vec<Element> satisfies
+WireEncodable<Message>`, but it does not settle how one concrete instantiation
+is passed in an evidence-argument position. The current flat call telescope can
+name `SequenceEncoding` but cannot delimit that conformance's own argument pack,
+and silently inferring every omitted argument would make const and
+static-machine evidence selection implicit.
+
+Choose the call-site form for applying a generic conformance name. The decision
+must delimit the conformance's own telescope from the enclosing machine's type,
+const, static-machine, and evidence arguments; state which arguments, if any,
+may be inferred from the expected subject and trait application; and define how
+lifetime arguments erase while remaining part of semantic identity. The result
+must select one exact package-scoped conformance instance and normalized row
+map without visibility search, priority, or ambient uniqueness.
