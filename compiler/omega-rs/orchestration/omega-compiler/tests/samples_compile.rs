@@ -28,8 +28,11 @@
 //!    deployable arithmetic cohort has the same exact hosted-root guarantees,
 //!    while four float-lowering fixtures remain checked-only.
 //!  * `system_samples_compile_from_authored_program_entry_bindings` — the
-//!    deployable systems cohort lowers from exact authored roots, while two
-//!    known runtime-engineering probes remain checked-only.
+//!    deployable systems cohort lowers from exact authored roots, while three
+//!    known runtime-engineering fixtures remain checked-only.
+//!  * `probe_samples_compile_from_authored_program_entry_bindings` — executable
+//!    regression probes name their exact hosted roots; the deliberate trapping
+//!    fixture remains checked-only.
 //!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated interpreter cohort likewise lowers directly for every hosted
 //!    target without legacy staging.
@@ -141,6 +144,19 @@ const EXPLICIT_ENTRY_SYSTEM_SAMPLES: &[&str] = &[
     "vending_machine",
 ];
 const CHECKED_ONLY_SYSTEM_SAMPLES: &[&str] = &["file_journal", "note_vault", "wire_protocol"];
+const EXPLICIT_ENTRY_PROBE_SAMPLES: &[&str] = &[
+    "alarm_probe",
+    "alarm_probe2",
+    "array_index_from_call",
+    "direction_command",
+    "dual_accumulator_recursion",
+    "multi_value_calls",
+    "nested_case_payload",
+    "nested_counters",
+    "self_mutation_between_calls",
+    "value_call_in_expr",
+    "width_mixer",
+];
 const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
     "calculator",
     "calculator_rpn",
@@ -705,6 +721,20 @@ fn system_samples_compile_from_authored_program_entry_bindings() {
             "checked-only systems sample {sample} must not select a storage root"
         );
     }
+}
+
+#[test]
+fn probe_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_cohort("probes", EXPLICIT_ENTRY_PROBE_SAMPLES);
+
+    let main_path = repo_root().join("samples/cli/probes/trapping_probe/main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("the deliberate trapping probe should remain a checked-only fixture");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "the trapping probe must not acquire a deployable storage root"
+    );
 }
 
 #[test]
