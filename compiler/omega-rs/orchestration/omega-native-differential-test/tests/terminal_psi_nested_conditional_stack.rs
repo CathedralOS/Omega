@@ -5,9 +5,7 @@ use omega_terminal_image_emission::{
     derive_terminal_stack_demand, emit_terminal_executable_image,
     encode_terminal_installation_record,
 };
-use omega_terminal_machine_code::{
-    TerminalScalarConditionalArm, TerminalScalarControlFlowEvidence,
-};
+use omega_terminal_machine_code::TerminalScalarControlFlowEvidence;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_target_operations::{
     MachineRegister, TerminalPsiProvenance, TerminalScalarParameterLocation,
@@ -29,9 +27,8 @@ fn nested_conditional_stack_facts_survive_installation_and_reject_forgery() {
             let assigned = assign_registers(&nested_conditional_plan(target, nested_false_arm))
                 .expect("assign nested conditional");
             let emitted = emit_machine_code(&assigned).expect("emit nested conditional");
-            let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
-                nested,
-                nested_arm,
+            let TerminalScalarControlFlowEvidence::ConditionalTree {
+                decisions,
                 branches,
                 ..
             } = &emitted.functions[0]
@@ -43,31 +40,28 @@ fn nested_conditional_stack_facts_survive_installation_and_reject_forgery() {
                 panic!("nested conditional must retain three-leaf evidence")
             };
             assert!(branches.is_empty());
+            let [root, nested] = decisions.as_slice() else {
+                panic!("two decisions are retained")
+            };
             assert_eq!(
-                *nested_arm,
-                if nested_false_arm {
-                    TerminalScalarConditionalArm::False
-                } else {
-                    TerminalScalarConditionalArm::True
-                }
+                nested.branch_offset >= root.false_arm_offset,
+                nested_false_arm
             );
             let nested_branch_offset = nested.branch_offset;
             let nested_false_arm_offset = nested.false_arm_offset;
 
             let mut forged = emitted.clone();
             {
-                let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
-                    nested,
-                    ..
-                } = &mut forged.functions[0]
-                    .scalar_stack
-                    .as_mut()
-                    .expect("forged nested stack evidence")
-                    .control_flow
+                let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } =
+                    &mut forged.functions[0]
+                        .scalar_stack
+                        .as_mut()
+                        .expect("forged nested stack evidence")
+                        .control_flow
                 else {
                     unreachable!()
                 };
-                nested.false_arm_offset += 1;
+                decisions[1].false_arm_offset += 1;
             }
             assert!(build_terminal_object_artifact(&forged).is_err());
 
@@ -101,11 +95,10 @@ fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
         let assigned = assign_registers(&four_leaf_conditional_plan(target))
             .expect("assign four-leaf conditional");
         let emitted = emit_machine_code(&assigned).expect("emit four-leaf conditional");
-        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
-            root,
-            true_nested,
-            false_nested,
+        let TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions,
             branches,
+            ..
         } = &emitted.functions[0]
             .scalar_stack
             .as_ref()
@@ -115,14 +108,16 @@ fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
             panic!("four-leaf conditional must retain three branch records")
         };
         assert!(branches.is_empty());
+        let [root, true_nested, false_nested] = decisions.as_slice() else {
+            panic!("three decisions are retained")
+        };
         assert!(root.branch_offset < true_nested.branch_offset);
         assert!(true_nested.false_arm_offset < root.false_arm_offset);
         assert!(root.false_arm_offset <= false_nested.branch_offset);
 
         let mut forged = emitted.clone();
-        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
-            false_nested, ..
-        } = &mut forged.functions[0]
+        let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } = &mut forged
+            .functions[0]
             .scalar_stack
             .as_mut()
             .expect("forged four-leaf stack evidence")
@@ -130,7 +125,7 @@ fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
         else {
             unreachable!()
         };
-        false_nested.false_arm_offset += 1;
+        decisions[2].false_arm_offset += 1;
         assert!(build_terminal_object_artifact(&forged).is_err());
 
         let artifact = build_terminal_object_artifact(&emitted)
@@ -176,8 +171,8 @@ fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
         });
         let assigned = assign_registers(&plan).expect("assign nested crash conditional");
         let emitted = emit_machine_code(&assigned).expect("emit nested crash conditional");
-        let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
-            root,
+        let TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions,
             crash_leaves,
             ..
         } = &emitted.functions[0]
@@ -189,6 +184,7 @@ fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
             panic!("nested crash conditional must retain terminal evidence")
         };
         assert_eq!(*crash_leaves, [false, true, false]);
+        let root = decisions[0];
 
         let mut forged = emitted.clone();
         forged.functions[0].bytes[root.false_arm_offset - 1] ^= 1;
@@ -237,8 +233,8 @@ fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
         });
         let assigned = assign_registers(&plan).expect("assign four-leaf crash conditional");
         let emitted = emit_machine_code(&assigned).expect("emit four-leaf crash conditional");
-        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourTerminal {
-            false_nested,
+        let TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions,
             crash_leaves,
             ..
         } = &emitted.functions[0]
@@ -250,6 +246,7 @@ fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
             panic!("four-leaf crash conditional must retain terminal evidence")
         };
         assert_eq!(*crash_leaves, [false, false, true, false]);
+        let false_nested = decisions[2];
 
         let mut forged = emitted.clone();
         forged.functions[0].bytes[false_nested.false_arm_offset - 1] ^= 1;
@@ -283,12 +280,12 @@ fn nested_division_stack_facts_survive_installation_and_reject_forgery() {
         install_signed_division_in_nested_leaf(&mut plan, false, operation_id(1));
         let assigned = assign_registers(&plan).expect("assign nested division conditional");
         let emitted = emit_machine_code(&assigned).expect("emit nested division conditional");
-        let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn { branches, .. } =
-            &emitted.functions[0]
-                .scalar_stack
-                .as_ref()
-                .expect("nested division stack evidence")
-                .control_flow
+        let TerminalScalarControlFlowEvidence::ConditionalTree { branches, .. } = &emitted
+            .functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("nested division stack evidence")
+            .control_flow
         else {
             panic!("nested division must retain the three-leaf tree")
         };
@@ -298,9 +295,8 @@ fn nested_division_stack_facts_survive_installation_and_reject_forgery() {
         }
         if target.architecture == Architecture::X86_64 {
             let mut forged = emitted.clone();
-            let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
-                branches, ..
-            } = &mut forged.functions[0]
+            let TerminalScalarControlFlowEvidence::ConditionalTree { branches, .. } = &mut forged
+                .functions[0]
                 .scalar_stack
                 .as_mut()
                 .expect("forged nested division stack evidence")
@@ -340,9 +336,8 @@ fn nested_condition_division_stack_facts_survive_installation() {
         install_signed_division_conditions(&mut plan);
         let assigned = assign_registers(&plan).expect("assign nested division conditions");
         let emitted = emit_machine_code(&assigned).expect("emit nested division conditions");
-        let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
-            root,
-            nested,
+        let TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions,
             branches,
             ..
         } = &emitted.functions[0]
@@ -352,6 +347,9 @@ fn nested_condition_division_stack_facts_survive_installation() {
             .control_flow
         else {
             panic!("nested condition divisions must retain the three-leaf tree")
+        };
+        let [root, nested] = decisions.as_slice() else {
+            panic!("two decisions are retained")
         };
         assert_eq!(
             root.condition,
@@ -399,12 +397,12 @@ fn four_leaf_division_stack_facts_survive_installation_and_reject_forgery() {
         install_signed_division_in_nested_leaf(&mut plan, true, operation_id(2));
         let assigned = assign_registers(&plan).expect("assign four-leaf division conditional");
         let emitted = emit_machine_code(&assigned).expect("emit four-leaf division conditional");
-        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn { branches, .. } =
-            &emitted.functions[0]
-                .scalar_stack
-                .as_ref()
-                .expect("four-leaf division stack evidence")
-                .control_flow
+        let TerminalScalarControlFlowEvidence::ConditionalTree { branches, .. } = &emitted
+            .functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("four-leaf division stack evidence")
+            .control_flow
         else {
             panic!("four-leaf division must retain all three decisions")
         };
@@ -415,8 +413,8 @@ fn four_leaf_division_stack_facts_survive_installation_and_reject_forgery() {
 
         if target.architecture == Architecture::X86_64 {
             let mut forged = emitted.clone();
-            let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
-                root,
+            let TerminalScalarControlFlowEvidence::ConditionalTree {
+                decisions,
                 branches,
                 ..
             } = &mut forged.functions[0]
@@ -427,7 +425,7 @@ fn four_leaf_division_stack_facts_survive_installation_and_reject_forgery() {
             else {
                 unreachable!()
             };
-            branches[0].branch_offset = root.branch_offset;
+            branches[0].branch_offset = decisions[0].branch_offset;
             assert!(build_terminal_object_artifact(&forged).is_err());
         }
 
@@ -448,6 +446,94 @@ fn four_leaf_division_stack_facts_survive_installation_and_reject_forgery() {
             .expect("decode four-leaf division installation record");
         let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
             .expect("recompose installed four-leaf division demand");
+        assert_eq!(installed, demand);
+    }
+}
+
+#[test]
+fn deeper_conditional_tree_survives_installation_and_rejects_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = nested_conditional_plan(target, false);
+        let condition_register = match target.architecture {
+            Architecture::X86_64 => MachineRegister::X86Rsi,
+            Architecture::Aarch64 => MachineRegister::Aarch64X(1),
+        };
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerControl::Conditional {
+            when_true: nested_true,
+            ..
+        } = when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        let leaf = nested_true.control.clone();
+        nested_true.control = Box::new(TerminalTargetIntegerControl::Conditional {
+            condition_source: value_id(20),
+            condition_parameter_index: 1,
+            condition_location: TerminalScalarParameterLocation::Register(condition_register),
+            when_true: TerminalTargetConditionalIntegerArm {
+                psi_edge: edge_id(9),
+                control: leaf.clone(),
+            },
+            when_false: TerminalTargetConditionalIntegerArm {
+                psi_edge: edge_id(10),
+                control: leaf,
+            },
+        });
+        plan.functions[0].provenance.edges = (1..=10).map(edge_id).collect();
+
+        let assigned = assign_registers(&plan).expect("assign deeper conditional tree");
+        let emitted = emit_machine_code(&assigned).expect("emit deeper conditional tree");
+        let TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions,
+            crash_leaves,
+            branches,
+        } = &emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("deeper conditional stack evidence")
+            .control_flow
+        else {
+            panic!("deeper conditional must retain generic tree evidence")
+        };
+        assert_eq!(decisions.len(), 3);
+        assert_eq!(crash_leaves, &[false; 4]);
+        assert!(branches.is_empty());
+
+        let mut forged = emitted.clone();
+        let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } = &mut forged
+            .functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("forged deeper conditional evidence")
+            .control_flow
+        else {
+            unreachable!()
+        };
+        decisions.swap(1, 2);
+        assert!(build_terminal_object_artifact(&forged).is_err());
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary recursively replays the deeper tree");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive deeper conditional stack demand");
+        let image = emit_terminal_executable_image(&artifact, 43)
+            .expect("emit deeper conditional executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(8).expect("profile decision"),
+        )
+        .expect("build deeper conditional installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode deeper conditional installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode deeper conditional installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed deeper conditional demand");
         assert_eq!(installed, demand);
     }
 }

@@ -215,15 +215,13 @@ same region replay, while signed Wrapping/Saturating x86 forms carry composite
 outer-conditional and ordered inner-diamond evidence. Object construction
 partitions those diamonds by prefix/arm and replays both paths independently.
 The same division forms in typed call arguments in the condition or either arm
-retain exact relocation and closure evidence through installation. One nested
-Boolean decision in either outer arm also qualifies with three accountable
-return/crash leaves; both outer arms may each contain one decision, producing
-four independently replayed leaves. These bounded nested shapes retain
-division/remainder in either expression-condition prefix or any returning leaf:
-x86 partitions one ordered diamond ledger across the exact physical regions,
-while AArch64 retains the branch-free evidence. Deeper trees and genuine
-reconvergence remain excluded. The bounded conditional theorem also admits one
-or both direct crash arms. Evidence binds the crashing arm set and
+retain exact relocation and closure evidence through installation. Accountable
+acyclic conditional-control trees use one depth-independent physical decision
+list and DFS terminal bitmap. Object construction reconstructs every nested
+region, replays its expression prefix and return/crash leaves, and partitions
+the ordered x86 division-diamond ledger across those exact regions; AArch64
+retains the branch-free evidence. Genuine reconvergence remains excluded. The
+conditional theorem also admits crash leaves. Evidence binds their exact set and
 object construction validates every exact native `UD2`/`BRK` terminal before
 installation; any returning arm stays directly accountable. Ordered x86
 division diamonds from the condition or returning arm use the same independent

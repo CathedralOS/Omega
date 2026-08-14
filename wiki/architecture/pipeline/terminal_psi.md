@@ -818,16 +818,13 @@ construction partitions the ordered diamonds by expression prefix or return
 arm, validates their exact conditional/join targets, and independently replays
 the special and ordinary paths. These forms may also occur in typed call
 arguments in the condition or either arm; exact call relocation and closure
-evidence survives object, image, and installation custody. One outer arm may
-instead contain one further Boolean decision, or both outer arms may each
-contain one, yielding three or four independently replayed return/crash leaves.
-These bounded nested shapes also retain division/remainder in outer or nested
-expression-condition prefixes and returning leaves. Exact x86 diamonds are
-partitioned by physical region; AArch64 uses the same branch-free replay.
-Affine cleanup records remain required only when cleanup is present. Deeper
-trees and genuinely reconvergent control remain outside this bounded theorem.
-One or both direct arms may end in a crash. Evidence binds the crashing arm set;
-object
+evidence survives object, image, and installation custody. Accountable acyclic
+conditional-control trees retain one physically ordered decision list, a DFS
+return/crash bitmap, and an ordered x86 division-diamond ledger. Object
+construction recursively reconstructs and replays every exact prefix and leaf;
+AArch64 uses the same branch-free replay. Affine cleanup remains a separately
+bounded three-leaf exception. Genuinely reconvergent control remains outside
+this theorem. Evidence binds every crashing leaf; object
 construction requires each such region to end in exact x86 `UD2` or AArch64
 `BRK #0` while independently replaying any returning region. The same evidence
 carries ordered x86 division diamonds from the condition or returning arm,

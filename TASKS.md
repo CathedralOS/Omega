@@ -647,20 +647,15 @@ reach or trust, and private proof improvements do not change public identity.
   Evidence binds the crashing arm set and replays each exact `UD2`/`BRK`
   terminal through installation; any returning arm remains directly
   accountable. Ordered x86 division diamonds from the condition or returning
-  arm retain the same composite path proof. One nested language decision in
-  either outer arm now retains exact two-branch/three-return evidence without
-  requiring affine cleanup records; object construction replays all three
-  leaves. The symmetric shape with one nested decision in both outer arms now
-  retains three exact branches and four independently replayed return leaves.
-  The three-leaf shape may bind any nested return leaf as a canonical crash and
-  validates its exact terminal independently; the four-leaf shape retains the
-  same physical DFS crash bitmap. Division/remainder is now accountable across
-  both bounded nested shapes: one ordered x86 diamond ledger is partitioned
-  across outer and nested expression-condition prefixes and every returning
-  leaf, while AArch64 retains the corresponding branch-free evidence. Object
-  construction independently replays each region, rejects cross-region or
-  forged diamonds, and preserves the result through image installation. Extend
-  accounting to deeper trees and genuinely reconvergent conditionals.
+  arm retain the same composite path proof. Every accountable acyclic
+  conditional-control tree now uses one depth-independent evidence shape:
+  physically ordered decisions, a true-before-false DFS crash bitmap, and one
+  ordered x86 division-diamond ledger. Object construction reconstructs the
+  exact nested regions, replays every expression prefix and terminal leaf,
+  rejects malformed topology or cross-region diamonds, and preserves the
+  result through image installation. Affine cleanup remains the intentionally
+  bounded three-leaf exception. Extend accounting to genuinely reconvergent
+  conditionals.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root

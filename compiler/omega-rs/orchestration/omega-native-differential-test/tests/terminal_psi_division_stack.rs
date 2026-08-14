@@ -97,7 +97,7 @@ fn conditional_arm_division_stack_facts_survive_object_image_and_installation() 
             .expect("conditional division stack evidence");
         assert!(matches!(
             stack.control_flow,
-            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+            TerminalScalarControlFlowEvidence::ConditionalTree { .. }
         ));
 
         let artifact = build_terminal_object_artifact(&emitted)
@@ -133,22 +133,19 @@ fn signed_x86_conditional_division_diamond_survives_installation_and_rejects_for
         .scalar_stack
         .as_ref()
         .expect("signed x86 conditional division stack evidence");
-    let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
-        branches, ..
-    } = &stack.control_flow
+    let TerminalScalarControlFlowEvidence::ConditionalTree { branches, .. } = &stack.control_flow
     else {
         panic!("signed x86 conditional division must retain composite evidence")
     };
     assert_eq!(branches.len(), 1);
 
     let mut forged = emitted.clone();
-    let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
-        branches, ..
-    } = &mut forged.functions[0]
-        .scalar_stack
-        .as_mut()
-        .expect("forged stack evidence")
-        .control_flow
+    let TerminalScalarControlFlowEvidence::ConditionalTree { branches, .. } = &mut forged.functions
+        [0]
+    .scalar_stack
+    .as_mut()
+    .expect("forged stack evidence")
+    .control_flow
     else {
         unreachable!()
     };
@@ -193,8 +190,8 @@ fn signed_x86_return_crash_division_stack_facts_survive_installation() {
     let assigned = assign_registers(&plan).expect("assign signed x86 return/crash division");
     let emitted =
         emit_machine_code(&assigned).expect("emit signed x86 return/crash division evidence");
-    let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
-        crash_arms,
+    let TerminalScalarControlFlowEvidence::ConditionalTree {
+        crash_leaves,
         branches,
         ..
     } = &emitted.functions[0]
@@ -205,10 +202,7 @@ fn signed_x86_return_crash_division_stack_facts_survive_installation() {
     else {
         panic!("signed x86 return/crash division must retain composite evidence")
     };
-    assert_eq!(
-        *crash_arms,
-        omega_terminal_machine_code::TerminalScalarConditionalCrashArms::False
-    );
+    assert_eq!(crash_leaves, &[false, true]);
     assert_eq!(branches.len(), 1);
 
     let artifact = build_terminal_object_artifact(&emitted)
@@ -239,13 +233,11 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
                 assign_registers(&conditional_return_crash_plan(target, crash_false_arm))
                     .expect("assign conditional return/crash");
             let emitted = emit_machine_code(&assigned).expect("emit conditional return/crash");
-            let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
-                branch_offset,
-                branch_byte_count,
-                false_arm_offset,
-                crash_arms,
+            let TerminalScalarControlFlowEvidence::ConditionalTree {
+                decisions,
+                crash_leaves,
                 ..
-            } = emitted.functions[0]
+            } = &emitted.functions[0]
                 .scalar_stack
                 .as_ref()
                 .expect("conditional return/crash stack evidence")
@@ -253,12 +245,13 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
             else {
                 panic!("conditional return/crash must retain terminal evidence")
             };
+            let branch = decisions[0];
             assert_eq!(
-                crash_arms,
+                crash_leaves,
                 if crash_false_arm {
-                    omega_terminal_machine_code::TerminalScalarConditionalCrashArms::False
+                    &[false, true]
                 } else {
-                    omega_terminal_machine_code::TerminalScalarConditionalCrashArms::True
+                    &[true, false]
                 }
             );
 
@@ -266,7 +259,7 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
             let crash_region_end = if crash_false_arm {
                 forged.functions[0].bytes.len()
             } else {
-                false_arm_offset
+                branch.false_arm_offset
             };
             forged.functions[0].bytes[crash_region_end - 1] ^= 1;
             assert!(build_terminal_object_artifact(&forged).is_err());
@@ -290,7 +283,7 @@ fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery(
                 derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
                     .expect("recompose installed conditional return/crash demand");
             assert_eq!(installed, demand);
-            assert!(branch_offset + branch_byte_count <= false_arm_offset);
+            assert!(branch.branch_offset + branch.branch_byte_count <= branch.false_arm_offset);
         }
     }
 }
@@ -312,9 +305,9 @@ fn conditional_two_crash_stack_facts_survive_installation_and_reject_forgery() {
         });
         let assigned = assign_registers(&plan).expect("assign two-crash conditional");
         let emitted = emit_machine_code(&assigned).expect("emit two-crash conditional");
-        let TerminalScalarControlFlowEvidence::TopLevelWithCrash {
-            false_arm_offset,
-            crash_arms,
+        let TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions,
+            crash_leaves,
             branches,
             ..
         } = &emitted.functions[0]
@@ -325,13 +318,13 @@ fn conditional_two_crash_stack_facts_survive_installation_and_reject_forgery() {
         else {
             panic!("two-crash conditional must retain terminal evidence")
         };
-        assert_eq!(
-            *crash_arms,
-            omega_terminal_machine_code::TerminalScalarConditionalCrashArms::Both
-        );
+        assert_eq!(crash_leaves, &[true, true]);
         assert!(branches.is_empty());
 
-        for crash_region_end in [*false_arm_offset, emitted.functions[0].bytes.len()] {
+        for crash_region_end in [
+            decisions[0].false_arm_offset,
+            emitted.functions[0].bytes.len(),
+        ] {
             let mut forged = emitted.clone();
             forged.functions[0].bytes[crash_region_end - 1] ^= 1;
             assert!(build_terminal_object_artifact(&forged).is_err());
@@ -430,7 +423,7 @@ fn conditional_condition_division_stack_facts_survive_object_image_and_installat
             .expect("conditional division condition stack evidence");
         assert!(matches!(
             stack.control_flow,
-            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+            TerminalScalarControlFlowEvidence::ConditionalTree { .. }
         ));
 
         let artifact = build_terminal_object_artifact(&emitted)
@@ -469,7 +462,7 @@ fn conditional_call_argument_division_stack_facts_survive_installation() {
             .expect("conditional division call stack evidence");
         assert!(matches!(
             stack.control_flow,
-            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+            TerminalScalarControlFlowEvidence::ConditionalTree { .. }
         ));
         assert_eq!(caller.internal_calls.len(), 2);
         assert!(

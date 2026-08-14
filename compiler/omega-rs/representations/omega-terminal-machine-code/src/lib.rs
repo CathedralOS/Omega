@@ -384,76 +384,14 @@ pub enum TerminalScalarControlFlowEvidence {
     LinearWithDivisionBranches {
         branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
-    /// One top-level Boolean branch followed by two independently returning
-    /// linear integer arms. The true arm begins directly after the branch and
-    /// ends where the false arm begins; the false arm ends at the function
-    /// boundary.
-    TopLevelTwoReturn {
-        condition: TerminalScalarConditionalCondition,
-        branch_offset: usize,
-        branch_byte_count: usize,
-        false_arm_offset: usize,
-    },
-    /// The same top-level two-return shape with one or more compiler-generated
-    /// x86-64 signed division/remainder diamonds contained wholly within its
-    /// expression prefix or return arms. The object boundary partitions the
-    /// ordered diamonds by outer region and replays both paths of each one.
-    TopLevelTwoReturnWithDivisionBranches {
-        condition: TerminalScalarConditionalCondition,
-        branch_offset: usize,
-        branch_byte_count: usize,
-        false_arm_offset: usize,
-        branches: Vec<TerminalScalarDivisionBranchEvidence>,
-    },
-    /// One top-level Boolean branch with one or both physical arms ending in
-    /// the target's canonical no-successor crash instruction.
-    TopLevelWithCrash {
-        condition: TerminalScalarConditionalCondition,
-        branch_offset: usize,
-        branch_byte_count: usize,
-        false_arm_offset: usize,
-        crash_arms: TerminalScalarConditionalCrashArms,
-        /// Ordered compiler-generated x86 division diamonds contained in the
-        /// expression prefix or returning arm. Empty on AArch64 and
-        /// branch-free x86 paths.
-        branches: Vec<TerminalScalarDivisionBranchEvidence>,
-    },
-    /// Exactly two Boolean decisions and three independently returning leaves.
-    /// The root is followed by its true arm and then its false arm; `nested_arm`
-    /// identifies which root arm contains the sole nested decision. The three
-    /// corresponding cleanup records, when present, remain in physical
-    /// true-before-false DFS order on the containing function.
-    TopLevelTwoDecisionThreeReturn {
-        root: TerminalScalarConditionalBranchEvidence,
-        nested: TerminalScalarConditionalBranchEvidence,
-        nested_arm: TerminalScalarConditionalArm,
-        branches: Vec<TerminalScalarDivisionBranchEvidence>,
-    },
-    /// The same two-decision physical tree with one or more leaves ending in
-    /// the target's canonical crash instruction. `crash_leaves` follows the
-    /// physical true-before-false DFS leaf order.
-    TopLevelTwoDecisionThreeTerminal {
-        root: TerminalScalarConditionalBranchEvidence,
-        nested: TerminalScalarConditionalBranchEvidence,
-        nested_arm: TerminalScalarConditionalArm,
-        crash_leaves: [bool; 3],
-        branches: Vec<TerminalScalarDivisionBranchEvidence>,
-    },
-    /// Exactly three Boolean decisions and four independently returning leaves:
-    /// each physical arm of `root` contains one further decision.
-    TopLevelThreeDecisionFourReturn {
-        root: TerminalScalarConditionalBranchEvidence,
-        true_nested: TerminalScalarConditionalBranchEvidence,
-        false_nested: TerminalScalarConditionalBranchEvidence,
-        branches: Vec<TerminalScalarDivisionBranchEvidence>,
-    },
-    /// The same symmetric four-leaf tree with one or more canonical crash
-    /// terminals in physical true-before-false DFS order.
-    TopLevelThreeDecisionFourTerminal {
-        root: TerminalScalarConditionalBranchEvidence,
-        true_nested: TerminalScalarConditionalBranchEvidence,
-        false_nested: TerminalScalarConditionalBranchEvidence,
-        crash_leaves: [bool; 4],
+    /// One acyclic Boolean decision tree whose branches are retained in
+    /// increasing physical code order. Its terminal bitmap is in physical
+    /// true-before-false DFS order and therefore contains exactly one more
+    /// entry than `decisions`. Ordered x86 division diamonds are partitioned
+    /// across decision prefixes and returning leaves during object replay.
+    ConditionalTree {
+        decisions: Vec<TerminalScalarConditionalBranchEvidence>,
+        crash_leaves: Vec<bool>,
         branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
 }
@@ -474,19 +412,6 @@ pub struct TerminalScalarConditionalBranchEvidence {
     pub branch_offset: usize,
     pub branch_byte_count: usize,
     pub false_arm_offset: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalScalarConditionalArm {
-    True,
-    False,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalScalarConditionalCrashArms {
-    True,
-    False,
-    Both,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
