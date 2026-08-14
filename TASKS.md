@@ -660,9 +660,11 @@ reach or trust, and private proof improvements do not change public identity.
   leaf, while AArch64 retains the corresponding branch-free evidence. Object
   construction independently replays each region, rejects cross-region or
   forged diamonds, and preserves the result through image installation. Extend
-  accounting to deeper trees, genuinely reconvergent conditionals, and
-  provider-sized external adapter/arrival state before calling it a complete
-  root `StackPlan`; zero-byte internal closures remain inadmissible until that
+  accounting to deeper trees and genuinely reconvergent conditionals.
+  Provider-sized external adapter/arrival state is design-blocked on
+  `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
+  switched entry must be settled before this can become a complete root
+  `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
