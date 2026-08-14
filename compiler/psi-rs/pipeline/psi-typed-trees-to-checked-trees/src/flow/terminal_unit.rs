@@ -823,7 +823,7 @@ fn build_structural_scalar_return_machine(
         scalar_parameters.len(),
         binding_count,
     );
-    let final_binding_is_inlined_short_circuit_return = binding_count > 0
+    let final_binding_is_source_distributed_short_circuit_return = binding_count > 0
         && binding_branch_free[..binding_count - 1]
             .iter()
             .all(|branch_free| *branch_free)
@@ -856,9 +856,9 @@ fn build_structural_scalar_return_machine(
                 ) && checked_boolean_local_reference_count(
                     expression,
                     scalar_parameters.len() + binding_count - 1,
-                ) == 1
+                ) > 0
         );
-    let final_short_circuit_continuation_chain_is_inlined = binding_count >= 2
+    let final_short_circuit_continuation_chain_is_source_distributed = binding_count >= 2
         && binding_branch_free
             .iter()
             .rposition(|branch_free| !*branch_free)
@@ -920,7 +920,7 @@ fn build_structural_scalar_return_machine(
                                         ) && checked_boolean_local_reference_count(
                                             expression,
                                             scalar_parameters.len() + continuation_index - 1,
-                                        ) == 1
+                                        ) > 0
                                 )
                             })
                     })
@@ -957,8 +957,8 @@ fn build_structural_scalar_return_machine(
         && (structural_parameters.len() != whole_discards.len()
             || !(bindings_are_branch_free
                 && (return_is_branch_free || return_is_one_short_circuit_boolean)
-                || final_binding_is_inlined_short_circuit_return
-                || final_short_circuit_continuation_chain_is_inlined))
+                || final_binding_is_source_distributed_short_circuit_return
+                || final_short_circuit_continuation_chain_is_source_distributed))
     {
         return None;
     }
