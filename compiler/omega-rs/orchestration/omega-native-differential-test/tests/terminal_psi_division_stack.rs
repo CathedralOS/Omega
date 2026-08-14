@@ -176,6 +176,62 @@ fn signed_x86_conditional_division_diamond_survives_installation_and_rejects_for
 }
 
 #[test]
+fn signed_x86_return_crash_division_stack_facts_survive_installation() {
+    let target = NativeTarget::linux_x64();
+    let mut plan = conditional_arm_division_plan(target, true);
+    let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
+        &mut plan.functions[0].operation
+    else {
+        unreachable!()
+    };
+    when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
+        psi_crash_edge: edge_id(4),
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    });
+    let assigned = assign_registers(&plan).expect("assign signed x86 return/crash division");
+    let emitted =
+        emit_machine_code(&assigned).expect("emit signed x86 return/crash division evidence");
+    let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+        crash_arm,
+        branches,
+        ..
+    } = &emitted.functions[0]
+        .scalar_stack
+        .as_ref()
+        .expect("signed x86 return/crash division stack evidence")
+        .control_flow
+    else {
+        panic!("signed x86 return/crash division must retain composite evidence")
+    };
+    assert_eq!(
+        *crash_arm,
+        omega_terminal_machine_code::TerminalScalarConditionalArm::False
+    );
+    assert_eq!(branches.len(), 1);
+
+    let artifact = build_terminal_object_artifact(&emitted)
+        .expect("object boundary replays the return, crash, and division paths");
+    let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+        .expect("derive signed x86 return/crash division demand");
+    let image = emit_terminal_executable_image(&artifact, 21)
+        .expect("emit signed x86 return/crash division executable image");
+    let installation = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(7).expect("profile decision"),
+    )
+    .expect("build signed x86 return/crash division installation record");
+    let encoded = encode_terminal_installation_record(&installation)
+        .expect("encode signed x86 return/crash division installation record");
+    let decoded = decode_terminal_installation_record(&encoded)
+        .expect("decode signed x86 return/crash division installation record");
+    let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+        .expect("recompose installed signed x86 return/crash division demand");
+    assert_eq!(installed, demand);
+}
+
+#[test]
 fn conditional_return_crash_stack_facts_survive_installation_and_reject_forgery() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         for crash_false_arm in [false, true] {

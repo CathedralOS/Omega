@@ -823,11 +823,12 @@ reconvergent control remains outside this bounded theorem. One additional
 bounded terminal shape is retained: exactly one direct accountable return arm
 and one direct crash arm. Its evidence binds which arm crashes; object
 construction requires that region to end in exact x86 `UD2` or AArch64 `BRK #0`
-while independently replaying the returning region. Division-bearing
-return/crash combinations, two-crash conditionals, external
-adapter/interrupt-arrival state, and other terminal function forms are not yet
-part of that theorem, so the inspection surface still makes no installed-root
-WCSU claim.
+while independently replaying the returning region. The same evidence carries
+ordered x86 division diamonds from the condition or returning arm, including
+signed policy forms, and partitions them away from the crash region. Two-crash
+conditionals, external adapter/interrupt-arrival state, and other terminal
+function forms are not yet part of that theorem, so the inspection surface
+still makes no installed-root WCSU claim.
 
 ## Implementation queue
 
