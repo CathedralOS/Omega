@@ -437,6 +437,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic - -1i8) < 4i8)
             && ((signed_arithmetic * 3i8) < 4i8)
             && ((signed_arithmetic * -3i8) < 4i8)
+            && ((signed_arithmetic / 2i8) < 4i8)
+            && ((signed_arithmetic % -2i8) <= 1i8)
             && (input == 3u64)
             && enabled;
         staged
@@ -2007,6 +2009,38 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let signed_division_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                left, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
+                left, obligation, ..
+            } if left == signed_arithmetic_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(entry.blocks.iter().any(|block| block.operations.iter().any(
+        |operation| matches!(operation.kind, OperationKind::ExactIntegerDivide { left, .. }
+            if left == signed_arithmetic_parameter)
+    )));
+    assert!(entry.blocks.iter().any(|block| block.operations.iter().any(
+        |operation| matches!(operation.kind, OperationKind::ExactIntegerRemainder { left, .. }
+            if left == signed_arithmetic_parameter)
+    )));
+    assert!(signed_division_obligations.len() >= 2);
+    for obligation in &signed_division_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_divide_obligation = entry
         .blocks
         .iter()
@@ -2330,6 +2364,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ),
             Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
                 if obligation == *signed_multiply_obligation
+        ));
+    }
+    for signed_division_obligation in &signed_division_obligations {
+        let mut missing_signed_division_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_signed_division_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *signed_division_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_signed_division_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == *signed_division_obligation
         ));
     }
     let mut missing_runtime_subtract_proof =
@@ -2745,6 +2795,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && signed_arithmetic + 1 < 4
                     && signed_arithmetic * 3 < 4
                     && signed_arithmetic * -3 < 4
+                    && signed_arithmetic / 2 < 4
+                    && signed_arithmetic % -2 <= 1
                     && input == 3
                     && enabled
             ))

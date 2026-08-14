@@ -10701,13 +10701,10 @@ fn shared_integer_runtime_parameters_with_shells(
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
-            scalar_type: ScalarType::Integer(integer_type),
+            scalar_type: ScalarType::Integer(_),
             left,
             right,
-        } if proof_shell_allowed
-            && remaining_shells > 0
-            && integer_type.sign() == IntegerSign::Unsigned =>
-        {
+        } if proof_shell_allowed && remaining_shells > 0 => {
             let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
                 right, 0, false,
