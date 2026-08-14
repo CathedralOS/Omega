@@ -362,24 +362,36 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             }
         }
 
-        fn path_primitive_type(
+        fn path_type_reference(
             program: &TypedTrees,
             parameters: &[StateParameter],
             parameter_position: u32,
             path: &[String],
-        ) -> Option<PrimitiveType> {
+        ) -> Option<TypeReferenceHandle> {
             let Some(parameter) = usize::try_from(parameter_position)
                 .ok()
                 .and_then(|position| parameters.get(position))
             else {
                 return None;
             };
-            let leaf = path
-                .iter()
+            path.iter()
                 .try_fold(parameter.type_reference, |receiver, field| {
                     field_type(program, receiver, field)
-                })?;
-            program.primitive_type_reference(leaf)
+                })
+        }
+
+        fn path_primitive_type(
+            program: &TypedTrees,
+            parameters: &[StateParameter],
+            parameter_position: u32,
+            path: &[String],
+        ) -> Option<PrimitiveType> {
+            program.primitive_type_reference(path_type_reference(
+                program,
+                parameters,
+                parameter_position,
+                path,
+            )?)
         }
 
         fn whole_parameter_position(
@@ -549,30 +561,71 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 
         fn lower_structural_integer_expression(
             program: &TypedTrees,
+            operators: &CheckedOperatorFacts,
             parameters: &[StateParameter],
             expression: ExpressionHandle,
-        ) -> Option<CheckedScalarExpression> {
+        ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
             let mut path = Vec::new();
             if let Some(parameter_position) =
                 structural_parameter_field_path(program, parameters, expression, &mut path)
                 && !path.is_empty()
-                && let Some(primitive_type) =
-                    path_primitive_type(program, parameters, parameter_position, &path)
+                && let Some(type_reference) =
+                    path_type_reference(program, parameters, parameter_position, &path)
+                && let Some(primitive_type) = program.primitive_type_reference(type_reference)
                 && is_integer(primitive_type)
             {
-                return Some(CheckedScalarExpression::StructuralParameterField {
-                    parameter_position,
-                    path,
-                    primitive_type,
-                });
+                return Some((
+                    CheckedScalarExpression::StructuralParameterField {
+                        parameter_position,
+                        path,
+                        primitive_type,
+                    },
+                    program.arithmetic_domain_for_type_reference(type_reference),
+                ));
             }
-            let ExpressionNode::Integer(literal) = program.expression_table.expression(expression)
-            else {
-                return None;
-            };
-            Some(CheckedScalarExpression::IntegerLiteral {
-                literal: literal.clone(),
-            })
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Integer(literal) => Some((
+                    CheckedScalarExpression::IntegerLiteral {
+                        literal: literal.clone(),
+                    },
+                    literal
+                        .landing()
+                        .map(|landing| landing.domain)
+                        .unwrap_or(ArithmeticDomain::Exact),
+                )),
+                ExpressionNode::Binary(binary)
+                    if binary.operator == BinaryOperator::Add
+                        && operator_is_builtin(operators, expression) =>
+                {
+                    let (left, left_domain) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.left,
+                    )?;
+                    let (right, right_domain) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.right,
+                    )?;
+                    let primitive_type = scalar_expression_type(&left)?;
+                    let domain = combine_arithmetic_domains(left_domain, right_domain)?;
+                    (domain == ArithmeticDomain::Exact
+                        && is_integer(primitive_type)
+                        && scalar_expression_type(&right) == Some(primitive_type))
+                    .then_some((
+                        CheckedScalarExpression::IntegerBinary {
+                            kind: CheckedIntegerBinaryKind::ExactAdd,
+                            primitive_type,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        },
+                        domain,
+                    ))
+                }
+                _ => None,
+            }
         }
 
         let mut path = Vec::new();
@@ -630,10 +683,18 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 ) && operator_is_builtin(operators, expression) =>
             {
                 let integer_operands = (|| {
-                    let left =
-                        lower_structural_integer_expression(program, parameters, binary.left)?;
-                    let right =
-                        lower_structural_integer_expression(program, parameters, binary.right)?;
+                    let (left, _) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.left,
+                    )?;
+                    let (right, _) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.right,
+                    )?;
                     let left_type = scalar_expression_type(&left)?;
                     (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
                         .then_some((left, right))
