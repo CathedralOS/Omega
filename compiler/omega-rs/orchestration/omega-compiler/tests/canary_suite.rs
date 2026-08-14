@@ -8943,10 +8943,11 @@ fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_ranged_divide_modulo_chain_exit");
     let scratch = std::env::temp_dir().join(format!("omega-ranged-divmod-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged divide/modulo chain canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("ranged divide/modulo chain canary should run");
 
@@ -8969,10 +8970,11 @@ fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_ranged_bitwise_and_mask_exit");
     let scratch = std::env::temp_dir().join(format!("omega-ranged-andmask-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged bitwise-and mask canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("ranged bitwise-and mask canary should run");
 
@@ -9053,10 +9055,11 @@ fn runtime_expression_range_bound_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-expr-range-bound-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("expression range bound canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("expression range bound canary should run");
 
@@ -45952,6 +45955,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
+    "arithmetic/runtime_expression_range_bound_exit",
+    "arithmetic/runtime_ranged_bitwise_and_mask_exit",
+    "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
@@ -46318,6 +46324,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
+    "arithmetic/runtime_expression_range_bound_exit",
+    "arithmetic/runtime_ranged_bitwise_and_mask_exit",
+    "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
