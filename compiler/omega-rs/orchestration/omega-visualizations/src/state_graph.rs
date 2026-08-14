@@ -163,7 +163,8 @@ fn machine_label(
         &graph.semantics.service_reach.services,
         &graph.semantics.service_reach.rows,
         machine.service_reach,
-        machine.operational,
+        machine.suspension,
+        machine.blocking,
     );
     label
 }
@@ -183,7 +184,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         &graph.semantics.service_reach.services,
         &graph.semantics.service_reach.rows,
         state.service_reach,
-        state.operational,
+        state.suspension,
+        state.blocking,
     );
 
     for call in graph

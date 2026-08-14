@@ -163,7 +163,8 @@ fn machine_label(
         &plan.semantics.service_reach.services,
         &plan.semantics.service_reach.rows,
         machine.service_reach,
-        machine.operational,
+        machine.suspension,
+        machine.blocking,
     );
     label
 }
@@ -183,7 +184,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
         &plan.semantics.service_reach.services,
         &plan.semantics.service_reach.rows,
         state.service_reach,
-        state.operational,
+        state.suspension,
+        state.blocking,
     );
 
     for call in plan

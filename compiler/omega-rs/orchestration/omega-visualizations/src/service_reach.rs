@@ -1,6 +1,6 @@
 use psi_language_semantics::{
-    OperationalMaySummary, ServiceReachRowId, ServiceReachRowTable, ServiceReachSummary,
-    ServiceReachTable,
+    BlockingSummary, ServiceReachRowId, ServiceReachRowTable, ServiceReachSummary,
+    ServiceReachTable, SuspensionSummary,
 };
 
 pub(crate) fn service_names(
@@ -20,20 +20,21 @@ pub(crate) fn append_reach_and_operation_lines(
     services: &ServiceReachTable,
     rows: &ServiceReachRowTable,
     reach: ServiceReachSummary,
-    operational: OperationalMaySummary,
+    suspension: SuspensionSummary,
+    blocking: BlockingSummary,
 ) {
     label.push_str("\ndirect service reach: ");
     append_service_row(label, services, rows, reach.direct);
     label.push_str("\nreached service reach: ");
     append_service_row(label, services, rows, reach.transitive);
     label.push_str("\nsuspension: direct ");
-    label.push_str(yes_no(operational.direct_may_suspend));
+    label.push_str(yes_no(suspension.direct_may_suspend));
     label.push_str(", reached ");
-    label.push_str(yes_no(operational.transitive_may_suspend));
+    label.push_str(yes_no(suspension.transitive_may_suspend));
     label.push_str("\nblocking: direct ");
-    label.push_str(yes_no(operational.direct_may_block));
+    label.push_str(yes_no(blocking.direct_may_block));
     label.push_str(", reached ");
-    label.push_str(yes_no(operational.transitive_may_block));
+    label.push_str(yes_no(blocking.transitive_may_block));
 }
 
 fn append_service_row(
@@ -58,7 +59,8 @@ fn yes_no(value: bool) -> &'static str {
 mod tests {
     use super::append_reach_and_operation_lines;
     use psi_language_semantics::{
-        OperationalMaySummary, ServiceReachRowTable, ServiceReachSummary, ServiceReachTable,
+        BlockingSummary, ServiceReachRowTable, ServiceReachSummary, ServiceReachTable,
+        SuspensionSummary,
     };
     use psi_symbols::SymbolHandle;
 
@@ -77,9 +79,11 @@ mod tests {
             &services,
             &rows,
             ServiceReachSummary { direct, transitive },
-            OperationalMaySummary {
+            SuspensionSummary {
                 direct_may_suspend: false,
                 transitive_may_suspend: true,
+            },
+            BlockingSummary {
                 direct_may_block: true,
                 transitive_may_block: true,
             },

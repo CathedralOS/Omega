@@ -372,6 +372,24 @@ pub struct OperationalMaySummary {
     pub transitive_may_block: bool,
 }
 
+/// Suspension possibility attached to one flow/graph scope. Kept separate
+/// from blocking so downstream consumers cannot accidentally treat parking an
+/// activation as occupying its worker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SuspensionSummary {
+    pub direct_may_suspend: bool,
+    pub transitive_may_suspend: bool,
+}
+
+/// Worker-blocking possibility attached to one flow/graph scope. Kept
+/// separate from suspension because the two public may-ceilings compose and
+/// admit independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BlockingSummary {
+    pub direct_may_block: bool,
+    pub transitive_may_block: bool,
+}
+
 /// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
 /// are FIXED (deterministic across programs — they may enter proof-cache
 /// keys); user-declared measures are NOT here (they get per-program

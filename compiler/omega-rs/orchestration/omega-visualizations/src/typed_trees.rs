@@ -153,7 +153,7 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
                 "machine",
                 1,
             );
-            let (service_reach, _) = behavior.machine(machine.symbol);
+            let (service_reach, _, _) = behavior.machine(machine.symbol);
             diagram.node_service_reaches(
                 &machine_id,
                 service_names(
@@ -518,13 +518,14 @@ fn machine_label(
         attached_data,
         machine.satisfies.len(),
     );
-    let (service_reach, operational) = behavior.machine(machine.symbol);
+    let (service_reach, suspension, blocking) = behavior.machine(machine.symbol);
     append_reach_and_operation_lines(
         &mut label,
         &program.service_reaches,
         behavior.service_rows(),
         service_reach,
-        operational,
+        suspension,
+        blocking,
     );
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
@@ -606,7 +607,7 @@ fn append_call_references(
             continue;
         }
 
-        let (service_reach, operational) =
+        let (service_reach, suspension, blocking) =
             behavior.call(state_symbol, statement_index, call.target_symbol);
         let mut label = format!(
             "{}\n{}",
@@ -618,7 +619,8 @@ fn append_call_references(
             &program.service_reaches,
             behavior.service_rows(),
             service_reach,
-            operational,
+            suspension,
+            blocking,
         );
         label.push_str("\n\ndouble-click to scope target");
         let call_id = diagram.scoped_node(
@@ -762,7 +764,7 @@ fn append_state(
         "state",
         2,
     );
-    let (service_reach, _) = behavior.state(state.symbol);
+    let (service_reach, _, _) = behavior.state(state.symbol);
     diagram.node_service_reaches(
         &state_id,
         service_names(
@@ -793,13 +795,14 @@ fn state_label(program: &TypedTrees, behavior: &TypedBehaviorPlan, state: &State
         symbol_label(state.symbol),
         state.parameters.len(),
     );
-    let (service_reach, operational) = behavior.state(state.symbol);
+    let (service_reach, suspension, blocking) = behavior.state(state.symbol);
     append_reach_and_operation_lines(
         &mut label,
         &program.service_reaches,
         behavior.service_rows(),
         service_reach,
-        operational,
+        suspension,
+        blocking,
     );
 
     for (statement_index, statement) in program

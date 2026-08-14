@@ -1,5 +1,5 @@
 use psi_arena::HandleSpan;
-use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};
+use psi_language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::types::TypeReferenceHandle;
@@ -28,7 +28,8 @@ pub struct MachineFlow {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
     pub service_reach: ServiceReachSummary,
-    pub operational: OperationalMaySummary,
+    pub suspension: SuspensionSummary,
+    pub blocking: BlockingSummary,
     pub contains: HandleSpan<ContainedFlow>,
     pub owned_data: HandleSpan<MachineOwnedDataFlow>,
     pub states: HandleSpan<StateFlow>,
@@ -41,7 +42,8 @@ impl Default for MachineFlow {
             name: Identifier::default(),
             attached_data: None,
             service_reach: ServiceReachSummary::default(),
-            operational: OperationalMaySummary::default(),
+            suspension: SuspensionSummary::default(),
+            blocking: BlockingSummary::default(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             states: HandleSpan::empty(),
@@ -70,7 +72,8 @@ pub struct StateFlow {
     pub name: Identifier,
     pub index: usize,
     pub service_reach: ServiceReachSummary,
-    pub operational: OperationalMaySummary,
+    pub suspension: SuspensionSummary,
+    pub blocking: BlockingSummary,
     pub parameters: HandleSpan<StateParameterFlow>,
     pub contracts: StateContractSummary,
     pub values: StateValueSummary,
@@ -88,7 +91,8 @@ impl Default for StateFlow {
             name: Identifier::default(),
             index: 0,
             service_reach: ServiceReachSummary::default(),
-            operational: OperationalMaySummary::default(),
+            suspension: SuspensionSummary::default(),
+            blocking: BlockingSummary::default(),
             parameters: HandleSpan::empty(),
             contracts: StateContractSummary::default(),
             values: StateValueSummary::default(),

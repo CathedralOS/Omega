@@ -8,7 +8,9 @@ use psi_diagnostics::Diagnostic;
 use crate::borrows::state_borrow_summary;
 use crate::boundaries::state_boundary_summary;
 use crate::contracts::state_contract_summary;
-use crate::machine_metadata::{state_operational_summary, state_service_reach};
+use crate::machine_metadata::{
+    state_blocking_summary, state_service_reach, state_suspension_summary,
+};
 use crate::ownership::state_ownership_summary;
 use crate::segments::{SegmentTransition, StateSegment, segment_has_unconditional_transition};
 use crate::transitions::plan_transition;
@@ -42,7 +44,8 @@ pub(crate) fn append_machine_states(
                 name: segment.name.clone(),
                 index,
                 service_reach: state_service_reach(program, segment.key.state),
-                operational: state_operational_summary(program, segment.key.state),
+                suspension: state_suspension_summary(program, segment.key.state),
+                blocking: state_blocking_summary(program, segment.key.state),
                 parameters: segment.parameters,
                 contracts,
                 values,

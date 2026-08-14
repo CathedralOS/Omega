@@ -29,7 +29,8 @@ pub(crate) fn remap_state_owned(state: StateNode) -> StateFlow {
         name: state.name,
         index: state.index,
         service_reach: state.service_reach,
-        operational: state.operational,
+        suspension: state.suspension,
+        blocking: state.blocking,
         parameters: remap_parameter_span(state.parameters),
         contracts: remap_contract_summary(&state.contracts),
         values: remap_value_summary(&state.values),
@@ -64,7 +65,8 @@ fn remap_state(
         name: state.name.clone(),
         index: state.index,
         service_reach: state.service_reach,
-        operational: state.operational,
+        suspension: state.suspension,
+        blocking: state.blocking,
         parameters: state_parameters.insert_many(
             state_graph
                 .state_parameters(state)
