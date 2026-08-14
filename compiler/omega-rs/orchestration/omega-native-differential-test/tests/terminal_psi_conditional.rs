@@ -65,7 +65,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "b00c56b155766fa87578beac25fb3cfbbf67b19da2a3fbafa95f5ad23de11e75"
+        "7f3b466016d83d0a077199c11d61ea6b2cc93b04129bde7eb175c62c74a675f5"
     );
     let bytes = encode_module(&module).expect("canonical bytes");
     let decoded = decode_module(&bytes).expect("decode canonical module");
