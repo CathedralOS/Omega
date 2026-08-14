@@ -166,6 +166,7 @@ fn validate_evidence_contract_lanes(
         .collect::<BTreeMap<_, _>>();
     let mut next_positions = BTreeMap::new();
     let mut used_terms = BTreeSet::new();
+    let mut output_fields = BTreeSet::new();
     for lane in &module.evidence_contract_lanes {
         if !machines.contains_key(&lane.machine) {
             return Err(ModuleError::UnknownEvidenceContractMachine(lane.machine));
@@ -182,6 +183,34 @@ fn validate_evidence_contract_lanes(
             return Err(ModuleError::EvidenceContractTermMismatch(lane.term));
         }
         used_terms.insert(lane.term);
+        match (&lane.kind, &lane.output_field) {
+            (EvidenceContractLaneKind::Requires, None) => {}
+            (EvidenceContractLaneKind::Ensures, Some(field))
+                if !field.is_empty()
+                    && field != "value"
+                    && output_fields.insert((lane.machine, field.as_str())) => {}
+            (EvidenceContractLaneKind::Requires, Some(_)) => {
+                return Err(ModuleError::EvidenceRequiresHasOutputField {
+                    machine: lane.machine,
+                    position: lane.position,
+                });
+            }
+            (EvidenceContractLaneKind::Ensures, None) => {
+                return Err(ModuleError::MissingEvidenceOutputField {
+                    machine: lane.machine,
+                    position: lane.position,
+                });
+            }
+            (EvidenceContractLaneKind::Ensures, Some(field)) if field == "value" => {
+                return Err(ModuleError::ReservedEvidenceOutputField(lane.machine));
+            }
+            (EvidenceContractLaneKind::Ensures, Some(field)) if field.is_empty() => {
+                return Err(ModuleError::InvalidEvidenceOutputField(lane.machine));
+            }
+            (EvidenceContractLaneKind::Ensures, Some(_)) => {
+                return Err(ModuleError::DuplicateEvidenceOutputField(lane.machine));
+            }
+        }
         let expected = next_positions
             .entry((lane.machine, lane.kind))
             .or_insert(0_u32);
@@ -6419,6 +6448,17 @@ pub enum ModuleError {
         machine: MachineId,
         kind: EvidenceContractLaneKind,
     },
+    EvidenceRequiresHasOutputField {
+        machine: MachineId,
+        position: u32,
+    },
+    MissingEvidenceOutputField {
+        machine: MachineId,
+        position: u32,
+    },
+    InvalidEvidenceOutputField(MachineId),
+    ReservedEvidenceOutputField(MachineId),
+    DuplicateEvidenceOutputField(MachineId),
     OrphanEvidenceTerm(EvidenceTermId),
     EmptyPropositionIdentity,
     DuplicateMachine(MachineId),

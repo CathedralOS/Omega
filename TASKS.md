@@ -515,9 +515,12 @@ Remaining N6/N8 work:
   complete normalized realization rows. An ensures-only term verifies only
   through one matching row; missing, unused, malformed, reordered, or
   interface-mismatched rows reject. Provenance changes the proof fingerprint,
-  not terminal semantic identity, runtime, or fuel. Generated package fields do
-  not yet reference `EvidenceTermId`; continue there without folding provenance
-  into the term or treating display spelling as an identity oracle.
+  not terminal semantic identity, runtime, or fuel. Each ensured lane now also
+  retains its public generated-package field name beside the exact
+  `EvidenceTermId`; required lanes have no output field, `value` remains
+  reserved, and missing or duplicate names reject. Continue with package
+  projection without folding provenance into the term or treating display
+  spelling as an identity oracle.
   `value` is the runtime result;
   evidence erases, destructuring is complete or explicitly `_`, and guarded
   fields exist only in the matching refinement. Keep proposition,

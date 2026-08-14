@@ -422,8 +422,9 @@ Current ownership is:
   conformance, evidence trait, and normalized realization rows without source
   handles. The verifier admits an ensures-only term exactly through that row;
   provenance affects proof identity, never terminal semantic identity or
-  execution. Generated package fields do not yet reference term IDs. Boolean,
-  membership, fact-only, or non-nominal bindings reject.
+  execution. Each ensured terminal lane retains the public generated-package
+  field name beside its exact term ID; required lanes have no output field.
+  Boolean, membership, fact-only, or non-nominal bindings reject.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query

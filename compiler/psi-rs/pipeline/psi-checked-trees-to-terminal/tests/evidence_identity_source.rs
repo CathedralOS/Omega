@@ -107,12 +107,16 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
     assert_eq!(lanes.len(), 4);
     assert_eq!(lanes[0].kind, EvidenceContractLaneKind::Requires);
     assert_eq!(lanes[0].position, 0);
+    assert_eq!(lanes[0].output_field, None);
     assert_eq!(lanes[1].kind, EvidenceContractLaneKind::Requires);
     assert_eq!(lanes[1].position, 1);
+    assert_eq!(lanes[1].output_field, None);
     assert_eq!(lanes[2].kind, EvidenceContractLaneKind::Ensures);
     assert_eq!(lanes[2].position, 0);
+    assert_eq!(lanes[2].output_field.as_deref(), Some("outgoing_first"));
     assert_eq!(lanes[3].kind, EvidenceContractLaneKind::Ensures);
     assert_eq!(lanes[3].position, 1);
+    assert_eq!(lanes[3].output_field.as_deref(), Some("outgoing_second"));
     assert_eq!(lanes[0].term, lanes[2].term);
     assert_eq!(lanes[1].term, lanes[3].term);
     assert_ne!(lanes[0].term, lanes[1].term);
@@ -266,6 +270,43 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
         "strict lane position-to-term identity enters the fingerprint"
     );
 
+    let mut renamed = lowered.semantic_module.clone();
+    renamed.evidence_contract_lanes[2].output_field = Some("renamed".to_owned());
+    assert_ne!(
+        semantic_fingerprint(&renamed).expect("renamed output remains valid"),
+        baseline,
+        "the public generated-package field enters semantic identity"
+    );
+
+    let mut missing_field = lowered.semantic_module.clone();
+    missing_field.evidence_contract_lanes[2].output_field = None;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&missing_field),
+        Err(psi_terminal_verifier::ModuleError::MissingEvidenceOutputField { .. })
+    ));
+
+    let mut input_field = lowered.semantic_module.clone();
+    input_field.evidence_contract_lanes[0].output_field = Some("incoming_first".to_owned());
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&input_field),
+        Err(psi_terminal_verifier::ModuleError::EvidenceRequiresHasOutputField { .. })
+    ));
+
+    let mut reserved = lowered.semantic_module.clone();
+    reserved.evidence_contract_lanes[2].output_field = Some("value".to_owned());
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&reserved),
+        Err(psi_terminal_verifier::ModuleError::ReservedEvidenceOutputField(_))
+    ));
+
+    let mut duplicate = lowered.semantic_module.clone();
+    let field = duplicate.evidence_contract_lanes[2].output_field.clone();
+    duplicate.evidence_contract_lanes[3].output_field = field;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&duplicate),
+        Err(psi_terminal_verifier::ModuleError::DuplicateEvidenceOutputField(_))
+    ));
+
     let verified = psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -332,6 +373,12 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     assert_eq!(
         lowered.semantic_module.evidence_contract_lanes[0].kind,
         EvidenceContractLaneKind::Ensures
+    );
+    assert_eq!(
+        lowered.semantic_module.evidence_contract_lanes[0]
+            .output_field
+            .as_deref(),
+        Some("outgoing")
     );
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
     let producer = &lowered.proof_bundle.evidence_producers[0];

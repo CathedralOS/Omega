@@ -278,8 +278,10 @@ forwarded pair shares one ID. A selected producer instead carries a separate
 canonical proof-bundle provenance identity keyed to its fresh ensured term and
 retaining its exact conformance, evidence trait, and normalized rows. That
 provenance changes proof identity, not semantic identity or runtime behavior.
-Generated output fields do not yet refer to the term ID, so stable package
-projection remains unfinished.
+Each ensured terminal lane retains the public generated-package field name
+beside its exact term ID; required lanes have no output field and `value`
+remains reserved for the runtime result. Projection of the complete
+conformance surface remains unfinished.
 
 ## Explicit relevance
 

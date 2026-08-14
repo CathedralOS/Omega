@@ -137,9 +137,11 @@ own proof identity and retains the selected conformance, evidence trait, and
 complete normalized realization rows without source handles. Missing, unused,
 malformed, reordered, or interface-mismatched provenance rejects. The row
 changes the proof fingerprint, not terminal semantic identity, runtime, or
-fuel. Generated output fields do not yet reference `EvidenceTermId`, so stable
-package projection remains future work; diagnostic display spelling is never
-an identity oracle.
+fuel. Each ensured lane also retains its public generated-package field name
+beside the exact `EvidenceTermId`; required lanes have no output field, `value`
+remains reserved for the ordinary runtime result, and missing or duplicate
+names reject. Projection of the retained carrierless conformance surface
+remains future work; diagnostic display spelling is never an identity oracle.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

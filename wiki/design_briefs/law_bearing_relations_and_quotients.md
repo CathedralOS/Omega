@@ -502,9 +502,11 @@ and absence of orphan terms are verified. A producer-backed ensured term has a
 separate canonical proof-bundle provenance identity retaining its exact
 conformance, evidence trait, and complete normalized realization rows. The
 verifier accepts an ensures-only ID only through one matching row; that row
-changes proof identity, not semantic identity, runtime, or fuel. Generated
-package fields do not yet reference the ID, so package projection remains
-future work. A display spelling is never an identity oracle.
+changes proof identity, not semantic identity, runtime, or fuel. Each ensured
+lane retains its public generated-package field name beside the exact term ID;
+required lanes have no output field, and missing, reserved, or duplicate names
+reject. Projection of the complete conformance surface remains future work. A
+display spelling is never an identity oracle.
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.
