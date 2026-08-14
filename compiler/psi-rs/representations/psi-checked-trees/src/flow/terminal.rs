@@ -331,6 +331,41 @@ pub struct CheckedStructuralScalarParameterPlan {
     pub primitive_type: PrimitiveType,
 }
 
+/// Source-handle-free checked plans for the first result-bearing bodyless
+/// boundary slice. One successful boundary invocation returns a primitive
+/// scalar while consuming the complete structural claim frontier carried by
+/// its arguments.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedBoundaryScalarReturnPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
+    pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
+    pub machines: Vec<CheckedBoundaryScalarReturnMachinePlan>,
+}
+
+impl CheckedBoundaryScalarReturnPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedBoundaryScalarReturnMachinePlan> {
+        self.machines.iter().find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedBoundaryScalarReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
+    pub boundary_call: CheckedUnitEffectOperationPlan,
+    pub result_type: PrimitiveType,
+    pub return_statement_ordinal: u32,
+    pub contract_service_reach: ServiceReachPlan,
+    pub service_reach: ServiceReachSummary,
+}
+
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.
@@ -338,7 +373,7 @@ pub struct CheckedStructuralScalarParameterPlan {
 pub struct CheckedUnitEffectPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
-    pub boundary_machines: Vec<CheckedUnitBoundaryMachinePlan>,
+    pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
     pub machines: Vec<CheckedUnitEffectMachinePlan>,
 }
 
@@ -350,7 +385,7 @@ impl CheckedUnitEffectPlans {
     pub fn boundary_for_machine(
         &self,
         machine: SymbolHandle,
-    ) -> Option<&CheckedUnitBoundaryMachinePlan> {
+    ) -> Option<&CheckedBoundaryMachinePlan> {
         self.boundary_machines
             .iter()
             .find(|plan| plan.machine == machine)
@@ -658,7 +693,7 @@ pub enum CheckedUnitEffectOperationPlan {
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
-    BoundaryCallUnit {
+    BoundaryCall {
         coordinate: CheckedUnitCallCoordinate,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
@@ -703,13 +738,14 @@ pub struct CheckedUnitEffectMachinePlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedUnitBoundaryMachinePlan {
+pub struct CheckedBoundaryMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     /// Present for a bodyless attached boundary declaration; absent for a
     /// static boundary-trait requirement, which has no runtime provider value.
     pub attachment_type_identity: Option<String>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub result_type: Option<PrimitiveType>,
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,

@@ -290,9 +290,7 @@ fn backend_projection_plan() -> omega_terminal_abstract_operations::TerminalAbst
         function.operations.retain(|operation| {
             !matches!(
                 operation,
-                omega_terminal_abstract_operations::TerminalAbstractOperation::BoundaryCallUnit {
-                    ..
-                }
+                omega_terminal_abstract_operations::TerminalAbstractOperation::BoundaryCall { .. }
             )
         });
     }

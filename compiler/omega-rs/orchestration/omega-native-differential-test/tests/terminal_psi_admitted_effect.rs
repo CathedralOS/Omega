@@ -353,6 +353,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 multiplicity: StructuralMultiplicity::Linear,
                 qualifications: Vec::new(),
             }],
+            result: None,
             requires: Vec::new(),
             published_service_ceiling: vec![service],
         }],
@@ -384,8 +385,9 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     port: 0x20,
                     value: 0x20,
                 },
-                TerminalAbstractOperation::BoundaryCallUnit {
+                TerminalAbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
+                    result: None,
                     boundary,
                     structural_arguments: settlement_arguments.clone(),
                     completion_receipts: Vec::new(),

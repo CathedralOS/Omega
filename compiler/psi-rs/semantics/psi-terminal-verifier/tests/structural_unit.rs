@@ -2554,7 +2554,7 @@ fn claims_are_linear_across_unit_operations_and_return() {
     reused.machines[0].blocks[0].operations.push(Operation {
         id: operation_id(4),
         result: OperationResult::Unit,
-        kind: OperationKind::BoundaryCallUnit {
+        kind: OperationKind::BoundaryCall {
             boundary: boundary_id(1),
             structural_arguments: vec![StructuralArgument {
                 place: place_id(1),
@@ -3091,7 +3091,7 @@ fn affine_structural_arguments_transfer_at_most_once() {
     let boundary_call = Operation {
         id: operation_id(1),
         result: OperationResult::Unit,
-        kind: OperationKind::BoundaryCallUnit {
+        kind: OperationKind::BoundaryCall {
             boundary: boundary_id(1),
             structural_arguments: vec![StructuralArgument {
                 place: place_id(1),
@@ -3276,6 +3276,7 @@ fn hard_root_module() -> TerminalModule {
         identity: "settle_port".into(),
         attachment: None,
         structural_parameters: vec![boundary_parameter],
+        result: None,
         requires: vec![StructuralDomainRequirement {
             argument_index: 0,
             domain: pending.id,
@@ -3361,7 +3362,7 @@ fn hard_root_module() -> TerminalModule {
                 Operation {
                     id: operation_id(3),
                     result: OperationResult::Unit,
-                    kind: OperationKind::BoundaryCallUnit {
+                    kind: OperationKind::BoundaryCall {
                         boundary: boundary.id,
                         structural_arguments: vec![StructuralArgument {
                             place: place_id(2),
@@ -4326,7 +4327,7 @@ fn unit_call_mut(module: &mut TerminalModule) -> &mut Vec<ClaimTransfer> {
 fn boundary_call_mut(
     module: &mut TerminalModule,
 ) -> (&mut Vec<CompletionReceipt>, &mut Vec<ObligationId>) {
-    let OperationKind::BoundaryCallUnit {
+    let OperationKind::BoundaryCall {
         completion_receipts,
         requirement_obligations,
         ..

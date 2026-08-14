@@ -250,7 +250,7 @@ fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
                     OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } => {
                         callees.insert(*callee);
                     }
-                    OperationKind::BoundaryCallUnit { boundary, .. } => {
+                    OperationKind::BoundaryCall { boundary, .. } => {
                         callees.extend(
                             module
                                 .provider_candidates
@@ -786,6 +786,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             .collect::<Vec<_>>();
         if attachment.identity.is_empty()
             || !boundary_signature.is_empty()
+            || boundary.result.is_some()
             || !candidate.parameters.is_empty()
             || candidate.result != TerminalMachineResult::Unit
             || row.signature.parameters != boundary_signature
@@ -1573,7 +1574,6 @@ fn validate_machine(
             if matches!(
                 operation.kind,
                 OperationKind::CallUnit { .. }
-                    | OperationKind::BoundaryCallUnit { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
             ) {
@@ -1596,6 +1596,34 @@ fn validate_machine(
                 }
                 continue;
             }
+            if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+                let boundary = module
+                    .boundary_machines
+                    .iter()
+                    .find(|candidate| candidate.id == *boundary)
+                    .ok_or(ModuleError::UnknownBoundaryCallTarget {
+                        operation: operation.id,
+                        boundary: *boundary,
+                    })?;
+                let actual = operation.result.scalar().map(|result| result.scalar_type);
+                if actual != boundary.result {
+                    return Err(ModuleError::BoundaryCallResultMismatch {
+                        operation: operation.id,
+                        expected: boundary.result,
+                        actual,
+                    });
+                }
+                if let Some(result) = operation.result.scalar() {
+                    insert_value(
+                        &mut value_types,
+                        &mut registry.values,
+                        result.id,
+                        result.scalar_type,
+                    )?;
+                }
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                continue;
+            }
             let Some(result) = operation.result.scalar() else {
                 return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
             };
@@ -1607,10 +1635,12 @@ fn validate_machine(
             )?;
             match operation.kind.clone() {
                 OperationKind::CallUnit { .. }
-                | OperationKind::BoundaryCallUnit { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {
                     unreachable!("structural/effect operations were validated above")
+                }
+                OperationKind::BoundaryCall { .. } => {
+                    unreachable!("boundary calls were validated above")
                 }
                 OperationKind::Call {
                     callee,
@@ -2293,7 +2323,7 @@ fn validate_unit_operation_static(
                 operation.id,
             )?;
         }
-        OperationKind::BoundaryCallUnit {
+        OperationKind::BoundaryCall {
             boundary,
             structural_arguments,
             completion_receipts,
@@ -4868,7 +4898,7 @@ fn validate_structural_frontier(
                     .iter()
                     .map(|transfer| transfer.claim)
                     .collect::<Vec<_>>(),
-                OperationKind::BoundaryCallUnit {
+                OperationKind::BoundaryCall {
                     completion_receipts,
                     ..
                 } => completion_receipts
@@ -4899,7 +4929,7 @@ fn validate_structural_frontier(
                             .then_some(argument.place)
                     })
                     .collect::<Vec<_>>(),
-                OperationKind::BoundaryCallUnit {
+                OperationKind::BoundaryCall {
                     boundary,
                     structural_arguments,
                     ..
@@ -4934,7 +4964,7 @@ fn validate_structural_frontier(
                     structural_arguments,
                     ..
                 }
-                | OperationKind::BoundaryCallUnit {
+                | OperationKind::BoundaryCall {
                     structural_arguments,
                     ..
                 } => structural_arguments.as_slice(),
@@ -6135,7 +6165,7 @@ fn validate_operation_operands(
         OperationKind::SaturatingIntegerRemainder { .. } => None,
         OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }
-        | OperationKind::BoundaryCallUnit { .. }
+        | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. } => None,
     }) else {
@@ -6662,6 +6692,11 @@ pub enum ModuleError {
     DuplicateOperation(OperationId),
     ScalarOperationHasUnitResult(OperationId),
     UnitOperationHasScalarResult(OperationId),
+    BoundaryCallResultMismatch {
+        operation: OperationId,
+        expected: Option<ScalarType>,
+        actual: Option<ScalarType>,
+    },
     UnitCallTargetHasScalarSignature {
         operation: OperationId,
         callee: MachineId,

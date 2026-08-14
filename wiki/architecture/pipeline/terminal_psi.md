@@ -195,6 +195,16 @@ Missing, duplicated, reordered, or path-mismatched receipt rows reject before
 execution. The interpreter commits their consumption only after the provider
 effect succeeds; rejection records no receipt and leaves custody live.
 
+The admitted result-bearing slice returns one primitive scalar from a bodyless
+boundary while consuming one or more whole structural roots. Its call result,
+boundary signature, arguments, and exact receipts survive canonical encoding
+and independent verification. Interpretation checks the provider's returned
+scalar before committing either custody or receipts, so a rejected call can be
+retried against the unchanged frontier. Omega preserves that result in its
+abstract plan; the metadata-only native settlement path rejects it until a
+result-returning provider realization exists. Projected and content-bearing
+result calls remain outside this slice.
+
 A stable record claim path may cross nested relevant record fields. Each
 segment is resolved against the structural type reached by the preceding
 segment, and the complete path remains canonical identity across production,

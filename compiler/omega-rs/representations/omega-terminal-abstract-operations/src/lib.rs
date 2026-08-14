@@ -111,8 +111,9 @@ pub enum TerminalAbstractOperation {
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
     },
-    BoundaryCallUnit {
+    BoundaryCall {
         psi_operation: OperationId,
+        result: Option<TerminalAbstractResult>,
         boundary: BoundaryMachineId,
         structural_arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
