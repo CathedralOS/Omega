@@ -2721,14 +2721,9 @@ fn assignment_target_is_primitive(
     state: &State,
     target: ExpressionHandle,
 ) -> bool {
-    crate::places::declared_place_type_raw(program, machine, Some(state), target)
+    crate::places::declared_place_type(program, machine, Some(state), target)
         .or_else(|| {
-            crate::places::declared_indexed_projection_type_raw(
-                program,
-                machine,
-                Some(state),
-                target,
-            )
+            crate::places::declared_indexed_projection_type(program, machine, Some(state), target)
         })
         .is_some_and(|target_type| program.primitive_type_reference(target_type).is_some())
 }

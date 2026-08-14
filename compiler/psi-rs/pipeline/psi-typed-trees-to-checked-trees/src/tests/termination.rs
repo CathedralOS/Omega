@@ -7981,6 +7981,7 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
     data Main {
         cells: [u64; 2];
         value: u64;
+        other: u64;
         pair: Pair;
     }
 
@@ -8020,6 +8021,24 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
         value: &'value mut u64
     ) -> &'cells mut [u64; 2] {
         cells[0] = ~(compute(value) + 1);
+        cells
+    }
+
+    machine return_after_parameter_computed_scalar<'cells, 'target, 'source>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        source: &'source mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = ~(compute(source) + 1);
+        cells
+    }
+
+    machine return_after_parameter_three_computed_scalar<'cells, 'target, 'source>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        source: &'source mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (~compute(source) as u64) + 1;
         cells
     }
 
@@ -8087,6 +8106,24 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
     machine Main::nested_computed_scalar_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_nested_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::parameter_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_parameter_computed_scalar(
+            &mut self.cells,
+            &mut self.value,
+            &mut self.other
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::parameter_three_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_parameter_three_computed_scalar(
+            &mut self.cells,
+            &mut self.value,
+            &mut self.other
+        );
         alias[0] = 2;
     }
 
@@ -8171,9 +8208,31 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
         );
     }
 
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::parameter_computed_scalar_result")
+        .expect("Main::parameter_computed_scalar_result machine");
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .expect("Main::parameter_computed_scalar_result entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(machine, entry)
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.other", "self.value"]
+                .map(str::to_owned)
+                .as_slice()
+        ),
+        "a primitive mutable-reference target must admit the bounded computed value"
+    );
+
     for name in [
         "Main::three_computed_scalar_result",
         "Main::three_projected_computed_scalar_result",
+        "Main::parameter_three_computed_scalar_result",
         "Main::binding_reborrow_computed_scalar_result",
         "Main::recursive_computed_scalar_result",
         "Main::reference_projection_computed_scalar_result",
