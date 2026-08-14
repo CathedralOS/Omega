@@ -340,9 +340,14 @@ Remaining:
   path. Same-typed relevant fixed-integer members now retain canonical paths
   through equality, inequality, and ordered comparisons, including conjunction,
   whole-root and all-field-projected structural calls, both codecs, and
-  independent leaf-type checking. Terminal proposition disjunction now retains
-  distinct canonical branches, rebases every nested member path across
-  all-field-projected calls, and is independently reconstructed by the verifier.
+  independent leaf-type checking. Built-in fixed-integer `&`, `|`, `^`, and
+  `~` now remain typed structural proposition terms, recursively rebase every
+  member operand across all-field-projected calls, and retain their total
+  carrier-width meaning through codecs and independent verification; overloaded
+  forms and the address carrier remain fenced. Terminal proposition disjunction
+  now retains distinct canonical branches, rebases every nested member path
+  across all-field-projected calls, and is independently reconstructed by the
+  verifier.
   Source whole-record equality between same-typed `Equatable` parameters now
   retains the language-defined inline expansion for finite nonempty trees of
   relevant Boolean and fixed-integer fields, flattens the resulting conjunction,
@@ -360,8 +365,9 @@ Remaining:
   retain one exact obligation, and cite the matching caller assumption;
   canonical terminal Psi, codec, independent verification, and interpretation
   reject missing evidence, a wrong assumption, or a weakened or redirected
-  premise. Continue with other arithmetic families, case-payload paths, and
-  wider aggregate equality involving text, floats, sums, or erased fields.
+  premise. Continue with shifts and remaining policy-specific arithmetic
+  families, case-payload paths, and wider aggregate equality involving text,
+  floats, sums, or erased fields.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source

@@ -406,11 +406,15 @@ paths and literals; every nested path is independently traversed and rebased.
 Equality, inequality, and ordered comparisons also accept same-typed relevant
 fixed-integer member paths; terminal terms retain both the canonical path and
 the exact integer type, and the verifier checks that annotation against the
-declared leaf. Whole-root and all-field-projected structural calls reconstruct
-those predicates across the callee boundary by prepending the caller's canonical
-argument path to every callee-relative integer-member path. The verifier repeats
-that substitution independently and rejects a redirected continuation even when
-the redirected path reaches another valid same-typed leaf. A built-in Boolean
+declared leaf. Built-in fixed-integer `&`, `|`, `^`, and `~` compose the same
+typed member terms without an arithmetic proof obligation; overloaded forms and
+the distinct address carrier remain outside this bounded structural slice.
+Whole-root and all-field-projected structural calls reconstruct those predicates
+across the callee boundary by prepending the caller's canonical argument path to
+every callee-relative integer-member path, including operands nested beneath
+bitwise terms. The verifier repeats that substitution independently and rejects
+a redirected continuation even when the redirected path reaches another valid
+same-typed leaf. A built-in Boolean
 disjunction retains two distinct canonically ordered proposition branches; each
 branch may contain the same accepted Boolean or integer-member predicate forms.
 Production and independent verification recursively rebase every branch across
