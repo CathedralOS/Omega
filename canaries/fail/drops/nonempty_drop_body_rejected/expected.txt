@@ -1,1 +1,1 @@
-drop bodies are not yet executed
+non-empty `drop` body outside the executable cleanup slice

@@ -1077,6 +1077,75 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    select_runtime_storage_binary_write_in_table_with_evidence_source_key_and_call_ordinal(
+        input,
+        dispatch_index,
+        source_key,
+        source_key,
+        statement_index,
+        expressions,
+        target_region,
+        target_offset,
+        byte_size,
+        value,
+        minimum_call_ordinal,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+/// Select a provider-backed binary/unary write whose operands were substituted
+/// into `source_key` but whose checked operator still belongs to
+/// `evidence_source_key`. Generated provider calls can have no source span, so
+/// the two identities cannot always be recovered from the rebuilt expression.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_write_in_table_with_evidence_source_key(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    evidence_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    select_runtime_storage_binary_write_in_table_with_evidence_source_key_and_call_ordinal(
+        input,
+        dispatch_index,
+        source_key,
+        evidence_source_key,
+        statement_index,
+        expressions,
+        target_region,
+        target_offset,
+        byte_size,
+        value,
+        None,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_storage_binary_write_in_table_with_evidence_source_key_and_call_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    evidence_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    value: ExpressionHandle,
+    minimum_call_ordinal: Option<usize>,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
     if let Some(ternary) =
         super::value_operands::resolve_selected_ternary_float_operand_in_table_with_root(
             input,
@@ -1272,7 +1341,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,
-        source_key,
+        evidence_source_key,
         statement_index,
         expressions,
         value,

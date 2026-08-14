@@ -3988,16 +3988,14 @@ fn select_runtime_dispatch_local_initializer_write(
             .map(|call| call.role),
     );
     let preserve_authored_initializer = initializer_has_assignment_value_call
-        || !matches!(
-            super::lookups::carried_float_provider_plan(
-                input,
-                resolved_initializer_source_key,
-                statement_index,
-                expressions,
-                resolved_initializer.expression,
-            ),
-            super::lookups::CarriedFloatProviderPlan::Missing
+        || expression_contains_carried_float_provider_plan(
+            input,
+            resolved_initializer_source_key,
+            statement_index,
+            expressions,
+            resolved_initializer.expression,
         )
+        || expression_contains_value_cast(expressions, resolved_initializer.expression)
         || expression_contains_runtime_float_builtin(
             input,
             expressions,
@@ -4256,6 +4254,42 @@ fn select_runtime_dispatch_local_initializer_write(
     if wrote_text_comparison {
         return;
     }
+    // An inlined callee's provider call can contain caller-owned operands after
+    // alias substitution while the checked provider/policy evidence still
+    // belongs to the authored callee statement. Keep those identities split.
+    // This matters especially for generated unary calls (`F32::classify`),
+    // whose zero source span cannot recover the authored state on its own.
+    if preserve_authored_initializer
+        && resolved_initializer_source_key != source_key
+        && matches!(
+            expressions.expression(resolved_initializer),
+            ExpressionNode::Call(call)
+                if writes::mutation::builtin_runtime_unary_call_operator_in_table(input, call)
+                    .is_some()
+        )
+        && let Some(kind) =
+            writes::mutation::select_runtime_storage_binary_write_in_table_with_evidence_source_key(
+                input,
+                dispatch_index,
+                resolved_initializer_source_key,
+                source_key,
+                statement_index,
+                expressions,
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+                resolved_initializer,
+                static_values,
+                runtime_value_operands,
+            )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
     let direct_kind = writes::select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,
@@ -4390,6 +4424,106 @@ fn expression_contains_runtime_float_builtin(
         ExpressionNode::Unary(unary) => {
             expression_contains_runtime_float_builtin(input, expressions, unary.operand)
         }
+        _ => false,
+    }
+}
+
+fn expression_contains_carried_float_provider_plan(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    if !matches!(
+        super::lookups::carried_float_provider_plan(
+            input,
+            source_key,
+            statement_index,
+            expressions,
+            expression,
+        ),
+        super::lookups::CarriedFloatProviderPlan::Missing
+    ) {
+        return true;
+    }
+
+    let nested = |expression| {
+        expression_contains_carried_float_provider_plan(
+            input,
+            source_key,
+            statement_index,
+            expressions,
+            expression,
+        )
+    };
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => nested(binary.left) || nested(binary.right),
+        ExpressionNode::Atomic(atomic) => nested(atomic.value) || nested(atomic.result),
+        ExpressionNode::ArrayLiteral(values) => expressions
+            .expression_handles(*values)
+            .iter()
+            .copied()
+            .any(nested),
+        ExpressionNode::Cast(cast) => nested(cast.value),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && nested(call.receiver))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(nested)
+        }
+        ExpressionNode::Mutable(inner) => nested(*inner),
+        ExpressionNode::Indexed(indexed) => nested(indexed.collection) || nested(indexed.index),
+        ExpressionNode::Member(member) => nested(member.receiver),
+        ExpressionNode::Range(range) => {
+            (range.start.is_valid() && nested(range.start))
+                || (range.end.is_valid() && nested(range.end))
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| nested(field.value)),
+        ExpressionNode::Unary(unary) => nested(unary.operand),
+        _ => false,
+    }
+}
+
+fn expression_contains_value_cast(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    let nested = |expression| expression_contains_value_cast(expressions, expression);
+    match expressions.expression(expression) {
+        ExpressionNode::Cast(cast) => !cast.form.is_recast() || nested(cast.value),
+        ExpressionNode::Binary(binary) => nested(binary.left) || nested(binary.right),
+        ExpressionNode::Atomic(atomic) => nested(atomic.value) || nested(atomic.result),
+        ExpressionNode::ArrayLiteral(values) => expressions
+            .expression_handles(*values)
+            .iter()
+            .copied()
+            .any(nested),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && nested(call.receiver))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(nested)
+        }
+        ExpressionNode::Mutable(inner) => nested(*inner),
+        ExpressionNode::Indexed(indexed) => nested(indexed.collection) || nested(indexed.index),
+        ExpressionNode::Member(member) => nested(member.receiver),
+        ExpressionNode::Range(range) => {
+            (range.start.is_valid() && nested(range.start))
+                || (range.end.is_valid() && nested(range.end))
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| nested(field.value)),
+        ExpressionNode::Unary(unary) => nested(unary.operand),
         _ => false,
     }
 }
