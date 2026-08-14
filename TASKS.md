@@ -227,9 +227,9 @@ Remaining:
   fixed-width narrowing under retained direct parameter range `requires`, or
   exact fixed-width addition with a landed operand, subtraction with a landed
   subtrahend, or multiplication with a landed factor under retained matching
-  direct parameter bounds, or exact unsigned subtraction with a landed minuend
-  under a retained direct parameter upper bound, one exact right shift under a
-  direct unsigned count upper bound, one exact left shift by a landed count
+  direct parameter bounds, or exact unsigned subtraction under a retained
+  direct subtrahend-to-minuend bound, one exact right shift under a direct
+  unsigned count upper bound, one exact left shift by a landed count
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
   landed nonzero unsigned constant or runtime unsigned divisor under a retained

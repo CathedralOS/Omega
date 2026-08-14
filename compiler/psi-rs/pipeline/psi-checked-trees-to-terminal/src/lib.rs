@@ -18,15 +18,15 @@ use psi_checked_trees::{
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
     CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    types::PrimitiveType,
+    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
@@ -4187,11 +4187,28 @@ fn lower_nominal_structural_scalar_return_machine(
             let ScalarType::Integer(integer_type) = scalar_type else {
                 return unsupported("nominal scalar requirement is not an integer bound");
             };
-            let bound = ScalarTerm::integer(
-                integer_type,
-                integer_value(&requirement.bound, scalar_type)?,
-            )
-            .map_err(|_| LoweringError::Unsupported("nominal scalar bound is invalid"))?;
+            let bound = match &requirement.bound {
+                CheckedStructuralScalarIntegerBoundPlan::Literal(bound) => {
+                    ScalarTerm::integer(integer_type, integer_value(bound, scalar_type)?).map_err(
+                        |_| LoweringError::Unsupported("nominal scalar bound is invalid"),
+                    )?
+                }
+                CheckedStructuralScalarIntegerBoundPlan::Parameter(position) => {
+                    let bound_parameter = scalar_parameters
+                        .get(usize::try_from(*position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "nominal scalar bound parameter position exceeds usize",
+                            )
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "nominal scalar bound parameter is absent",
+                        ))?;
+                    if bound_parameter.scalar_type != scalar_type {
+                        return unsupported("nominal scalar bound parameter type drifted");
+                    }
+                    ScalarTerm::value(bound_parameter.id, scalar_type)
+                }
+            };
             let parameter = ScalarTerm::value(parameter.id, scalar_type);
             Ok(match requirement.kind {
                 CheckedStructuralScalarIntegerBoundKind::Lower => {

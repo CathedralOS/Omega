@@ -10,13 +10,14 @@ use psi_checked_trees::{
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
+    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
@@ -2962,8 +2963,9 @@ fn nominal_scalar_caller_requirements(
 )> {
     // Both accepted callers preserve checked entry requirements unchanged. The
     // Unit lane admits only direct Boolean root facts; the scalar lane also
-    // retains direct fixed-width integer parameter bounds for exact arithmetic.
-    // Wider bodies must instead consult path-specific exit contexts.
+    // retains direct fixed-width integer literal bounds and pairwise parameter
+    // relations for exact arithmetic. Wider bodies must instead consult
+    // path-specific exit contexts.
     let caller_requires =
         checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
     let mut structural_requirements = Vec::new();
@@ -2990,7 +2992,7 @@ fn nominal_scalar_caller_requirements(
             structural_requirements.push(requirement);
             continue;
         }
-        scalar_requirements.push(direct_integer_bound_requirement(
+        scalar_requirements.push(direct_integer_requirement(
             program,
             caller_machine.symbol,
             caller_state,
@@ -3027,7 +3029,7 @@ fn nominal_cleanup_caller_boolean_requirements(
     scalar.is_empty().then_some(structural)
 }
 
-fn direct_integer_bound_requirement(
+fn direct_integer_requirement(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: &psi_typed_trees::state::State,
@@ -3040,60 +3042,81 @@ fn direct_integer_bound_requirement(
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
-    let (parameter_expression, bound, kind) = match (
+    let parameter = |parameter_expression| {
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            0,
+            parameter_expression,
+        )?;
+        if !place.segments.is_empty() {
+            return None;
+        }
+        let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+            return None;
+        };
+        let source_position = source_parameters.iter().position(|parameter| {
+            parameter_root_symbol(machine, parameter) == root || parameter.symbol == root
+        })?;
+        let parameter_position = scalar_parameters
+            .iter()
+            .position(|parameter| parameter.source_position as usize == source_position)?;
+        let primitive_type = scalar_parameters.get(parameter_position)?.primitive_type;
+        if !matches!(
+            primitive_type,
+            PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+        ) {
+            return None;
+        }
+        Some((u32::try_from(parameter_position).ok()?, primitive_type))
+    };
+    let (parameter_position, primitive_type, kind, bound) = match (
         binary.operator,
         program.expression_table.expression(binary.left),
         program.expression_table.expression(binary.right),
     ) {
-        (BinaryOperator::LessOrEqual, _, ExpressionNode::Integer(bound)) => (
-            binary.left,
-            bound,
-            CheckedStructuralScalarIntegerBoundKind::Upper,
-        ),
-        (BinaryOperator::LessOrEqual, ExpressionNode::Integer(bound), _) => (
-            binary.right,
-            bound,
-            CheckedStructuralScalarIntegerBoundKind::Lower,
-        ),
+        (BinaryOperator::LessOrEqual, _, ExpressionNode::Integer(bound)) => {
+            let (position, primitive_type) = parameter(binary.left)?;
+            (
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Upper,
+                CheckedStructuralScalarIntegerBoundPlan::Literal(bound.clone()),
+            )
+        }
+        (BinaryOperator::LessOrEqual, ExpressionNode::Integer(bound), _) => {
+            let (position, primitive_type) = parameter(binary.right)?;
+            (
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Lower,
+                CheckedStructuralScalarIntegerBoundPlan::Literal(bound.clone()),
+            )
+        }
+        (BinaryOperator::LessOrEqual, _, _) => {
+            let (left, primitive_type) = parameter(binary.left)?;
+            let (right, right_type) = parameter(binary.right)?;
+            (primitive_type == right_type).then_some((
+                left,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Upper,
+                CheckedStructuralScalarIntegerBoundPlan::Parameter(right),
+            ))?
+        }
         _ => return None,
     };
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        0,
-        parameter_expression,
-    )?;
-    if !place.segments.is_empty() {
-        return None;
-    }
-    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
-    let source_position = source_parameters.iter().position(|parameter| {
-        parameter_root_symbol(machine, parameter) == root || parameter.symbol == root
-    })?;
-    let parameter_position = scalar_parameters
-        .iter()
-        .position(|parameter| parameter.source_position as usize == source_position)?;
-    let primitive_type = scalar_parameters.get(parameter_position)?.primitive_type;
-    if !matches!(
-        primitive_type,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) {
-        return None;
-    }
     Some(CheckedStructuralScalarIntegerBoundRequirementPlan {
-        parameter_position: u32::try_from(parameter_position).ok()?,
+        parameter_position,
         primitive_type,
         kind,
-        bound: bound.clone(),
+        bound,
     })
 }
 

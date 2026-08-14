@@ -1176,6 +1176,17 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((127u8 - input) < 4u8) && enabled;
             staged
         }
+        machine Root::runtime_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            left: u8,
+            right: u8,
+            enabled: bool
+        ) -> bool
+        requires right <= left
+        {
+            let staged: bool = ((left - right) < 4u8) && enabled;
+            staged
+        }
         machine Root::exact_multiply_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1616,6 +1627,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one bounded exact-subtract shell retains the scalar-return plan");
     assert!(
         exact_subtract_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let runtime_exact_subtract_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "runtime_exact_subtract_integer_comparison_convergence",
+        ))
+        .expect("one relationally proven exact-subtract shell retains the scalar-return plan");
+    assert!(
+        runtime_exact_subtract_integer_comparison
             .shared_boolean_convergence
             .is_some()
     );
