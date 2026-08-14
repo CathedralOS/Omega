@@ -304,10 +304,11 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// value leaves entering one shared direct return/cleanup block. Boolean
     /// equality with a constant is normalized to identity/negation. One direct
     /// relevant Boolean field identity on one nominal-cleanup root is also
-    /// admitted. Integer-comparison leaves separately accept direct scalar
-    /// parameters and landed constants. Nested or multiple field identities,
-    /// member/comparison mixtures, computed integer operands, and richer leaves
-    /// retain the source-distributed fallback and publish `None`.
+    /// admitted. Integer-comparison leaves separately accept scalar parameters
+    /// and landed constants beneath at most one total binary computation shell.
+    /// Nested or multiple field identities, member/comparison mixtures, wider
+    /// integer computations, and richer leaves retain the source-distributed
+    /// fallback and publish `None`.
     pub shared_boolean_convergence: Option<CheckedStructuralBooleanConvergencePlan>,
     /// Complete canonical direct-Boolean caller facts preserved at the closed
     /// scalar return edge. Nominal cleanup actions select root-local subsets

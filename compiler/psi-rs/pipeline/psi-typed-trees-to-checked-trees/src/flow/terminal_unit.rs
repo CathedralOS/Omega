@@ -2,10 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedBoundaryScalarReturnPlans, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedScalarBinding, CheckedScalarBindingValue,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
+    CheckedBoundaryScalarReturnPlans, CheckedIntegerBinaryKind,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
@@ -1395,9 +1396,10 @@ enum SharedBooleanRuntimeInput {
 /// Collect the distinct runtime Boolean inputs in the shared-join form. One
 /// direct authored member identity on the nominal cleanup root is admitted
 /// alongside scalar inputs; terminal production resolves it to one canonical
-/// relevant Boolean field. Integer-comparison leaves separately admit direct
-/// scalar parameters and landed constants. Constants and Boolean equality
-/// against a constant add no new runtime input.
+/// relevant Boolean field. Integer-comparison leaves separately admit scalar
+/// parameters and landed constants beneath at most one total binary computation
+/// shell. Constants and Boolean equality against a constant add no new runtime
+/// input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1459,6 +1461,14 @@ fn shared_integer_runtime_inputs(
     expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    shared_integer_runtime_inputs_with_shells(expression, scalar_parameter_count, 1)
+}
+
+fn shared_integer_runtime_inputs_with_shells(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+    remaining_shells: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         CheckedScalarExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
         CheckedScalarExpression::Parameter { position, .. }
@@ -1467,6 +1477,35 @@ fn shared_integer_runtime_inputs(
             Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                 *position,
             )]))
+        }
+        CheckedScalarExpression::IntegerBinary {
+            kind:
+                CheckedIntegerBinaryKind::BitwiseAnd
+                | CheckedIntegerBinaryKind::BitwiseOr
+                | CheckedIntegerBinaryKind::BitwiseXor
+                | CheckedIntegerBinaryKind::WrappingShiftLeft
+                | CheckedIntegerBinaryKind::WrappingShiftRight
+                | CheckedIntegerBinaryKind::WrappingAdd
+                | CheckedIntegerBinaryKind::SaturatingAdd
+                | CheckedIntegerBinaryKind::WrappingSubtract
+                | CheckedIntegerBinaryKind::SaturatingSubtract
+                | CheckedIntegerBinaryKind::WrappingMultiply
+                | CheckedIntegerBinaryKind::SaturatingMultiply,
+            left,
+            right,
+            ..
+        } if remaining_shells > 0 => {
+            let mut inputs = shared_integer_runtime_inputs_with_shells(
+                left,
+                scalar_parameter_count,
+                remaining_shells - 1,
+            )?;
+            inputs.extend(shared_integer_runtime_inputs_with_shells(
+                right,
+                scalar_parameter_count,
+                remaining_shells - 1,
+            )?);
+            Some(inputs)
         }
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }

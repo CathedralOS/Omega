@@ -396,8 +396,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     data Token {}
     machine Token::drop(&mut self) { Helper::touch(); }
     data Root {}
-    machine Root::measure(token: Token, input: u64, enabled: bool) -> bool {
-        let staged: bool = ((input < 4u64) || (input <= 9u64))
+    machine Root::measure(token: Token, input: u64 in Wrapping, enabled: bool) -> bool {
+        let staged: bool = (((input + 1u64) < 4u64) || (input <= 9u64))
             && (input == 3u64)
             && enabled;
         staged
@@ -1684,6 +1684,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         block
             .operations
             .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::WrappingIntegerAdd { .. }))
+    }));
+    assert!(entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
             .any(|operation| matches!(operation.kind, OperationKind::IntegerLessOrEqual { .. }))
     }));
     assert!(entry.blocks.iter().any(|block| {
@@ -1756,7 +1762,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         assert_eq!(
             measured.value(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
-                ((input < 4) || (input <= 9)) && input == 3 && enabled
+                ((input.wrapping_add(1) < 4) || (input <= 9)) && input == 3 && enabled
             ))
         );
     }

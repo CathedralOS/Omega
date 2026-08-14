@@ -1637,7 +1637,18 @@ fn shared_boolean_cleanup_convergence_return_edge(
             | TerminalAbstractOperation::IntegerConstant { .. }
             | TerminalAbstractOperation::IntegerEqual { .. }
             | TerminalAbstractOperation::IntegerLessThan { .. }
-            | TerminalAbstractOperation::IntegerLessOrEqual { .. } => {}
+            | TerminalAbstractOperation::IntegerLessOrEqual { .. }
+            | TerminalAbstractOperation::IntegerBitwiseAnd { .. }
+            | TerminalAbstractOperation::IntegerBitwiseOr { .. }
+            | TerminalAbstractOperation::IntegerBitwiseXor { .. }
+            | TerminalAbstractOperation::WrappingIntegerShiftLeft { .. }
+            | TerminalAbstractOperation::WrappingIntegerShiftRight { .. }
+            | TerminalAbstractOperation::WrappingIntegerAdd { .. }
+            | TerminalAbstractOperation::SaturatingIntegerAdd { .. }
+            | TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+            | TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
+            | TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+            | TerminalAbstractOperation::SaturatingIntegerMultiply { .. } => {}
             _ => return None,
         }
     }

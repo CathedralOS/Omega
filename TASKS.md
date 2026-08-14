@@ -221,9 +221,11 @@ Remaining:
   field-only tree, a second field identity, and erased or non-Boolean fields
   remain fenced. Separately, direct integer-comparison leaves over scalar
   parameters and landed constants now retain the same verified shared cleanup
-  tail through interpretation and every native target. Computed integer
-  operands and member/comparison mixtures remain fenced. Extend those integer
-  comparisons, then
+  tail through interpretation and every native target. Either operand may use
+  one total bitwise, wrapping shift/arithmetic, or saturating arithmetic shell.
+  Nested shells, partial/exact operations, casts, unary computation, and
+  member/comparison mixtures remain fenced. Extend those integer comparisons,
+  then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

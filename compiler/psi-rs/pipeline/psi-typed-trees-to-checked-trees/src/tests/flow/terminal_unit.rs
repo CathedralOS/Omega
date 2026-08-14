@@ -1027,6 +1027,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (input < 1u64) && true;
             staged
         }
+        machine Root::computed_integer_comparison_convergence(
+            token: Token,
+            input: u64 in Wrapping
+        ) -> bool {
+            let staged: bool = ((input + 1u64) < 4u64) && true;
+            staged
+        }
+        machine Root::nested_computed_integer_comparison_convergence(
+            token: Token,
+            input: u64 in Wrapping
+        ) -> bool {
+            let staged: bool = (((input + 1u64) + 1u64) < 4u64) && true;
+            staged
+        }
         machine Root::member_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -1206,6 +1220,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .expect("integer comparison publishes shared convergence")
             .binding_ordinal,
         0
+    );
+    let computed_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "computed_integer_comparison_convergence",
+        ))
+        .expect("one computed integer shell retains the scalar-return plan");
+    assert!(
+        computed_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let nested_computed_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nested_computed_integer_comparison_convergence",
+        ))
+        .expect("nested integer shells retain the source-distributed fallback");
+    assert!(
+        nested_computed_integer_comparison
+            .shared_boolean_convergence
+            .is_none()
     );
     let member = checked
         .facts
