@@ -1404,10 +1404,11 @@ enum SharedBooleanRuntimeInput {
 /// parameters and landed constants beneath up to two total binary, bitwise-not,
 /// or integer-widening shells, or one proof-bearing exact-cast, exact-add,
 /// exact-subtract, exact-multiply, exact shift, exact-divide, or exact-remainder
-/// computation shell. One exact operation may sit beneath one bitwise-not,
-/// integer-widening, or proof-free binary shell; for a binary shell, its other
-/// subtree must remain proof-free. Constants and Boolean equality against a
-/// constant add no new runtime input.
+/// computation shell. The single exact operation may be the additional
+/// innermost shell beneath up to two bitwise-not, integer-widening, or
+/// proof-free binary shells; for each binary shell, its other subtree must
+/// remain proof-free. Constants and Boolean equality against a constant add no
+/// new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1534,7 +1535,7 @@ fn shared_integer_runtime_inputs_with_shells(
             left,
             right,
             ..
-        } if proof_shell_allowed && remaining_shells > 0 => {
+        } if proof_shell_allowed => {
             let mut inputs =
                 shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
             inputs.extend(shared_integer_runtime_inputs_with_shells(
@@ -1558,7 +1559,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 | PrimitiveType::U64,
             left,
             right,
-        } if proof_shell_allowed && remaining_shells > 0 => {
+        } if proof_shell_allowed => {
             let mut inputs =
                 shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
             inputs.extend(shared_integer_runtime_inputs_with_shells(
@@ -1574,7 +1575,7 @@ fn shared_integer_runtime_inputs_with_shells(
             left,
             right,
             ..
-        } if proof_shell_allowed && remaining_shells > 0 => {
+        } if proof_shell_allowed => {
             let mut inputs =
                 shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
             inputs.extend(shared_integer_runtime_inputs_with_shells(
@@ -1601,9 +1602,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 proof_shell_allowed,
             )
         }
-        CheckedScalarExpression::IntegerExactCast { operand, .. }
-            if proof_shell_allowed && remaining_shells > 0 =>
-        {
+        CheckedScalarExpression::IntegerExactCast { operand, .. } if proof_shell_allowed => {
             shared_integer_runtime_inputs_with_shells(operand, scalar_parameter_count, 0, false)
         }
         CheckedScalarExpression::Parameter { .. }
