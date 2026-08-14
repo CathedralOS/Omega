@@ -234,8 +234,9 @@ Remaining:
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
   landed nonzero unsigned constant, a landed signed constant other than `0` or
-  `-1`, or a runtime signed or unsigned divisor under a retained direct positive
-  lower bound.
+  `-1`, a runtime unsigned divisor under a retained direct positive lower bound,
+  or a runtime signed divisor under a retained direct positive lower bound or
+  `divisor <= -2` upper bound.
   Nested proof-bearing shells, computed exact-cast and wider exact-arithmetic
   premise shapes, other unary computation, and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
