@@ -45891,6 +45891,9 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "arithmetic/bare_name_scopes",
+    "arithmetic/const_fold_overflow_compiles",
+    "constants/runtime_scoped_const_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
