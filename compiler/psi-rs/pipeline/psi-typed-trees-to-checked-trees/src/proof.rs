@@ -129,7 +129,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
         let source = if let Some(source) = source {
             let source_term = proof.evidence_terms.get(source);
             if output_term.proposition != source_term.proposition
-                || output_term.evidence_type != source_term.evidence_type
+                || output_term.evidence_interface != source_term.evidence_interface
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "cannot forward evidence term `{}` into `{}` because their proposition identities differ",
@@ -188,7 +188,7 @@ fn checked_evidence_producer(
         program,
         conformance_symbol,
         source_name,
-        &output.evidence_type,
+        output.evidence_interface.as_ref()?,
     )?;
     let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
         unreachable!("selected evidence producers are closed")

@@ -99,7 +99,260 @@ pub enum NormalizedPropositionFormula {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PropositionEvidenceClassification {
     FactOnly,
-    Witness { evidence: String },
+    Witness {
+        evidence: String,
+        interface: Option<NormalizedEvidenceInterfaceIdentity>,
+    },
+}
+
+fn normalize_evidence_interface(
+    program: &crate::TypedTrees,
+    evidence: TypeReferenceHandle,
+    binders: &[PropositionBinder],
+    binder_labels: &[String],
+    binder_identities: &[Option<String>],
+) -> Option<(String, Option<NormalizedEvidenceInterfaceIdentity>)> {
+    let display_substitutions = binders
+        .iter()
+        .zip(binder_labels)
+        .map(|(binder, replacement)| (binder.symbol, replacement.clone()))
+        .collect::<Vec<_>>();
+    let label = render_evidence_type(program, evidence, &display_substitutions);
+    let (trait_symbol, arguments) = match program.type_reference_table.type_reference(evidence) {
+        crate::types::TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
+        crate::types::TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => (
+            *base_symbol,
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+        ),
+        _ => return Some((label, None)),
+    };
+    if !trait_symbol.is_valid()
+        || program.symbols.get(trait_symbol).kind != psi_symbols::SymbolKind::Trait
+    {
+        return Some((label, None));
+    }
+    let unresolved_binders = binders
+        .iter()
+        .zip(binder_identities)
+        .filter_map(|(binder, identity)| identity.is_none().then_some(binder.symbol))
+        .collect::<Vec<_>>();
+    if arguments
+        .iter()
+        .any(|argument| type_reference_mentions_any(program, *argument, &unresolved_binders))
+    {
+        return Some((label, None));
+    }
+    let exact_substitutions = binders
+        .iter()
+        .zip(binder_identities)
+        .filter_map(|(binder, replacement)| replacement.clone().map(|value| (binder.symbol, value)))
+        .collect::<Vec<_>>();
+    Some((
+        label,
+        Some(NormalizedEvidenceInterfaceIdentity {
+            trait_symbol,
+            arguments: arguments
+                .iter()
+                .map(|argument| {
+                    program.normalized_type_identity_with_binders(*argument, &exact_substitutions)
+                })
+                .collect(),
+        }),
+    ))
+}
+
+fn type_reference_mentions_any(
+    program: &crate::TypedTrees,
+    type_reference: TypeReferenceHandle,
+    symbols: &[SymbolHandle],
+) -> bool {
+    use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_mentions_any(program, *referee, symbols)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            type_reference_mentions_any(program, *base_type, symbols)
+                || program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Range { minimum, maximum } => {
+                            expression_mentions_any(program, *minimum, symbols)
+                                || expression_mentions_any(program, *maximum, symbols)
+                        }
+                        TypeConstraintNode::Domain(domain) => {
+                            domain.arguments.iter().any(|argument| {
+                                type_reference_mentions_any(program, *argument, symbols)
+                            })
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
+                            false
+                        }
+                    })
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            type_reference_mentions_any(program, *element_type, symbols)
+                || matches!(
+                    length,
+                    FixedArrayLength::ConstParameter { symbol, .. }
+                        if symbols.contains(symbol)
+                )
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            type_reference_mentions_any(program, *element_type, symbols)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .any(|argument| type_reference_mentions_any(program, *argument, symbols)),
+        TypeReferenceNode::ConstExpression(expression) => {
+            expression_mentions_any(program, *expression, symbols)
+        }
+        TypeReferenceNode::Named { symbol, .. } => symbols.contains(symbol),
+        TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Unit => false,
+    }
+}
+
+fn expression_mentions_any(
+    program: &crate::TypedTrees,
+    expression: ExpressionHandle,
+    symbols: &[SymbolHandle],
+) -> bool {
+    use crate::expression::ExpressionNode;
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => symbols.contains(&path.symbol),
+        ExpressionNode::Binary(binary) => {
+            expression_mentions_any(program, binary.left, symbols)
+                || expression_mentions_any(program, binary.right, symbols)
+        }
+        ExpressionNode::Unary(unary) => expression_mentions_any(program, unary.operand, symbols),
+        ExpressionNode::Mutable(inner) => expression_mentions_any(program, *inner, symbols),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => false,
+        // These shapes are not admitted in proof-static type arguments. Keep
+        // an unresolved binder fail-closed if one survives into such a shape.
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => !symbols.is_empty(),
+    }
+}
+
+fn exact_binder_argument_identity(
+    program: &crate::TypedTrees,
+    argument: &PropositionBinderArgument,
+) -> Option<String> {
+    if argument.const_literal.is_some() || !argument.symbol.is_valid() {
+        return None;
+    }
+    if matches!(
+        program.symbols.get(argument.symbol).kind,
+        psi_symbols::SymbolKind::TypeParameter
+            | psi_symbols::SymbolKind::MachineParameter
+            | psi_symbols::SymbolKind::PropositionParameter
+            | psi_symbols::SymbolKind::PropositionMachineParameter
+    ) {
+        return None;
+    }
+    let identity = program.symbols.display_path(argument.symbol, "::");
+    (!identity.is_empty()).then_some(identity)
+}
+
+fn render_evidence_type(
+    program: &crate::TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, String)],
+) -> String {
+    use crate::types::TypeReferenceNode;
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+            ..
+        } => format!(
+            "&{}{}",
+            if *is_mutable { "mut " } else { "" },
+            render_evidence_type(program, *referee, substitutions)
+        ),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => format!(
+            "{}[{}]",
+            render_evidence_type(program, *base_type, substitutions),
+            match constraints.count() {
+                1 => "1 constraint".to_owned(),
+                count => format!("{count} constraints"),
+            }
+        ),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => format!(
+            "[{}; {length}]",
+            render_evidence_type(program, *element_type, substitutions)
+        ),
+        TypeReferenceNode::Slice { element_type } => format!(
+            "[{}]",
+            render_evidence_type(program, *element_type, substitutions)
+        ),
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => format!(
+            "{base_name}<{}>",
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .map(|argument| render_evidence_type(program, *argument, substitutions))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        TypeReferenceNode::Named { symbol, name } => substitutions
+            .iter()
+            .find(|(candidate, _)| candidate == symbol)
+            .map(|(_, replacement)| replacement.clone())
+            .unwrap_or_else(|| name.to_string()),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => program.display_type_reference(type_reference),
+    }
+}
+
+/// Exact instantiated identity of one carrierless evidence interface. Display
+/// spelling remains diagnostic; selection compares the resolved trait symbol
+/// and canonical argument identities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedEvidenceInterfaceIdentity {
+    pub trait_symbol: SymbolHandle,
+    pub arguments: Vec<crate::type_identity::NormalizedTypeIdentity>,
 }
 
 /// Structured endpoint of transparent-alias expansion for consumers that
@@ -130,7 +383,7 @@ impl NormalizedPropositionFormula {
             } => format!("proposition:fact:{label}"),
             Self::Proposition {
                 label,
-                classification: PropositionEvidenceClassification::Witness { evidence },
+                classification: PropositionEvidenceClassification::Witness { evidence, .. },
             } => format!("proposition:witness:{evidence}:{label}"),
             Self::Boolean { label } => format!("boolean:{label}"),
         }
@@ -166,10 +419,16 @@ impl crate::TypedTrees {
         binder_labels: &[String],
         argument_labels: &[String],
     ) -> Option<NormalizedPropositionApplicationIdentity> {
+        let binder_identities = application
+            .binder_arguments
+            .iter()
+            .map(|argument| exact_binder_argument_identity(self, argument))
+            .collect::<Vec<_>>();
         self.normalize_nominal_proposition_application_inner(
             application,
             binder_labels,
             argument_labels,
+            &binder_identities,
             &mut Vec::new(),
         )
     }
@@ -179,6 +438,7 @@ impl crate::TypedTrees {
         application: &PropositionApplication,
         binder_labels: &[String],
         argument_labels: &[String],
+        binder_identities: &[Option<String>],
         visiting: &mut Vec<SymbolHandle>,
     ) -> Option<NormalizedPropositionApplicationIdentity> {
         if visiting.contains(&application.proposition) {
@@ -190,7 +450,10 @@ impl crate::TypedTrees {
             .find(|candidate| candidate.symbol == application.proposition)?;
         let binders = self.proposition_binders(declaration);
         let parameters = self.proposition_parameters(declaration);
-        if binders.len() != binder_labels.len() || parameters.len() != argument_labels.len() {
+        if binders.len() != binder_labels.len()
+            || binders.len() != binder_identities.len()
+            || parameters.len() != argument_labels.len()
+        {
             return None;
         }
         let substitutions = binders
@@ -227,8 +490,16 @@ impl crate::TypedTrees {
                 Some(endpoint(PropositionEvidenceClassification::FactOnly))
             }
             PropositionBody::Witness { evidence } => {
+                let (evidence, interface) = normalize_evidence_interface(
+                    self,
+                    *evidence,
+                    binders,
+                    binder_labels,
+                    binder_identities,
+                )?;
                 Some(endpoint(PropositionEvidenceClassification::Witness {
-                    evidence: self.display_type_reference(*evidence),
+                    evidence,
+                    interface,
                 }))
             }
             PropositionBody::Transparent {
@@ -249,6 +520,18 @@ impl crate::TypedTrees {
                             .unwrap_or_else(|| display_binder_argument(argument))
                     })
                     .collect::<Vec<_>>();
+                let expanded_binder_identities = expansion
+                    .binder_arguments
+                    .iter()
+                    .map(|argument| {
+                        binders
+                            .iter()
+                            .zip(binder_identities)
+                            .find(|(binder, _)| binder.symbol == argument.symbol)
+                            .and_then(|(_, identity)| identity.clone())
+                            .or_else(|| exact_binder_argument_identity(self, argument))
+                    })
+                    .collect::<Vec<_>>();
                 let expanded_arguments = self
                     .expression_table
                     .expression_handles(expansion.arguments)
@@ -259,6 +542,7 @@ impl crate::TypedTrees {
                     expansion,
                     &expanded_binders,
                     &expanded_arguments,
+                    &expanded_binder_identities,
                     visiting,
                 );
                 visiting.pop();
@@ -319,11 +603,17 @@ impl crate::TypedTrees {
         binder_labels: &[String],
         argument_labels: &[String],
     ) -> Option<NormalizedPropositionFormula> {
+        let binder_identities = application
+            .binder_arguments
+            .iter()
+            .map(|argument| exact_binder_argument_identity(self, argument))
+            .collect::<Vec<_>>();
         let mut visiting = Vec::new();
         self.normalize_proposition_application_inner(
             application,
             binder_labels,
             argument_labels,
+            &binder_identities,
             &mut visiting,
         )
     }
@@ -333,6 +623,7 @@ impl crate::TypedTrees {
         application: &PropositionApplication,
         binder_labels: &[String],
         argument_labels: &[String],
+        binder_identities: &[Option<String>],
         visiting: &mut Vec<SymbolHandle>,
     ) -> Option<NormalizedPropositionFormula> {
         if visiting.contains(&application.proposition) {
@@ -373,7 +664,10 @@ impl crate::TypedTrees {
         let declaration = declaration?;
         let binders = self.proposition_binders(declaration);
         let parameters = self.proposition_parameters(declaration);
-        if binders.len() != binder_labels.len() || parameters.len() != argument_labels.len() {
+        if binders.len() != binder_labels.len()
+            || binders.len() != binder_identities.len()
+            || parameters.len() != argument_labels.len()
+        {
             return None;
         }
 
@@ -395,6 +689,13 @@ impl crate::TypedTrees {
                 classification: PropositionEvidenceClassification::FactOnly,
             }),
             PropositionBody::Witness { evidence } => {
+                let (evidence, interface) = normalize_evidence_interface(
+                    self,
+                    *evidence,
+                    binders,
+                    binder_labels,
+                    binder_identities,
+                )?;
                 Some(NormalizedPropositionFormula::Proposition {
                     label: canonical_application_label(
                         declaration.name.as_str(),
@@ -402,7 +703,8 @@ impl crate::TypedTrees {
                         argument_labels,
                     ),
                     classification: PropositionEvidenceClassification::Witness {
-                        evidence: self.display_type_reference(*evidence),
+                        evidence,
+                        interface,
                     },
                 })
             }
@@ -426,6 +728,18 @@ impl crate::TypedTrees {
                                     .unwrap_or_else(|| display_binder_argument(argument))
                             })
                             .collect::<Vec<_>>();
+                        let expanded_binder_identities = expansion
+                            .binder_arguments
+                            .iter()
+                            .map(|argument| {
+                                binders
+                                    .iter()
+                                    .zip(binder_identities)
+                                    .find(|(binder, _)| binder.symbol == argument.symbol)
+                                    .and_then(|(_, identity)| identity.clone())
+                                    .or_else(|| exact_binder_argument_identity(self, argument))
+                            })
+                            .collect::<Vec<_>>();
                         let expanded_arguments = self
                             .expression_table
                             .expression_handles(expansion.arguments)
@@ -436,6 +750,7 @@ impl crate::TypedTrees {
                             expansion,
                             &expanded_binders,
                             &expanded_arguments,
+                            &expanded_binder_identities,
                             visiting,
                         )
                     }

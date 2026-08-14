@@ -49,10 +49,11 @@ pub(crate) fn append_machine_contract_facts(
                 let normalized = program
                     .normalize_nominal_proposition_application(application)
                     .expect("validated named contract must have a nominal proposition endpoint");
-                let evidence_type = match &normalized.classification {
+                let (evidence_type, evidence_interface) = match &normalized.classification {
                     psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
-                    } => evidence.clone(),
+                        interface,
+                    } => (evidence.clone(), interface.clone()),
                     psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named contract must bind witness evidence")
                     }
@@ -66,6 +67,7 @@ pub(crate) fn append_machine_contract_facts(
                     lane_position,
                     proposition: super::lower_checked_proposition_application(normalized),
                     evidence_type,
+                    evidence_interface,
                 })
             });
             contract_facts.append(ContractProofFact {
@@ -115,10 +117,11 @@ pub(crate) fn append_state_contract_facts(
                     .expect(
                         "validated named state contract must have a nominal proposition endpoint",
                     );
-                let evidence_type = match &normalized.classification {
+                let (evidence_type, evidence_interface) = match &normalized.classification {
                     psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
-                    } => evidence.clone(),
+                        interface,
+                    } => (evidence.clone(), interface.clone()),
                     psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named state contract must bind witness evidence")
                     }
@@ -133,6 +136,7 @@ pub(crate) fn append_state_contract_facts(
                     lane_position,
                     proposition: super::lower_checked_proposition_application(normalized),
                     evidence_type,
+                    evidence_interface,
                 })
             });
             contract_facts.append(ContractProofFact {

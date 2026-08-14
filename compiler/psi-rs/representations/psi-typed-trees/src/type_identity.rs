@@ -15,7 +15,7 @@ use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct NormalizedTypeIdentity(String);
 
 impl NormalizedTypeIdentity {
