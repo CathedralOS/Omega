@@ -1,6 +1,6 @@
 use psi_build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
-    evaluate_build_machine_arguments_measured,
+    PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
 };
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -31,13 +31,14 @@ const SOURCE: &str = r#"
 #[test]
 fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() {
     let typed = typed(SOURCE);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let argument = BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
         fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
     };
 
     let pure = evaluate_build_machine_arguments_measured(
-        &typed,
+        &prepared,
         "pure_build",
         vec![argument.clone()],
         BuildMachineExecutionMode::Pure,
@@ -45,7 +46,7 @@ fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() 
     .expect("the pure build-machine service should evaluate");
 
     let pure_error = evaluate_build_machine_arguments_measured(
-        &typed,
+        &prepared,
         "Stager::build",
         vec![argument.clone()],
         BuildMachineExecutionMode::Pure,
@@ -54,7 +55,7 @@ fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() 
     assert!(pure_error.contains("host-boundary"), "{pure_error}");
 
     let granted = evaluate_build_machine_arguments_measured(
-        &typed,
+        &prepared,
         "Stager::build",
         vec![argument],
         BuildMachineExecutionMode::Granted {
@@ -71,6 +72,49 @@ fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() 
         &[BuildTimeValue::Struct {
             type_name: "Build".to_owned(),
             fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(true))],
+        }]
+    );
+}
+
+#[test]
+fn prepared_build_program_specializes_static_machine_helpers() {
+    let typed = typed(
+        r#"
+        data Build { selected: u16; }
+
+        machine chosen(value: u16) -> u16 {
+            value
+        }
+
+        machine apply<T, machine F>(value: T) -> T
+        where machine F(value: T) -> T;
+        {
+            F(value)
+        }
+
+        machine build(value: &mut Build) {
+            value.selected = apply<chosen>(70);
+        }
+        "#,
+    );
+    let prepared = PreparedBuildMachineProgram::prepare(&typed)
+        .expect("Psi should prepare static build-machine selections");
+    let evaluated = evaluate_build_machine_arguments_measured(
+        &prepared,
+        "build",
+        vec![BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("selected".to_owned(), BuildTimeValue::Int(0))],
+        }],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect("the prepared generic build helper should evaluate");
+
+    assert_eq!(
+        evaluated.value(),
+        &[BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("selected".to_owned(), BuildTimeValue::Int(70))],
         }]
     );
 }
