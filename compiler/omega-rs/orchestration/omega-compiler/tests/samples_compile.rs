@@ -33,6 +33,8 @@
 //!  * `probe_samples_compile_from_authored_program_entry_bindings` — executable
 //!    regression probes name their exact hosted roots; the deliberate trapping
 //!    fixture remains checked-only.
+//!  * `stdin_samples_compile_from_authored_program_entry_bindings` — all stdin
+//!    samples lower from exact authored roots on every hosted target.
 //!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated interpreter cohort likewise lowers directly for every hosted
 //!    target without legacy staging.
@@ -157,6 +159,7 @@ const EXPLICIT_ENTRY_PROBE_SAMPLES: &[&str] = &[
     "value_call_in_expr",
     "width_mixer",
 ];
+const EXPLICIT_ENTRY_STDIN_SAMPLES: &[&str] = &["stdin_checksum", "stdin_rot1", "stdin_upper"];
 const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
     "calculator",
     "calculator_rpn",
@@ -734,6 +737,52 @@ fn probe_samples_compile_from_authored_program_entry_bindings() {
         checked.selected_program_entry_machine(),
         None,
         "the trapping probe must not acquire a deployable storage root"
+    );
+}
+
+#[test]
+fn stdin_samples_compile_from_authored_program_entry_bindings() {
+    let mut failures = Vec::new();
+    for sample in EXPLICIT_ENTRY_STDIN_SAMPLES {
+        let main_path = repo_root().join("samples").join(sample).join("main.omg");
+        for target in HOSTED_SAMPLE_TARGETS {
+            match compile_to_checked(&main_path, Some(target)) {
+                Ok(checked) if checked.selected_program_entry_machine() == Some("Main::main") => {}
+                Ok(checked) => failures.push(format!(
+                    "{sample}/{target}: selected {:?}, expected Main::main",
+                    checked.selected_program_entry_machine()
+                )),
+                Err(diagnostics) => failures.push(format!(
+                    "{sample}/{target}: authored-entry selection failed: {diagnostics:#?}"
+                )),
+            }
+            let build_dir = std::env::temp_dir().join(format!(
+                "omega-authored-stdin-entry-{sample}-{target}-{}",
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&build_dir);
+            if let Err(diagnostics) = compile_program(CompileOptions {
+                root_path: main_path.clone(),
+                build_dir: Some(build_dir.clone()),
+                target_name: Some((*target).to_owned()),
+                write_output: false,
+            }) {
+                failures.push(format!(
+                    "{sample}/{target}: direct authored-entry lowering failed: {diagnostics:#?}"
+                ));
+            }
+            let _ = fs::remove_dir_all(build_dir);
+        }
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!("checked-only stdin sample {sample} should compile: {diagnostics:#?}")
+        });
+        assert_eq!(checked.selected_program_entry_machine(), None);
+    }
+    assert!(
+        failures.is_empty(),
+        "{} stdin authored-entry checks failed:\n{}",
+        failures.len(),
+        failures.join("\n")
     );
 }
 

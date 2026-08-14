@@ -81,7 +81,8 @@ Remaining:
   pending per-instance contained-machine dispatch, and `wire_protocol` pending
   its native round-trip mismatch. Eleven executable CLI regression probes now
   name all four hosted roots explicitly; the deliberate trapping fixture
-  remains checked-only. The
+  remains checked-only. All three stdin samples likewise select exact authored
+  roots on every hosted target. The
   fourteen deployable plan-laid runtime canaries likewise author all four
   hosted roots, and the active pass umbrella exercises them through production
   entry selection rather than its explicit legacy fixture seam. Their direct
