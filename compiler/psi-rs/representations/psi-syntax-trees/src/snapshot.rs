@@ -467,6 +467,8 @@ pub enum StatementSnapshot {
         target: IdentifierSnapshot,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        evidence_arguments: Vec<IdentifierSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
@@ -613,6 +615,8 @@ pub enum ExpressionSnapshot {
         target: IdentifierSnapshot,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        evidence_arguments: Vec<IdentifierSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
@@ -1558,6 +1562,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
+            evidence_arguments: snapshot_identifier_slice(&call.evidence_arguments),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == psi_language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -1875,6 +1880,7 @@ fn snapshot_call_expression(
             .iter()
             .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
             .collect(),
+        evidence_arguments: snapshot_identifier_slice(&call.evidence_arguments),
         acknowledgement_synthesized: call.operational_acknowledgement.origin
             == psi_language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
         acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,

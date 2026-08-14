@@ -370,6 +370,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments,
+                    evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
@@ -1341,6 +1342,7 @@ impl ExpressionTable {
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
+                    evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
@@ -1546,6 +1548,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: Box::default(),
                     arguments,
+                    evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
@@ -1664,6 +1667,7 @@ impl ExpressionTable {
                     .iter()
                     .map(|argument| self.to_tree(*argument))
                     .collect::<Arc<[_]>>(),
+                evidence_arguments: Arc::from(call.evidence_arguments.clone()),
                 operational_acknowledgement: call.operational_acknowledgement,
             })),
             ExpressionNode::Float(value) => Expression::Float(value.clone()),
@@ -2000,6 +2004,7 @@ pub struct CallExpression {
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
     pub arguments: Arc<[Expression]>,
+    pub evidence_arguments: Arc<[Identifier]>,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
@@ -2010,6 +2015,7 @@ pub struct TableCallExpression {
     pub target: Identifier,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+    pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 

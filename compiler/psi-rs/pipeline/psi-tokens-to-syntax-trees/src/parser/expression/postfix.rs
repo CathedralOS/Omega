@@ -16,10 +16,19 @@ use super::{parse_expression_handle, parse_expression_handle_in};
 pub(in crate::parser) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<ExpressionHandle>> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<ExpressionHandle>,
+        Box<[psi_syntax_trees::identifier::Identifier]>,
+    ),
+> {
     let mut arguments = Vec::new();
 
-    if !input.at_punctuation(PunctuationKind::RightParen) {
+    if !input.at_punctuation(PunctuationKind::RightParen)
+        && !input.at_punctuation(PunctuationKind::Semicolon)
+    {
         loop {
             let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
             arguments.push(expression);
@@ -37,11 +46,33 @@ pub(in crate::parser) fn parse_argument_list_after_open_paren_handle<'tokens, 's
         }
     }
 
+    let mut evidence_arguments = Vec::new();
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        if input.at_punctuation(PunctuationKind::RightParen) {
+            return Err(input
+                .error_here("the `;` call-lane separator must be followed by an evidence term"));
+        }
+        loop {
+            let (argument, rest) = input.take_identifier()?;
+            evidence_arguments.push(argument);
+            input = rest;
+            if input.at_punctuation(PunctuationKind::Comma) {
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                if input.at_punctuation(PunctuationKind::RightParen) {
+                    break;
+                }
+                continue;
+            }
+            break;
+        }
+    }
+
     input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
     let arguments = syntax_trees
         .expressions
         .insert_expression_handles(arguments);
-    Ok((arguments, input))
+    Ok(((arguments, evidence_arguments.into_boxed_slice()), input))
 }
 
 pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
@@ -57,7 +88,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             && let Some((machine_arguments, rest)) = try_parse_static_machine_arguments(input)?
         {
             let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-            let (arguments, rest) =
+            let ((arguments, evidence_arguments), rest) =
                 parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
             input = rest;
             expression = build_call_expression_handle(
@@ -65,17 +96,23 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 expression,
                 machine_arguments,
                 arguments,
+                evidence_arguments,
             )?;
             continue;
         }
 
         if input.at_punctuation(PunctuationKind::LeftParen) {
             input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-            let (arguments, rest) =
+            let ((arguments, evidence_arguments), rest) =
                 parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
             input = rest;
-            expression =
-                build_call_expression_handle(syntax_trees, expression, Box::default(), arguments)?;
+            expression = build_call_expression_handle(
+                syntax_trees,
+                expression,
+                Box::default(),
+                arguments,
+                evidence_arguments,
+            )?;
             continue;
         }
 
@@ -125,6 +162,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             )),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
+                            evidence_arguments: Box::default(),
                             operational_acknowledgement: Default::default(),
                         },
                     ));
@@ -176,6 +214,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             )),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
+                            evidence_arguments: Box::default(),
                             operational_acknowledgement: Default::default(),
                         }));
                 continue;
@@ -233,6 +272,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             )),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
+                            evidence_arguments: Box::default(),
                             operational_acknowledgement: Default::default(),
                         }));
                 continue;
@@ -329,6 +369,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             )),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
+                            evidence_arguments: Box::default(),
                             operational_acknowledgement: Default::default(),
                         }));
                 continue;
@@ -605,6 +646,7 @@ fn build_call_expression_handle(
     expression: ExpressionHandle,
     machine_arguments: Box<[StaticMachineArgument]>,
     arguments: HandleSpan<ExpressionHandle>,
+    evidence_arguments: Box<[psi_syntax_trees::identifier::Identifier]>,
 ) -> Result<ExpressionHandle, ParseError> {
     let expression = syntax_trees.expressions.expression(expression).clone();
     match expression {
@@ -641,6 +683,7 @@ fn build_call_expression_handle(
                     target,
                     machine_arguments,
                     arguments,
+                    evidence_arguments,
                     operational_acknowledgement: Default::default(),
                 })))
         }
@@ -658,6 +701,7 @@ fn build_call_expression_handle(
                     target: member.member,
                     machine_arguments,
                     arguments,
+                    evidence_arguments,
                     operational_acknowledgement: Default::default(),
                 })))
         }

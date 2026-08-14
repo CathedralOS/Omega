@@ -149,6 +149,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         target: Identifier::generated("take_non_negative"),
         machine_arguments: Box::default(),
         arguments: HandleSpan::from_parts(argument, 1),
+        evidence_arguments: Box::default(),
         operational_acknowledgement: Default::default(),
         discards_result: false,
     }));
@@ -248,6 +249,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             target: Identifier::generated("xp_required"),
             machine_arguments: Box::default(),
             arguments: nested_arguments,
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
         }));
 
@@ -264,6 +266,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             target: Identifier::generated("max"),
             machine_arguments: Box::default(),
             arguments: max_arguments,
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
         }));
 

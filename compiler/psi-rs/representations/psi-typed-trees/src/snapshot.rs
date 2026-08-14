@@ -620,6 +620,8 @@ pub enum StatementSnapshot {
         target: String,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        evidence_arguments: Vec<String>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
@@ -702,6 +704,8 @@ pub enum ExpressionSnapshot {
         target: String,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        evidence_arguments: Vec<String>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
@@ -1402,6 +1406,11 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
                 .map(snapshot_static_argument)
                 .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
+            evidence_arguments: call
+                .evidence_arguments
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -1525,6 +1534,11 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
                 .map(snapshot_static_argument)
                 .collect(),
             arguments: expression_span_snapshot(program, call.arguments),
+            evidence_arguments: call
+                .evidence_arguments
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,

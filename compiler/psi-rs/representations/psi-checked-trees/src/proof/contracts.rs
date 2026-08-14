@@ -92,6 +92,16 @@ pub struct ContractProofFactRef {
     pub fact: Handle<ContractProofFact>,
 }
 
+/// One explicit erased call-lane binding. Both ends are exact checked term
+/// identities; position is semantic and source names are never matched to
+/// callee names.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ContractEvidenceArgument {
+    pub source: Handle<CheckedEvidenceTerm>,
+    pub parameter: Handle<CheckedEvidenceTerm>,
+    pub lane_position: usize,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContractCallFact {
     pub caller_machine_symbol: SymbolHandle,
@@ -102,6 +112,7 @@ pub struct ContractCallFact {
     pub target_state_symbol: SymbolHandle,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
+    pub evidence_arguments: HandleSpan<ContractEvidenceArgument>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

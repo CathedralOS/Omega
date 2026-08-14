@@ -24,6 +24,14 @@ pub(crate) fn build_contract_call_facts(
                 contract_facts,
                 &mut fact_refs,
                 &mut calls,
+                crate::find_call_site(
+                    program,
+                    state.machine_symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .is_some_and(|site| !crate::call_site_evidence_arguments(&site).is_empty()),
                 ContractCallSite {
                     caller_machine_symbol: state.machine_symbol,
                     caller_state_symbol: state.state_symbol,
@@ -53,6 +61,7 @@ fn append_contract_call(
     contract_facts: &psi_arena::Arena<ContractProofFact>,
     fact_refs: &mut psi_arena::Arena<ContractProofFactRef>,
     calls: &mut psi_arena::Arena<ContractCallFact>,
+    has_authored_evidence_arguments: bool,
     site: ContractCallSite,
 ) {
     let requires = append_contract_fact_refs(
@@ -70,7 +79,7 @@ fn append_contract_call(
         ContractProofFactKind::Ensures,
     );
 
-    if requires.is_empty() && ensures.is_empty() {
+    if requires.is_empty() && ensures.is_empty() && !has_authored_evidence_arguments {
         return;
     }
 
@@ -83,6 +92,7 @@ fn append_contract_call(
         target_state_symbol: site.target_state_symbol,
         requires,
         ensures,
+        evidence_arguments: HandleSpan::empty(),
     });
 }
 

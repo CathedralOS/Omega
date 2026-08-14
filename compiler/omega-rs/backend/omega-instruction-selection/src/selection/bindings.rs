@@ -239,6 +239,7 @@ pub(super) fn resolve_runtime_alias_binding(
                         target_symbol: call.target_symbol,
                         target: call.target.clone(),
                         arguments,
+                        evidence_arguments: call.evidence_arguments.clone(),
                         operational_acknowledgement: call.operational_acknowledgement,
                     },
                 )),
@@ -522,6 +523,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         target: call.target.clone(),
                         machine_arguments: call.machine_arguments.clone(),
                         arguments: copied_arguments,
+                        evidence_arguments: call.evidence_arguments.clone(),
                         operational_acknowledgement: call.operational_acknowledgement,
                     }),
                 ),
@@ -808,6 +810,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments: copied_arguments,
+                    evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
                 },
             ))
@@ -1071,6 +1074,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments: copied_arguments,
+                    evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
                 },
             ))

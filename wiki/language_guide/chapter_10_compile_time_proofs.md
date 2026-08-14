@@ -151,7 +151,9 @@ ensures
 The incoming names are local aliases over positional erased parameters. A
 caller supplies them in clause order after the call's `;` lane separator; no
 visible-fact search, conformance search, or name matching occurs. The separator
-is omitted when either lane would be empty:
+is omitted when the evidence lane is empty. An evidence-only call retains the
+separator, as `callee(; proof)`, so a proof term cannot be confused with a
+runtime argument:
 
 ```omega
 let {

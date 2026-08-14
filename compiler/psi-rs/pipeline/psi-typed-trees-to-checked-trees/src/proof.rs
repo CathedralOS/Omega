@@ -81,6 +81,7 @@ pub(crate) fn build_proof_facts_with_operators(
         obligations,
         contract_facts,
         evidence_terms,
+        psi_arena::Arena::default(),
         contract_fact_refs,
         contract_calls,
         contract_exits,

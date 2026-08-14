@@ -51,6 +51,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             target: Identifier::generated("run"),
             machine_arguments: Box::default(),
             arguments: caller_arguments,
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
         }));
@@ -146,6 +147,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         target_state_symbol: callee_state_symbol,
         requires: HandleSpan::empty(),
         ensures: HandleSpan::empty(),
+        evidence_arguments: HandleSpan::empty(),
     };
     let contract = psi_checked_trees::ContractProofFact {
         kind: ContractProofFactKind::Requires,
@@ -251,6 +253,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             target: Identifier::generated("heal"),
             machine_arguments: Box::default(),
             arguments: caller_arguments,
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
         }),
@@ -307,6 +310,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         target_state_symbol: callee_state_symbol,
         requires: HandleSpan::empty(),
         ensures: HandleSpan::empty(),
+        evidence_arguments: HandleSpan::empty(),
     };
     let contract = psi_checked_trees::ContractProofFact {
         kind: ContractProofFactKind::Requires,
@@ -389,6 +393,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         target_symbol: callee_state_symbol,
         target: Identifier::generated("heal"),
         arguments: Arc::from(vec![player_argument].into_boxed_slice()),
+        evidence_arguments: Arc::default(),
         operational_acknowledgement: Default::default(),
     }));
     let call_expression = program.expression_table.insert_tree(&call_expression);
@@ -475,6 +480,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         target_state_symbol: callee_state_symbol,
         requires: HandleSpan::empty(),
         ensures: HandleSpan::empty(),
+        evidence_arguments: HandleSpan::empty(),
     };
     let contract = psi_checked_trees::ContractProofFact {
         kind: ContractProofFactKind::Requires,

@@ -266,6 +266,8 @@ pub struct TableCallExpression {
     /// These are declaration identities, never runtime expression values.
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+    /// Explicit erased evidence-term arguments after the `;` call lane.
+    pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: psi_language_core::CallOperationalAcknowledgement,
 }
 

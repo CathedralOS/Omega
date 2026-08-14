@@ -3645,6 +3645,98 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
 }
 
 #[test]
+fn parses_positional_erased_evidence_call_lane_after_semicolon() {
+    let source = r#"
+        machine Main::main(value: i32, first_proof: Evidence, second_proof: Evidence) {
+            consume(value; first_proof, second_proof);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("evidence lane should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let statement = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0]);
+    let StatementNode::Call(call) = statement else {
+        panic!("expected call statement");
+    };
+
+    assert_eq!(
+        parsed.statements.expression_handles(call.arguments).len(),
+        1
+    );
+    assert_eq!(
+        call.evidence_arguments
+            .iter()
+            .map(|name| name.as_str())
+            .collect::<Vec<_>>(),
+        ["first_proof", "second_proof"]
+    );
+}
+
+#[test]
+fn parses_evidence_only_call_lane_with_leading_semicolon() {
+    let source = r#"
+        machine Main::main(proof: Evidence) {
+            consume(; proof);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("evidence-only lane should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let StatementNode::Call(call) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("expected call statement");
+    };
+    assert!(
+        parsed
+            .statements
+            .expression_handles(call.arguments)
+            .is_empty()
+    );
+    assert_eq!(call.evidence_arguments[0].as_str(), "proof");
+}
+
+#[test]
+fn rejects_evidence_lane_on_named_transition_without_dropping_it() {
+    let source = r#"
+        machine Main::main(proof: Evidence) {
+            transition { _ -> next(; proof) }
+            state next() {}
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("named transitions must reject unsupported evidence lanes explicitly");
+    assert!(
+        error.message.contains(
+            "erased evidence arguments are not yet supported on named transition targets"
+        ),
+        "unexpected parse error: {error:?}"
+    );
+}
+
+#[test]
 fn rejects_self_as_ordinary_declaration_name() {
     let source = r#"
         data self {}

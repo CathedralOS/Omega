@@ -55,6 +55,16 @@ pub(crate) fn call_site_argument_expressions<'program>(
     lookup::call_site_argument_expressions(program, call_site)
 }
 
+pub(crate) fn call_site_evidence_arguments<'program>(
+    call_site: &CallSite<'program>,
+) -> &'program [Identifier] {
+    match call_site {
+        CallSite::Statement(call) => &call.evidence_arguments,
+        CallSite::Expression { call, .. } => &call.evidence_arguments,
+        CallSite::TransitionNamed(_) => &[],
+    }
+}
+
 pub(crate) use lookup::{
     call_target_parameters, call_target_type_parameters, find_state, find_state_in_machine,
 };

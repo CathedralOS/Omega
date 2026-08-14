@@ -219,6 +219,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                                 .collect::<Vec<_>>()
                                 .into_boxed_slice(),
                             arguments,
+                            evidence_arguments: call
+                                .evidence_arguments
+                                .iter()
+                                .map(lower_name)
+                                .collect::<Vec<_>>()
+                                .into_boxed_slice(),
                             operational_acknowledgement: call.operational_acknowledgement,
                         },
                     )))

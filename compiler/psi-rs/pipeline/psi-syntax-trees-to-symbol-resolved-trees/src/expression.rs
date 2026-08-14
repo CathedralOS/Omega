@@ -182,6 +182,7 @@ fn lower_expression_node_into_table(
                         target: DiagnosticName::new("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments,
+                        evidence_arguments: Box::default(),
                         operational_acknowledgement:
                             psi_language_semantics::CallOperationalAcknowledgement {
                                 origin: psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
@@ -216,6 +217,7 @@ fn lower_expression_node_into_table(
                         target: DiagnosticName::new("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: max_arguments,
+                        evidence_arguments: Box::default(),
                         operational_acknowledgement:
                             psi_language_semantics::CallOperationalAcknowledgement {
                                 origin: psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
@@ -236,6 +238,7 @@ fn lower_expression_node_into_table(
                         target: DiagnosticName::new("min", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: min_arguments,
+                        evidence_arguments: Box::default(),
                         operational_acknowledgement:
                             psi_language_semantics::CallOperationalAcknowledgement {
                                 origin: psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
@@ -290,6 +293,12 @@ fn lower_expression_node_into_table(
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     arguments,
+                    evidence_arguments: call
+                        .evidence_arguments
+                        .iter()
+                        .map(lower_name)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
                 })),
             )

@@ -605,9 +605,15 @@ Remaining N6/N8 work:
   reject Boolean, membership, fact-only, and non-nominal bindings, and mint one
   exact erased term identity per witness-bearing binding with its independent
   requires/ensures lane position, normalized proposition application, and
-  carrierless interface. Continue with erased call-lane arguments,
-  assignment/forwarding, private complete-conformance selection, generated
-  output packages, and terminal evidence identity.
+  carrierless interface. Calls now retain a separate erased identifier lane
+  through syntax, resolved, and typed trees; checked calls bind each explicit
+  caller term identity to the callee's named-requires identity by position after
+  runtime-argument substitution, rejecting missing, extra, unknown, or
+  proposition-mismatched terms without visible-fact inference. Continue with
+  named-transition evidence lanes (currently rejected explicitly before their
+  call identity can be discarded), assignment/forwarding, private complete-
+  conformance selection, generated output packages, and terminal evidence
+  identity.
 - Add named-ensures definite assignment per outcome and compiler-generated
   nominal output packages. `value` is the runtime result; evidence erases,
   destructuring is complete or explicitly `_`, and guarded fields exist only

@@ -134,6 +134,8 @@ pub struct TableCall {
     pub target: Identifier,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    /// Explicit erased evidence-term arguments after the `;` call lane.
+    pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: psi_language_core::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
@@ -147,6 +149,7 @@ impl Default for TableCall {
             target: Identifier::default(),
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
+            evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
         }
