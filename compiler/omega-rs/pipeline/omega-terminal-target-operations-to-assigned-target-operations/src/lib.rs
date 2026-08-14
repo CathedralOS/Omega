@@ -381,25 +381,12 @@ fn assign_function(
             parameter_index: *parameter_index,
             location: assign_direct_location(*source_value, *location, architecture)?,
         },
-        TerminalTargetOperation::ReturnBooleanSharedConvergence {
-            psi_edge,
-            condition_source,
-            condition_parameter_index,
-            condition_location,
-            when_true,
-            when_false,
-        } => TerminalAssignedOperation::ReturnBooleanSharedConvergence {
-            psi_edge: *psi_edge,
-            condition_source: *condition_source,
-            condition_parameter_index: *condition_parameter_index,
-            condition_location: assign_direct_location(
-                *condition_source,
-                *condition_location,
-                architecture,
-            )?,
-            when_true: *when_true,
-            when_false: *when_false,
-        },
+        TerminalTargetOperation::ReturnBooleanSharedConvergence { psi_edge, control } => {
+            TerminalAssignedOperation::ReturnBooleanSharedConvergence {
+                psi_edge: *psi_edge,
+                control: assign_boolean_control(control, architecture)?,
+            }
+        }
         TerminalTargetOperation::ReturnBooleanExpression {
             psi_edge,
             source_value,

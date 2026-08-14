@@ -4486,9 +4486,9 @@ fn lower_nominal_structural_scalar_return_machine(
             ),
         )?;
         if binding_index >= plan.bindings.len()
-            || shared_boolean_runtime_parameter_count(&decision) != Some(1)
+            || shared_boolean_runtime_parameters(&decision).is_none_or(|inputs| inputs.is_empty())
         {
-            return unsupported("shared Boolean convergence is not a normalized one-input tree");
+            return unsupported("shared Boolean convergence has no normalized runtime input");
         }
         validate_boolean_parameter_types(&decision, &parameter_types)?;
     } else if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
@@ -4519,8 +4519,8 @@ fn lower_nominal_structural_scalar_return_machine(
                 "shared Boolean convergence contains a non-normalizable comparison leaf",
             ),
         )?;
-        if shared_boolean_runtime_parameter_count(&decision) != Some(1) {
-            return unsupported("shared Boolean convergence is not a normalized one-input tree");
+        if shared_boolean_runtime_parameters(&decision).is_none_or(|inputs| inputs.is_empty()) {
+            return unsupported("shared Boolean convergence has no normalized runtime input");
         }
         let decision = lower_boolean_value_decision(&decision);
         let decision_block_count = boolean_decision_block_count(&decision);
@@ -10497,19 +10497,20 @@ fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     }
 }
 
-fn shared_boolean_runtime_parameter_count(
+fn shared_boolean_runtime_parameters(
     expression: &LoweredBooleanReturnExpression,
-) -> Option<usize> {
+) -> Option<BTreeSet<usize>> {
     match expression {
-        LoweredBooleanReturnExpression::Constant { .. } => Some(0),
-        LoweredBooleanReturnExpression::Parameter { .. } => Some(1),
+        LoweredBooleanReturnExpression::Constant { .. } => Some(BTreeSet::new()),
+        LoweredBooleanReturnExpression::Parameter { position } => Some(BTreeSet::from([*position])),
         LoweredBooleanReturnExpression::Not { operand } => {
-            shared_boolean_runtime_parameter_count(operand)
+            shared_boolean_runtime_parameters(operand)
         }
         LoweredBooleanReturnExpression::And { left, right }
         | LoweredBooleanReturnExpression::Or { left, right } => {
-            shared_boolean_runtime_parameter_count(left)?
-                .checked_add(shared_boolean_runtime_parameter_count(right)?)
+            let mut parameters = shared_boolean_runtime_parameters(left)?;
+            parameters.extend(shared_boolean_runtime_parameters(right)?);
+            Some(parameters)
         }
         LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::Equal { .. }

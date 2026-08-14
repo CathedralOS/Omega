@@ -1332,8 +1332,9 @@ fn checked_shared_boolean_convergence(
     let CheckedScalarExpression::Boolean(expression) = expression else {
         return None;
     };
+    let runtime_parameters = shared_boolean_runtime_parameters(expression, scalar_parameter_count)?;
     if !checked_boolean_contains_short_circuit(expression)
-        || shared_boolean_runtime_parameter_count(expression, scalar_parameter_count) != Some(1)
+        || runtime_parameters.is_empty()
         || !matches!(
             return_expression,
             CheckedScalarExpression::Boolean(expression)
@@ -1347,40 +1348,43 @@ fn checked_shared_boolean_convergence(
     Some(psi_checked_trees::CheckedStructuralBooleanConvergencePlan { binding_ordinal: 0 })
 }
 
-/// Count the runtime Boolean inputs in the bounded shared-join form. Constants
-/// `!`/`&&`/`||` nesting adds control shape but no second native input. Boolean
+/// Collect the distinct runtime Boolean inputs in the shared-join form. Constants
+/// `!`/`&&`/`||` nesting adds control shape but no native input. Boolean
 /// equality against a constant is also admissible because terminal production
-/// can normalize it to identity or negation without adding a native input.
+/// can normalize it to identity or negation without adding an input.
 /// Two-runtime-side equality, fields, integer comparisons, and locals remain
 /// source-distributed.
-fn shared_boolean_runtime_parameter_count(
+fn shared_boolean_runtime_parameters(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
-) -> Option<usize> {
+) -> Option<BTreeSet<usize>> {
     match expression {
-        psi_checked_trees::CheckedBooleanExpression::Constant(_) => Some(0),
+        psi_checked_trees::CheckedBooleanExpression::Constant(_) => Some(BTreeSet::new()),
         psi_checked_trees::CheckedBooleanExpression::Parameter { position }
             if *position < scalar_parameter_count =>
         {
-            Some(1)
+            Some(BTreeSet::from([*position]))
         }
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
-            shared_boolean_runtime_parameter_count(operand, scalar_parameter_count)
+            shared_boolean_runtime_parameters(operand, scalar_parameter_count)
         }
         psi_checked_trees::CheckedBooleanExpression::Equal { left, right } => {
             match (left.as_ref(), right.as_ref()) {
                 (psi_checked_trees::CheckedBooleanExpression::Constant(_), expression)
                 | (expression, psi_checked_trees::CheckedBooleanExpression::Constant(_)) => {
-                    shared_boolean_runtime_parameter_count(expression, scalar_parameter_count)
+                    shared_boolean_runtime_parameters(expression, scalar_parameter_count)
                 }
                 _ => None,
             }
         }
         psi_checked_trees::CheckedBooleanExpression::And { left, right }
         | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
-            shared_boolean_runtime_parameter_count(left, scalar_parameter_count)?.checked_add(
-                shared_boolean_runtime_parameter_count(right, scalar_parameter_count)?,
-            )
+            let mut parameters = shared_boolean_runtime_parameters(left, scalar_parameter_count)?;
+            parameters.extend(shared_boolean_runtime_parameters(
+                right,
+                scalar_parameter_count,
+            )?);
+            Some(parameters)
         }
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }

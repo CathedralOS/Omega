@@ -32,9 +32,10 @@ use omega_terminal_machine_code::{
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
     TerminalScalarConditionalBranchEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlAffineCleanupRecord, TerminalScalarControlFlowEvidence,
-    TerminalScalarDivisionBranchEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarDivisionBranchEvidence, TerminalScalarJoinBranchEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalPsiProvenance};
 use psi_core::MachineId;
@@ -2312,9 +2313,8 @@ fn validate_boolean_shared_convergence_stack(
     bytes: &[u8],
     calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
     evidence: &TerminalScalarStackEvidence,
-    decision: TerminalScalarConditionalBranchEvidence,
-    join_offset: usize,
-    join_byte_count: usize,
+    decisions: &[TerminalScalarConditionalBranchEvidence],
+    joins: &[TerminalScalarJoinBranchEvidence],
     merge_offset: usize,
     cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 ) -> Result<
@@ -2326,18 +2326,18 @@ fn validate_boolean_shared_convergence_stack(
 > {
     let invalid = || TerminalObjectError::InvalidScalarConditionalEvidence {
         machine,
-        offset: decision.branch_offset,
+        offset: decisions
+            .first()
+            .map_or(0, |decision| decision.branch_offset),
     };
-    let branch_end = decision
-        .branch_offset
-        .checked_add(decision.branch_byte_count)
-        .ok_or_else(invalid)?;
-    let join_end = join_offset
-        .checked_add(join_byte_count)
-        .ok_or_else(invalid)?;
-    if branch_end > join_offset
-        || join_end != decision.false_arm_offset
-        || decision.false_arm_offset >= merge_offset
+    if decisions.is_empty()
+        || joins.len() != decisions.len()
+        || decisions
+            .windows(2)
+            .any(|pair| pair[0].branch_offset >= pair[1].branch_offset)
+        || joins
+            .windows(2)
+            .any(|pair| pair[0].join_offset >= pair[1].join_offset)
         || merge_offset >= bytes.len()
         || evidence.cleanup_preservation.is_none()
         || evidence
@@ -2347,44 +2347,20 @@ fn validate_boolean_shared_convergence_stack(
     {
         return Err(invalid());
     }
-    validate_scalar_conditional_branch(
+    let mut prefixes = Vec::with_capacity(decisions.len());
+    let mut leaves = Vec::with_capacity(decisions.len() + 1);
+    collect_conditional_tree_regions(
         architecture,
-        decision.condition,
         machine,
         bytes,
-        decision.branch_offset,
-        decision.branch_byte_count,
-        decision.false_arm_offset,
+        0,
+        merge_offset,
+        decisions,
+        &mut prefixes,
+        &mut leaves,
     )?;
-    match architecture {
-        Architecture::X86_64 => {
-            let join = decode_exact_x86_instruction(machine, bytes, join_offset, join_byte_count)?;
-            if join.mnemonic() != iced_x86::Mnemonic::Jmp
-                || usize::try_from(join.near_branch_target()).ok() != Some(merge_offset)
-            {
-                return Err(invalid());
-            }
-        }
-        Architecture::Aarch64 => {
-            if join_byte_count != 4 || !join_offset.is_multiple_of(4) {
-                return Err(invalid());
-            }
-            let encoded = u32::from_le_bytes(
-                bytes[join_offset..join_end]
-                    .try_into()
-                    .map_err(|_| invalid())?,
-            );
-            let words = merge_offset
-                .checked_sub(join_offset)
-                .filter(|distance| distance.is_multiple_of(4))
-                .map(|distance| distance / 4)
-                .and_then(|words| u32::try_from(words).ok())
-                .filter(|words| *words <= 0x01ff_ffff)
-                .ok_or_else(invalid)?;
-            if encoded != 0x1400_0000 | words {
-                return Err(invalid());
-            }
-        }
+    if leaves.len() != decisions.len() + 1 {
+        return Err(invalid());
     }
     let mut claimed = evidence
         .mutations
@@ -2407,27 +2383,107 @@ fn validate_boolean_shared_convergence_stack(
     }
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut peak = 0;
-    for (start, end, allow_calls) in [
-        (0, decision.branch_offset, false),
-        (branch_end, join_offset, false),
-        (decision.false_arm_offset, merge_offset, false),
-        (merge_offset, bytes.len(), true),
-    ] {
-        peak = peak.max(replay_scalar_conditional_region(
+    for (start, end, condition) in prefixes {
+        let prefix_peak = replay_scalar_conditional_region(
             architecture,
             machine,
             bytes,
             start,
             end,
-            allow_calls,
+            false,
             &mut claimed,
             &mut call_sites,
-            allow_calls,
+            condition == TerminalScalarConditionalCondition::Expression,
             evidence,
             &mut validated_calls,
-            allow_calls.then_some(cleanup).flatten(),
+            None,
+        )?;
+        if condition == TerminalScalarConditionalCondition::Parameter && prefix_peak != 0 {
+            return Err(invalid());
+        }
+        peak = peak.max(prefix_peak);
+    }
+    for (index, (start, end)) in leaves.into_iter().enumerate() {
+        let value_end = if let Some(join) = joins.get(index) {
+            let join_end = join
+                .join_offset
+                .checked_add(join.join_byte_count)
+                .ok_or_else(invalid)?;
+            if join.join_offset < start || join_end != end {
+                return Err(invalid());
+            }
+            match architecture {
+                Architecture::X86_64 => {
+                    let instruction = decode_exact_x86_instruction(
+                        machine,
+                        bytes,
+                        join.join_offset,
+                        join.join_byte_count,
+                    )?;
+                    if instruction.mnemonic() != iced_x86::Mnemonic::Jmp
+                        || usize::try_from(instruction.near_branch_target()).ok()
+                            != Some(merge_offset)
+                    {
+                        return Err(invalid());
+                    }
+                }
+                Architecture::Aarch64 => {
+                    if join.join_byte_count != 4 || !join.join_offset.is_multiple_of(4) {
+                        return Err(invalid());
+                    }
+                    let encoded = u32::from_le_bytes(
+                        bytes[join.join_offset..join_end]
+                            .try_into()
+                            .map_err(|_| invalid())?,
+                    );
+                    let words = merge_offset
+                        .checked_sub(join.join_offset)
+                        .filter(|distance| distance.is_multiple_of(4))
+                        .map(|distance| distance / 4)
+                        .and_then(|words| u32::try_from(words).ok())
+                        .filter(|words| *words <= 0x01ff_ffff)
+                        .ok_or_else(invalid)?;
+                    if encoded != 0x1400_0000 | words {
+                        return Err(invalid());
+                    }
+                }
+            }
+            join.join_offset
+        } else {
+            if index != decisions.len() || end != merge_offset {
+                return Err(invalid());
+            }
+            end
+        };
+        peak = peak.max(replay_scalar_conditional_region(
+            architecture,
+            machine,
+            bytes,
+            start,
+            value_end,
+            false,
+            &mut claimed,
+            &mut call_sites,
+            false,
+            evidence,
+            &mut validated_calls,
+            None,
         )?);
     }
+    peak = peak.max(replay_scalar_conditional_region(
+        architecture,
+        machine,
+        bytes,
+        merge_offset,
+        bytes.len(),
+        true,
+        &mut claimed,
+        &mut call_sites,
+        true,
+        evidence,
+        &mut validated_calls,
+        cleanup,
+    )?);
     if let Some((&offset, _)) = claimed.first_key_value() {
         return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
     }
@@ -2469,9 +2525,8 @@ fn validate_scalar_stack(
         });
     }
     if let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
-        decision,
-        join_offset,
-        join_byte_count,
+        decisions,
+        joins,
         merge_offset,
     } = &evidence.control_flow
     {
@@ -2486,9 +2541,8 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
-            *decision,
-            *join_offset,
-            *join_byte_count,
+            decisions,
+            joins,
             *merge_offset,
             scalar_affine_cleanup,
         );

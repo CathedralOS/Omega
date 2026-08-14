@@ -311,36 +311,7 @@ fn lower_function(
             functions,
         )?;
         if let Some(shared_return_edge) = shared_boolean_cleanup_convergence_return_edge(function) {
-            let TerminalTargetBooleanControl::Conditional {
-                condition_source,
-                condition_parameter_index,
-                condition_location,
-                when_true,
-                when_false,
-            } = lowered.control
-            else {
-                return Err(LoweringError::UnsupportedOperationInScalarFunction(
-                    function.machine,
-                ));
-            };
-            let (
-                TerminalTargetBooleanControl::ReturnImmediate {
-                    psi_return_edge: true_edge,
-                    value: when_true_value,
-                    ..
-                },
-                TerminalTargetBooleanControl::ReturnImmediate {
-                    psi_return_edge: false_edge,
-                    value: when_false_value,
-                    ..
-                },
-            ) = (*when_true.control, *when_false.control)
-            else {
-                return Err(LoweringError::UnsupportedOperationInScalarFunction(
-                    function.machine,
-                ));
-            };
-            if true_edge != shared_return_edge || false_edge != shared_return_edge {
+            if shared_boolean_control_return_edge(&lowered.control) != Some(shared_return_edge) {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,
                 ));
@@ -359,11 +330,7 @@ fn lower_function(
                 operation: TerminalTargetOperation::ScalarReturnWithCleanup {
                     scalar: Box::new(TerminalTargetOperation::ReturnBooleanSharedConvergence {
                         psi_edge: shared_return_edge,
-                        condition_source,
-                        condition_parameter_index,
-                        condition_location,
-                        when_true: when_true_value,
-                        when_false: when_false_value,
+                        control: lowered.control,
                     }),
                     structural_types: structural_types
                         .values()
@@ -1610,6 +1577,32 @@ fn shared_boolean_cleanup_convergence_return_edge(
         Some([TerminalAbstractOperation::Return { psi_edge, .. }]) if *psi_edge == edge
     )
     .then_some(edge)
+}
+
+fn shared_boolean_control_return_edge(control: &TerminalTargetBooleanControl) -> Option<EdgeId> {
+    match control {
+        TerminalTargetBooleanControl::ReturnImmediate {
+            psi_return_edge, ..
+        } => Some(*psi_return_edge),
+        TerminalTargetBooleanControl::Conditional {
+            when_true,
+            when_false,
+            ..
+        }
+        | TerminalTargetBooleanControl::ConditionalExpression {
+            when_true,
+            when_false,
+            ..
+        } => {
+            let when_true = shared_boolean_control_return_edge(&when_true.control)?;
+            let when_false = shared_boolean_control_return_edge(&when_false.control)?;
+            (when_true == when_false).then_some(when_true)
+        }
+        TerminalTargetBooleanControl::Crash { .. }
+        | TerminalTargetBooleanControl::ReturnParameter { .. }
+        | TerminalTargetBooleanControl::ReturnNotParameter { .. }
+        | TerminalTargetBooleanControl::ReturnExpression { .. } => None,
+    }
 }
 
 fn lower_structural_return_function(
