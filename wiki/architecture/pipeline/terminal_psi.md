@@ -439,13 +439,14 @@ divisor when each machine's complete bounded `requires` package proves one of
 the verifier-owned totality shapes: `1 <= divisor`, `divisor <= -2`, or the
 joint signed bounds `divisor <= -1` and `MIN + 1 <= dividend`. Checked plans
 retain those packages without source handles and terminal Psi publishes the
-exact requirements. Every direct structural call carries one exact obligation
-per callee requirement; the producer rebases the target place, cites the
-matching caller assumption, and emits a replaceable certificate. Independent
-verification repeats the rebasing and checks the assumption index before codec
-or interpretation. Removing evidence or weakening or redirecting a bound
-rejects. Projected structural arguments remain fenced for requirement-bearing
-calls. Case-payload paths and imported crash capsules also remain fail-closed.
+exact requirements. Every direct or all-field-projected structural call carries
+one exact obligation per callee requirement; the producer rebases the target
+place through the caller's canonical field prefix, cites the matching caller
+assumption, and emits a replaceable certificate. Independent verification
+reconstructs that prefix, repeats the rebasing, and checks the assumption index
+before codec or interpretation. Removing evidence or weakening or redirecting
+a bound rejects. Case-payload paths and imported crash capsules remain
+fail-closed.
 Structural/content contracts reject because custody effects require their own
 vertical slice rather than an ordinary scalar flag.
 

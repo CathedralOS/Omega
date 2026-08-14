@@ -2926,7 +2926,7 @@ fn substitute_crash_route_places(
         .collect()
 }
 
-fn structural_argument_canonical_prefix(
+pub(crate) fn structural_argument_canonical_prefix(
     module: &TerminalModule,
     caller: &TerminalMachine,
     argument: &StructuralArgument,

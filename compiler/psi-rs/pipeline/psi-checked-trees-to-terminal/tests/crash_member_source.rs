@@ -304,6 +304,28 @@ const RUNTIME_DIVISOR_CALL_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_RUNTIME_DIVISOR_CALL_SOURCE: &str = r#"
+    data Metrics { current: u64; divisor: u64; limit: u64; }
+    data Envelope { metrics: Metrics; decoy: Metrics; }
+    data Helper {}
+    machine Helper::inspect(metrics: Metrics)
+    requires
+        1 <= metrics.divisor
+    crashes Abort
+        metrics.current / metrics.divisor <= metrics.limit
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    requires
+        1 <= envelope.metrics.divisor
+    crashes Abort
+        envelope.metrics.current / envelope.metrics.divisor <= envelope.metrics.limit
+    {
+        Helper::inspect(envelope.metrics);
+    }
+"#;
+
 const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
     data Flag { active: bool; }
     data Pair { left: Flag; right: Flag; decoy: Flag; }
@@ -2293,6 +2315,73 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
             &AdmissionProfile::default(),
         ),
         Err(psi_terminal_verifier::VerificationError::RejectedEvidence { .. })
+    ));
+}
+
+#[test]
+fn projected_runtime_divisor_call_rebases_requirement_through_canonical_prefix() {
+    let tokens = Lexer::new(PROJECTED_RUNTIME_DIVISOR_CALL_SOURCE)
+        .tokenize()
+        .expect("projected-runtime-divisor-call tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("projected-runtime-divisor-call parse");
+    let resolved = lower_syntax_trees(&syntax).expect("projected-runtime-divisor-call resolve");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("projected-runtime-divisor-call type");
+    let checked = lower_typed_trees(typed).expect("projected-runtime-divisor-call check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("a projected Unit call rebases its runtime-divisor requirement");
+    let root = &lowered.semantic_module.machines[0];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        requirement_obligations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("root emits one projected structural Unit call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [StructuralPathSegment::Field(identity)] if identity == "metrics"
+    ));
+    assert_eq!(requirement_obligations.len(), 1);
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("the verifier reconstructs the projected call obligation");
+    assert_eq!(reconstructed.len(), 1);
+    assert_eq!(
+        reconstructed[0].obligation.proposition, root.contract.requires[0],
+        "the canonical argument prefix rebases the callee premise to the caller path"
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the projected call proof cites the exact rebased caller assumption");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("projected call encodes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("projected proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+
+    let mut wrong_prefix = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut wrong_prefix.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("decoy".to_owned())];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&wrong_prefix),
+        Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
     ));
 }
 

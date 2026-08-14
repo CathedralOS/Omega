@@ -356,14 +356,14 @@ Remaining:
   divisor when every machine's complete bounded `requires` package carries an
   exact positive bound, an at-most-negative-two bound, or the joint signed
   negative-one/dividend bound. Checked plans retain the source-independent
-  package. Direct calls rebase each callee requirement, retain one exact
-  obligation, and cite the matching caller assumption; canonical terminal Psi,
-  codec, independent verification, and interpretation reject missing evidence,
-  a wrong assumption, or a weakened or redirected premise. Continue with
-  projected requirement-bearing structural calls, other arithmetic families,
-  case-payload paths, and wider aggregate equality involving text, floats,
-  sums, or erased fields. Imported crash capsules remain design-blocked on
-  artifact identity and certificate binding.
+  package. Direct and all-field-projected calls rebase each callee requirement,
+  retain one exact obligation, and cite the matching caller assumption;
+  canonical terminal Psi, codec, independent verification, and interpretation
+  reject missing evidence, a wrong assumption, or a weakened or redirected
+  premise. Continue with other arithmetic families, case-payload paths, and
+  wider aggregate equality involving text, floats, sums, or erased fields.
+  Imported crash capsules remain design-blocked on artifact identity and
+  certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
