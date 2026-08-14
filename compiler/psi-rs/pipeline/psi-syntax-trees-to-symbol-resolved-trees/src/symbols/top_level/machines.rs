@@ -81,6 +81,16 @@ pub(super) fn assign_machine_symbols(
             .span_or_empty(machine.type_parameters)
             .to_vec();
 
+        for bound in &mut machine.conformance_bounds {
+            if bound.binder_name.is_some() {
+                bound.binder = Some(next_child_of_kind(
+                    &mut machine_children,
+                    symbols,
+                    SymbolKind::ConformanceParameter,
+                ));
+            }
+        }
+
         // MP1: machine-parameter contracts are real signature data, not
         // parser-only text. Resolve their parameter/result type references in
         // the declaring machine's generic/self context. Contract-parameter

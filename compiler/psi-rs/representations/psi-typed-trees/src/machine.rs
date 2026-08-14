@@ -57,6 +57,8 @@ impl Default for Machine {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericConformanceBound {
+    pub binder: Option<SymbolHandle>,
+    pub binder_name: Option<Identifier>,
     pub subject: SymbolHandle,
     pub subject_name: Identifier,
     pub carrier: SymbolHandle,

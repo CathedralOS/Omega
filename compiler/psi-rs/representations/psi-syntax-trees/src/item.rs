@@ -821,6 +821,10 @@ pub struct SatisfiesClause {
 /// selects the named conformance `Order` declared for `Card`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GenericConformanceBound {
+    /// `Some(Order)` for an explicit telescope binder
+    /// `Order: Subject satisfies Trait`; `None` for the older anonymous
+    /// `where Subject satisfies Trait` test.
+    pub binder: Option<Identifier>,
     pub subject: Identifier,
     pub carrier: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,

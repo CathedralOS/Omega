@@ -202,6 +202,11 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if parameter.is_valid() {
             return parameter;
         }
+        let conformance =
+            top_level_symbol_by_kinds(symbols, &[SymbolKind::Conformance], target.as_str());
+        if conformance.is_valid() {
+            return conformance;
+        }
         return resolve_free_machine_entry_state_symbol(symbols, target.as_str());
     }
 

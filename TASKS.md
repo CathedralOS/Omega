@@ -529,11 +529,13 @@ Remaining N6/N8 work:
   front half now parses `Name<Telescope>: [Subject] satisfies Trait { ... }`,
   retains lifetime/type/const/static-machine parameters through resolved and
   typed Psi, resolves its contracts and trait arguments in that name-owned
-  scope, and gives every named conformance a package-scoped symbol. Still add
-  `Evidence: Subject satisfies Trait` binders and instantiate the selected
-  conformance map. Identity retains declared name, telescope, optional subject,
-  instantiated trait, and normalized rows. No visibility-, priority-, or
-  specificity-based selection.
+  scope, and gives every named conformance a package-scoped symbol. Machine
+  telescopes now also parse and retain a distinct proof-static
+  `Evidence: Subject satisfies Trait` binder with its own lexical symbol. Still
+  bind each call-site conformance argument, validate its instantiated contract,
+  and substitute the selected normalized row map. Identity retains declared
+  name, telescope, optional subject, instantiated trait, and normalized rows.
+  No visibility-, priority-, or specificity-based selection.
 - Project carrierless evidence from the complete conformance map. Projection is
   stable per retained term and forwarding preserves it; separate introductions
   may differ. Evidence cannot eliminate into runtime computation.

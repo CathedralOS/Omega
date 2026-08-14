@@ -512,6 +512,10 @@ pub struct MachineSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GenericConformanceBoundSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binder: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binder_symbol: Option<u32>,
     pub subject: String,
     pub subject_symbol: u32,
     pub carrier: String,
@@ -1086,6 +1090,8 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .conformance_bounds
             .iter()
             .map(|bound| GenericConformanceBoundSnapshot {
+                binder: bound.binder_name.as_ref().map(ToString::to_string),
+                binder_symbol: bound.binder.map(|symbol| symbol.arena_index()),
                 subject: bound.subject_name.to_string(),
                 subject_symbol: bound.subject.arena_index(),
                 carrier: bound.carrier_name.to_string(),
@@ -1208,6 +1214,8 @@ fn trait_definition_snapshot(
             .conformance_bounds
             .iter()
             .map(|bound| GenericConformanceBoundSnapshot {
+                binder: bound.binder_name.as_ref().map(ToString::to_string),
+                binder_symbol: bound.binder.map(|symbol| symbol.arena_index()),
                 subject: bound.subject_name.to_string(),
                 subject_symbol: bound.subject.arena_index(),
                 carrier: bound.carrier_name.to_string(),

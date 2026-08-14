@@ -151,6 +151,8 @@ pub(crate) fn lower_generic_conformance_bounds(
         .iter()
         .map(|bound| {
             Ok(GenericConformanceBound {
+                binder: bound.binder.as_ref().map(|_| SymbolHandle::invalid()),
+                binder_name: bound.binder.as_ref().map(crate::name::lower_name),
                 subject: SymbolHandle::invalid(),
                 subject_name: crate::name::lower_name(&bound.subject),
                 carrier: SymbolHandle::invalid(),

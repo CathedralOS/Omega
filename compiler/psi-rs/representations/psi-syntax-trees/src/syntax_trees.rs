@@ -484,6 +484,7 @@ impl SyntaxTrees {
                 .conformance_bounds
                 .iter()
                 .map(|bound| crate::item::GenericConformanceBound {
+                    binder: bound.binder.clone(),
                     subject: bound.subject.clone(),
                     carrier: bound.carrier.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
@@ -523,6 +524,7 @@ impl SyntaxTrees {
                 .conformance_bounds
                 .iter()
                 .map(|bound| crate::item::GenericConformanceBound {
+                    binder: bound.binder.clone(),
                     subject: bound.subject.clone(),
                     carrier: bound.carrier.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),

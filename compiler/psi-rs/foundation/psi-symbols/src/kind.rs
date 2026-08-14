@@ -17,6 +17,9 @@ pub enum SymbolKind {
     State,
     Trait,
     Conformance,
+    /// A proof-static machine-telescope binder whose concrete argument is one
+    /// exact package-scoped conformance.
+    ConformanceParameter,
     WireSchema,
     Parameter,
     TypeParameter,
