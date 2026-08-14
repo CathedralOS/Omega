@@ -358,8 +358,8 @@ structural custody is never represented as a scalar parameter.
 One narrower nominal branch admits a finite nonempty list of direct affine
 structural parameters that may mix no-code and nominal roots, a finite set of
 direct primitive scalar inputs interleaved at authored parameter positions,
-and no authored contract beyond the direct-Boolean contextual subset and one
-direct unsigned scalar-parameter upper bound described below,
+and no authored contract beyond a combination of the direct-Boolean contextual
+subset and direct unsigned scalar-parameter upper bounds described below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
 and either one branch-free scalar result or a finite Boolean continuation chain
 that begins with a finite `&&`/`||` decision tree of arbitrary nesting. Every
@@ -412,7 +412,8 @@ installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath one
 total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
 arithmetic shell, one integer-widening shell, or one exact unsigned narrowing
-under a direct parameter upper-bound `requires`, may form decision leaves. Psi
+or exact addition under retained direct parameter upper-bound `requires`, may
+form decision leaves. Psi
 retains every exact operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
@@ -908,13 +909,14 @@ verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
 that source outside native expression scratch. Separately, direct integer
 comparisons over scalar parameters and landed constants, with at most one total
-binary, bitwise-not, integer-widening, or proof-bearing exact-cast computation
-shell per operand, retain their exact Psi operations through the same verified,
-interpreted, and native shared join. The exact-cast subset accepts one direct
-unsigned parameter upper-bound premise; Psi retains it as a terminal machine
-requirement, and the cast certificate cites that exact assumption. Field-only
-trees, nested or multiple member identities, wider or
-partial integer computation, member/comparison mixtures, external
+binary, bitwise-not, integer-widening, proof-bearing exact-cast, or
+proof-bearing exact-add computation shell per operand, retain their exact Psi
+operations through the same verified, interpreted, and native shared join.
+The proof-bearing subset accepts direct unsigned parameter upper-bound
+premises; Psi retains each as a terminal machine requirement, and each
+operation certificate cites its exact assumption. Field-only trees, nested or
+multiple member identities, wider or partial integer computation,
+member/comparison mixtures, external
 adapter/interrupt-arrival state, and other terminal function forms remain
 outside the shared-join theorem, so the inspection surface makes no
 installed-root WCSU claim.

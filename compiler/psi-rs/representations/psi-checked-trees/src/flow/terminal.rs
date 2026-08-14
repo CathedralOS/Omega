@@ -306,8 +306,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// relevant Boolean field identity on one nominal-cleanup root is also
     /// admitted. Integer-comparison leaves separately accept scalar parameters
     /// and landed constants beneath at most one total binary, bitwise-not,
-    /// integer-widening, or proof-bearing exact-cast computation shell. The
-    /// exact-cast slice retains one direct unsigned parameter upper bound.
+    /// integer-widening, proof-bearing exact-cast, or proof-bearing exact-add
+    /// computation shell. Those proof-bearing slices retain direct unsigned
+    /// parameter upper bounds.
     /// Nested or multiple field identities, member/comparison mixtures, wider
     /// integer computations, and richer leaves retain the source-distributed
     /// fallback and publish `None`.
@@ -316,9 +317,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// scalar return edge. Nominal cleanup actions select root-local subsets
     /// by `source_parameter_index`; no-code actions consume no premise.
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
-    /// One bounded scalar premise retained from the authored contract. The
-    /// first slice admits a direct unsigned parameter upper bound so
-    /// proof-bearing exact narrowing can be reconstructed terminally.
+    /// Bounded scalar premises retained from the authored contract. This slice
+    /// admits direct unsigned parameter upper bounds so proof-bearing exact
+    /// narrowing and addition can be reconstructed terminally.
     pub scalar_requirements: Vec<CheckedStructuralScalarIntegerUpperBoundRequirementPlan>,
     /// Complete post-result cleanup stream in reverse authored parameter
     /// order. Keeping trivial and nominal actions in one list prevents either

@@ -740,11 +740,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             small: u8,
             enabled: bool
         ) -> bool
-        requires input <= 255u64
+        requires input <= 255u64, small <= 254u8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && ((small as u16) < 5u16)
                 && ((input as u8) < 5u8)
+                && ((small + 1u8) < 6u8)
                 && enabled;
             staged
         }
@@ -800,6 +801,22 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .expect("shared convergence retains the guarded exact cast");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let exact_add_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the proven exact addition");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_add_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
