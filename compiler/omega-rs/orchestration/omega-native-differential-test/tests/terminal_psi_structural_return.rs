@@ -741,11 +741,13 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             divisor: u8,
             count: u8,
             signed: i64,
+            signed_add: i8,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
             small <= 7u8, 1u8 <= divisor, count <= 2u8,
-            -128i64 <= signed, signed <= 127i64
+            -128i64 <= signed, signed <= 127i64,
+            -127i8 <= signed_add, signed_add <= 126i8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -762,6 +764,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
                 && ((signed as i8) < 4i8)
+                && ((signed_add + 1i8) < 4i8)
+                && ((signed_add + -1i8) < 4i8)
                 && enabled;
             staged
         }
@@ -842,6 +846,51 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let signed_add_parameter = terminal_entry.parameters[5].id;
+    let signed_add_sites = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation,
+            } if left == signed_add_parameter => terminal_entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .map(|addend| (obligation, addend)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        signed_add_sites
+            .iter()
+            .any(|(_, addend)| *addend == IntegerValue::Signed(1))
+    );
+    assert!(
+        signed_add_sites
+            .iter()
+            .any(|(_, addend)| *addend == IntegerValue::Signed(-1))
+    );
+    for (obligation, _) in signed_add_sites {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_divide_obligation = terminal_entry
         .blocks
         .iter()

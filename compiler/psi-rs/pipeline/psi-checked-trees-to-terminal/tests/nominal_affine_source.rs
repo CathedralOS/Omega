@@ -403,11 +403,13 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         divisor: u8,
         count: u8,
         signed: i64,
+        signed_add: i8,
         enabled: bool
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
         small <= 7u8, 1u8 <= divisor, count <= 2u8,
-        -128i64 <= signed, signed <= 127i64
+        -128i64 <= signed, signed <= 127i64,
+        -127i8 <= signed_add, signed_add <= 126i8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (((input + 1u64) + 1u64) < 5u64)
@@ -424,6 +426,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small << 1u8) < 11u8)
             && ((small << count) < 29u8)
             && ((signed as i8) < 4i8)
+            && ((signed_add + 1i8) < 4i8)
+            && ((signed_add + -1i8) < 4i8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1713,6 +1717,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let count_term = ScalarTerm::value(entry.parameters[3].id, entry.parameters[3].scalar_type);
     let signed_term = ScalarTerm::value(entry.parameters[4].id, entry.parameters[4].scalar_type);
     let signed_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let signed_add_term =
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type);
+    let signed_add_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     let input_upper_requirement =
         Proposition::LessOrEqual(input_term.clone(), unsigned_term(64, 255));
     let shift_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 7));
@@ -1731,6 +1738,14 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         signed_term,
         ScalarTerm::integer(signed_type, IntegerValue::Signed(127)).unwrap(),
     );
+    let signed_add_lower_requirement = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed_add_type, IntegerValue::Signed(-127)).unwrap(),
+        signed_add_term.clone(),
+    );
+    let signed_add_upper_requirement = Proposition::LessOrEqual(
+        signed_add_term,
+        ScalarTerm::integer(signed_add_type, IntegerValue::Signed(126)).unwrap(),
+    );
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
@@ -1741,6 +1756,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &left_shift_count_requirement,
         &signed_lower_requirement,
         &signed_upper_requirement,
+        &signed_add_lower_requirement,
+        &signed_add_upper_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -1804,6 +1821,51 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let signed_add_parameter = entry.parameters[5].id;
+    let signed_add_sites = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation,
+            } if left == signed_add_parameter => entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .map(|addend| (obligation, addend)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        signed_add_sites
+            .iter()
+            .any(|(_, addend)| *addend == IntegerValue::Signed(1))
+    );
+    assert!(
+        signed_add_sites
+            .iter()
+            .any(|(_, addend)| *addend == IntegerValue::Signed(-1))
+    );
+    for (obligation, _) in &signed_add_sites {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_divide_obligation = entry
         .blocks
         .iter()
@@ -2043,6 +2105,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == signed_cast_obligation
     ));
+    for (signed_add_obligation, _) in &signed_add_sites {
+        let mut missing_signed_add_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_signed_add_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *signed_add_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_signed_add_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == *signed_add_obligation
+        ));
+    }
     let mut changed_bound = decode_module(&semantics).expect("decode shared semantics");
     let changed_entry = changed_bound.entry;
     let entry_contract = &mut changed_bound
@@ -2346,12 +2424,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         qualifications: Vec::new(),
         path: Vec::new(),
     }];
-    for (input, small, divisor, count, signed, enabled) in [
-        (3_u128, 4_u128, 2_u128, 1_u128, -1_i128, false),
-        (3, 4, 2, 1, -1, true),
-        (3, 5, 3, 2, 3, true),
-        (4, 4, 2, 2, 4, true),
-        (10, 4, 4, 1, -2, true),
+    for (input, small, divisor, count, signed, signed_add, enabled) in [
+        (3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, false),
+        (3, 4, 2, 1, -1, 2, true),
+        (3, 5, 3, 2, 3, 3, true),
+        (4, 4, 2, 2, 4, 2, true),
+        (10, 4, 4, 1, -2, -3, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -2383,6 +2461,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
                     value: IntegerValue::Signed(signed),
                 },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+                    value: IntegerValue::Signed(signed_add),
+                },
                 TerminalScalarValue::Boolean(enabled),
             ],
             &structural_arguments,
@@ -2407,6 +2489,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && (small << 1) < 11
                     && (small << count) < 29
                     && signed < 4
+                    && signed_add + 1 < 4
+                    && signed_add - 1 < 4
                     && input == 3
                     && enabled
             ))

@@ -225,13 +225,14 @@ Remaining:
   up to two total bitwise-not, binary bitwise, wrapping shift/arithmetic,
   saturating arithmetic, or integer-widening shells, or one proof-bearing exact
   fixed-width narrowing under retained direct parameter range `requires`, or
-  exact unsigned addition, subtraction, or multiplication under retained direct
-  parameter upper bounds, one exact right shift under a direct
-  unsigned count upper bound, one exact left shift by a landed count under a
-  direct unsigned value upper bound or by an unsigned runtime count under
-  direct count and value upper bounds, or exact division/remainder by a landed
-  nonzero unsigned constant or runtime unsigned divisor under a retained direct
-  lower bound. Nested proof-bearing shells, wider exact-cast and
+  exact fixed-width addition by a landed constant under a retained matching
+  direct parameter bound, or exact unsigned subtraction or multiplication
+  under retained direct parameter upper bounds, one exact right shift under a
+  direct unsigned count upper bound, one exact left shift by a landed count
+  under a direct unsigned value upper bound or by an unsigned runtime count
+  under direct count and value upper bounds, or exact division/remainder by a
+  landed nonzero unsigned constant or runtime unsigned divisor under a retained
+  direct lower bound. Nested proof-bearing shells, wider exact-cast and
   exact-arithmetic premise shapes, other unary computation, and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
   then
