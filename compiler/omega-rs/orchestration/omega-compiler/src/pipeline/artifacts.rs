@@ -382,7 +382,22 @@ pub fn program_storage_installation_record_json(
     push_json_string(&mut output, binding.requirement_identity());
     output.push_str(",\n  \"calling_plan_fingerprint\": \"");
     push_normalized_identity(&mut output, binding.boundary_contract_fingerprint());
-    output.push_str("\",\n  \"roots\": [\n    ");
+    output.push_str("\",\n  \"physical_provider_invocation\": ");
+    if let Some(invocation) = record.provider_invocation() {
+        output.push_str("{\"provider\": \"");
+        push_normalized_identity(&mut output, invocation.provider().normalized_identity());
+        output.push_str("\", \"provider_plan\": \"");
+        push_normalized_identity(
+            &mut output,
+            invocation.provider_plan().normalized_identity(),
+        );
+        output.push_str("\", \"invocation\": \"");
+        push_normalized_identity(&mut output, invocation.invocation().normalized_identity());
+        output.push_str("\"}");
+    } else {
+        output.push_str("null");
+    }
+    output.push_str(",\n  \"roots\": [\n    ");
     push_program_storage_installed_root_json(
         &mut output,
         "image",

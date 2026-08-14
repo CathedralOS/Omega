@@ -40,14 +40,16 @@ pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
-    ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
+    ProgramStorageEntryBridgeError, ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter,
+    ProgramStorageEntryPlanBinding, ProgramStorageEntryProviderInvocation,
     ProgramStorageInstallationHandoffError, ProgramStorageInstallationRecord,
     ProgramStorageInstalledExtentRecord, ProgramStoragePartitionError,
     ProgramStorageRecordEmissionError, ProgramStorageRootInput,
     ProgramStorageRootInstallationError, RecordedProgramStorageInstallation,
     ReservedProgramEntryReceiverStorage, SelectedProgramStorageEntryPlan,
     bind_generated_program_storage_entry_plan, bind_program_storage_entry_plan,
-    install_program_storage_entry_roots,
+    install_and_activate_program_storage_entry_receiver,
+    install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,

@@ -233,6 +233,80 @@ pub struct ProgramStorageRootInput {
     length: u64,
 }
 
+/// Exact selected physical-provider occurrence authorized to supply both
+/// roots for one generated program-entry bridge invocation.
+///
+/// Image and initial-storage roots may carry different route, capacity, and
+/// qualification evidence, but they must originate from this same selected
+/// provider plan and concrete invocation. Construction retains those typed
+/// identities from provider evidence rather than accepting untyped integers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProgramStorageEntryProviderInvocation {
+    provider: psi_extents::ExtentProviderId,
+    provider_plan: psi_extents::ExtentProviderPlanId,
+    invocation: psi_extents::ExtentProviderInvocationId,
+}
+
+impl ProgramStorageEntryProviderInvocation {
+    fn bind_selected_provider(
+        binding: &ProgramStorageEntryPlanBinding,
+        selected: &super::provider_plans::SelectedExternalRootProviderPlan,
+        issuance: psi_extents::ExtentProviderIssuance,
+    ) -> Result<Self, ProgramStorageEntryDiagnostic> {
+        let invocation = issuance.invocation();
+        if selected.identity.normalized_identity()
+            != invocation.provider_plan().normalized_identity()
+        {
+            return Err(ProgramStorageEntryDiagnostic(
+                "physical entry issuance does not belong to the compiler-selected provider plan"
+                    .into(),
+            ));
+        }
+        let matching_methods = selected
+            .schema
+            .methods
+            .iter()
+            .filter(|method| method.requirement_identity == binding.requirement_identity)
+            .collect::<Vec<_>>();
+        let [method] = matching_methods.as_slice() else {
+            return Err(ProgramStorageEntryDiagnostic(
+                "selected physical entry provider does not implement the bound arrival requirement exactly once"
+                    .into(),
+            ));
+        };
+        if method.calling_plan_fingerprint != Some(binding.boundary_contract_fingerprint) {
+            return Err(ProgramStorageEntryDiagnostic(
+                "selected physical entry provider calling plan does not match the generated bridge binding"
+                    .into(),
+            ));
+        }
+        Ok(Self {
+            provider: issuance.provider(),
+            provider_plan: invocation.provider_plan(),
+            invocation: invocation.invocation(),
+        })
+    }
+
+    pub const fn provider(&self) -> psi_extents::ExtentProviderId {
+        self.provider
+    }
+
+    pub const fn provider_plan(&self) -> psi_extents::ExtentProviderPlanId {
+        self.provider_plan
+    }
+
+    pub const fn invocation(&self) -> psi_extents::ExtentProviderInvocationId {
+        self.invocation
+    }
+
+    fn matches(&self, issuance: psi_extents::ExtentProviderIssuance) -> bool {
+        let invocation = issuance.invocation();
+        self.provider == issuance.provider()
+            && self.provider_plan == invocation.provider_plan()
+            && self.invocation == invocation.invocation()
+    }
+}
+
 impl ProgramStorageRootInput {
     pub const fn new(grant: ExtentRootGrant, base: u64, length: u64) -> Self {
         Self {
@@ -269,6 +343,7 @@ impl ProgramStorageRootInput {
 #[derive(Debug)]
 pub struct InstalledProgramStorageRoots {
     binding: ProgramStorageEntryPlanBinding,
+    provider_invocation: Option<ProgramStorageEntryProviderInvocation>,
     image: Extent,
     initial_storage: Option<Extent>,
     receiver_storage: Option<ReservedProgramEntryReceiverStorage>,
@@ -329,6 +404,10 @@ impl RecordedProgramStorageInstallation {
 
     pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
         self.roots.installation_record()
+    }
+
+    pub const fn provider_invocation(&self) -> Option<ProgramStorageEntryProviderInvocation> {
+        self.roots.provider_invocation
     }
 
     /// Release an installation that does not reserve an attached entry
@@ -422,6 +501,10 @@ pub struct ProgramEntryReceiverActivation<'a> {
 }
 
 impl ProgramEntryReceiverActivation<'_> {
+    pub const fn provider_invocation(&self) -> Option<ProgramStorageEntryProviderInvocation> {
+        self.roots.provider_invocation
+    }
+
     pub const fn placement(&self) -> &ProgramEntryReceiverPlacementRecord {
         &self
             .roots
@@ -469,6 +552,27 @@ impl std::fmt::Display for ProgramEntryReceiverActivationError {
 }
 
 impl std::error::Error for ProgramEntryReceiverActivationError {}
+
+/// A generated physical bridge failed either while installing its selected
+/// provider invocation or while binding the installed receiver reservation to
+/// the exact mapped bytes. Each variant retains the still-live authority
+/// needed to retry its own transition.
+#[derive(Debug)]
+pub enum ProgramStorageEntryBridgeError {
+    Installation(ProgramStorageInstallationHandoffError),
+    Activation(ProgramEntryReceiverActivationError),
+}
+
+impl std::fmt::Display for ProgramStorageEntryBridgeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Installation(error) => std::fmt::Display::fmt(error, formatter),
+            Self::Activation(error) => std::fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for ProgramStorageEntryBridgeError {}
 
 /// Report-only identity and geometry of one installed program-storage root.
 /// This value carries no grant and cannot recreate an [`Extent`].
@@ -587,6 +691,7 @@ impl ProgramStorageInstalledExtentRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramStorageInstallationRecord {
     binding: ProgramStorageEntryPlanBinding,
+    provider_invocation: Option<ProgramStorageEntryProviderInvocation>,
     image: ProgramStorageInstalledExtentRecord,
     initial_storage: ProgramStorageInstalledExtentRecord,
     receiver: Option<ProgramEntryReceiverPlacementRecord>,
@@ -595,6 +700,10 @@ pub struct ProgramStorageInstallationRecord {
 impl ProgramStorageInstallationRecord {
     pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
         &self.binding
+    }
+
+    pub const fn provider_invocation(&self) -> Option<ProgramStorageEntryProviderInvocation> {
+        self.provider_invocation
     }
 
     pub const fn image(&self) -> &ProgramStorageInstalledExtentRecord {
@@ -615,6 +724,10 @@ impl InstalledProgramStorageRoots {
         &self.binding
     }
 
+    pub const fn provider_invocation(&self) -> Option<ProgramStorageEntryProviderInvocation> {
+        self.provider_invocation
+    }
+
     pub const fn image(&self) -> &Extent {
         &self.image
     }
@@ -632,6 +745,7 @@ impl InstalledProgramStorageRoots {
     pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
         ProgramStorageInstallationRecord {
             binding: self.binding.clone(),
+            provider_invocation: self.provider_invocation,
             image: ProgramStorageInstalledExtentRecord::from_extent(&self.image),
             initial_storage: self.initial_storage_record.clone(),
             receiver: self
@@ -669,6 +783,7 @@ impl InstalledProgramStorageRoots {
     ) -> Result<PartitionedProgramStorageRoots, Box<ProgramStoragePartitionError>> {
         let Self {
             binding,
+            provider_invocation,
             image,
             initial_storage,
             receiver_storage,
@@ -678,6 +793,7 @@ impl InstalledProgramStorageRoots {
             return Err(Box::new(ProgramStoragePartitionError {
                 roots: Self {
                     binding,
+                    provider_invocation,
                     image,
                     initial_storage,
                     receiver_storage,
@@ -691,6 +807,7 @@ impl InstalledProgramStorageRoots {
         match initial_storage.partition_owned(offset, length) {
             Ok(initial_storage) => Ok(PartitionedProgramStorageRoots {
                 binding,
+                provider_invocation,
                 image,
                 initial_storage,
                 initial_storage_record,
@@ -703,6 +820,7 @@ impl InstalledProgramStorageRoots {
                 Err(Box::new(ProgramStoragePartitionError {
                     roots: Self {
                         binding,
+                        provider_invocation,
                         image,
                         initial_storage: Some(error.into_extent()),
                         receiver_storage,
@@ -747,6 +865,7 @@ impl std::fmt::Debug for InstalledImageSubextent<'_> {
 #[derive(Debug)]
 pub struct PartitionedProgramStorageRoots {
     binding: ProgramStorageEntryPlanBinding,
+    provider_invocation: Option<ProgramStorageEntryProviderInvocation>,
     image: Extent,
     initial_storage: OwnedExtentPartition,
     initial_storage_record: ProgramStorageInstalledExtentRecord,
@@ -755,6 +874,10 @@ pub struct PartitionedProgramStorageRoots {
 impl PartitionedProgramStorageRoots {
     pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
         &self.binding
+    }
+
+    pub const fn provider_invocation(&self) -> Option<ProgramStorageEntryProviderInvocation> {
+        self.provider_invocation
     }
 
     pub const fn image(&self) -> &Extent {
@@ -773,13 +896,26 @@ impl PartitionedProgramStorageRoots {
         self.initial_storage.after()
     }
 
-    pub fn into_parts(self) -> (ProgramStorageEntryPlanBinding, Extent, OwnedExtentPartition) {
-        (self.binding, self.image, self.initial_storage)
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProgramStorageEntryPlanBinding,
+        Option<ProgramStorageEntryProviderInvocation>,
+        Extent,
+        OwnedExtentPartition,
+    ) {
+        (
+            self.binding,
+            self.provider_invocation,
+            self.image,
+            self.initial_storage,
+        )
     }
 
     pub fn rejoin(self) -> InstalledProgramStorageRoots {
         InstalledProgramStorageRoots {
             binding: self.binding,
+            provider_invocation: self.provider_invocation,
             image: self.image,
             initial_storage: Some(self.initial_storage.rejoin()),
             receiver_storage: None,
@@ -1000,9 +1136,29 @@ fn bind_parameter(
 /// then consume the two provider-admitted grants in semantic position order.
 fn install_program_storage_entry_roots_unrecorded(
     binding: ProgramStorageEntryPlanBinding,
+    provider_invocation: Option<ProgramStorageEntryProviderInvocation>,
     image: ProgramStorageRootInput,
     initial_storage: ProgramStorageRootInput,
 ) -> Result<InstalledProgramStorageRoots, Box<ProgramStorageRootInstallationError>> {
+    if let Some(provider_invocation) = provider_invocation {
+        let validation = validate_physical_provider_root("image", &image, provider_invocation)
+            .and_then(|()| {
+                validate_physical_provider_root(
+                    "initial-storage",
+                    &initial_storage,
+                    provider_invocation,
+                )
+            });
+        if let Err(diagnostic) = validation {
+            return Err(Box::new(ProgramStorageRootInstallationError {
+                binding,
+                image,
+                initial_storage,
+                diagnostic,
+            }));
+        }
+    }
+
     let image_geometry = match ValidatedExtentGeometry::check(image.base, image.length) {
         Ok(geometry) => geometry,
         Err(diagnostic) => {
@@ -1093,11 +1249,30 @@ fn install_program_storage_entry_roots_unrecorded(
 
     Ok(InstalledProgramStorageRoots {
         binding,
+        provider_invocation,
         image,
         initial_storage,
         receiver_storage,
         initial_storage_record,
     })
+}
+
+fn validate_physical_provider_root(
+    role: &str,
+    input: &ProgramStorageRootInput,
+    selected: ProgramStorageEntryProviderInvocation,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    let Some(issuance) = input.grant.origin().provider_issuance() else {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "{role} root is not issued by the selected physical entry provider invocation"
+        )));
+    };
+    if !selected.matches(issuance) {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "{role} root does not belong to the selected physical entry provider, plan, and invocation"
+        )));
+    }
+    Ok(())
 }
 
 fn receiver_placement(
@@ -1148,9 +1323,12 @@ fn receiver_placement(
     })
 }
 
-/// Install both program-storage roots and emit the completion record before
-/// releasing the installed authority to the bridge.
+/// Install two compiler-provisioned program-storage roots and emit the
+/// completion record before releasing the installed authority.
 ///
+/// This is the sealed local-provisioning seam. Provider-issued physical roots
+/// must use [`install_program_storage_entry_provider_invocation`], which joins
+/// them to the compiler-selected provider plan and concrete invocation.
 /// Predicate rejection returns both unconsumed grants. If record emission
 /// fails after installation, the installed roots remain sealed inside the
 /// error and can only be recovered by successfully retrying the record write.
@@ -1160,9 +1338,105 @@ pub fn install_program_storage_entry_roots(
     image: ProgramStorageRootInput,
     initial_storage: ProgramStorageRootInput,
 ) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
-    let roots = install_program_storage_entry_roots_unrecorded(binding, image, initial_storage)
-        .map_err(ProgramStorageInstallationHandoffError::Rejected)?;
+    let validation = validate_compiler_provisioned_root("image", &image)
+        .and_then(|()| validate_compiler_provisioned_root("initial-storage", &initial_storage));
+    if let Err(diagnostic) = validation {
+        return Err(ProgramStorageInstallationHandoffError::Rejected(Box::new(
+            ProgramStorageRootInstallationError {
+                binding,
+                image,
+                initial_storage,
+                diagnostic,
+            },
+        )));
+    }
+    let roots =
+        install_program_storage_entry_roots_unrecorded(binding, None, image, initial_storage)
+            .map_err(ProgramStorageInstallationHandoffError::Rejected)?;
     record_program_storage_installation(artifact_directory, roots)
+}
+
+/// Install the two roots supplied by one exact selected physical-provider
+/// invocation and retain that occurrence identity through audit and entry
+/// activation.
+///
+/// This is the production-facing installation carrier consumed by a generated
+/// bridge. It does not itself emit or invoke native code. Unlike the local
+/// provisioning seam, it rejects compiler-provisioned grants and roots from
+/// another provider plan or invocation before consuming either grant.
+pub fn install_program_storage_entry_provider_invocation(
+    artifact_directory: &Path,
+    binding: ProgramStorageEntryPlanBinding,
+    selected_provider: &super::provider_plans::SelectedExternalRootProviderPlan,
+    provider_issuance: psi_extents::ExtentProviderIssuance,
+    image: ProgramStorageRootInput,
+    initial_storage: ProgramStorageRootInput,
+) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
+    let provider_invocation = match ProgramStorageEntryProviderInvocation::bind_selected_provider(
+        &binding,
+        selected_provider,
+        provider_issuance,
+    ) {
+        Ok(invocation) => invocation,
+        Err(diagnostic) => {
+            return Err(ProgramStorageInstallationHandoffError::Rejected(Box::new(
+                ProgramStorageRootInstallationError {
+                    binding,
+                    image,
+                    initial_storage,
+                    diagnostic,
+                },
+            )));
+        }
+    };
+    let roots = install_program_storage_entry_roots_unrecorded(
+        binding,
+        Some(provider_invocation),
+        image,
+        initial_storage,
+    )
+    .map_err(ProgramStorageInstallationHandoffError::Rejected)?;
+    record_program_storage_installation(artifact_directory, roots)
+}
+
+/// Prepare a receiver-bearing generated bridge in one linear handoff: install
+/// exact invocation roots, emit the completion audit, bind the exact mapped
+/// reservation, construct its ZII value, and return the exclusive activation
+/// loan that a native bridge caller must pass to the source continuation.
+pub fn install_and_activate_program_storage_entry_receiver<'mapping>(
+    artifact_directory: &Path,
+    binding: ProgramStorageEntryPlanBinding,
+    selected_provider: &super::provider_plans::SelectedExternalRootProviderPlan,
+    provider_issuance: psi_extents::ExtentProviderIssuance,
+    image: ProgramStorageRootInput,
+    initial_storage: ProgramStorageRootInput,
+    mapped_base: u64,
+    mapped_storage: &'mapping mut [u8],
+) -> Result<ProgramEntryReceiverActivation<'mapping>, ProgramStorageEntryBridgeError> {
+    let installation = install_program_storage_entry_provider_invocation(
+        artifact_directory,
+        binding,
+        selected_provider,
+        provider_issuance,
+        image,
+        initial_storage,
+    )
+    .map_err(ProgramStorageEntryBridgeError::Installation)?;
+    installation
+        .activate_receiver(mapped_base, mapped_storage)
+        .map_err(ProgramStorageEntryBridgeError::Activation)
+}
+
+fn validate_compiler_provisioned_root(
+    role: &str,
+    input: &ProgramStorageRootInput,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    if input.grant.origin().compiler_provisioning().is_none() {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "{role} root is provider-issued; use the selected physical-provider invocation installer"
+        )));
+    }
+    Ok(())
 }
 
 fn record_program_storage_installation(

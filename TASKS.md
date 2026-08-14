@@ -52,10 +52,16 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS.** Complete the physical entry bridge and explicit-entry
-  corpus migration. Bind the exact mapped, zeroed receiver reservation and its
-  exclusive activation loan through installation to the selected physical
-  provider and generated native bridge. Pure language/checker fixtures stop at
+- **ENTRY-CONTENT-ROOTS.** Complete the generated native entry bridge and
+  explicit-entry corpus migration. The production-facing installation carrier
+  now joins the exact selected provider plan, arrival requirement, calling-plan
+  fingerprint, physical provider/invocation, and both roots before consuming
+  either grant. Its physical path maps and zeroes the exact receiver reservation
+  and returns one exclusive activation loan; the separate local seam rejects
+  provider-issued roots. Connect an emitted target entry stub to that carrier,
+  consume the activation loan while invoking the selected source continuation,
+  and retain the resulting generated-bridge evidence. Pure language/checker
+  fixtures stop at
   checked artifacts; deployable/provider/artifact/ABI/layout/native fixtures
   select an exact target-owned `ProgramEntry`; temporary ABI probes name their
   explicit fixture seam. Sample refresh and native execution must use authored
