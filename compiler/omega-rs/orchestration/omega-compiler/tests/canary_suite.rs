@@ -6019,9 +6019,10 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
         outcome.exit_code
     );
     let scratch = std::env::temp_dir().join(format!("omega-elapsed-since-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("elapsed-since canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("elapsed-since canary should run");
     assert_eq!(
@@ -6385,9 +6386,10 @@ fn runtime_checked_time_arith_exit_canary_runs() {
         outcome.exit_code
     );
     let scratch = std::env::temp_dir().join(format!("omega-checked-arith-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("checked time arith canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("checked time arith canary should run");
     assert_eq!(
@@ -6416,9 +6418,10 @@ fn runtime_sleep_for_exit_canary_runs() {
         outcome.exit_code
     );
     let scratch = std::env::temp_dir().join(format!("omega-sleep-for-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sleep_for canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("sleep_for canary should run");
     assert_eq!(
@@ -45922,6 +45925,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "time/runtime_duration_totals_exit",
     "time/runtime_instant_elapsed_exit",
     "time/runtime_system_time_after_2026_exit",
+    "time/runtime_time_elapsed_since_exit",
+    "time/runtime_checked_time_arith_exit",
+    "time/runtime_sleep_for_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
