@@ -46,6 +46,32 @@ fn carrierless_evidence_projection_cannot_select_an_executable_machine_parameter
 }
 
 #[test]
+fn carrierless_evidence_projection_in_a_proposition_fails_closed_until_bound() {
+    let source = r#"
+        trait Evidence {
+            machine modulus() -> i32;
+        }
+
+        proposition holds() evidence Evidence;
+        proposition selected<machine Witness>();
+
+        machine caller()
+        requires proof: holds()
+        requires selected<proof.modulus>()
+        {
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an unbound proof-static projection must not enter checked proof identity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "carrierless evidence projection `proof.modulus` has no checked retained-term and normalized-row binding",
+        )
+    }));
+}
+
+#[test]
 fn proposition_type_arguments_reject_mismatched_value_arguments() {
     let source = r#"
         proposition typed<T>(value: T);

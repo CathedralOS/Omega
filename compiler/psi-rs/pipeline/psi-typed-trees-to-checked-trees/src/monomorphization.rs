@@ -2231,6 +2231,7 @@ fn copy_signature_contract(
                                     kind: argument.kind,
                                     path: argument.path.clone(),
                                     const_literal: argument.const_literal.clone(),
+                                    evidence_projection: argument.evidence_projection.clone(),
                                     symbol: remapped_symbol(argument.symbol, symbols),
                                 }
                             })

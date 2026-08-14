@@ -389,6 +389,10 @@ fn count_proposition_application(
         for member in &binder.path {
             count_declaration_name(member, counts);
         }
+        if let Some(projection) = &binder.evidence_projection {
+            count_declaration_name(&projection.term, counts);
+            count_declaration_name(&projection.member, counts);
+        }
     }
     for argument in typed_trees
         .expression_table
