@@ -920,6 +920,325 @@ fn named_conformance_bound_rejects_a_name_owned_by_another_carrier() {
 }
 
 #[test]
+fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+
+        data Card { rank: i32; }
+
+        PowerOrder: Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool {
+                self.rank < other.rank
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, PowerOrder>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let selected = typed
+        .conformances()
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "PowerOrder")
+        })
+        .expect("selected conformance")
+        .symbol;
+    let checked = lower_typed_trees(typed)
+        .expect("an explicit binder should specialize through its selected closed map");
+
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.conformance_arguments == [selected])
+        .expect("specialization retains the exact conformance argument");
+    assert!(specialization.machine_arguments.is_empty());
+    assert_eq!(specialization.conformance_argument_fingerprints.len(), 1);
+    assert_ne!(specialization.conformance_argument_fingerprints[0], 0);
+    let selected_row = checked
+        .conformances()
+        .iter()
+        .find(|conformance| conformance.symbol == selected)
+        .and_then(|conformance| checked.closed_conformance_rows(conformance))
+        .and_then(|rows| rows.first())
+        .expect("selected closed row");
+    assert!(checked.machines().iter().any(|machine| {
+        checked.machine_states(machine).iter().any(|state| {
+            checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    matches!(
+                        statement,
+                        psi_typed_trees::statement::StatementNode::Expression(expression)
+                            if matches!(
+                                checked.expression_table.expression(*expression),
+                                psi_typed_trees::expression::ExpressionNode::Call(call)
+                                    if call.target_symbol == selected_row.realization_state
+                            )
+                    )
+                })
+        })
+    }));
+}
+
+#[test]
+fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+
+        data Card { rank: i32; }
+
+        Ascending: Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool {
+                self.rank < other.rank
+            }
+        }
+
+        Descending: Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool {
+                self.rank > other.rank
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine ascending(left: &Card, right: &Card) -> bool {
+            choose<Card, Ascending>(left, right)
+        }
+
+        machine descending(left: &Card, right: &Card) -> bool {
+            choose<Card, Descending>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("each exact conformance argument should produce one specialization");
+
+    let instances = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.conformance_arguments.len() == 1)
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    assert_ne!(instances[0].instance, instances[1].instance);
+    assert_ne!(instances[0].fingerprint, instances[1].fingerprint);
+    assert_ne!(
+        instances[0].conformance_argument_fingerprints,
+        instances[1].conformance_argument_fingerprints
+    );
+}
+
+#[test]
+fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+
+        data Card {}
+        data Token {}
+
+        TokenOrder: Token satisfies Ranked {
+            machine before(&self, other: &Token) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, TokenOrder>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("an exact evidence argument must belong to the instantiated subject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "cannot bind `Order` to conformance `TokenOrder`: expected a complete `Card satisfies Ranked` map",
+        )
+    }));
+}
+
+#[test]
+fn explicit_conformance_binder_dispatches_an_inherited_requirement_row() {
+    let source = r#"
+        trait Comparable {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+
+        trait Ranked: Comparable {}
+
+        data Card { rank: i32; }
+
+        CardOrder: Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool {
+                self.rank < other.rank
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, CardOrder>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("inherited binder lookup should resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let selected_row = typed
+        .conformances()
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "CardOrder")
+        })
+        .and_then(|conformance| typed.closed_conformance_rows(conformance))
+        .and_then(|rows| rows.first())
+        .expect("selected inherited row")
+        .realization_state;
+    let checked = lower_typed_trees(typed)
+        .expect("the inherited requirement should dispatch through the selected map");
+    assert!(checked.machines().iter().any(|machine| {
+        checked.machine_states(machine).iter().any(|state| {
+            checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    matches!(
+                        statement,
+                        psi_typed_trees::statement::StatementNode::Expression(expression)
+                            if matches!(
+                                checked.expression_table.expression(*expression),
+                                psi_typed_trees::expression::ExpressionNode::Call(call)
+                                    if call.target_symbol == selected_row
+                            )
+                    )
+                })
+        })
+    }));
+}
+
+#[test]
+fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
+    let source = r#"
+        trait Resettable {
+            machine Self::reset(&mut self);
+        }
+
+        data Counter { value: i32; }
+
+        CounterReset: Counter satisfies Resettable {
+            machine reset(&mut self) {
+                self.value = 0;
+            }
+        }
+
+        machine reset_one<Element, Reset: Element satisfies Resettable>(value: &mut Element) {
+            Reset::reset(value);
+        }
+
+        machine caller(value: &mut Counter) {
+            reset_one<Counter, CounterReset>(value);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let selected_row = typed
+        .conformances()
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "CounterReset")
+        })
+        .and_then(|conformance| typed.closed_conformance_rows(conformance))
+        .and_then(|rows| rows.first())
+        .expect("selected reset row")
+        .realization_state;
+    let checked = lower_typed_trees(typed)
+        .expect("a resultless requirement call should dispatch through the selected map");
+    assert!(checked.machines().iter().any(|machine| {
+        checked.machine_states(machine).iter().any(|state| {
+            checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    matches!(
+                        statement,
+                        psi_typed_trees::statement::StatementNode::Call(call)
+                            if call.target_symbol == selected_row
+                                && checked.statement_table.name_path_members(call.receiver).len() == 1
+                                && checked.statement_table.expression_handles(call.arguments).is_empty()
+                    )
+                })
+        })
+    }));
+}
+
+#[test]
 fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts() {
     let source = r#"
         data Light {}

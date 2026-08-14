@@ -34,6 +34,8 @@ struct Candidate {
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
+    evidence_parameters: Vec<psi_typed_trees::machine::GenericConformanceBound>,
+    evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
 }
 
@@ -58,9 +60,11 @@ struct CallSelection {
     candidate_index: usize,
     caller_is_generic: bool,
     self_forwarded_machine_parameters: bool,
+    self_forwarded_evidence_parameters: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
+    evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
 }
 
@@ -68,9 +72,11 @@ impl CallSelection {
     fn is_complete(&self) -> bool {
         !self.conflicted
             && !self.self_forwarded_machine_parameters
+            && !self.self_forwarded_evidence_parameters
             && self.type_bindings.iter().all(Option::is_some)
             && self.const_bindings.iter().all(Option::is_some)
             && self.machine_bindings.iter().all(Option::is_some)
+            && self.evidence_bindings.iter().all(Option::is_some)
     }
 }
 
@@ -79,6 +85,7 @@ struct SpecializationKey {
     type_arguments: Vec<String>,
     const_arguments: Vec<String>,
     machine_arguments: Vec<SymbolHandle>,
+    evidence_arguments: Vec<SymbolHandle>,
 }
 
 pub(crate) fn monomorphize_generic_machine_value_calls(
@@ -97,6 +104,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let mut parameter_bounds = Vec::new();
         let mut const_parameters = Vec::new();
         let mut machine_parameters = Vec::new();
+        let evidence_parameters = machine
+            .conformance_bounds
+            .iter()
+            .filter(|bound| bound.binder.is_some())
+            .cloned()
+            .collect::<Vec<_>>();
         for parameter in parameters {
             match &parameter.kind {
                 TypeParameterKind::Type => {
@@ -145,11 +158,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             type_bindings: vec![None; type_parameters.len()],
             const_bindings: vec![None; const_parameters.len()],
             machine_bindings: vec![None; machine_parameters.len()],
+            evidence_bindings: vec![None; evidence_parameters.len()],
             type_parameters,
             parameter_bounds,
             conformance_bounds: machine.conformance_bounds.clone(),
             const_parameters,
             machine_parameters,
+            evidence_parameters,
             conflicted: false,
         });
     }
@@ -160,6 +175,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     let mut type_proposals = Vec::new();
     let mut const_proposals = Vec::new();
     let mut machine_proposals = Vec::new();
+    let mut evidence_proposals = Vec::new();
     let contract_expressions = contract_expression_handles(program);
 
     // Static selections may occur in any EXECUTABLE expression position.
@@ -182,6 +198,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             call.target.as_str(),
             &call.machine_arguments,
             &mut machine_proposals,
+            &mut evidence_proposals,
             &mut type_proposals,
             &mut const_proposals,
         );
@@ -205,6 +222,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                         program.statement_table.expression_handles(call.arguments),
                         None,
                         &mut machine_proposals,
+                        &mut evidence_proposals,
                         &mut type_proposals,
                         &mut const_proposals,
                     ),
@@ -227,6 +245,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                                     .is_valid()
                                     .then_some(local.type_reference),
                                 &mut machine_proposals,
+                                &mut evidence_proposals,
                                 &mut type_proposals,
                                 &mut const_proposals,
                             );
@@ -248,6 +267,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                                 program.expression_table.expression_handles(call.arguments),
                                 None,
                                 &mut machine_proposals,
+                                &mut evidence_proposals,
                                 &mut type_proposals,
                                 &mut const_proposals,
                             );
@@ -309,6 +329,21 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
     }
 
+    for (candidate_index, parameter_index, binding) in evidence_proposals {
+        if matches!(
+            program.symbols.get(binding.symbol).kind,
+            SymbolKind::ConformanceParameter
+        ) {
+            continue;
+        }
+        let candidate = &mut candidates[candidate_index];
+        match &candidate.evidence_bindings[parameter_index] {
+            None => candidate.evidence_bindings[parameter_index] = Some(binding),
+            Some(existing) if existing.symbol != binding.symbol => candidate.conflicted = true,
+            Some(_) => {}
+        }
+    }
+
     let multi_tuple_candidates: Vec<usize> = (0..candidates.len())
         .filter(|candidate_index| {
             !has_forwarded_generic_call(&selections, *candidate_index)
@@ -343,7 +378,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
         let candidate = candidates[candidate_index].clone();
         let has_static_selection = candidate.const_bindings.iter().any(Option::is_some)
-            || candidate.machine_bindings.iter().any(Option::is_some);
+            || candidate.machine_bindings.iter().any(Option::is_some)
+            || candidate.evidence_bindings.iter().any(Option::is_some);
         let has_incomplete_call = selections.iter().any(|selection| {
             selection.candidate_index == candidate_index
                 && !selection.self_forwarded_machine_parameters
@@ -352,7 +388,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         if has_incomplete_call {
             if has_static_selection {
                 diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` has a static selection, but its complete type/const/machine specialization tuple cannot be derived",
+                    "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
                     candidate.template_name
                 )));
             }
@@ -368,10 +404,11 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         if has_static_selection
             && (candidate.type_bindings.iter().any(Option::is_none)
                 || candidate.const_bindings.iter().any(Option::is_none)
-                || candidate.machine_bindings.iter().any(Option::is_none))
+                || candidate.machine_bindings.iter().any(Option::is_none)
+                || candidate.evidence_bindings.iter().any(Option::is_none))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "generic machine `{}` has a static selection, but its complete type/const/machine specialization tuple cannot be derived",
+                "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
                 candidate.template_name
             )));
             continue;
@@ -381,6 +418,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             || candidate.type_bindings.iter().any(Option::is_none)
             || candidate.const_bindings.iter().any(Option::is_none)
             || candidate.machine_bindings.iter().any(Option::is_none)
+            || candidate.evidence_bindings.iter().any(Option::is_none)
         {
             continue;
         }
@@ -440,6 +478,7 @@ fn collect_call_proposals(
     arguments: &[ExpressionHandle],
     expected_return: Option<TypeReferenceHandle>,
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
@@ -452,6 +491,7 @@ fn collect_call_proposals(
         callee,
         machine_arguments,
         machine_proposals,
+        evidence_proposals,
         type_proposals,
         const_proposals,
     );
@@ -503,6 +543,7 @@ fn collect_machine_proposals(
     target_name: &str,
     machine_arguments: &[StaticMachineArgument],
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
@@ -515,6 +556,7 @@ fn collect_machine_proposals(
         callee,
         machine_arguments,
         machine_proposals,
+        evidence_proposals,
         type_proposals,
         const_proposals,
     );
@@ -526,19 +568,37 @@ fn collect_machine_proposals_for_callee(
     callee: &CalleeState,
     machine_arguments: &[StaticMachineArgument],
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
     let candidate = &candidates[callee.candidate_index];
-    if machine_arguments.len() != candidate.machine_parameters.len() {
-        return;
-    }
-    for (index, selected) in machine_arguments.iter().enumerate() {
+    let mut machine_index = 0usize;
+    let mut evidence_index = 0usize;
+    for selected in machine_arguments {
         if !selected.symbol.is_valid() {
             continue;
         }
-        machine_proposals.push((callee.candidate_index, index, selected.clone()));
-        let requirement = &candidate.machine_parameters[index].2;
+        let kind = program.symbols.get(selected.symbol).kind;
+        if matches!(
+            kind,
+            SymbolKind::Conformance | SymbolKind::ConformanceParameter
+        ) {
+            if evidence_index < candidate.evidence_parameters.len() {
+                evidence_proposals.push((callee.candidate_index, evidence_index, selected.clone()));
+                evidence_index += 1;
+            }
+            continue;
+        }
+        if !matches!(kind, SymbolKind::State | SymbolKind::MachineParameter) {
+            continue;
+        }
+        if machine_index >= candidate.machine_parameters.len() {
+            continue;
+        }
+        machine_proposals.push((callee.candidate_index, machine_index, selected.clone()));
+        let requirement = &candidate.machine_parameters[machine_index].2;
+        machine_index += 1;
         let Some(actual_state) = state_by_symbol(program, selected.symbol) else {
             continue;
         };
@@ -715,6 +775,7 @@ fn collect_call_selections(
         };
         let candidate = &candidates[callee.candidate_index];
         let mut machine_proposals = Vec::new();
+        let mut evidence_proposals = Vec::new();
         let mut type_proposals = Vec::new();
         let mut const_proposals = Vec::new();
         collect_machine_proposals_for_callee(
@@ -723,6 +784,7 @@ fn collect_call_selections(
             callee,
             &call.machine_arguments,
             &mut machine_proposals,
+            &mut evidence_proposals,
             &mut type_proposals,
             &mut const_proposals,
         );
@@ -733,6 +795,7 @@ fn collect_call_selections(
             candidate,
             false,
             machine_proposals,
+            evidence_proposals,
             type_proposals,
             const_proposals,
         );
@@ -848,6 +911,7 @@ fn selection_for_call(
     let callee = resolve_callee(callee_states, target_symbol, target_name)?;
     let candidate = &candidates[callee.candidate_index];
     let mut machine_proposals = Vec::new();
+    let mut evidence_proposals = Vec::new();
     let mut type_proposals = Vec::new();
     let mut const_proposals = Vec::new();
     collect_call_proposals(
@@ -862,6 +926,7 @@ fn selection_for_call(
         arguments,
         expected_return,
         &mut machine_proposals,
+        &mut evidence_proposals,
         &mut type_proposals,
         &mut const_proposals,
     );
@@ -872,6 +937,7 @@ fn selection_for_call(
         candidate,
         caller_is_generic,
         machine_proposals,
+        evidence_proposals,
         type_proposals,
         const_proposals,
     ))
@@ -884,6 +950,7 @@ fn selection_from_proposals(
     candidate: &Candidate,
     caller_is_generic: bool,
     machine_proposals: Vec<(usize, usize, StaticMachineArgument)>,
+    evidence_proposals: Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
 ) -> CallSelection {
@@ -893,9 +960,11 @@ fn selection_from_proposals(
         candidate_index: callee.candidate_index,
         caller_is_generic,
         self_forwarded_machine_parameters: false,
+        self_forwarded_evidence_parameters: false,
         type_bindings: vec![None; candidate.type_parameters.len()],
         const_bindings: vec![None; candidate.const_parameters.len()],
         machine_bindings: vec![None; candidate.machine_parameters.len()],
+        evidence_bindings: vec![None; candidate.evidence_parameters.len()],
         conflicted: false,
     };
     for (_, parameter, binding) in type_proposals {
@@ -928,6 +997,16 @@ fn selection_from_proposals(
         }
         match &selection.machine_bindings[parameter] {
             None => selection.machine_bindings[parameter] = Some(binding),
+            Some(existing) if existing.symbol != binding.symbol => selection.conflicted = true,
+            Some(_) => {}
+        }
+    }
+    for (_, parameter, binding) in evidence_proposals {
+        if candidate.evidence_parameters[parameter].binder == Some(binding.symbol) {
+            selection.self_forwarded_evidence_parameters = true;
+        }
+        match &selection.evidence_bindings[parameter] {
+            None => selection.evidence_bindings[parameter] = Some(binding),
             Some(existing) if existing.symbol != binding.symbol => selection.conflicted = true,
             Some(_) => {}
         }
@@ -979,6 +1058,11 @@ fn upsert_selection(selections: &mut Vec<CallSelection>, selection: CallSelectio
                 .machine_bindings
                 .iter()
                 .filter(|item| item.is_some())
+                .count()
+            + existing
+                .evidence_bindings
+                .iter()
+                .filter(|item| item.is_some())
                 .count();
         let new_evidence = selection
             .type_bindings
@@ -992,6 +1076,11 @@ fn upsert_selection(selections: &mut Vec<CallSelection>, selection: CallSelectio
                 .count()
             + selection
                 .machine_bindings
+                .iter()
+                .filter(|item| item.is_some())
+                .count()
+            + selection
+                .evidence_bindings
                 .iter()
                 .filter(|item| item.is_some())
                 .count();
@@ -1037,6 +1126,11 @@ fn unique_complete_selections(
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete selection").symbol)
                 .collect(),
+            evidence_arguments: selection
+                .evidence_bindings
+                .iter()
+                .map(|binding| binding.as_ref().expect("complete selection").symbol)
+                .collect(),
         };
         if let Some((_, members)) = groups.iter_mut().find(|(existing, _)| *existing == key) {
             members.push(selection_index);
@@ -1052,6 +1146,7 @@ fn has_forwarded_generic_call(selections: &[CallSelection], candidate_index: usi
         selection.candidate_index == candidate_index
             && selection.caller_is_generic
             && !selection.self_forwarded_machine_parameters
+            && !selection.self_forwarded_evidence_parameters
             && !selection.is_complete()
     })
 }
@@ -1389,6 +1484,70 @@ fn validate_candidate_conformance_bounds(
             continue;
         };
 
+        if let Some(binder) = bound.binder {
+            let Some(evidence_index) = candidate
+                .evidence_parameters
+                .iter()
+                .position(|parameter| parameter.binder == Some(binder))
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "generic machine `{}` lost explicit conformance binder `{}` from its specialization telescope",
+                    candidate.template_name,
+                    bound
+                        .binder_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                )));
+                continue;
+            };
+            let Some(selected_symbol) = candidate.evidence_bindings[evidence_index]
+                .as_ref()
+                .map(|binding| binding.symbol)
+            else {
+                continue;
+            };
+            let Some(selected) = program
+                .conformances()
+                .iter()
+                .find(|conformance| conformance.symbol == selected_symbol)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "generic machine `{}` binds `{}` to a symbol that is not a package-scoped conformance",
+                    candidate.template_name,
+                    bound
+                        .binder_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                )));
+                continue;
+            };
+            let selected_carrier = selected.carrier_name().map(|carrier| carrier.as_str());
+            let selected_is_closed = matches!(
+                selected.implementation,
+                psi_typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
+            );
+            if selected_carrier != Some(type_name)
+                || selected.trait_name != bound.carrier_name
+                || !conformance_arguments_match_candidate(program, candidate, bound, selected)
+                || !selected_is_closed
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{type_name} satisfies {}` map with the instantiated trait arguments",
+                    candidate.template_name,
+                    bound
+                        .binder_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                    selected
+                        .alias
+                        .as_ref()
+                        .map_or("<unnamed>", |name| name.as_str()),
+                    bound.carrier_name,
+                )));
+            }
+            continue;
+        }
+
         if let Some(conformance_symbol) = bound.conformance {
             let selected_carrier = program
                 .conformances()
@@ -1557,7 +1716,7 @@ fn apply_multiple_specializations(
         .any(|selection| selection.candidate_index == candidate_index && !selection.is_complete())
     {
         return Err(vec![Diagnostic::error(format!(
-            "generic machine `{}` has a static selection, but its complete type/const/machine specialization tuple cannot be derived",
+            "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
             template.template_name
         ))]);
     }
@@ -1611,6 +1770,7 @@ fn candidate_for_selection(template: &Candidate, selection: &CallSelection) -> C
     candidate.type_bindings = selection.type_bindings.clone();
     candidate.const_bindings = selection.const_bindings.clone();
     candidate.machine_bindings = selection.machine_bindings.clone();
+    candidate.evidence_bindings = selection.evidence_bindings.clone();
     candidate.conflicted = selection.conflicted;
     candidate
 }
@@ -1695,11 +1855,26 @@ fn clone_specialized_machine(
                 .join("::")
         })
         .collect();
+    let evidence_paths: Vec<String> = candidate
+        .evidence_bindings
+        .iter()
+        .map(|binding| {
+            binding
+                .as_ref()
+                .expect("complete specialization")
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect();
     let fingerprint = specialization_fingerprint(
         &candidate.template_name,
         &type_identities,
         &const_identities,
         &machine_paths,
+        &evidence_paths,
     );
     let generated_name = format!(
         "{}$specialized${fingerprint:016x}${ordinal}",
@@ -1882,9 +2057,15 @@ fn clone_specialized_machine(
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
+            conformance_arguments: candidate
+                .evidence_bindings
+                .iter()
+                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                .collect(),
             template_contract_fingerprint,
             accepted_template_commitment,
             machine_argument_contract_fingerprints: Vec::new(),
+            conformance_argument_fingerprints: Vec::new(),
             fingerprint,
         });
 
@@ -2467,6 +2648,178 @@ fn substitute_forwarded_machine_arguments(
     }
 }
 
+fn evidence_argument_rewrites(
+    program: &TypedTrees,
+    candidate: &Candidate,
+) -> Vec<(
+    SymbolHandle,
+    SymbolHandle,
+    psi_typed_trees::name::Identifier,
+)> {
+    candidate
+        .evidence_parameters
+        .iter()
+        .zip(candidate.evidence_bindings.iter())
+        .filter_map(|(parameter, binding)| {
+            let binder = parameter.binder?;
+            let binding = binding.as_ref()?;
+            let selected = program
+                .conformances()
+                .iter()
+                .find(|conformance| conformance.symbol == binding.symbol)?;
+            Some((
+                binder,
+                binding.symbol,
+                selected.alias.clone().unwrap_or_else(|| {
+                    psi_typed_trees::name::Identifier::generated("<unnamed-conformance>")
+                }),
+            ))
+        })
+        .collect()
+}
+
+fn evidence_requirement_rewrites(
+    program: &TypedTrees,
+    candidate: &Candidate,
+) -> Vec<(
+    SymbolHandle,
+    SymbolHandle,
+    psi_typed_trees::name::Identifier,
+)> {
+    let mut rewrites = Vec::new();
+    for (parameter, binding) in candidate
+        .evidence_parameters
+        .iter()
+        .zip(candidate.evidence_bindings.iter())
+    {
+        let (Some(binder), Some(binding)) = (parameter.binder, binding.as_ref()) else {
+            continue;
+        };
+        let Some(trait_definition) = program
+            .traits()
+            .iter()
+            .find(|trait_definition| trait_definition.symbol == parameter.carrier)
+        else {
+            continue;
+        };
+        let Some(selected) = program
+            .conformances()
+            .iter()
+            .find(|conformance| conformance.symbol == binding.symbol)
+        else {
+            continue;
+        };
+        let Some(rows) = program.closed_conformance_rows(selected) else {
+            continue;
+        };
+        let mut requirements = Vec::new();
+        collect_evidence_requirement_closure(
+            program,
+            trait_definition,
+            &mut Vec::new(),
+            &mut requirements,
+        );
+        let placeholders = program.symbols.child_handles(binder).into_iter().flatten();
+        for (placeholder, requirement) in placeholders.zip(requirements) {
+            let Some(row) = rows
+                .iter()
+                .find(|row| row.requirement == requirement.symbol)
+            else {
+                continue;
+            };
+            rewrites.push((
+                placeholder,
+                row.realization_state,
+                psi_typed_trees::name::Identifier::generated(
+                    row.realization_name
+                        .as_str()
+                        .rsplit("::")
+                        .next()
+                        .unwrap_or(row.realization_name.as_str()),
+                ),
+            ));
+        }
+    }
+    rewrites
+}
+
+fn collect_evidence_requirement_closure<'program>(
+    program: &'program TypedTrees,
+    trait_definition: &'program psi_typed_trees::trait_definition::TraitDefinition,
+    visited: &mut Vec<SymbolHandle>,
+    output: &mut Vec<&'program StateSignature>,
+) {
+    if visited.contains(&trait_definition.symbol) {
+        return;
+    }
+    visited.push(trait_definition.symbol);
+    output.extend(program.trait_machine_signatures(trait_definition).iter());
+    for parent in program.trait_requirements(trait_definition) {
+        let Some(parent_trait) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == parent.symbol)
+        else {
+            continue;
+        };
+        collect_evidence_requirement_closure(program, parent_trait, visited, output);
+    }
+}
+
+fn span_without_first<T>(span: HandleSpan<T>) -> HandleSpan<T> {
+    if span.count() <= 1 {
+        return HandleSpan::empty();
+    }
+    let start = span.start();
+    HandleSpan::from_parts(
+        Handle::from_parts(
+            start
+                .arena_index()
+                .checked_add(1)
+                .expect("argument span index overflow"),
+            start.generation(),
+        ),
+        span.count() - 1,
+    )
+}
+
+fn statement_span_handles(span: HandleSpan<StatementNode>) -> Vec<Handle<StatementNode>> {
+    (0..span.count())
+        .map(|offset| {
+            Handle::from_parts(
+                span.start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("statement span index overflow"),
+                span.start().generation(),
+            )
+        })
+        .collect()
+}
+
+fn statement_receiver_path(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<psi_typed_trees::name::Identifier>)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => statement_receiver_path(program, atomic.value),
+        ExpressionNode::Mutable(inner) => statement_receiver_path(program, *inner),
+        ExpressionNode::Name(path) => Some((
+            path.symbol,
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .to_vec(),
+        )),
+        ExpressionNode::Member(member) => {
+            let (symbol, mut path) = statement_receiver_path(program, member.receiver)?;
+            path.push(member.member.clone());
+            Some((symbol, path))
+        }
+        _ => None,
+    }
+}
+
 fn rewrite_cloned_calls(
     source: &TypedTrees,
     program: &mut TypedTrees,
@@ -2475,7 +2828,7 @@ fn rewrite_cloned_calls(
     expression_start: usize,
     states: HandleSpan<psi_typed_trees::state::State>,
 ) {
-    let rewrites: Vec<_> = candidate
+    let machine_rewrites: Vec<_> = candidate
         .machine_parameters
         .iter()
         .zip(candidate.machine_bindings.iter())
@@ -2488,22 +2841,57 @@ fn rewrite_cloned_calls(
             (*parameter, binding.symbol, name)
         })
         .collect();
+    let evidence_target_rewrites = evidence_requirement_rewrites(source, candidate);
+    let mut target_rewrites = machine_rewrites.clone();
+    target_rewrites.extend(evidence_target_rewrites.iter().cloned());
+    let mut argument_rewrites = machine_rewrites;
+    argument_rewrites.extend(evidence_argument_rewrites(source, candidate));
     for state in program.machine_states.span_or_empty(states).to_vec() {
-        for statement in program
-            .statement_table
-            .statements_mut(state.statement_nodes)
-        {
-            let StatementNode::Call(call) = statement else {
+        for statement_handle in statement_span_handles(state.statement_nodes) {
+            let StatementNode::Call(snapshot) =
+                program.statement_table.statement(statement_handle).clone()
+            else {
                 continue;
             };
-            if let Some((_, target, name)) = rewrites
+            let was_evidence_dispatch = evidence_target_rewrites
+                .iter()
+                .any(|(placeholder, _, _)| *placeholder == snapshot.target_symbol);
+            let evidence_receiver = was_evidence_dispatch
+                .then(|| {
+                    program
+                        .statement_table
+                        .expression_handles(snapshot.arguments)
+                        .first()
+                        .copied()
+                })
+                .flatten()
+                .and_then(|receiver| statement_receiver_path(program, receiver));
+            let receiver = evidence_receiver.as_ref().map(|(_, members)| {
+                let mut receiver = HandleSpan::empty();
+                for member in members {
+                    program
+                        .statement_table
+                        .push_name_path_member(&mut receiver, member.clone());
+                }
+                receiver
+            });
+            let StatementNode::Call(call) = program.statement_table.statement_mut(statement_handle)
+            else {
+                unreachable!();
+            };
+            if let Some((_, target, name)) = target_rewrites
                 .iter()
                 .find(|(parameter, _, _)| *parameter == call.target_symbol)
             {
                 call.target_symbol = *target;
                 call.target = name.clone();
             }
-            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
+            if let (Some((receiver_symbol, _)), Some(receiver)) = (evidence_receiver, receiver) {
+                call.receiver_symbol = receiver_symbol;
+                call.receiver = receiver;
+                call.arguments = span_without_first(call.arguments);
+            }
+            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
             if state_symbols
                 .iter()
                 .any(|(_, concrete)| *concrete == call.target_symbol)
@@ -2519,17 +2907,38 @@ fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
+        let evidence_receiver = match program.expression_table.expression(handle) {
+            ExpressionNode::Call(call)
+                if evidence_target_rewrites
+                    .iter()
+                    .any(|(placeholder, _, _)| *placeholder == call.target_symbol) =>
+            {
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .first()
+                    .copied()
+            }
+            _ => None,
+        };
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
-        if let Some((_, target, name)) = rewrites
+        let was_evidence_dispatch = evidence_target_rewrites
+            .iter()
+            .any(|(placeholder, _, _)| *placeholder == call.target_symbol);
+        if let Some((_, target, name)) = target_rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == call.target_symbol)
         {
             call.target_symbol = *target;
             call.target = name.clone();
         }
-        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
+        if was_evidence_dispatch && let Some(receiver) = evidence_receiver {
+            call.receiver = receiver;
+            call.arguments = span_without_first(call.arguments);
+        }
+        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
         if state_symbols
             .iter()
             .any(|(_, concrete)| *concrete == call.target_symbol)
@@ -2723,6 +3132,20 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .join("::")
         })
         .collect();
+    let evidence_paths: Vec<String> = candidate
+        .evidence_bindings
+        .iter()
+        .map(|binding| {
+            binding
+                .as_ref()
+                .expect("complete specialization")
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect();
     program
         .machine_specializations
         .push(psi_typed_trees::typed_trees::MachineSpecialization {
@@ -2731,14 +3154,21 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             type_arguments: type_arguments.clone(),
             const_arguments,
             machine_arguments,
+            conformance_arguments: candidate
+                .evidence_bindings
+                .iter()
+                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                .collect(),
             template_contract_fingerprint,
             accepted_template_commitment,
             machine_argument_contract_fingerprints: Vec::new(),
+            conformance_argument_fingerprints: Vec::new(),
             fingerprint: specialization_fingerprint(
                 &candidate.template_name,
                 &type_identities,
                 &const_identities,
                 &machine_paths,
+                &evidence_paths,
             ),
         });
 
@@ -2797,7 +3227,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
     }
     substitute_const_index_expression_parameters(program, candidate, None);
 
-    let rewrites: Vec<(
+    let machine_rewrites: Vec<(
         SymbolHandle,
         SymbolHandle,
         psi_typed_trees::name::Identifier,
@@ -2825,6 +3255,11 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             (*parameter_symbol, binding.symbol, target)
         })
         .collect();
+    let evidence_target_rewrites = evidence_requirement_rewrites(program, candidate);
+    let mut target_rewrites = machine_rewrites.clone();
+    target_rewrites.extend(evidence_target_rewrites.iter().cloned());
+    let mut argument_rewrites = machine_rewrites;
+    argument_rewrites.extend(evidence_argument_rewrites(program, candidate));
 
     substitute_machine_parameter_type_references(program, candidate, None);
 
@@ -2835,18 +3270,51 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .map(|state| state.statement_nodes)
         .collect();
     for span in state_spans {
-        for statement in program.statement_table.statements_mut(span) {
-            let StatementNode::Call(call) = statement else {
+        for statement_handle in statement_span_handles(span) {
+            let StatementNode::Call(snapshot) =
+                program.statement_table.statement(statement_handle).clone()
+            else {
                 continue;
             };
-            if let Some((_, symbol, name)) = rewrites
+            let was_evidence_dispatch = evidence_target_rewrites
+                .iter()
+                .any(|(placeholder, _, _)| *placeholder == snapshot.target_symbol);
+            let evidence_receiver = was_evidence_dispatch
+                .then(|| {
+                    program
+                        .statement_table
+                        .expression_handles(snapshot.arguments)
+                        .first()
+                        .copied()
+                })
+                .flatten()
+                .and_then(|receiver| statement_receiver_path(program, receiver));
+            let receiver = evidence_receiver.as_ref().map(|(_, members)| {
+                let mut receiver = HandleSpan::empty();
+                for member in members {
+                    program
+                        .statement_table
+                        .push_name_path_member(&mut receiver, member.clone());
+                }
+                receiver
+            });
+            let StatementNode::Call(call) = program.statement_table.statement_mut(statement_handle)
+            else {
+                unreachable!();
+            };
+            if let Some((_, symbol, name)) = target_rewrites
                 .iter()
                 .find(|(parameter, _, _)| *parameter == call.target_symbol)
             {
                 call.target_symbol = *symbol;
                 call.target = name.clone();
             }
-            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
+            if let (Some((receiver_symbol, _)), Some(receiver)) = (evidence_receiver, receiver) {
+                call.receiver_symbol = receiver_symbol;
+                call.receiver = receiver;
+                call.arguments = span_without_first(call.arguments);
+            }
+            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
             if candidate.state_symbols.contains(&call.target_symbol) {
                 call.machine_arguments = Box::default();
             }
@@ -2859,17 +3327,38 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .map(|(handle, _)| handle)
         .collect();
     for handle in expression_handles {
+        let evidence_receiver = match program.expression_table.expression(handle) {
+            ExpressionNode::Call(call)
+                if evidence_target_rewrites
+                    .iter()
+                    .any(|(placeholder, _, _)| *placeholder == call.target_symbol) =>
+            {
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .first()
+                    .copied()
+            }
+            _ => None,
+        };
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
-        if let Some((_, symbol, name)) = rewrites
+        let was_evidence_dispatch = evidence_target_rewrites
+            .iter()
+            .any(|(placeholder, _, _)| *placeholder == call.target_symbol);
+        if let Some((_, symbol, name)) = target_rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == call.target_symbol)
         {
             call.target_symbol = *symbol;
             call.target = name.clone();
         }
-        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
+        if was_evidence_dispatch && let Some(receiver) = evidence_receiver {
+            call.receiver = receiver;
+            call.arguments = span_without_first(call.arguments);
+        }
+        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
         if candidate.state_symbols.contains(&call.target_symbol) {
             call.machine_arguments = Box::default();
         }
@@ -3050,7 +3539,10 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             .position(|parameter| parameter.symbol == bound.subject)
             .unwrap_or(usize::MAX);
         encoded.extend((subject_index as u64).to_le_bytes());
-        if bound.conformance.is_some() {
+        if bound.binder.is_some() {
+            encoded.push(3);
+            encoded.extend(bound.carrier_name.as_str().as_bytes());
+        } else if bound.conformance.is_some() {
             encoded.push(2);
             encoded.extend(bound.carrier_name.as_str().as_bytes());
             encoded.push(0);
@@ -3184,7 +3676,7 @@ pub(crate) fn bind_specialization_contract_identities(
     contracts: &psi_checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let updates: Vec<Vec<u64>> = program
+    let updates: Vec<(Vec<u64>, Vec<u64>)> = program
         .machine_specializations
         .iter()
         .map(|specialization| {
@@ -3217,7 +3709,7 @@ pub(crate) fn bind_specialization_contract_identities(
                 ));
             }
 
-            specialization
+            let machine_identities = specialization
                 .machine_arguments
                 .iter()
                 .filter_map(|state_symbol| {
@@ -3243,28 +3735,70 @@ pub(crate) fn bind_specialization_contract_identities(
                     };
                     Some(contract.fingerprint)
                 })
-                .collect()
+                .collect();
+            let conformance_identities = specialization
+                .conformance_arguments
+                .iter()
+                .filter_map(|conformance_symbol| {
+                    let Some(conformance) = program
+                        .conformances()
+                        .iter()
+                        .find(|conformance| conformance.symbol == *conformance_symbol)
+                    else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "generic specialization references conformance symbol {:?}, but no package conformance exists",
+                            conformance_symbol
+                        )));
+                        return None;
+                    };
+                    let Some(identity) = conformance_argument_fingerprint(program, conformance)
+                    else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "generic specialization selected `{}`, but it is not a closed conformance map",
+                            conformance
+                                .alias
+                                .as_ref()
+                                .map(|name| name.as_str())
+                                .unwrap_or("<unnamed-conformance>")
+                        )));
+                        return None;
+                    };
+                    Some(identity)
+                })
+                .collect();
+            (machine_identities, conformance_identities)
         })
         .collect();
 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    for (specialization, identities) in program.machine_specializations.iter_mut().zip(updates) {
+    for (specialization, (machine_identities, conformance_identities)) in
+        program.machine_specializations.iter_mut().zip(updates)
+    {
         if !specialization
             .machine_argument_contract_fingerprints
             .is_empty()
-            && specialization.machine_argument_contract_fingerprints != identities
+            && specialization.machine_argument_contract_fingerprints != machine_identities
         {
             return Err(vec![Diagnostic::error(
                 "generic specialization cache entry no longer matches its selected machine contract identities",
             )]);
         }
-        specialization.machine_argument_contract_fingerprints = identities;
+        if !specialization.conformance_argument_fingerprints.is_empty()
+            && specialization.conformance_argument_fingerprints != conformance_identities
+        {
+            return Err(vec![Diagnostic::error(
+                "generic specialization cache entry no longer matches its selected conformance-map identities",
+            )]);
+        }
+        specialization.machine_argument_contract_fingerprints = machine_identities;
+        specialization.conformance_argument_fingerprints = conformance_identities;
         specialization.fingerprint = specialization_contract_fingerprint(
             specialization.fingerprint,
             specialization.template_contract_fingerprint,
             &specialization.machine_argument_contract_fingerprints,
+            &specialization.conformance_argument_fingerprints,
         );
     }
     Ok(())
@@ -3274,24 +3808,75 @@ fn specialization_contract_fingerprint(
     selection_fingerprint: u64,
     template_contract_fingerprint: u64,
     selected_contracts: &[u64],
+    selected_conformances: &[u64],
 ) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
     let mut hash = OFFSET;
-    for byte in selection_fingerprint
-        .to_le_bytes()
-        .into_iter()
-        .chain(template_contract_fingerprint.to_le_bytes())
-        .chain(
-            selected_contracts
-                .iter()
-                .flat_map(|identity| identity.to_le_bytes()),
-        )
-    {
+    let mut bytes = Vec::new();
+    bytes.extend(selection_fingerprint.to_le_bytes());
+    bytes.extend(template_contract_fingerprint.to_le_bytes());
+    bytes.push(0xf1);
+    bytes.extend((selected_contracts.len() as u64).to_le_bytes());
+    for identity in selected_contracts {
+        bytes.extend(identity.to_le_bytes());
+    }
+    bytes.push(0xf2);
+    bytes.extend((selected_conformances.len() as u64).to_le_bytes());
+    for identity in selected_conformances {
+        bytes.extend(identity.to_le_bytes());
+    }
+    for byte in bytes {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(PRIME);
     }
     hash
+}
+
+fn conformance_argument_fingerprint(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+) -> Option<u64> {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let rows = program.closed_conformance_rows(conformance)?;
+    let mut bytes = Vec::new();
+    if let Some(alias) = &conformance.alias {
+        bytes.extend(alias.as_str().as_bytes());
+    }
+    bytes.push(0xff);
+    if let Some(carrier) = conformance.carrier_name() {
+        bytes.extend(carrier.as_str().as_bytes());
+    }
+    bytes.push(0xfe);
+    bytes.extend(conformance.trait_name.as_str().as_bytes());
+    bytes.push(0xfd);
+    for argument in program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+    {
+        bytes.extend(
+            program
+                .normalized_type_identity(*argument)
+                .as_str()
+                .as_bytes(),
+        );
+        bytes.push(0xfc);
+    }
+    for row in rows {
+        bytes.extend(row.declaring_trait_name.as_str().as_bytes());
+        bytes.push(0xfb);
+        bytes.extend(row.requirement_name.as_str().as_bytes());
+        bytes.push(0xfa);
+        bytes.extend(row.realization_name.as_str().as_bytes());
+        bytes.push(0xf9);
+    }
+    let mut hash = OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    Some(hash)
 }
 
 fn encode_data_properties(properties: psi_typed_trees::data::DataProperties, output: &mut Vec<u8>) {
@@ -3579,6 +4164,7 @@ fn specialization_fingerprint(
     type_arguments: &[String],
     const_arguments: &[String],
     machine_arguments: &[String],
+    evidence_arguments: &[String],
 ) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
@@ -3587,6 +4173,7 @@ fn specialization_fingerprint(
         .chain(type_arguments.iter().map(String::as_str))
         .chain(const_arguments.iter().map(String::as_str))
         .chain(machine_arguments.iter().map(String::as_str))
+        .chain(evidence_arguments.iter().map(String::as_str))
     {
         for byte in part.as_bytes().iter().copied().chain(std::iter::once(0xff)) {
             hash ^= u64::from(byte);

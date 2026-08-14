@@ -530,12 +530,16 @@ Remaining N6/N8 work:
   retains lifetime/type/const/static-machine parameters through resolved and
   typed Psi, resolves its contracts and trait arguments in that name-owned
   scope, and gives every named conformance a package-scoped symbol. Machine
-  telescopes now also parse and retain a distinct proof-static
-  `Evidence: Subject satisfies Trait` binder with its own lexical symbol. Still
-  bind each call-site conformance argument, validate its instantiated contract,
-  and substitute the selected normalized row map. Identity retains declared
-  name, telescope, optional subject, instantiated trait, and normalized rows.
-  No visibility-, priority-, or specificity-based selection.
+  telescopes retain a distinct proof-static `Evidence: Subject satisfies Trait`
+  binder with its own lexical symbol. A concrete call now binds the exact named
+  closed conformance, validates its instantiated subject/trait shape, exposes
+  direct and inherited requirements in the binder scope, substitutes the
+  selected normalized rows, and commits the map identity separately from
+  callable static-machine arguments. Still instantiate generic conformance
+  declarations over their own telescopes and carry forwarded evidence through
+  nested generic calls. Identity retains declared name, telescope, optional
+  subject, instantiated trait, and normalized rows. No visibility-, priority-,
+  or specificity-based selection.
 - Project carrierless evidence from the complete conformance map. Projection is
   stable per retained term and forwarding preserves it; separate introductions
   may differ. Evidence cannot eliminate into runtime computation.
