@@ -201,9 +201,11 @@ boundary signature, arguments, and exact receipts survive canonical encoding
 and independent verification. Interpretation checks the provider's returned
 scalar before committing either custody or receipts, so a rejected call can be
 retried against the unchanged frontier. Omega preserves that result in its
-abstract plan; the metadata-only native settlement path rejects it until a
-result-returning provider realization exists. Projected and content-bearing
-result calls remain outside this slice.
+abstract plan. An admitted x86-64 `u8` port-read provider lowers to a sealed
+instruction interval and returns the byte through the scalar ABI; its provider
+identity, whole-root arguments, receipts, and exact bytes survive object,
+image, and installation validation. Other result shapes and targets, plus
+projected and content-bearing result calls, fail closed.
 
 A stable record claim path may cross nested relevant record fields. Each
 segment is resolved against the structural type reached by the preceding

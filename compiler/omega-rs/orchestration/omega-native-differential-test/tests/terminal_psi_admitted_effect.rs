@@ -23,7 +23,7 @@ use omega_instruction_selection::lower_post_handoff_writer_fragment;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
-    TerminalAbstractOperation, TerminalAbstractOperationPlan,
+    TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
 };
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, lower_to_target_operations_with_provider_executions,
@@ -35,12 +35,15 @@ use omega_terminal_image_emission::{
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_target_operations::TerminalMetadataOnlyPortRealization;
+use omega_terminal_target_operations::{
+    TerminalBoundaryRealization, TerminalDirectPortReadU8Realization,
+    TerminalMetadataOnlyPortRealization, TerminalTargetOperation,
+};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
-    OperationId, PlaceId, ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId,
-    StructuralTypeId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    MachineId, OperationId, PlaceId, ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId,
+    StructuralTypeId, ValueId,
 };
 use psi_extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
@@ -54,10 +57,10 @@ use psi_layout_plans::{
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
 use psi_terminal::{
-    BindingRelevance, BoundaryMachineDeclaration, SemanticFingerprint, StructuralArgument,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+    BindingRelevance, BoundaryMachineDeclaration, CompletionReceipt, EntryClaim,
+    SemanticFingerprint, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
 #[test]
@@ -144,6 +147,28 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         },
         component_pins: BTreeSet::new(),
     };
+    let result_boundary_plan = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::SystemVAMD64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(1, 1)),
+        },
+    )
+    .expect("result boundary plan");
+    let result_validated = validate_external_root(candidate.clone(), &result_boundary_plan)
+        .expect("result root validation");
+    let result_execution = ProviderExecution::from_admitted_provider(
+        root_id(57, ProviderExecutionId::from_normalized_identity),
+        &result_validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: result_validated.boundary().call.entry_control,
+                restored_state: result_validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("result provider execution admission");
     let validated = validate_external_root(candidate, &boundary_plan).expect("root validation");
     let execution = ProviderExecution::from_admitted_provider(
         root_id(54, ProviderExecutionId::from_normalized_identity),
@@ -405,7 +430,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         &[AdmittedTerminalBoundarySettlement {
             boundary,
             provider_execution: &execution,
-            realization,
+            realization: realization.into(),
         }],
     )
     .expect("admitted effect lowering");
@@ -473,6 +498,161 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             0xff
         ))
     );
+
+    let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let result = TerminalAbstractResult {
+        value: ValueId::new(1).unwrap(),
+        scalar_type: u8_type,
+    };
+    let direct_realization = TerminalDirectPortReadU8Realization {
+        service,
+        port: 0x60,
+    };
+    let direct_claim = ClaimId::new(1).unwrap();
+    let direct_arguments = vec![StructuralArgument {
+        place: custody_place,
+        path: Vec::new(),
+    }];
+    let direct_plan = TerminalAbstractOperationPlan {
+        terminal_psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([10; 32]),
+        },
+        entry: machine,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: element_type,
+            identity: "Acknowledgement".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                }],
+            },
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "KeyboardController::read_status".into(),
+            attachment: None,
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: boundary_place,
+                position: 0,
+                is_self: false,
+                structural_type: element_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            }],
+            result: Some(u8_type),
+            requires: Vec::new(),
+            published_service_ceiling: vec![service],
+        }],
+        provider_candidates: Vec::new(),
+        functions: vec![TerminalAbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: custody_place,
+                position: 0,
+                is_self: false,
+                structural_type: element_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            }],
+            result: TerminalAbstractFunctionResult::Scalar(result),
+            entry_claims: vec![EntryClaim {
+                claim: direct_claim,
+                input: custody_place,
+                path: Vec::new(),
+            }],
+            published_service_ceiling: vec![service],
+            block_entries: vec![TerminalAbstractBlockEntry {
+                block: BlockId::new(1).unwrap(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                TerminalAbstractOperation::BoundaryCall {
+                    psi_operation: settlement_operation,
+                    result: Some(result),
+                    boundary,
+                    structural_arguments: direct_arguments.clone(),
+                    completion_receipts: vec![CompletionReceipt {
+                        claim: direct_claim,
+                        argument_index: 0,
+                    }],
+                },
+                TerminalAbstractOperation::Return {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    result: result.value,
+                    value: result.value,
+                    scalar_type: result.scalar_type,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+    let direct_settlement = AdmittedTerminalBoundarySettlement {
+        boundary,
+        provider_execution: &result_execution,
+        realization: TerminalBoundaryRealization::DirectPortReadU8(direct_realization),
+    };
+    let direct_target = lower_to_target_operations_with_provider_executions(
+        &direct_plan,
+        NativeTarget::linux_x64(),
+        &[direct_settlement],
+    )
+    .expect("direct result lowering");
+    assert!(matches!(
+        direct_target.functions[0].operation,
+        TerminalTargetOperation::ReturnBoundaryPortReadU8 { .. }
+    ));
+    assert!(
+        lower_to_target_operations_with_provider_executions(
+            &direct_plan,
+            NativeTarget::linux_arm64(),
+            &[direct_settlement],
+        )
+        .is_err()
+    );
+    let direct_assigned = assign_registers(&direct_target).expect("direct result assignment");
+    let direct_machine = emit_machine_code(&direct_assigned).expect("direct result emission");
+    let mut expected_bytes = omega_x86_encoding::encode_immediate_port_read_u8(0x60).to_vec();
+    expected_bytes.push(0xc3);
+    assert_eq!(direct_machine.functions[0].bytes, expected_bytes);
+    assert_eq!(
+        direct_machine.functions[0].boundary_settlements[0].arguments,
+        direct_arguments
+    );
+    assert_eq!(
+        direct_machine.functions[0].boundary_settlements[0].completion_receipts,
+        [CompletionReceipt {
+            claim: direct_claim,
+            argument_index: 0,
+        }]
+    );
+    let direct_object =
+        build_terminal_object_artifact(&direct_machine).expect("direct result object");
+    let direct_image =
+        emit_terminal_executable_image(&direct_object, 3).expect("direct result image");
+    let direct_installation = build_terminal_installation_record_with_provider_executions(
+        &direct_image,
+        profile,
+        [&result_execution],
+    )
+    .expect("direct result installation");
+    let direct_encoded =
+        encode_terminal_installation_record(&direct_installation).expect("direct result encoding");
+    let direct_decoded = decode_terminal_installation_record(&direct_encoded)
+        .expect("direct result installation decoding");
+    assert_eq!(direct_decoded, direct_installation);
+
+    let mut corrupted_direct_machine = direct_machine;
+    corrupted_direct_machine.functions[0].bytes[12] ^= 1;
+    assert!(build_terminal_object_artifact(&corrupted_direct_machine).is_err());
 }
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {

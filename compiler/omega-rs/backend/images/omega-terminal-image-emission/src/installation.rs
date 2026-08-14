@@ -11,7 +11,8 @@ use omega_terminal_machine_code::{
     TerminalPortEffectRecord, TerminalProviderExecutionRecord, TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
-    TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization,
+    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalDirectPortReadU8Realization,
+    TerminalMetadataOnlyPortRealization,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
@@ -31,7 +32,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 19;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 20;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -746,10 +747,22 @@ pub fn encode_terminal_installation_record(
         push_u64(&mut bytes, execution.provider_execution_fingerprint);
         push_u64(&mut bytes, execution.normalized_root_identity);
         push_u64(&mut bytes, execution.boundary_contract_fingerprint);
-        push_u64(&mut bytes, settlement.realization.effect_operation.get());
-        push_u64(&mut bytes, settlement.realization.service.get());
-        push_u16(&mut bytes, settlement.realization.port);
-        bytes.push(settlement.realization.value);
+        match settlement.realization {
+            TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
+                bytes.push(0);
+                push_u64(&mut bytes, realization.effect_operation.get());
+                push_u64(&mut bytes, realization.service.get());
+                push_u16(&mut bytes, realization.port);
+                bytes.push(realization.value);
+            }
+            TerminalBoundaryRealization::DirectPortReadU8(realization) => {
+                bytes.push(1);
+                push_u64(&mut bytes, 0);
+                push_u64(&mut bytes, realization.service.get());
+                push_u16(&mut bytes, realization.port);
+                bytes.push(0);
+            }
+        }
         bytes.push(0);
         push_u64(
             &mut bytes,
@@ -764,6 +777,11 @@ pub fn encode_terminal_installation_record(
         push_u64(
             &mut bytes,
             u64::try_from(settlement.code_offset)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(settlement.byte_count)
                 .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
         );
         push_u32(
@@ -1233,15 +1251,33 @@ pub fn decode_terminal_installation_record(
             reader.u64()?,
         )
         .ok_or(TerminalInstallationError::ZeroProviderExecutionEvidence)?;
-        let realization = TerminalMetadataOnlyPortRealization {
-            effect_operation: OperationId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroSettlementIdentity("realization OperationId"),
-            )?,
-            service: ServiceId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
-            )?,
-            port: reader.u16()?,
-            value: reader.u8()?,
+        let realization_tag = reader.u8()?;
+        let effect_operation = reader.u64()?;
+        let service = ServiceId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
+        )?;
+        let port = reader.u16()?;
+        let value = reader.u8()?;
+        let realization = match realization_tag {
+            0 => {
+                TerminalBoundaryRealization::MetadataOnlyPort(TerminalMetadataOnlyPortRealization {
+                    effect_operation: OperationId::new(effect_operation).ok_or(
+                        TerminalInstallationError::ZeroSettlementIdentity(
+                            "realization OperationId",
+                        ),
+                    )?,
+                    service,
+                    port,
+                    value,
+                })
+            }
+            1 if effect_operation == 0 && value == 0 => {
+                TerminalBoundaryRealization::DirectPortReadU8(TerminalDirectPortReadU8Realization {
+                    service,
+                    port,
+                })
+            }
+            _ => return Err(TerminalInstallationError::InvalidBoundaryRealizationTag),
         };
         if reader.u8()? != 0 {
             return Err(TerminalInstallationError::NonzeroReservedField);
@@ -1251,6 +1287,8 @@ pub fn decode_terminal_installation_record(
         let text_offset = usize::try_from(reader.u64()?)
             .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
         let code_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+        let byte_count = usize::try_from(reader.u64()?)
             .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
         let argument_count = usize::try_from(reader.u32()?)
             .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?;
@@ -1285,6 +1323,7 @@ pub fn decode_terminal_installation_record(
                 completion_receipts,
                 operation_ordinal,
                 code_offset,
+                byte_count,
             },
             text_offset,
         });
@@ -1640,6 +1679,14 @@ fn validate_record_shape(
         let has_scalar_control_cleanup = !function.scalar_control_affine_cleanups.is_empty();
         let has_scalar_cleanup =
             function.scalar_affine_cleanup.is_some() || has_scalar_control_cleanup;
+        let has_scalar_boundary_custody = record.boundary_settlements.iter().any(|settlement| {
+            settlement.machine == function.machine
+                && matches!(
+                    settlement.settlement.realization,
+                    TerminalBoundaryRealization::DirectPortReadU8(_)
+                )
+        });
+        let has_scalar_custody = has_scalar_cleanup || has_scalar_boundary_custody;
         if !installed_stack_facts_are_canonical(function, &attachments)
             || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
@@ -1663,7 +1710,7 @@ fn validate_record_shape(
                         || parameter.multiplicity != home.multiplicity
                         || parameter.shape != home.shape
                 })
-            || (!has_scalar_cleanup
+            || (!has_scalar_custody
                 && (!function.scalar_structural_parameters.is_empty()
                     || !function.scalar_structural_parameter_homes.is_empty()))
             || function
@@ -2551,7 +2598,11 @@ fn validate_record_shape(
             .checked_add(installed.settlement.code_offset)
             .ok_or(TerminalInstallationError::SettlementOffsetNotRepresentable)?;
         if installed.text_offset != expected
-            || installed.settlement.code_offset > function.byte_count
+            || installed
+                .settlement
+                .code_offset
+                .checked_add(installed.settlement.byte_count)
+                .is_none_or(|end| end > function.byte_count)
         {
             return Err(TerminalInstallationError::InvalidBoundarySettlementOffset {
                 machine: installed.machine,
@@ -2581,26 +2632,45 @@ fn validate_record_shape(
                 },
             );
         }
-        let realization = installed.settlement.realization;
-        let matching_effects = record
-            .port_effects
-            .iter()
-            .filter(|effect| {
-                effect.machine == installed.machine
-                    && effect.effect.psi_operation == realization.effect_operation
-                    && effect.effect.service == realization.service
-                    && effect.effect.port == realization.port
-                    && effect.effect.value == realization.value
-                    && effect.effect.operation_ordinal.checked_add(1)
-                        == Some(installed.settlement.operation_ordinal)
-                    && effect
-                        .effect
-                        .code_offset
-                        .checked_add(effect.effect.byte_count)
-                        == Some(installed.settlement.code_offset)
-            })
-            .count();
-        if matching_effects != 1 {
+        let valid_realization = match installed.settlement.realization {
+            TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
+                installed.settlement.byte_count == 0
+                    && record
+                        .port_effects
+                        .iter()
+                        .filter(|effect| {
+                            effect.machine == installed.machine
+                                && effect.effect.psi_operation == realization.effect_operation
+                                && effect.effect.service == realization.service
+                                && effect.effect.port == realization.port
+                                && effect.effect.value == realization.value
+                                && effect.effect.operation_ordinal.checked_add(1)
+                                    == Some(installed.settlement.operation_ordinal)
+                                && effect
+                                    .effect
+                                    .code_offset
+                                    .checked_add(effect.effect.byte_count)
+                                    == Some(installed.settlement.code_offset)
+                        })
+                        .count()
+                        == 1
+            }
+            TerminalBoundaryRealization::DirectPortReadU8(_) => {
+                record.target.architecture == Architecture::X86_64
+                    && installed.settlement.byte_count
+                        == omega_x86_encoding::IMMEDIATE_PORT_READ_U8_WIDTH
+                    && function.unit_stack.is_none()
+                    && function.scalar_stack.is_some()
+                    && installed.settlement.arguments.iter().all(|argument| {
+                        argument.path.is_empty()
+                            && function
+                                .scalar_structural_parameters
+                                .iter()
+                                .any(|parameter| parameter.place == argument.place)
+                    })
+            }
+        };
+        if !valid_realization {
             return Err(TerminalInstallationError::BoundaryRealizationMismatch {
                 machine: installed.machine,
                 operation: installed.settlement.psi_operation,
@@ -4403,6 +4473,7 @@ pub enum TerminalInstallationError {
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),
     InvalidCallSiteOwnerTag(u8),
+    InvalidBoundaryRealizationTag,
     InvalidCleanupActionTag(u8),
     ZeroPortEffectIdentity(&'static str),
     ZeroSettlementIdentity(&'static str),

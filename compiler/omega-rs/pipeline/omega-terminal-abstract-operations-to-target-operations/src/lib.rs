@@ -9,37 +9,37 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, PlanDiagnostic, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
 };
-use omega_target::NativeTarget;
+use omega_target::{Architecture, NativeTarget};
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalAbstractParameter, TerminalAbstractResult,
 };
 use omega_terminal_target_operations::{
-    TerminalBoundarySettlementBinding, TerminalPsiProvenance, TerminalScalarParameterLocation,
-    TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
-    TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
-    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
-    TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
-    TerminalTargetStructuralArgument, TerminalTargetStructuralParameter, TerminalTargetUnitBody,
-    TerminalTargetUnitOperation,
+    TerminalBoundaryRealization, TerminalBoundarySettlementBinding, TerminalPsiProvenance,
+    TerminalScalarParameterLocation, TerminalTargetBooleanControl, TerminalTargetBooleanExpression,
+    TerminalTargetCallArgument, TerminalTargetConditionalBooleanArm,
+    TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetScalarExpression, TerminalTargetStructuralArgument,
+    TerminalTargetStructuralParameter, TerminalTargetUnitBody, TerminalTargetUnitOperation,
 };
 use psi_core::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-/// One metadata-only boundary realization sourced from a validated, admitted
-/// provider execution. Callers supply the semantic effect association but
-/// cannot substitute a secondary provider-plan identity.
+/// One boundary realization sourced from a validated, admitted provider
+/// execution. Callers supply the exact target mechanism but cannot substitute
+/// a secondary provider-plan identity.
 #[derive(Debug, Clone, Copy)]
 pub struct AdmittedTerminalBoundarySettlement<'execution> {
     pub boundary: BoundaryMachineId,
     pub provider_execution:
         &'execution dyn omega_terminal_installation_evidence::TerminalProviderExecutionEvidence,
-    pub realization: omega_terminal_target_operations::TerminalMetadataOnlyPortRealization,
+    pub realization: TerminalBoundaryRealization,
 }
 
 pub fn lower_to_target_operations(
@@ -272,6 +272,81 @@ fn lower_function(
             },
         )
         .collect::<Vec<_>>();
+
+    if let [
+        TerminalAbstractOperation::BoundaryCall {
+            psi_operation,
+            result: Some(boundary_result),
+            boundary,
+            structural_arguments,
+            completion_receipts,
+        },
+        TerminalAbstractOperation::Return {
+            psi_edge,
+            result,
+            value,
+            scalar_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
+        && *result == function_result.value
+        && *value == boundary_result.value
+        && *scalar_type == boundary_result.scalar_type
+        && boundary_result.scalar_type
+            == ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is a valid integer type"),
+            )
+        && cleanup_actions.is_empty()
+        && structural_arguments
+            .iter()
+            .all(|argument| argument.path.is_empty())
+    {
+        let binding = settlements.get(boundary).copied().ok_or(
+            LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                machine: function.machine,
+                operation: *psi_operation,
+                boundary: *boundary,
+            },
+        )?;
+        let TerminalBoundaryRealization::DirectPortReadU8(realization) = binding.realization else {
+            return Err(
+                LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                    boundary: *boundary,
+                },
+            );
+        };
+        if target.architecture != Architecture::X86_64 {
+            return Err(
+                LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                    boundary: *boundary,
+                },
+            );
+        }
+        return Ok(TerminalTargetFunction {
+            machine: function.machine,
+            attachment: function.attachment,
+            provenance: TerminalPsiProvenance {
+                operations: vec![*psi_operation],
+                edges: vec![*psi_edge],
+            },
+            operation: TerminalTargetOperation::ReturnBoundaryPortReadU8 {
+                psi_edge: *psi_edge,
+                psi_operation: *psi_operation,
+                source_value: boundary_result.value,
+                boundary: *boundary,
+                provider_execution: binding.provider_execution,
+                realization,
+                arguments: structural_arguments.clone(),
+                completion_receipts: completion_receipts.clone(),
+                call_plan,
+                structural_parameters: target_structural_parameters,
+            },
+        });
+    }
 
     if function
         .operations
@@ -2104,7 +2179,11 @@ fn lower_unit_function(
                     .get(boundary)
                     .copied()
                     .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
-                let realization = binding.realization;
+                let TerminalBoundaryRealization::MetadataOnlyPort(realization) =
+                    binding.realization
+                else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                };
                 if !matches!(
                     operations.last(),
                     Some(TerminalTargetUnitOperation::PortWrite {
@@ -2131,7 +2210,7 @@ fn lower_unit_function(
                     psi_operation: *psi_operation,
                     boundary: *boundary,
                     provider_execution: binding.provider_execution,
-                    realization,
+                    realization: realization.into(),
                     arguments: structural_arguments.clone(),
                     completion_receipts: completion_receipts.clone(),
                 });
@@ -6267,7 +6346,7 @@ mod tests {
         let binding = TerminalBoundarySettlementBinding {
             boundary,
             provider_execution,
-            realization,
+            realization: realization.into(),
         };
         let lowered = lower_to_target_operations_with_settlements(
             &plan,
@@ -6301,7 +6380,8 @@ mod tests {
             realization: TerminalMetadataOnlyPortRealization {
                 value: 0x21,
                 ..realization
-            },
+            }
+            .into(),
             ..binding
         };
         assert_eq!(

@@ -37,7 +37,9 @@ use omega_terminal_machine_code::{
     TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
     TerminalUnitStackEvidence,
 };
-use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalPsiProvenance};
+use omega_terminal_target_operations::{
+    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalPsiProvenance,
+};
 use psi_core::MachineId;
 use psi_diagnostics::Diagnostic;
 use psi_terminal::StructuralPathSegment;
@@ -549,7 +551,14 @@ pub fn build_terminal_object_artifact(
         }
         let scalar_cleanup_custody = function.scalar_affine_cleanup.is_some()
             || !function.scalar_control_affine_cleanups.is_empty();
-        let parameter_homes = if scalar_cleanup_custody {
+        let scalar_boundary_custody = function.boundary_settlements.iter().any(|settlement| {
+            matches!(
+                settlement.realization,
+                TerminalBoundaryRealization::DirectPortReadU8(_)
+            )
+        });
+        let scalar_custody = scalar_cleanup_custody || scalar_boundary_custody;
+        let parameter_homes = if scalar_custody {
             function.scalar_structural_parameter_homes.as_slice()
         } else {
             function.unit_parameter_homes.as_slice()
@@ -695,7 +704,7 @@ pub fn build_terminal_object_artifact(
                         || parameter.multiplicity != home.multiplicity
                         || parameter.shape != home.shape
                 })
-            || (!scalar_cleanup_custody
+            || (!scalar_custody
                 && (!function.scalar_structural_parameters.is_empty()
                     || !function.scalar_structural_parameter_homes.is_empty()))
         {
@@ -849,23 +858,47 @@ pub fn build_terminal_object_artifact(
                     operation: settlement.psi_operation,
                 });
             }
-            let realization = settlement.realization;
-            if function
-                .port_effects
-                .iter()
-                .filter(|effect| {
-                    effect.psi_operation == realization.effect_operation
-                        && effect.service == realization.service
-                        && effect.port == realization.port
-                        && effect.value == realization.value
-                        && effect.operation_ordinal.checked_add(1)
-                            == Some(settlement.operation_ordinal)
-                        && effect.code_offset.checked_add(effect.byte_count)
-                            == Some(settlement.code_offset)
-                })
-                .count()
-                != 1
-            {
+            let valid_realization = match settlement.realization {
+                TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
+                    settlement.byte_count == 0
+                        && function
+                            .port_effects
+                            .iter()
+                            .filter(|effect| {
+                                effect.psi_operation == realization.effect_operation
+                                    && effect.service == realization.service
+                                    && effect.port == realization.port
+                                    && effect.value == realization.value
+                                    && effect.operation_ordinal.checked_add(1)
+                                        == Some(settlement.operation_ordinal)
+                                    && effect.code_offset.checked_add(effect.byte_count)
+                                        == Some(settlement.code_offset)
+                            })
+                            .count()
+                            == 1
+                }
+                TerminalBoundaryRealization::DirectPortReadU8(realization) => {
+                    let expected =
+                        omega_x86_encoding::encode_immediate_port_read_u8(realization.port);
+                    settlement.byte_count == expected.len()
+                        && plan.target.architecture == Architecture::X86_64
+                        && settlement
+                            .code_offset
+                            .checked_add(settlement.byte_count)
+                            .and_then(|end| function.bytes.get(settlement.code_offset..end))
+                            == Some(expected.as_slice())
+                        && function.unit_stack.is_none()
+                        && function.scalar_stack.is_some()
+                        && settlement.arguments.iter().all(|argument| {
+                            argument.path.is_empty()
+                                && function
+                                    .scalar_structural_parameters
+                                    .iter()
+                                    .any(|parameter| parameter.place == argument.place)
+                        })
+                }
+            };
+            if !valid_realization {
                 return Err(TerminalObjectError::BoundaryRealizationMismatch {
                     machine: function.machine,
                     operation: settlement.psi_operation,

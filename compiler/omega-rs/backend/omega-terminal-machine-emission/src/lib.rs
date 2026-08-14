@@ -112,6 +112,8 @@ fn emit_function(
     let mut unit_stack = None;
     let mut unit_parameter_homes = Vec::new();
     let mut unit_parameters = Vec::new();
+    let mut scalar_structural_parameter_homes = Vec::new();
+    let mut scalar_structural_parameters = Vec::new();
     let mut scalar_stack_eligible = false;
     let mut scalar_control_flow = TerminalScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
@@ -120,6 +122,92 @@ fn emit_function(
         }
         TerminalAssignedOperation::BooleanControlWithCleanup { .. } => {
             unreachable!("Boolean-control cleanup is emitted by the early carrier path")
+        }
+        TerminalAssignedOperation::ReturnBoundaryPortReadU8 {
+            psi_edge,
+            psi_operation,
+            boundary,
+            provider_execution,
+            realization,
+            arguments,
+            completion_receipts,
+            call_plan,
+            structural_parameters,
+            ..
+        } => {
+            if architecture != Architecture::X86_64
+                || call_plan.parameters.len() < structural_parameters.len()
+                || call_plan.parameters[call_plan.parameters.len() - structural_parameters.len()..]
+                    .iter()
+                    .zip(structural_parameters)
+                    .any(|(placement, parameter)| placement != &parameter.placement)
+            {
+                return Err(EmissionError::BoundaryPortReadUnsupported(architecture));
+            }
+            scalar_stack_eligible = true;
+            let mut bytes =
+                omega_x86_encoding::encode_immediate_port_read_u8(realization.port).to_vec();
+            let read_byte_count = bytes.len();
+            bytes.push(0xc3);
+            fuel_attribution.push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Operation(*psi_operation),
+                units: 1,
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: read_byte_count,
+            });
+            fuel_attribution.push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Edge(*psi_edge),
+                units: 1,
+                operation_ordinal: 1,
+                code_offset: read_byte_count,
+                byte_count: 1,
+            });
+            boundary_settlements.push(TerminalBoundarySettlementRecord {
+                psi_operation: *psi_operation,
+                boundary: *boundary,
+                provider_execution: (*provider_execution).into(),
+                realization:
+                    omega_terminal_target_operations::TerminalBoundaryRealization::DirectPortReadU8(
+                        *realization,
+                    ),
+                arguments: arguments.clone(),
+                completion_receipts: completion_receipts.clone(),
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: read_byte_count,
+            });
+            scalar_structural_parameters = structural_parameters
+                .iter()
+                .map(
+                    |parameter| omega_terminal_machine_code::TerminalUnitParameterRecord {
+                        place: parameter.place,
+                        structural_type: parameter.structural_type,
+                        multiplicity: parameter.multiplicity,
+                        shape: parameter.shape,
+                    },
+                )
+                .collect();
+            scalar_structural_parameter_homes = structural_parameters
+                .iter()
+                .map(
+                    |parameter| omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
+                        place: parameter.place,
+                        structural_type: parameter.structural_type,
+                        multiplicity: parameter.multiplicity,
+                        shape: parameter.shape,
+                        source: parameter.placement.clone(),
+                        byte_offset: 0,
+                        indirect: matches!(
+                            parameter.placement.locations.as_slice(),
+                            [ValueLocation::Indirect { .. }]
+                        ),
+                    },
+                )
+                .collect();
+            bytes
         }
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target, functions)?;
@@ -508,8 +596,8 @@ fn emit_function(
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
-        scalar_structural_parameters: Vec::new(),
-        scalar_structural_parameter_homes: Vec::new(),
+        scalar_structural_parameters,
+        scalar_structural_parameter_homes,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -1702,6 +1790,7 @@ fn emit_unit_body(
                     completion_receipts: completion_receipts.clone(),
                     operation_ordinal,
                     code_offset: bytes.len(),
+                    byte_count: 0,
                 });
             }
             TerminalAssignedUnitOperation::Return {
@@ -7675,6 +7764,7 @@ pub enum EmissionError {
     UnsupportedStructuralReturnPlacement(psi_core::PlaceId),
     UnsupportedStructuralResultRegister(MachineRegister),
     PortWriteUnsupportedOnArchitecture(Architecture),
+    BoundaryPortReadUnsupported(Architecture),
     IntegerWidthNotNativelySupported {
         value: ValueId,
         bits: u16,
@@ -9049,7 +9139,7 @@ mod tests {
             leaf.boundary_settlements[0].provider_execution,
             provider_execution.into()
         );
-        assert_eq!(leaf.boundary_settlements[0].realization, realization);
+        assert_eq!(leaf.boundary_settlements[0].realization, realization.into());
         assert_eq!(leaf.boundary_settlements[0].arguments, settlement_arguments);
         assert_eq!(leaf.port_effects.len(), 1);
         assert_eq!(leaf.port_effects[0].service, realization.service);

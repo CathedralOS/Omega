@@ -65,6 +65,7 @@ fn assign_function(
                 scalar.as_ref(),
                 TerminalTargetOperation::ScalarReturnWithCleanup { .. }
                     | TerminalTargetOperation::BooleanControlWithCleanup { .. }
+                    | TerminalTargetOperation::ReturnBoundaryPortReadU8 { .. }
             ) {
                 return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
             }
@@ -92,6 +93,37 @@ fn assign_function(
                 structural_parameters: structural_parameters.clone(),
                 cleanup_actions: cleanup_actions.clone(),
                 psi_edge: *psi_edge,
+            }
+        }
+        TerminalTargetOperation::ReturnBoundaryPortReadU8 {
+            psi_edge,
+            psi_operation,
+            source_value,
+            boundary,
+            provider_execution,
+            realization,
+            arguments,
+            completion_receipts,
+            call_plan,
+            structural_parameters,
+        } => {
+            if architecture != Architecture::X86_64 {
+                return Err(AssignmentError::BoundaryPortReadUnsupported {
+                    machine: function.machine,
+                    architecture,
+                });
+            }
+            TerminalAssignedOperation::ReturnBoundaryPortReadU8 {
+                psi_edge: *psi_edge,
+                psi_operation: *psi_operation,
+                source_value: *source_value,
+                boundary: *boundary,
+                provider_execution: *provider_execution,
+                realization: *realization,
+                arguments: arguments.clone(),
+                completion_receipts: completion_receipts.clone(),
+                call_plan: call_plan.clone(),
+                structural_parameters: structural_parameters.clone(),
             }
         }
         TerminalTargetOperation::BooleanControlWithCleanup {
@@ -179,7 +211,7 @@ fn assign_function(
                         psi_operation: *psi_operation,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
-                        realization: *realization,
+                        realization: (*realization).into(),
                         arguments: arguments.clone(),
                         completion_receipts: completion_receipts.clone(),
                     },
@@ -2095,6 +2127,10 @@ fn x86_expression_scratch_conflict(register: MachineRegister) -> bool {
 pub enum AssignmentError {
     EntryFunctionMissing(MachineId),
     UnsupportedScalarCleanup(MachineId),
+    BoundaryPortReadUnsupported {
+        machine: MachineId,
+        architecture: Architecture,
+    },
     UnsupportedStructuralPlacement(psi_core::PlaceId),
     StructuralRegisterArchitectureMismatch {
         place: psi_core::PlaceId,
