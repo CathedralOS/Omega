@@ -418,7 +418,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 252u8,
         small <= 127u8, small <= 63u8,
-        small <= 7u8, 1u8 <= divisor, divisor <= small,
+        small <= 7u8, 3u8 <= small, 1u8 <= divisor, divisor <= small,
         small <= 255u8 / divisor, count <= 2u8,
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
@@ -442,8 +442,10 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && (((input + 1u64) + 1u64) < 5u64)
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
+            && (((input as u8) as u16) < 256u16)
             && ((small + 1u8) < 6u8)
             && ((~(small + 3u8)) < 255u8)
+            && (((small - 3u8) as u16) < 255u16)
             && ((127u8 - small) < 125u8)
             && ((small - divisor) < 4u8)
             && ((small * 2u8) < 10u8)
@@ -1805,6 +1807,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let add_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 254));
     let bitwise_not_exact_add_requirement =
         Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 252));
+    let widen_exact_subtract_requirement =
+        Proposition::LessOrEqual(unsigned_term(8, 3), small_term.clone());
     let divisor_lower_requirement =
         Proposition::LessOrEqual(unsigned_term(8, 1), divisor_term.clone());
     let runtime_subtract_requirement =
@@ -1988,6 +1992,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &left_shift_value_requirement,
         &add_upper_requirement,
         &bitwise_not_exact_add_requirement,
+        &widen_exact_subtract_requirement,
         &divisor_lower_requirement,
         &runtime_subtract_requirement,
         &runtime_multiply_requirement,
@@ -2679,7 +2684,24 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .iter()
         .flat_map(|block| &block.operations)
         .find_map(|operation| match operation.kind {
-            OperationKind::ExactIntegerSubtract { obligation, .. } => Some(obligation),
+            OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation,
+            } if right == entry.parameters[1].id => entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(left))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .filter(|value| *value == IntegerValue::Unsigned(127))
+                .map(|_| obligation),
             _ => None,
         })
         .expect("shared convergence retains the bounded exact subtraction");
@@ -2756,6 +2778,42 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .collect::<Vec<_>>();
     assert!(!bitwise_not_exact_add_obligations.is_empty());
     for obligation in &bitwise_not_exact_add_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let widen_exact_subtract_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation,
+            } if left == entry.parameters[1].id => entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .filter(|value| *value == IntegerValue::Unsigned(3))
+                .map(|_| obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!widen_exact_subtract_obligations.is_empty());
+    for obligation in &widen_exact_subtract_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == *obligation
                 && matches!(
@@ -2931,20 +2989,27 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == runtime_exact_subtract_obligation
     ));
-    let mut missing_runtime_subtract_requirement =
+    let mut changed_runtime_subtract_requirement =
         decode_module(&semantics).expect("decode shared semantics");
-    let changed_entry = missing_runtime_subtract_requirement.entry;
-    missing_runtime_subtract_requirement
+    let changed_entry = changed_runtime_subtract_requirement.entry;
+    let entry_contract = &mut changed_runtime_subtract_requirement
         .machines
         .iter_mut()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
-        .contract
+        .contract;
+    let runtime_subtract_requirement_position = entry_contract
         .requires
-        .retain(|requirement| requirement != &runtime_subtract_requirement);
+        .iter()
+        .position(|requirement| requirement == &runtime_subtract_requirement)
+        .expect("shared convergence retains the runtime-subtract relation");
+    entry_contract.requires[runtime_subtract_requirement_position] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
+        ScalarTerm::value(entry.parameters[2].id, entry.parameters[2].scalar_type),
+    );
     assert!(matches!(
         psi_terminal_verifier::verify_module(
-            &missing_runtime_subtract_requirement,
+            &changed_runtime_subtract_requirement,
             &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
             &AdmissionProfile::default(),
         ),
@@ -3455,6 +3520,50 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_bitwise_add_obligation
+    ));
+    let nested_widen_subtract_obligation = widen_exact_subtract_obligations[0];
+    let mut missing_nested_widen_subtract_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_nested_widen_subtract_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != nested_widen_subtract_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_nested_widen_subtract_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == nested_widen_subtract_obligation
+    ));
+    let mut changed_nested_widen_subtract_bound =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_nested_widen_subtract_bound.entry;
+    let entry_contract = &mut changed_nested_widen_subtract_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let nested_widen_subtract_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &widen_exact_subtract_requirement)
+        .expect("shared convergence retains the nested widened exact-subtract bound");
+    entry_contract.requires[nested_widen_subtract_requirement] = Proposition::LessOrEqual(
+        unsigned_term(8, 2),
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_nested_widen_subtract_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == nested_widen_subtract_obligation
     ));
     for obligation in &runtime_signed_add_obligations {
         let mut missing_runtime_signed_add_proof =
@@ -3993,8 +4102,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && nested_wrapped_add < 5
                     && small < 5
                     && input < 5
+                    && input < 256
                     && small + 1 < 6
                     && (!(small + 3) & u128::from(u8::MAX)) < 255
+                    && small - 3 < 255
                     && 127 - small < 125
                     && small - divisor < 4
                     && small * 2 < 10

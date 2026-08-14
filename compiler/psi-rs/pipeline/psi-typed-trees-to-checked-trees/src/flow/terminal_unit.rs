@@ -1404,8 +1404,9 @@ enum SharedBooleanRuntimeInput {
 /// parameters and landed constants beneath up to two total binary, bitwise-not,
 /// or integer-widening shells, or one proof-bearing exact-cast, exact-add,
 /// exact-subtract, exact-multiply, exact shift, exact-divide, or exact-remainder
-/// computation shell. One exact operation may sit beneath one bitwise-not shell.
-/// Constants and Boolean equality against a constant add no new runtime input.
+/// computation shell. One exact operation may sit beneath one bitwise-not or
+/// integer-widening shell. Constants and Boolean equality against a constant
+/// add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1589,7 +1590,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 operand,
                 scalar_parameter_count,
                 remaining_shells - 1,
-                false,
+                proof_shell_allowed,
             )
         }
         CheckedScalarExpression::IntegerExactCast { operand, .. }
