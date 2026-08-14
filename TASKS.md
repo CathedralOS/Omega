@@ -75,9 +75,10 @@ Remaining:
   `temperature_convert`, now lowers directly from its authored host entry. The
   seventeen deployable CLI arithmetic samples now author all four hosted roots
   and lower through the same production entry matrix without staging; the four
-  float-lowering fixtures remain explicitly checked-only. Fourteen deployable
-  CLI systems samples likewise author all four hosted roots; only `note_vault`
-  remains checked-only pending per-instance contained-machine dispatch. Eleven
+  float-lowering fixtures remain explicitly checked-only. All fifteen CLI
+  systems samples likewise author all four hosted roots and lower through the
+  production entry matrix, including `note_vault`'s multiple contained
+  `SystemTime` receivers. Eleven
   executable CLI regression probes now
   name all four hosted roots explicitly; the deliberate trapping fixture
   remains checked-only. All three stdin samples likewise select exact authored
