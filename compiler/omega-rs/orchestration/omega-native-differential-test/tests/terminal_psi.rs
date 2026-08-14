@@ -103,6 +103,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![machine],
     };
     let constant_fact = Proposition::Equal(term(constant), seven());
@@ -380,6 +381,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![machine],
     };
     let semantic_bytes = encode_module(&module).expect("crash semantic artifact");
@@ -477,6 +479,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![machine],
     };
     let semantic_bytes = encode_module(&module).expect("parameter semantic artifact");

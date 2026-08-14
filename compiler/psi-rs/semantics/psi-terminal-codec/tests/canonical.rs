@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "bf561ed144c227996323cb967fe50663b7b01b102079a6939fb0a4416b1bed2d"
+        "e71c572ca38f107ad4d0e5b53d14f23575340a7b9ac3641c1c182d8e4d6bc2cd"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -540,6 +540,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![machine],
     };
     let bytes = encode_module(&module).expect("local semantic rows encode");
@@ -1213,10 +1214,10 @@ fn structural_unit_calls_participate_in_call_graph_validation() {
 fn decoder_rejects_an_unknown_machine_result_shape() {
     let mut bytes = encode_module(&unit_fixture()).expect("unit terminal module should encode");
     // magic + format + vocabulary + entry + four empty foundation tables +
-    // two empty proposition counts + empty evidence-term count + machine count
+    // two empty proposition counts + empty evidence-term and contract-lane counts + machine count
     // + machine id + no attachment +
     // empty scalar and structural parameter counts
-    bytes[69] = 0xff;
+    bytes[73] = 0xff;
 
     assert_eq!(
         decode_module(&bytes),
@@ -1684,6 +1685,7 @@ fn partial_affine_fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -1894,6 +1896,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -2052,6 +2055,7 @@ fn structural_effect_fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(100),
@@ -2271,6 +2275,7 @@ fn unit_fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
             attachment: None,
@@ -2321,6 +2326,7 @@ fn fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -2456,6 +2462,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
             attachment: None,
@@ -2669,6 +2676,7 @@ fn call_fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(100),

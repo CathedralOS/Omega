@@ -54,8 +54,9 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
-    EvidenceInterfaceIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidenceTermDeclaration, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
@@ -1409,10 +1410,18 @@ pub fn lower_machine(
     }
     let mut lowered = lower_selected_machine(checked, selection)?;
     let (declarations, applications, declaration_ids) = lower_proposition_vocabulary(checked);
-    let evidence_terms = lower_evidence_terms(checked, &declaration_ids, &applications)?;
+    let evidence_terms =
+        lower_evidence_terms(checked, selection.machine, &declaration_ids, &applications)?;
+    let evidence_contract_lanes = lower_evidence_contract_lanes(
+        checked,
+        selection.machine,
+        lowered.semantic_module.entry,
+        &evidence_terms.term_ids,
+    )?;
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
-    lowered.semantic_module.evidence_terms = evidence_terms;
+    lowered.semantic_module.evidence_terms = evidence_terms.declarations;
+    lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
@@ -1563,13 +1572,22 @@ fn lower_proposition_vocabulary(
 /// forwarding aliases its output to the exact source term and therefore does
 /// not mint a second identity. Selected-conformance provenance remains fenced
 /// until the proof bundle has a separate source-handle-free provenance row.
+struct LoweredEvidenceTerms {
+    declarations: Vec<EvidenceTermDeclaration>,
+    term_ids: Vec<Option<EvidenceTermId>>,
+}
+
 fn lower_evidence_terms(
     checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
     declaration_ids: &[(psi_symbols::SymbolHandle, PropositionId)],
     applications: &[PropositionApplicationIdentity],
-) -> Result<Vec<EvidenceTermDeclaration>, LoweringError> {
+) -> Result<LoweredEvidenceTerms, LoweringError> {
     let mut parents = (0..checked.facts.proof.evidence_terms.len()).collect::<Vec<_>>();
     for (_, forwarding) in checked.facts.proof.evidence_forwardings.iter() {
+        if forwarding.machine_symbol != selected_machine {
+            continue;
+        }
         match &forwarding.source {
             psi_checked_trees::EvidenceAssignmentSource::Forwarded { term: source } => {
                 let output = usize::try_from(forwarding.output.arena_index() - 1)
@@ -1588,8 +1606,18 @@ fn lower_evidence_terms(
         }
     }
 
-    let mut identities_by_root = BTreeMap::new();
+    let mut identities_by_root: BTreeMap<
+        usize,
+        (PropositionId, EvidenceInterfaceIdentity, (u8, usize)),
+    > = BTreeMap::new();
     for (handle, term) in checked.facts.proof.evidence_terms.iter() {
+        if term.owner
+            != (psi_checked_trees::ContractProofFactOwner::Machine {
+                machine_symbol: selected_machine,
+            })
+        {
+            continue;
+        }
         let index = usize::try_from(handle.arena_index() - 1)
             .expect("arena indices fit the host address space");
         let root = evidence_term_root(&mut parents, index);
@@ -1645,35 +1673,130 @@ fn lower_evidence_terms(
                 .map(|argument| argument.as_str().to_owned())
                 .collect(),
         };
-        let identity = (proposition, interface);
-        if let Some(previous) = identities_by_root.insert(root, identity.clone()) {
-            if previous != identity {
+        let lane_key = match term.kind {
+            psi_checked_trees::ContractProofFactKind::Requires => (0_u8, term.lane_position),
+            psi_checked_trees::ContractProofFactKind::Ensures => (1_u8, term.lane_position),
+            _ => {
+                return Err(LoweringError::Unsupported(
+                    "terminal evidence term is not a named requires/ensures lane",
+                ));
+            }
+        };
+        if let Some((previous_proposition, previous_interface, previous_key)) =
+            identities_by_root.get_mut(&root)
+        {
+            if *previous_proposition != proposition || *previous_interface != interface {
                 return Err(LoweringError::Unsupported(
                     "forwarded evidence terms disagree on exact terminal identity",
                 ));
             }
+            *previous_key = (*previous_key).min(lane_key);
+        } else {
+            identities_by_root.insert(root, (proposition, interface, lane_key));
         }
     }
 
-    let mut identities = identities_by_root.into_values().collect::<Vec<_>>();
+    let mut identities = identities_by_root
+        .into_iter()
+        .map(|(root, (proposition, interface, lane_key))| (proposition, interface, lane_key, root))
+        .collect::<Vec<_>>();
     identities.sort_unstable();
-    Ok(identities
+    let mut root_ids = BTreeMap::new();
+    let declarations = identities
         .into_iter()
         .enumerate()
-        .map(
-            |(index, (proposition, interface))| EvidenceTermDeclaration {
-                id: EvidenceTermId::new(
-                    u64::try_from(index)
-                        .expect("evidence term count fits u64")
-                        .checked_add(1)
-                        .expect("one-based evidence term identity fits u64"),
-                )
-                .expect("one-based evidence term identity is nonzero"),
+        .map(|(index, (proposition, interface, _, root))| {
+            let id = EvidenceTermId::new(
+                u64::try_from(index)
+                    .expect("evidence term count fits u64")
+                    .checked_add(1)
+                    .expect("one-based evidence term identity fits u64"),
+            )
+            .expect("one-based evidence term identity is nonzero");
+            root_ids.insert(root, id);
+            EvidenceTermDeclaration {
+                id,
                 proposition,
                 interface,
-            },
-        )
-        .collect())
+            }
+        })
+        .collect();
+    let mut term_ids = vec![None; parents.len()];
+    for (handle, term) in checked.facts.proof.evidence_terms.iter() {
+        if term.owner
+            != (psi_checked_trees::ContractProofFactOwner::Machine {
+                machine_symbol: selected_machine,
+            })
+        {
+            continue;
+        }
+        let index = usize::try_from(handle.arena_index() - 1)
+            .expect("arena indices fit the host address space");
+        let root = evidence_term_root(&mut parents, index);
+        term_ids[index] = root_ids.get(&root).copied();
+    }
+    Ok(LoweredEvidenceTerms {
+        declarations,
+        term_ids,
+    })
+}
+
+fn lower_evidence_contract_lanes(
+    checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
+    terminal_machine: MachineId,
+    term_ids: &[Option<EvidenceTermId>],
+) -> Result<Vec<EvidenceContractLane>, LoweringError> {
+    let mut lanes = checked
+        .facts
+        .proof
+        .evidence_terms
+        .iter()
+        .filter_map(|(handle, term)| {
+            (term.owner
+                == psi_checked_trees::ContractProofFactOwner::Machine {
+                    machine_symbol: selected_machine,
+                })
+            .then_some((handle, term))
+        })
+        .map(|(handle, term)| {
+            let index = usize::try_from(handle.arena_index() - 1)
+                .expect("arena indices fit the host address space");
+            let term_id =
+                term_ids
+                    .get(index)
+                    .copied()
+                    .flatten()
+                    .ok_or(LoweringError::Unsupported(
+                        "selected terminal contract lane has no evidence-term identity",
+                    ))?;
+            let kind = match term.kind {
+                psi_checked_trees::ContractProofFactKind::Requires => {
+                    EvidenceContractLaneKind::Requires
+                }
+                psi_checked_trees::ContractProofFactKind::Ensures => {
+                    EvidenceContractLaneKind::Ensures
+                }
+                _ => {
+                    return Err(LoweringError::Unsupported(
+                        "terminal evidence term is not a named requires/ensures lane",
+                    ));
+                }
+            };
+            Ok(EvidenceContractLane {
+                machine: terminal_machine,
+                kind,
+                position: u32::try_from(term.lane_position).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "terminal evidence contract lane position exceeds u32",
+                    )
+                })?,
+                term: term_id,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    lanes.sort_unstable();
+    Ok(lanes)
 }
 
 fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
@@ -2043,6 +2166,7 @@ fn lower_structural_return_machine(
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),
@@ -2775,6 +2899,7 @@ fn lower_structural_scalar_return_machine(
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),
@@ -4751,6 +4876,7 @@ fn lower_structural_unit_control_machine(
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),
@@ -7405,6 +7531,7 @@ fn lower_attached_unit_closure_including(
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle {
@@ -8377,6 +8504,7 @@ fn lower_scalar_call_closure(
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle { evidence },
@@ -13129,6 +13257,7 @@ fn build_scalar_graph_module(
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![TerminalMachine {
                 id: terminal_machine,
                 attachment: None,

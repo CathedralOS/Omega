@@ -99,6 +99,9 @@ pub struct TerminalModule {
     /// same proposition application; a forwarding assignment preserves its
     /// source identity and therefore does not add a declaration here.
     pub evidence_terms: Vec<EvidenceTermDeclaration>,
+    /// Strictly ordered erased machine-contract lane rows. These reference
+    /// term vocabulary identities and have no runtime representation.
+    pub evidence_contract_lanes: Vec<EvidenceContractLane>,
     pub machines: Vec<TerminalMachine>,
 }
 
@@ -273,6 +276,20 @@ pub struct EvidenceTermDeclaration {
 pub struct EvidenceInterfaceIdentity {
     pub trait_identity: String,
     pub arguments: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EvidenceContractLaneKind {
+    Requires,
+    Ensures,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceContractLane {
+    pub machine: MachineId,
+    pub kind: EvidenceContractLaneKind,
+    pub position: u32,
+    pub term: EvidenceTermId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

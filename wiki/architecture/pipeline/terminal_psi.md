@@ -108,12 +108,16 @@ The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry
 that interface and each term row to agree with it. A forwarded output
-contributes only its source vocabulary identity. Named terminal contract lanes
-and generated output fields do not yet reference `EvidenceTermId`, so this is
-identity groundwork rather than stable projection. A producer-backed term is
-rejected at the terminal boundary until its selected conformance and complete
-normalized rows can be serialized as separate proof provenance; the diagnostic
-evidence-type spelling is not consulted as identity.
+contributes only its source vocabulary identity. Canonical positional rows for
+the selected terminal machine's named `requires` and `ensures` lanes reference
+those exact IDs, and forwarding places the same ID at both endpoints. The
+verifier requires known machine/term IDs, dense positions per lane kind, no
+orphan term rows, and—until producer provenance exists—every ensured term to be
+one of the same machine's required terms. Generated output fields do not yet
+reference `EvidenceTermId`, so stable package projection remains future work. A
+producer-backed term is rejected at the terminal boundary until its selected
+conformance and complete normalized rows can be serialized as separate proof
+provenance; the diagnostic evidence-type spelling is not consulted as identity.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

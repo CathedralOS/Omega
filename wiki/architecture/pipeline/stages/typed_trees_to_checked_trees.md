@@ -414,11 +414,14 @@ Current ownership is:
   evidence endpoints reject. The terminal producer consumes forwarded checked
   terms into dense source-handle-free vocabulary identities with an exact
   proposition application and structured interface; the verifier requires the
-  application and term rows to agree, and forwarding contributes one row. This
-  is groundwork rather than a connected terminal contract lane: terminal lanes
-  and generated fields do not yet reference the term ID. Selected-conformance
-  provenance is fenced at that boundary until it has a separate proof-bundle
-  row. Boolean, membership, fact-only, or non-nominal bindings reject.
+  application and term rows to agree, and forwarding contributes one row.
+  Canonical positional rows connect the selected terminal machine's named
+  requires/ensures lanes to exact term IDs, with one shared ID across a
+  forwarded pair. Until selected-conformance provenance has a separate
+  proof-bundle row, the verifier admits only ensured IDs also supplied by that
+  machine's required lanes and the terminal producer fences selected producers.
+  Generated package fields do not yet reference term IDs. Boolean, membership,
+  fact-only, or non-nominal bindings reject.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
