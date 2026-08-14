@@ -1088,8 +1088,14 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .flow
         .terminal_structural_scalar_returns
         .for_machine(machine_named(&checked, "computed_leaf_convergence"))
-        .expect("computed Boolean leaves retain the source-distributed fallback");
-    assert!(computed_leaf.shared_boolean_convergence.is_none());
+        .expect("negated Boolean leaves retain the shared convergence plan");
+    assert_eq!(
+        computed_leaf
+            .shared_boolean_convergence
+            .expect("negated shared convergence marker")
+            .binding_ordinal,
+        0
+    );
     let multiple_inputs = checked
         .facts
         .flow

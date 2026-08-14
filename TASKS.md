@@ -200,15 +200,16 @@ Remaining:
   finite short-circuit trees of arbitrary nesting once per stage,
   source-distributing each stage's value leaves through the remaining
   branch-free or short-circuit continuation locals; each continuation may use
-  its immediate predecessor one or more times. One finite `&&`/`||` binding
+  its immediate predecessor one or more times. One finite `!`/`&&`/`||` binding
   containing exactly one runtime Boolean input plus constants now retains its
   typed value exits into one terminal-Psi convergence parameter and one shared
   cleanup return; Omega collapses the nested semantic tree to one physical
   two-arm join through target assignment, native emission, decoded object/image
   custody, and installation on all targets. Extend shared convergence to
-  multiple or computed runtime leaves, then add complete slices for calls and
-  effects, wider partial-value cleanup, nested nominal ownership, returned transfer,
-  loops, suspension, scoped ordering, and ranked tail recursion. Dynamic or
+  multiple inputs or comparison/member leaves, then add complete slices for
+  calls and effects, wider partial-value cleanup, nested nominal ownership,
+  returned transfer, loops, suspension, scoped ordering, and ranked tail
+  recursion. Dynamic or
   nested indexing, wider projections/signatures, content-bearing splits, and
   unsupported contracts remain fenced until independently verifier-owned.
   Retire checked/source-tree consumers with each slice; nothing below terminal
