@@ -1,0 +1,6 @@
+// Darwin time-host canary: select only the target whose calibration it asserts.
+target macos_arm64 { }
+
+machine build(b: &mut Build) {
+    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

@@ -6518,9 +6518,10 @@ fn runtime_time_host_native_exit_canary_runs() {
     // asserted exactly by runtime_time_host_virtual_exit instead.
     let canary = pass_canary("time/runtime_time_host_native_exit");
     let scratch = std::env::temp_dir().join(format!("omega-time-host-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, "windows_x64")
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_target(&canary, scratch.clone(), "windows_x64")
         .expect("time host native canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("time host native canary should run");
     assert_eq!(
@@ -6543,9 +6544,10 @@ fn runtime_time_host_native_darwin_exit_canary_runs() {
     let canary = pass_canary("time/runtime_time_host_native_darwin_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-time-host-darwin-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_target(&canary, scratch.clone(), "macos_arm64")
         .expect("darwin time host native canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("darwin time host native canary should run");
     assert_eq!(
@@ -42211,6 +42213,28 @@ fn pass_canaries_compile() {
         }
     }
 
+    for (canary_name, target) in ROOTED_TARGET_BACKEND_PASS_CANARIES
+        .iter()
+        .copied()
+        .filter(|(canary_name, _)| selected(canary_name))
+    {
+        selected_count += 1;
+        let canary = pass_canary(canary_name);
+        if let Err(diagnostics) =
+            compile_rooted_backend_canary_without_output_for_target(&canary, target)
+        {
+            failures.push(format!(
+                "rooted target {target} {}:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        }
+    }
+
     #[cfg(windows)]
     for canary_name in WINDOWS_HOST_PASS_CANARIES.iter().copied().filter(selected) {
         selected_count += 1;
@@ -45868,6 +45892,13 @@ fn compile_legacy_backend_canary_without_output(
 fn compile_rooted_backend_canary_without_output(
     canary_dir: &Path,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_rooted_backend_canary_without_output_for_target(canary_dir, native_hosted_target())
+}
+
+fn compile_rooted_backend_canary_without_output_for_target(
+    canary_dir: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
     // Migrated runtime/backend fixtures must select their authored target root.
     // Deliberately do not pass the legacy entry override: a missing or drifted
     // ProgramEntry row must fail instead of being masked by `Main::main`.
@@ -45875,7 +45906,7 @@ fn compile_rooted_backend_canary_without_output(
     let result = production_compile(CompileOptions {
         root_path: canary_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some(native_hosted_target().into()),
+        target_name: Some(target.into()),
         write_output: false,
     });
     let result = result.and_then(|report| {
@@ -45965,6 +45996,14 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "recast/runtime_shared_record_float_range_weakening_exit",
     "recast/runtime_slice_view_mutable_write_exit",
     "recast/runtime_symbolic_stride_footprint_exit",
+];
+
+// These deployable native probes assert target-specific provider semantics.
+// Cross-compile their exact authored root on every development host instead
+// of selecting the development host or substituting the legacy entry seam.
+const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
+    ("time/runtime_time_host_native_exit", "windows_x64"),
+    ("time/runtime_time_host_native_darwin_exit", "macos_arm64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
@@ -46280,7 +46319,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
-    "time/runtime_time_host_native_exit",
     "time/runtime_fs_mtime_interop_windows_exit",
     "time/runtime_instant_elapsed_exit",
     "time/runtime_system_time_after_2026_exit",
