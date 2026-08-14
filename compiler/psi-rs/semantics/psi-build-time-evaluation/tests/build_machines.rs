@@ -1,0 +1,83 @@
+use psi_build_time_evaluation::{
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
+    evaluate_build_machine_arguments_measured,
+};
+use psi_source_files_to_tokens::Lexer;
+use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+const SOURCE: &str = r#"
+    boundary trait FilesystemHost {
+        machine create(path: &[u8], mode: i32) -> i32
+        reaches FilesystemHost;
+    }
+
+    data Build { freestanding: bool; }
+
+    machine pure_build(value: &mut Build) {
+        value.freestanding = true;
+    }
+
+    data Stager { filesystem: FilesystemHost; result: i32; }
+    machine Stager::build(&mut self, value: &mut Build)
+    reaches FilesystemHost
+    {
+        self.result = self.filesystem.create("artifact.bin", 438);
+        value.freestanding = self.result >= 0;
+    }
+"#;
+
+#[test]
+fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() {
+    let typed = typed(SOURCE);
+    let argument = BuildTimeValue::Struct {
+        type_name: "Build".to_owned(),
+        fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+    };
+
+    let pure = evaluate_build_machine_arguments_measured(
+        &typed,
+        "pure_build",
+        vec![argument.clone()],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect("the pure build-machine service should evaluate");
+
+    let pure_error = evaluate_build_machine_arguments_measured(
+        &typed,
+        "Stager::build",
+        vec![argument.clone()],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect_err("the pure mode must not silently grant a filesystem boundary");
+    assert!(pure_error.contains("host-boundary"), "{pure_error}");
+
+    let granted = evaluate_build_machine_arguments_measured(
+        &typed,
+        "Stager::build",
+        vec![argument],
+        BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::Virtual,
+        },
+    )
+    .expect("the explicitly granted build-machine service should evaluate");
+
+    assert_eq!(pure.value(), granted.value());
+    assert!(pure.usage().fuel_units() > 0);
+    assert!(granted.usage().fuel_units() > pure.usage().fuel_units());
+    assert_eq!(
+        pure.value(),
+        &[BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(true))],
+        }]
+    );
+}
+
+fn typed(source: &str) -> psi_typed_trees::TypedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    lower_symbol_resolved_trees(&resolved).expect("type")
+}

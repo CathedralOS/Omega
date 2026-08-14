@@ -4,6 +4,7 @@
 
 mod access_plans;
 mod admission;
+mod build_machines;
 mod const_domain_facts;
 mod const_generic_calls;
 mod const_lengths;
@@ -14,6 +15,10 @@ mod wire_plans;
 
 pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use admission::BuildTimeAdmissionPlan;
+pub use build_machines::{
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    evaluate_build_machine_arguments_measured,
+};
 pub use const_domain_facts::evaluate_const_domain_facts;
 pub use const_generic_calls::evaluate_const_generic_calls;
 pub use const_lengths::{evaluate_const_array_lengths, evaluate_zero_argument_machine};
