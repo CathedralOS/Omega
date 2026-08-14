@@ -10,12 +10,12 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
-    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, OperationKind,
-    OperationResult, PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence,
-    StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator,
+    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
+    EvidenceContractLaneKind, OperationKind, OperationResult, PropositionBinderArgumentKind,
+    PropositionBinderKind, PropositionEvidence, StructuralArgument, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator,
 };
 
 use crate::verification::{
@@ -143,6 +143,7 @@ fn validate_module_with_policy(
         .iter()
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
+    validate_evidence_contract_lanes(module, &machines)?;
     for machine in &module.machines {
         validate_machine(module, machine, &machines, &mut registry, policy)?;
     }
@@ -151,6 +152,75 @@ fn validate_module_with_policy(
         return Err(ModuleError::UnknownEntryMachine(module.entry));
     }
 
+    Ok(())
+}
+
+fn validate_evidence_contract_lanes(
+    module: &TerminalModule,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let terms = module
+        .evidence_terms
+        .iter()
+        .map(|term| (term.id, term))
+        .collect::<BTreeMap<_, _>>();
+    let mut next_positions = BTreeMap::new();
+    let mut required_terms = BTreeSet::new();
+    let mut used_terms = BTreeSet::new();
+    for lane in &module.evidence_contract_lanes {
+        if !machines.contains_key(&lane.machine) {
+            return Err(ModuleError::UnknownEvidenceContractMachine(lane.machine));
+        }
+        let Some(term) = terms.get(&lane.term) else {
+            return Err(ModuleError::UnknownEvidenceContractTerm(lane.term));
+        };
+        let application = module
+            .proposition_applications
+            .iter()
+            .find(|application| application.id == term.proposition)
+            .expect("evidence terms were validated before contract lanes");
+        if application.evidence_interface.as_ref() != Some(&term.interface) {
+            return Err(ModuleError::EvidenceContractTermMismatch(lane.term));
+        }
+        used_terms.insert(lane.term);
+        if lane.kind == EvidenceContractLaneKind::Requires {
+            required_terms.insert((lane.machine, lane.term));
+        }
+        let expected = next_positions
+            .entry((lane.machine, lane.kind))
+            .or_insert(0_u32);
+        if lane.position != *expected {
+            return Err(ModuleError::NonDenseEvidenceContractLane {
+                machine: lane.machine,
+                kind: lane.kind,
+                expected: *expected,
+                actual: lane.position,
+            });
+        }
+        *expected = expected
+            .checked_add(1)
+            .ok_or(ModuleError::EvidenceContractLaneOverflow {
+                machine: lane.machine,
+                kind: lane.kind,
+            })?;
+    }
+    for lane in &module.evidence_contract_lanes {
+        if lane.kind == EvidenceContractLaneKind::Ensures
+            && !required_terms.contains(&(lane.machine, lane.term))
+        {
+            return Err(ModuleError::UnforwardedEvidenceEnsures {
+                machine: lane.machine,
+                term: lane.term,
+            });
+        }
+    }
+    if let Some(term) = terms
+        .keys()
+        .find(|term| !used_terms.contains(term))
+        .copied()
+    {
+        return Err(ModuleError::OrphanEvidenceTerm(term));
+    }
     Ok(())
 }
 
@@ -6223,6 +6293,24 @@ pub enum ModuleError {
     FactOnlyEvidenceTerm(PropositionId),
     InvalidEvidenceInterface(EvidenceTermId),
     EvidenceTermInterfaceMismatch(EvidenceTermId),
+    UnknownEvidenceContractMachine(MachineId),
+    UnknownEvidenceContractTerm(EvidenceTermId),
+    EvidenceContractTermMismatch(EvidenceTermId),
+    NonDenseEvidenceContractLane {
+        machine: MachineId,
+        kind: EvidenceContractLaneKind,
+        expected: u32,
+        actual: u32,
+    },
+    EvidenceContractLaneOverflow {
+        machine: MachineId,
+        kind: EvidenceContractLaneKind,
+    },
+    UnforwardedEvidenceEnsures {
+        machine: MachineId,
+        term: EvidenceTermId,
+    },
+    OrphanEvidenceTerm(EvidenceTermId),
     EmptyPropositionIdentity,
     DuplicateMachine(MachineId),
     DuplicateStructuralType(StructuralTypeId),

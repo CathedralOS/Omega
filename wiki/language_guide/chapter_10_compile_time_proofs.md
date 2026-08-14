@@ -272,10 +272,12 @@ how the claim was established and which admitted premises it trusts. Terminal
 Psi already carries forwarded terms as dense source-handle-free vocabulary
 identities over the exact proposition application and a structured carrierless
 interface; the application and term interface must agree, and forwarding
-contributes one row. Terminal contract lanes and output fields do not yet refer
-to that ID, so stable projection is not implemented by this groundwork alone.
-A selected producer remains fenced from terminal emission until its conformance
-and normalized rows have a separate proof-bundle provenance identity.
+contributes one row. Canonical positional rows for the selected terminal
+machine's named `requires` and `ensures` lanes now refer to that exact ID, and a
+forwarded pair shares one ID. Generated output fields do not yet refer to it, so
+stable package projection remains unfinished. A selected producer remains
+fenced from terminal emission until its conformance and normalized rows have a
+separate proof-bundle provenance identity.
 
 ## Explicit relevance
 

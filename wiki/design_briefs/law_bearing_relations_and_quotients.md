@@ -495,10 +495,15 @@ cross the boundary. Terminal Psi currently serializes the forwarded subset as
 dense evidence-term identities over exact proposition applications and
 structured, source-handle-free interface identities. Forwarding preserves one
 vocabulary row, and the verifier requires the term interface to equal the
-application interface. Named terminal contract lanes and generated fields do
-not yet reference that ID, so projection remains future work. Producer-backed
-terms remain fail-closed until the proof bundle can carry their separate
-conformance/row provenance; a display spelling is never an identity oracle.
+application interface. Canonical positional contract-lane rows for the selected
+terminal machine now reference the exact term IDs, with forwarding preserving
+one ID across its required and ensured endpoints. Known IDs, dense positions,
+and absence of orphan terms are verified; until producer provenance exists,
+every ensured ID must also occur in that machine's required lanes. Generated
+package fields do not yet reference the ID, so package projection remains
+future work. Producer-backed terms remain fail-closed until the proof bundle
+can carry their separate conformance/row provenance; a display spelling is
+never an identity oracle.
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.

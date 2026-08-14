@@ -797,6 +797,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             attachment: None,
@@ -942,6 +943,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             attachment: None,
@@ -1061,6 +1063,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             attachment: None,
@@ -1196,6 +1199,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             attachment: None,

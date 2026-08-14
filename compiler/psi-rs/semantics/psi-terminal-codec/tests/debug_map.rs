@@ -212,6 +212,7 @@ fn fixture() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,

@@ -168,6 +168,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(10).expect("machine"),
             attachment: None,
@@ -259,6 +260,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(20).expect("machine"),
             attachment: None,
@@ -384,6 +386,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(30).expect("machine"),
             attachment: None,
@@ -518,6 +521,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(40).expect("machine"),
             attachment: None,
@@ -674,6 +678,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(50).expect("machine"),
                 attachment: None,
@@ -819,6 +824,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(60).expect("machine"),
                 attachment: None,
@@ -943,6 +949,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(65).expect("machine"),
             attachment: None,
@@ -1047,6 +1054,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(68).expect("machine"),
             attachment: None,
@@ -1179,6 +1187,7 @@ fn preserves_address_carrier_identity() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(168).expect("machine"),
             attachment: None,
@@ -1240,6 +1249,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(170).expect("machine"),
             attachment: None,
@@ -1333,6 +1343,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(180).expect("machine"),
             attachment: None,
@@ -1416,6 +1427,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(190).expect("machine"),
             attachment: None,
@@ -1498,6 +1510,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(194).expect("machine"),
             attachment: None,
@@ -1565,6 +1578,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(198).expect("machine"),
             attachment: None,
@@ -1632,6 +1646,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(202).expect("machine"),
             attachment: None,
@@ -1699,6 +1714,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(212).expect("machine"),
             attachment: None,
@@ -1766,6 +1782,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(222).expect("machine"),
             attachment: None,
@@ -1832,6 +1849,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(232).expect("machine"),
             attachment: None,
@@ -1898,6 +1916,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(242).expect("machine"),
             attachment: None,
@@ -1964,6 +1983,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(252).expect("machine"),
             attachment: None,
@@ -2030,6 +2050,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(256).expect("machine"),
             attachment: None,
@@ -2125,6 +2146,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(70).expect("machine"),
                 attachment: None,
@@ -3072,6 +3094,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -3307,6 +3330,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -3801,6 +3825,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -3884,6 +3909,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -3967,6 +3993,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -4050,6 +4077,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -4133,6 +4161,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -4216,6 +4245,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -4234,6 +4264,7 @@ fn unit_module() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(900).unwrap(),
             attachment: None,
@@ -4358,6 +4389,7 @@ impl Fixture {
                 proposition_declarations: Vec::new(),
                 proposition_applications: Vec::new(),
                 evidence_terms: Vec::new(),
+                evidence_contract_lanes: Vec::new(),
                 machines: vec![machine],
             },
             integer,

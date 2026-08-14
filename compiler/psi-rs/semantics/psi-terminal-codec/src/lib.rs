@@ -36,17 +36,17 @@ use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
-    MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceInterfaceIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, OperationResult, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
@@ -229,6 +229,16 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(module.evidence_terms.iter().map(|term| term.id)) {
         return Err(CodecError::NonCanonicalOrder(
             "evidence terms by EvidenceTermId",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .evidence_contract_lanes
+            .iter()
+            .map(|lane| (lane.machine, lane.kind, lane.position)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "evidence contract lanes by machine, kind, and position",
         ));
     }
     if !strictly_increasing(module.machines.iter().map(|machine| machine.id)) {
@@ -1332,6 +1342,19 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
         writer.id(term.id);
         writer.id(term.proposition);
         encode_evidence_interface(&mut writer, &term.interface)?;
+    }
+    writer.len(
+        "evidence contract lanes",
+        module.evidence_contract_lanes.len(),
+    )?;
+    for lane in &module.evidence_contract_lanes {
+        writer.id(lane.machine);
+        writer.u8(match lane.kind {
+            EvidenceContractLaneKind::Requires => 1,
+            EvidenceContractLaneKind::Ensures => 2,
+        });
+        writer.u32(lane.position);
+        writer.id(lane.term);
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -2836,6 +2859,20 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
             interface: decode_evidence_interface(reader)?,
         })
     })?;
+    let evidence_contract_lanes = decode_counted(reader, |reader| {
+        let machine = reader.id("MachineId")?;
+        let kind = match reader.u8()? {
+            1 => EvidenceContractLaneKind::Requires,
+            2 => EvidenceContractLaneKind::Ensures,
+            tag => return Err(CodecError::InvalidTag("EvidenceContractLaneKind", tag)),
+        };
+        Ok(EvidenceContractLane {
+            machine,
+            kind,
+            position: reader.u32()?,
+            term: reader.id("EvidenceTermId")?,
+        })
+    })?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -2851,6 +2888,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         proposition_declarations,
         proposition_applications,
         evidence_terms,
+        evidence_contract_lanes,
         machines,
     })
 }

@@ -499,13 +499,18 @@ Remaining N6/N8 work:
   source-handle-free evidence-term vocabulary keyed by its exact proposition
   application and structured carrierless interface; the verifier requires the
   term and application interfaces to agree. Direct forwarding contributes one
-  vocabulary identity rather than minting an output witness. This is identity
-  groundwork only: terminal named contract lanes and generated package fields
-  do not yet reference `EvidenceTermId`. Selected-producer lowering remains
-  fail-closed until conformance/row provenance has a separate proof-bundle
-  identity; do not fold that provenance into the term or recover the interface
-  from its display spelling. Continue with those lane/package references and
-  the provenance row. `value` is the runtime result;
+  vocabulary identity rather than minting an output witness. The selected
+  terminal machine now carries canonical positional `requires`/`ensures` lane
+  rows that reference those exact IDs; a forwarded output uses the same ID as
+  its input. Verification requires known machine/term IDs, dense positions per
+  lane kind, exact term/application interfaces, no orphan terms, and every
+  `ensures` ID to occur in the same machine's `requires` lanes while producer
+  provenance is absent. Generated package fields do not yet reference
+  `EvidenceTermId`. Selected-producer lowering remains fail-closed until
+  conformance/row provenance has a separate proof-bundle identity; do not fold
+  that provenance into the term or recover the interface from its display
+  spelling. Continue with generated package references and the provenance row.
+  `value` is the runtime result;
   evidence erases, destructuring is complete or explicitly `_`, and guarded
   fields exist only in the matching refinement. Keep proposition,
   evidence-term, and provenance identities separate.
