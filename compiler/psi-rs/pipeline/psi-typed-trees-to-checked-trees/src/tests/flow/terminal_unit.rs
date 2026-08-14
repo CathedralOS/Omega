@@ -1484,6 +1484,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 && enabled;
             staged
         }
+        machine Root::bitwise_not_exact_add_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8
+        {
+            let staged: bool = ((~(input + 3u8)) < 255u8) && enabled;
+            staged
+        }
         machine Root::nested_exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -2143,6 +2153,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one signed-value exact-left-shift shell retains the scalar-return plan");
     assert!(
         signed_value_exact_shift_left_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let bitwise_not_exact_add_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "bitwise_not_exact_add_integer_comparison_convergence",
+        ))
+        .expect("one exact-add shell beneath bitwise-not retains the scalar-return plan");
+    assert!(
+        bitwise_not_exact_add_integer_comparison
             .shared_boolean_convergence
             .is_some()
     );
