@@ -411,9 +411,10 @@ field-bearing condition bytes, which object replay validates before image and
 installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath up to
 two total bitwise-not, binary bitwise, wrapping shift/arithmetic, saturating
-arithmetic, or integer-widening shells, or one exact unsigned narrowing
-or exact addition, subtraction, or multiplication under retained direct
-parameter upper-bound `requires`, one exact right shift under a direct unsigned
+arithmetic, or integer-widening shells, or one exact fixed-width narrowing under
+retained direct parameter range `requires`, or exact unsigned addition,
+subtraction, or multiplication under retained direct parameter upper bounds,
+one exact right shift under a direct unsigned
 count upper bound, one exact left shift by a landed count under a direct unsigned
 value upper bound or by an unsigned runtime count under direct count and value
 upper bounds, or exact division/remainder by a landed nonzero unsigned constant
@@ -918,9 +919,9 @@ binary, bitwise-not, or integer-widening computation shells, or one
 proof-bearing exact-cast, exact-add, exact-subtract, exact-multiply, exact shift,
 exact-divide, or exact-remainder shell per operand, retain their exact Psi
 operations through the same verified, interpreted, and native shared join.
-The proof-bearing subset accepts direct unsigned parameter upper- and
-lower-bound premises; Psi retains each as a terminal machine requirement, and
-each operation certificate cites its exact assumption. Field-only trees,
+The proof-bearing subset accepts direct fixed-width integer parameter upper-
+and lower-bound premises; Psi retains each as a terminal machine requirement,
+and each operation certificate cites its exact assumption. Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external
 adapter/interrupt-arrival state, and other terminal function forms remain

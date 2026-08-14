@@ -2962,7 +2962,7 @@ fn nominal_scalar_caller_requirements(
 )> {
     // Both accepted callers preserve checked entry requirements unchanged. The
     // Unit lane admits only direct Boolean root facts; the scalar lane also
-    // retains direct unsigned parameter bounds for exact arithmetic.
+    // retains direct fixed-width integer parameter bounds for exact arithmetic.
     // Wider bodies must instead consult path-specific exit contexts.
     let caller_requires =
         checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
@@ -2990,7 +2990,7 @@ fn nominal_scalar_caller_requirements(
             structural_requirements.push(requirement);
             continue;
         }
-        scalar_requirements.push(direct_unsigned_integer_bound_requirement(
+        scalar_requirements.push(direct_integer_bound_requirement(
             program,
             caller_machine.symbol,
             caller_state,
@@ -3027,7 +3027,7 @@ fn nominal_cleanup_caller_boolean_requirements(
     scalar.is_empty().then_some(structural)
 }
 
-fn direct_unsigned_integer_bound_requirement(
+fn direct_integer_bound_requirement(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: &psi_typed_trees::state::State,
@@ -3078,7 +3078,14 @@ fn direct_unsigned_integer_bound_requirement(
     let primitive_type = scalar_parameters.get(parameter_position)?.primitive_type;
     if !matches!(
         primitive_type,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
     ) {
         return None;
     }

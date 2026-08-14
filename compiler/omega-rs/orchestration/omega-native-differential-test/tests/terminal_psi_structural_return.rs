@@ -740,10 +740,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             small: u8,
             divisor: u8,
             count: u8,
+            signed: i64,
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
-            small <= 7u8, 1u8 <= divisor, count <= 2u8
+            small <= 7u8, 1u8 <= divisor, count <= 2u8,
+            -128i64 <= signed, signed <= 127i64
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -759,6 +761,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small >> small) < 1u8)
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
+                && ((signed as i8) < 4i8)
                 && enabled;
             staged
         }
@@ -814,6 +817,26 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .expect("shared convergence retains the guarded exact cast");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let signed_parameter = terminal_entry.parameters[4].id;
+    let signed_cast_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::IntegerExactCast {
+                operand,
+                obligation,
+            } if operand == signed_parameter => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the signed guarded exact cast");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == signed_cast_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)

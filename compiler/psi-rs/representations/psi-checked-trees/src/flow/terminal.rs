@@ -319,7 +319,7 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// by `source_parameter_index`; no-code actions consume no premise.
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
     /// Bounded scalar premises retained from the authored contract. This slice
-    /// admits direct unsigned parameter bounds so proof-bearing exact
+    /// admits direct fixed-width integer parameter bounds so proof-bearing exact
     /// arithmetic can be reconstructed terminally.
     pub scalar_requirements: Vec<CheckedStructuralScalarIntegerBoundRequirementPlan>,
     /// Complete post-result cleanup stream in reverse authored parameter
