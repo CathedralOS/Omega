@@ -247,6 +247,120 @@ pub struct ProgramStorageEntryProviderInvocation {
     invocation: psi_extents::ExtentProviderInvocationId,
 }
 
+/// Pending native handoff emitted for one exact program-storage entry.
+///
+/// Compilation can bind the selected source continuation to the final object
+/// entry symbol and provider selection, but it cannot manufacture runtime
+/// geometry, admitted issuances, or mapped receiver bytes. A platform
+/// installer consumes this plan with those environment-supplied values through
+/// [`install_and_activate_program_storage_entry_receiver`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramStorageEntryNativeBridgePlan {
+    binding: ProgramStorageEntryPlanBinding,
+    selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
+    target_profile: String,
+    entry_symbol: String,
+    entry_text_offset: usize,
+    entry_text_size: usize,
+    continuation_machine: String,
+    continuation_state: String,
+}
+
+impl ProgramStorageEntryNativeBridgePlan {
+    pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
+        &self.binding
+    }
+
+    pub const fn selected_provider(
+        &self,
+    ) -> Option<&super::provider_plans::SelectedExternalRootProviderPlan> {
+        self.selected_provider.as_ref()
+    }
+
+    pub fn target_profile(&self) -> &str {
+        &self.target_profile
+    }
+
+    pub fn entry_symbol(&self) -> &str {
+        &self.entry_symbol
+    }
+
+    pub const fn entry_text_offset(&self) -> usize {
+        self.entry_text_offset
+    }
+
+    pub const fn entry_text_size(&self) -> usize {
+        self.entry_text_size
+    }
+
+    pub fn continuation_machine(&self) -> &str {
+        &self.continuation_machine
+    }
+
+    pub fn continuation_state(&self) -> &str {
+        &self.continuation_state
+    }
+}
+
+/// Bind the pending physical bridge to the actual emitted entry function.
+/// This records installable coordinates only; successful compilation remains
+/// distinct from runtime provider installation.
+pub fn bind_emitted_program_storage_entry_native_bridge(
+    binding: ProgramStorageEntryPlanBinding,
+    selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
+    target_profile: String,
+    object: &omega_object_file::ObjectPlan,
+    boundary_contract_fingerprint: Option<u64>,
+    continuation_machine: String,
+    continuation_state: String,
+) -> Result<ProgramStorageEntryNativeBridgePlan, ProgramStorageEntryDiagnostic> {
+    if target_profile.is_empty() {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage native bridge has no selected target profile".into(),
+        ));
+    }
+    let entry_handle = object.layout.entry_symbol;
+    if !object.layout.symbols.is_valid(entry_handle) {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage native bridge has no emitted object entry symbol".into(),
+        ));
+    }
+    let entry = object.layout.symbols.get(entry_handle);
+    if entry.kind != omega_object_file::SymbolKind::Function
+        || entry.section
+            != omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text)
+        || entry.size == 0
+    {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage native bridge entry symbol is not a nonempty text function".into(),
+        ));
+    }
+    if boundary_contract_fingerprint != Some(binding.boundary_contract_fingerprint) {
+        return Err(ProgramStorageEntryDiagnostic(
+            "emitted entry footprint does not retain the program-storage boundary fingerprint"
+                .into(),
+        ));
+    }
+    if let Some(selected_provider) = &selected_provider {
+        validate_selected_provider_binding(&binding, selected_provider)?;
+    }
+    if continuation_machine.is_empty() || continuation_state.is_empty() {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage native bridge lost its selected source continuation".into(),
+        ));
+    }
+    Ok(ProgramStorageEntryNativeBridgePlan {
+        binding,
+        selected_provider,
+        target_profile,
+        entry_symbol: entry.name.clone(),
+        entry_text_offset: entry.offset,
+        entry_text_size: entry.size,
+        continuation_machine,
+        continuation_state,
+    })
+}
+
 impl ProgramStorageEntryProviderInvocation {
     fn bind_selected_provider(
         binding: &ProgramStorageEntryPlanBinding,
@@ -262,24 +376,7 @@ impl ProgramStorageEntryProviderInvocation {
                     .into(),
             ));
         }
-        let matching_methods = selected
-            .schema
-            .methods
-            .iter()
-            .filter(|method| method.requirement_identity == binding.requirement_identity)
-            .collect::<Vec<_>>();
-        let [method] = matching_methods.as_slice() else {
-            return Err(ProgramStorageEntryDiagnostic(
-                "selected physical entry provider does not implement the bound arrival requirement exactly once"
-                    .into(),
-            ));
-        };
-        if method.calling_plan_fingerprint != Some(binding.boundary_contract_fingerprint) {
-            return Err(ProgramStorageEntryDiagnostic(
-                "selected physical entry provider calling plan does not match the generated bridge binding"
-                    .into(),
-            ));
-        }
+        validate_selected_provider_binding(binding, selected)?;
         Ok(Self {
             provider: issuance.provider(),
             provider_plan: invocation.provider_plan(),
@@ -305,6 +402,31 @@ impl ProgramStorageEntryProviderInvocation {
             && self.provider_plan == invocation.provider_plan()
             && self.invocation == invocation.invocation()
     }
+}
+
+fn validate_selected_provider_binding(
+    binding: &ProgramStorageEntryPlanBinding,
+    selected: &super::provider_plans::SelectedExternalRootProviderPlan,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    let matching_methods = selected
+        .schema
+        .methods
+        .iter()
+        .filter(|method| method.requirement_identity == binding.requirement_identity)
+        .collect::<Vec<_>>();
+    let [method] = matching_methods.as_slice() else {
+        return Err(ProgramStorageEntryDiagnostic(
+            "selected physical entry provider does not implement the bound arrival requirement exactly once"
+                .into(),
+        ));
+    };
+    if method.calling_plan_fingerprint != Some(binding.boundary_contract_fingerprint) {
+        return Err(ProgramStorageEntryDiagnostic(
+            "selected physical entry provider calling plan does not match the generated bridge binding"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 impl ProgramStorageRootInput {

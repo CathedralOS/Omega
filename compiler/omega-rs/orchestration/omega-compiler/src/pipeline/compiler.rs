@@ -593,6 +593,7 @@ impl Compiler {
                 source_file_count,
                 wrote_output: false,
                 program_storage_entry: None,
+                program_storage_entry_bridge: None,
                 build_evaluation_usage,
             });
         }
@@ -609,6 +610,17 @@ impl Compiler {
         // in-source `target { subsystem }` word is retired.
         let _ = build_machine_present;
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
+        let program_storage_entry_provider = program_entry_realization
+            .as_ref()
+            .map(|(_, selected)| {
+                crate::pipeline::provider_plans::optional_selected_external_root_provider_plan(
+                    &checked.selected_provider_plans,
+                    &selected.schema().trait_name,
+                )
+                .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+            })
+            .transpose()?
+            .flatten();
         // Selected external leaves become the target's source-authored
         // platform surface.
         let backend = control_flow_to_backend_plan(
@@ -641,9 +653,32 @@ impl Compiler {
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
             .transpose()?;
+        let program_storage_entry_bridge = program_storage_entry
+            .map(|binding| {
+                crate::pipeline::program_storage_entry::bind_emitted_program_storage_entry_native_bridge(
+                    binding,
+                    program_storage_entry_provider,
+                    self.options
+                        .target_name
+                        .clone()
+                        .unwrap_or_else(|| "host".to_owned()),
+                    &backend.plan.object,
+                    backend
+                        .plan
+                        .encoded_machine
+                        .semantics
+                        .boundaries
+                        .footprints
+                        .boundary_contract_fingerprint,
+                    backend.plan.entry_machine_name().to_owned(),
+                    backend.plan.entry_state_name().to_owned(),
+                )
+                .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+            })
+            .transpose()?;
         if self.options.write_output {
-            if let Some(binding) = &program_storage_entry {
-                write_program_storage_entry_snapshot(&self.options, binding)?;
+            if let Some(bridge) = &program_storage_entry_bridge {
+                write_program_storage_entry_snapshot(&self.options, bridge)?;
             }
             write_backend_report(&self.options, &backend_surface, &backend.plan)?;
         }
@@ -675,7 +710,10 @@ impl Compiler {
             root_path: self.options.root_path,
             source_file_count,
             wrote_output: self.options.write_output,
-            program_storage_entry,
+            program_storage_entry: program_storage_entry_bridge
+                .as_ref()
+                .map(|bridge| bridge.binding().clone()),
+            program_storage_entry_bridge,
             build_evaluation_usage,
         })
     }
