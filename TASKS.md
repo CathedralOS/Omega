@@ -354,9 +354,12 @@ Remaining:
   and reconstructs both roots independently across whole-root calls. Exact
   addition, subtraction, and multiplication over same-typed relevant fixed-integer
   members now remain typed proposition terms and reconstruct every nested operand
-  across whole-root and all-field-projected calls. Exact division and remainder
-  additionally accept a same-carrier literal divisor whose nonzero and signed
-  overflow safety the producer and verifier both establish independently.
+  across whole-root and all-field-projected calls. Wrapping and Saturating
+  addition, subtraction, and multiplication now retain their distinct total
+  policy semantics through the same projected-call, codec, verifier, fixed-fuel,
+  and interpretation path. Exact division and remainder additionally accept a
+  same-carrier literal divisor whose nonzero and signed overflow safety the
+  producer and verifier both establish independently.
   Whole-root structural Unit closures now also accept a runtime integer-member
   divisor when every machine's complete bounded `requires` package carries an
   exact positive bound, an at-most-negative-two bound, or the joint signed
@@ -365,9 +368,9 @@ Remaining:
   retain one exact obligation, and cite the matching caller assumption;
   canonical terminal Psi, codec, independent verification, and interpretation
   reject missing evidence, a wrong assumption, or a weakened or redirected
-  premise. Continue with shifts and remaining policy-specific arithmetic
-  families, case-payload paths, and wider aggregate equality involving text,
-  floats, sums, or erased fields.
+  premise. Continue with shifts, policy-selected division and remainder,
+  Trapping arithmetic, case-payload paths, and wider aggregate equality
+  involving text, floats, sums, or erased fields.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source

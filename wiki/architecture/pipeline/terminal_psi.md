@@ -435,9 +435,14 @@ exact checked carrier, nested operations remain typed `ExactIntegerAdd`,
 `ExactIntegerSubtract`, or `ExactIntegerMultiply` terms, and whole-root or
 all-field-projected calls rebase every member leaf recursively. The verifier
 independently repeats that substitution and validates every declared leaf and
-arithmetic-node type; both codecs preserve the nested term. Other arithmetic
-policies and operators remain fail-closed except for Exact division and
-remainder by a same-carrier divisor. A safe nonzero literal remains accepted.
+arithmetic-node type; both codecs preserve the nested term. Policy-selected
+fixed-integer members also accept the total Wrapping and Saturating forms of
+addition, subtraction, and multiplication. The terminal term retains the exact
+selected behavior, and projected calls, codecs, verification, fixed fuel, and
+interpretation preserve it without an overflow obligation. Trapping arithmetic,
+policy-selected division or remainder, and shifts remain fail-closed here except
+for Exact division and remainder by a same-carrier divisor. A safe nonzero
+literal remains accepted.
 A whole-root structural Unit closure may instead name a runtime integer-member
 divisor when each machine's complete bounded `requires` package proves one of
 the verifier-owned totality shapes: `1 <= divisor`, `divisor <= -2`, or the

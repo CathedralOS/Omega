@@ -10500,13 +10500,17 @@ fn lower_structural_crash_route_buckets(
                         | CheckedIntegerBinaryKind::ExactMultiply
                         | CheckedIntegerBinaryKind::ExactDivide
                         | CheckedIntegerBinaryKind::ExactRemainder
+                        | CheckedIntegerBinaryKind::WrappingAdd
+                        | CheckedIntegerBinaryKind::SaturatingAdd
+                        | CheckedIntegerBinaryKind::WrappingSubtract
+                        | CheckedIntegerBinaryKind::SaturatingSubtract
+                        | CheckedIntegerBinaryKind::WrappingMultiply
+                        | CheckedIntegerBinaryKind::SaturatingMultiply
                 ) =>
                 {
                     let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
                     else {
-                        return unsupported(
-                            "structural crash exact arithmetic has a non-integer type",
-                        );
+                        return unsupported("structural crash arithmetic has a non-integer type");
                     };
                     let left = Box::new(lower_integer_term(
                         left,
@@ -10524,7 +10528,7 @@ fn lower_structural_crash_route_buckets(
                         || right.scalar_type() != ScalarType::Integer(integer_type)
                     {
                         return unsupported(
-                            "structural crash exact-arithmetic operands do not match its integer type",
+                            "structural crash arithmetic operands do not match its integer type",
                         );
                     }
                     if matches!(
@@ -10573,7 +10577,47 @@ fn lower_structural_crash_route_buckets(
                                 right,
                             }
                         }
-                        _ => unreachable!("guarded exact arithmetic kind"),
+                        CheckedIntegerBinaryKind::WrappingAdd => ScalarTerm::WrappingIntegerAdd {
+                            scalar_type: integer_type,
+                            left,
+                            right,
+                        },
+                        CheckedIntegerBinaryKind::SaturatingAdd => {
+                            ScalarTerm::SaturatingIntegerAdd {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::WrappingSubtract => {
+                            ScalarTerm::WrappingIntegerSubtract {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::SaturatingSubtract => {
+                            ScalarTerm::SaturatingIntegerSubtract {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::WrappingMultiply => {
+                            ScalarTerm::WrappingIntegerMultiply {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        CheckedIntegerBinaryKind::SaturatingMultiply => {
+                            ScalarTerm::SaturatingIntegerMultiply {
+                                scalar_type: integer_type,
+                                left,
+                                right,
+                            }
+                        }
+                        _ => unreachable!("guarded structural arithmetic kind"),
                     })
                 }
                 _ => unsupported(
@@ -10788,7 +10832,13 @@ fn substitute_structural_crash_route_roots(
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
             | ScalarTerm::ExactIntegerMultiply { left, right, .. }
             | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. } => {
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
