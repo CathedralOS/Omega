@@ -374,7 +374,7 @@ fn emit_function(
                     target,
                 )?,
             };
-            scalar_stack_eligible = linear_boolean_expression(condition)
+            scalar_stack_eligible = accountable_conditional_boolean_expression(condition)
                 && direct_accountable_integer_arm(when_true)
                 && direct_accountable_integer_arm(when_false)
                 && (architecture != Architecture::X86_64
@@ -6514,6 +6514,35 @@ fn direct_accountable_integer_arm(arm: &TerminalAssignedConditionalIntegerArm) -
     )
 }
 
+/// Expression-condition WCSU evidence admits division and remainder in the
+/// Boolean comparison operands. Calls keep their existing linear argument
+/// restriction so compiler-generated x86 division diamonds cannot be hidden
+/// inside ABI argument materialization.
+fn accountable_conditional_boolean_expression(
+    expression: &TerminalAssignedBooleanExpression,
+) -> bool {
+    match expression {
+        TerminalAssignedBooleanExpression::Call { arguments, .. } => arguments
+            .iter()
+            .all(|argument| linear_scalar_expression(&argument.expression)),
+        TerminalAssignedBooleanExpression::Immediate { .. }
+        | TerminalAssignedBooleanExpression::Parameter { .. } => true,
+        TerminalAssignedBooleanExpression::Not { operand, .. } => {
+            accountable_conditional_boolean_expression(operand)
+        }
+        TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
+            accountable_conditional_boolean_expression(left)
+                && accountable_conditional_boolean_expression(right)
+        }
+        TerminalAssignedBooleanExpression::IntegerEqual { left, right, .. }
+        | TerminalAssignedBooleanExpression::IntegerLessThan { left, right, .. }
+        | TerminalAssignedBooleanExpression::IntegerLessOrEqual { left, right, .. } => {
+            accountable_conditional_arm_integer_expression(left)
+                && accountable_conditional_arm_integer_expression(right)
+        }
+    }
+}
+
 /// The first conditional-division slice permits division in the direct arm
 /// expression while keeping call arguments on the existing linear rail. This
 /// prevents a compiler-generated x86 division diamond from being hidden inside
@@ -9440,6 +9469,153 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn branch_free_division_and_remainder_are_retained_in_expression_conditions() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let argument_register = match target.architecture {
+                Architecture::X86_64 => MachineRegister::X86Rdi,
+                Architecture::Aarch64 => MachineRegister::Aarch64X(0),
+            };
+            for kind in 0..6 {
+                let mut plan = calling_expression_condition_plan(target, argument_register);
+                let TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+                    condition,
+                    ..
+                } = &mut plan.functions[0].operation
+                else {
+                    unreachable!()
+                };
+                let operation = OperationId::new(20 + kind).expect("division operation");
+                let left = || {
+                    Box::new(TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(20).expect("left"),
+                        value: IntegerValue::Unsigned(24),
+                    })
+                };
+                let right = || {
+                    Box::new(TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(21).expect("right"),
+                        value: IntegerValue::Unsigned(3),
+                    })
+                };
+                let quotient = match kind {
+                    0 => TerminalTargetIntegerExpression::ExactDivide {
+                        psi_operation: operation,
+                        left: left(),
+                        right: right(),
+                    },
+                    1 => TerminalTargetIntegerExpression::ExactRemainder {
+                        psi_operation: operation,
+                        left: left(),
+                        right: right(),
+                    },
+                    2 => TerminalTargetIntegerExpression::WrappingDivide {
+                        psi_operation: operation,
+                        left: left(),
+                        right: right(),
+                    },
+                    3 => TerminalTargetIntegerExpression::WrappingRemainder {
+                        psi_operation: operation,
+                        left: left(),
+                        right: right(),
+                    },
+                    4 => TerminalTargetIntegerExpression::SaturatingDivide {
+                        psi_operation: operation,
+                        left: left(),
+                        right: right(),
+                    },
+                    5 => TerminalTargetIntegerExpression::SaturatingRemainder {
+                        psi_operation: operation,
+                        left: left(),
+                        right: right(),
+                    },
+                    _ => unreachable!(),
+                };
+                *condition = TerminalTargetBooleanExpression::IntegerEqual {
+                    psi_operation: OperationId::new(30 + kind).expect("comparison operation"),
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                    left: Box::new(quotient),
+                    right: Box::new(TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(22).expect("expected quotient"),
+                        value: IntegerValue::Unsigned(if kind % 2 == 0 { 8 } else { 0 }),
+                    }),
+                };
+                let emitted = emit_machine_code(&plan)
+                    .unwrap_or_else(|error| panic!("{target:?} condition kind {kind}: {error:?}"));
+                assert!(matches!(
+                    emitted.functions[0]
+                        .scalar_stack
+                        .as_ref()
+                        .expect("branch-free condition division stack evidence")
+                        .control_flow,
+                    TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                        condition: TerminalScalarConditionalCondition::Expression,
+                        ..
+                    }
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn expression_condition_division_fences_x86_policy_diamonds() {
+        let signed_plan = |target: NativeTarget, argument_register: MachineRegister| {
+            let mut plan = calling_expression_condition_plan(target, argument_register);
+            let TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition,
+                ..
+            } = &mut plan.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            *condition = TerminalTargetBooleanExpression::IntegerEqual {
+                psi_operation: OperationId::new(31).expect("comparison operation"),
+                scalar_type,
+                left: Box::new(TerminalTargetIntegerExpression::WrappingDivide {
+                    psi_operation: OperationId::new(30).expect("division operation"),
+                    left: Box::new(TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(30).expect("left"),
+                        value: IntegerValue::Signed(i64::MIN.into()),
+                    }),
+                    right: Box::new(TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(31).expect("right"),
+                        value: IntegerValue::Signed((-1_i64).into()),
+                    }),
+                }),
+                right: Box::new(TerminalTargetIntegerExpression::Immediate {
+                    source_value: ValueId::new(32).expect("expected quotient"),
+                    value: IntegerValue::Signed(i64::MIN.into()),
+                }),
+            };
+            plan
+        };
+        assert_eq!(
+            emit_machine_code(&signed_plan(
+                NativeTarget::linux_x64(),
+                MachineRegister::X86Rdi,
+            ))
+            .expect("signed x86 condition division still emits")
+            .functions[0]
+                .scalar_stack,
+            None,
+            "the compiler-generated signed x86 division diamond remains fenced"
+        );
+        assert!(matches!(
+            emit_machine_code(&signed_plan(
+                NativeTarget::linux_arm64(),
+                MachineRegister::Aarch64X(0),
+            ))
+            .expect("signed AArch64 condition division emits")
+            .functions[0]
+                .scalar_stack
+                .as_ref()
+                .expect("branch-free signed AArch64 condition division is retained")
+                .control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+        ));
     }
 
     #[test]
