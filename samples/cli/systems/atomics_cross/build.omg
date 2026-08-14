@@ -30,3 +30,10 @@ target windows_x64 {
 target local_unchecked {
     boundary unchecked invariant_proofs
 }
+
+machine build(b: &mut Build) {
+    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    b.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

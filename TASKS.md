@@ -75,7 +75,11 @@ Remaining:
   `temperature_convert`, now lowers directly from its authored host entry. The
   seventeen deployable CLI arithmetic samples now author all four hosted roots
   and lower through the same production entry matrix without staging; the four
-  float-lowering fixtures remain explicitly checked-only. The
+  float-lowering fixtures remain explicitly checked-only. Twelve deployable CLI
+  systems samples likewise author all four hosted roots; `file_journal` remains
+  checked-only pending cross-target metadata/domain lowering, `note_vault`
+  pending per-instance contained-machine dispatch, and `wire_protocol` pending
+  its native round-trip mismatch. The
   fourteen deployable plan-laid runtime canaries likewise author all four
   hosted roots, and the active pass umbrella exercises them through production
   entry selection rather than its explicit legacy fixture seam. Their direct

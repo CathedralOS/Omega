@@ -1,7 +1,4 @@
-// Permission-bits sample build sketch. Needs only process.exit.
-
-target cross_platform_cli {
-}
+// elapsed_timer is deployable on every hosted target.
 
 target windows_x64 {
 }
