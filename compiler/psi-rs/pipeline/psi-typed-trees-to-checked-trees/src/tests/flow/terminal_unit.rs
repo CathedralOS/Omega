@@ -1282,6 +1282,28 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input % divisor) < 4i8) && enabled;
             staged
         }
+        machine Root::runtime_negative_signed_exact_divide_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            divisor: i8,
+            enabled: bool
+        ) -> bool
+        requires divisor <= -2i8
+        {
+            let staged: bool = ((input / divisor) < 4i8) && enabled;
+            staged
+        }
+        machine Root::runtime_negative_signed_exact_remainder_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            divisor: i8,
+            enabled: bool
+        ) -> bool
+        requires divisor <= -2i8
+        {
+            let staged: bool = ((input % divisor) < 4i8) && enabled;
+            staged
+        }
         machine Root::exact_shift_right_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1793,6 +1815,8 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     for machine in [
         "runtime_signed_exact_divide_integer_comparison_convergence",
         "runtime_signed_exact_remainder_integer_comparison_convergence",
+        "runtime_negative_signed_exact_divide_integer_comparison_convergence",
+        "runtime_negative_signed_exact_remainder_integer_comparison_convergence",
     ] {
         let runtime_signed_exact_division_integer_comparison = checked
             .facts

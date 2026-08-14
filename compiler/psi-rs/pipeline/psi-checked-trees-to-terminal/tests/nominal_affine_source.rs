@@ -405,6 +405,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         signed: i64,
         signed_arithmetic: i8,
         signed_divisor: i8,
+        negative_divisor: i8,
         enabled: bool
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -412,7 +413,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
-        0i8 <= signed_arithmetic, 1i8 <= signed_divisor
+        0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
+        negative_divisor <= -2i8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (((input + 1u64) + 1u64) < 5u64)
@@ -442,6 +444,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic % -2i8) <= 1i8)
             && ((signed_arithmetic / signed_divisor) < 4i8)
             && ((signed_arithmetic % signed_divisor) <= signed_arithmetic)
+            && ((signed_arithmetic / negative_divisor) < 4i8)
+            && ((signed_arithmetic % negative_divisor) <= signed_arithmetic)
             && (input == 3u64)
             && enabled;
         staged
@@ -1736,6 +1740,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let signed_arithmetic_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     let signed_divisor_term =
         ScalarTerm::value(entry.parameters[6].id, entry.parameters[6].scalar_type);
+    let negative_divisor_term =
+        ScalarTerm::value(entry.parameters[7].id, entry.parameters[7].scalar_type);
     let input_upper_requirement =
         Proposition::LessOrEqual(input_term.clone(), unsigned_term(64, 255));
     let shift_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 7));
@@ -1780,6 +1786,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(1)).unwrap(),
         signed_divisor_term,
     );
+    let negative_divisor_upper_requirement = Proposition::LessOrEqual(
+        negative_divisor_term,
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-2)).unwrap(),
+    );
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
@@ -1797,6 +1807,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &signed_multiply_upper_requirement,
         &signed_nonnegative_requirement,
         &signed_divisor_lower_requirement,
+        &negative_divisor_upper_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -2135,6 +2146,31 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .collect::<Vec<_>>();
     assert!(runtime_signed_division_obligations.len() >= 2);
     for obligation in &runtime_signed_division_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let negative_divisor_parameter = entry.parameters[7].id;
+    let runtime_negative_signed_division_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
+                right, obligation, ..
+            } if right == negative_divisor_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(runtime_negative_signed_division_obligations.len() >= 2);
+    for obligation in &runtime_negative_signed_division_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == *obligation
                 && matches!(
@@ -2676,6 +2712,39 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if runtime_signed_division_obligations.contains(&obligation)
     ));
+    let mut changed_negative_divisor_bound =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_negative_divisor_bound.entry;
+    let entry_contract = &mut changed_negative_divisor_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let negative_divisor_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &negative_divisor_upper_requirement)
+        .expect("shared convergence retains the negative runtime-divisor upper-bound premise");
+    entry_contract.requires[negative_divisor_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[7].id, entry.parameters[7].scalar_type),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+            IntegerValue::Signed(-3),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_negative_divisor_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if runtime_negative_signed_division_obligations.contains(&obligation)
+    ));
     let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode shared proof");
     missing_shift_proof
         .evidence
@@ -2789,14 +2858,24 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         qualifications: Vec::new(),
         path: Vec::new(),
     }];
-    for (input, small, divisor, count, signed, signed_arithmetic, signed_divisor, enabled) in [
+    for (
+        input,
+        small,
+        divisor,
+        count,
+        signed,
+        signed_arithmetic,
+        signed_divisor,
+        negative_divisor,
+        enabled,
+    ) in [
         (
-            3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, 2_i128, false,
+            3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, 2_i128, -2_i128, false,
         ),
-        (3, 4, 2, 1, -1, 2, 1, true),
-        (3, 5, 3, 2, 3, 3, 2, true),
-        (4, 4, 2, 2, 4, 2, 3, true),
-        (10, 4, 4, 1, -2, 0, 4, true),
+        (3, 4, 2, 1, -1, 2, 1, -3, true),
+        (3, 5, 3, 2, 3, 3, 2, -4, true),
+        (4, 4, 2, 2, 4, 2, 3, -2, true),
+        (10, 4, 4, 1, -2, 0, 4, -5, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -2836,6 +2915,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
                     value: IntegerValue::Signed(signed_divisor),
                 },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+                    value: IntegerValue::Signed(negative_divisor),
+                },
                 TerminalScalarValue::Boolean(enabled),
             ],
             &structural_arguments,
@@ -2873,6 +2956,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && signed_arithmetic % -2 <= 1
                     && signed_arithmetic / signed_divisor < 4
                     && signed_arithmetic % signed_divisor <= signed_arithmetic
+                    && signed_arithmetic / negative_divisor < 4
+                    && signed_arithmetic % negative_divisor <= signed_arithmetic
                     && input == 3
                     && enabled
             ))
