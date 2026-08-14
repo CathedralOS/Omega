@@ -16,13 +16,12 @@ use omega_terminal_machine_code::{
     TerminalInternalCallRelocation, TerminalInternalUnitCallRecord, TerminalMachineCodeFunction,
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
     TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
-    TerminalScalarCleanupPreservationEvidence, TerminalScalarConditionalArm,
-    TerminalScalarConditionalBranchEvidence, TerminalScalarConditionalCondition,
-    TerminalScalarControlAffineCleanupRecord, TerminalScalarControlFlowEvidence,
-    TerminalScalarDivisionBranchEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord,
-    TerminalUnitStackEvidence,
+    TerminalScalarCleanupPreservationEvidence, TerminalScalarConditionalBranchEvidence,
+    TerminalScalarConditionalCondition, TerminalScalarControlAffineCleanupRecord,
+    TerminalScalarControlFlowEvidence, TerminalScalarDivisionBranchEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -1172,12 +1171,7 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
         .scalar_stack
         .as_mut()
         .expect("scalar evidence")
-        .control_flow = TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-        condition: TerminalScalarConditionalCondition::Parameter,
-        branch_offset: 4,
-        branch_byte_count: 6,
-        false_arm_offset: 25,
-    };
+        .control_flow = conditional_tree(TerminalScalarConditionalCondition::Parameter, 4, 6, 25);
     let artifact = build_terminal_object_artifact(&x86_division)
         .expect("branch-free x86 division replays inside one conditional arm");
     assert_eq!(
@@ -1220,12 +1214,7 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
         .scalar_stack
         .as_mut()
         .expect("scalar evidence")
-        .control_flow = TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-        condition: TerminalScalarConditionalCondition::Parameter,
-        branch_offset: 4,
-        branch_byte_count: 6,
-        false_arm_offset: 20,
-    };
+        .control_flow = conditional_tree(TerminalScalarConditionalCondition::Parameter, 4, 6, 20);
     assert_eq!(
         build_terminal_object_artifact(&forged_target),
         Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -1266,12 +1255,7 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
         .scalar_stack
         .as_mut()
         .expect("scalar evidence")
-        .control_flow = TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-        condition: TerminalScalarConditionalCondition::Parameter,
-        branch_offset: 9,
-        branch_byte_count: 6,
-        false_arm_offset: 24,
-    };
+        .control_flow = conditional_tree(TerminalScalarConditionalCondition::Parameter, 9, 6, 24);
     call_claim.functions[0]
         .internal_calls
         .push(TerminalInternalCallRelocation {
@@ -1366,12 +1350,7 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
                 TerminalScalarStackMutationKind::Release { byte_size: 16 },
             ),
         ],
-        control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-            condition: TerminalScalarConditionalCondition::Parameter,
-            branch_offset: 0,
-            branch_byte_count: 4,
-            false_arm_offset: 12,
-        },
+        control_flow: conditional_tree(TerminalScalarConditionalCondition::Parameter, 0, 4, 12),
         stack_alignment: 16,
         cleanup_preservation: None,
     });
@@ -1430,16 +1409,16 @@ fn scalar_three_leaf_cleanup_object_custody_rejects_corruption() {
     );
 
     let mut forged_control = plan;
-    let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn { nested_arm, .. } =
-        &mut forged_control.functions[0]
-            .scalar_stack
-            .as_mut()
-            .expect("scalar stack")
-            .control_flow
+    let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } = &mut forged_control
+        .functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar stack")
+        .control_flow
     else {
         unreachable!()
     };
-    *nested_arm = TerminalScalarConditionalArm::False;
+    decisions[1].branch_offset = decisions[0].false_arm_offset;
     assert!(matches!(
         build_terminal_object_artifact(&forged_control),
         Err(TerminalObjectError::InvalidScalarConditionalEvidence { .. })
@@ -1476,16 +1455,16 @@ fn scalar_expression_conditionals_replay_balanced_prefix_and_validate_branch_kin
         ));
 
         let mut forged_kind = plan.clone();
-        let TerminalScalarControlFlowEvidence::TopLevelTwoReturn { condition, .. } =
-            &mut forged_kind.functions[0]
-                .scalar_stack
-                .as_mut()
-                .expect("scalar evidence")
-                .control_flow
+        let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } = &mut forged_kind
+            .functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("scalar evidence")
+            .control_flow
         else {
             unreachable!()
         };
-        *condition = TerminalScalarConditionalCondition::Parameter;
+        decisions[0].condition = TerminalScalarConditionalCondition::Parameter;
         assert!(matches!(
             build_terminal_object_artifact(&forged_kind),
             Err(TerminalObjectError::InvalidScalarConditionalEvidence { .. })
@@ -2132,12 +2111,12 @@ fn scalar_two_return_conditional_plan(target: NativeTarget) -> TerminalMachineCo
             ];
             function.scalar_stack = Some(TerminalScalarStackEvidence {
                 mutations: Vec::new(),
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Parameter,
-                    branch_offset: 4,
-                    branch_byte_count: 6,
-                    false_arm_offset: 19,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Parameter,
+                    4,
+                    6,
+                    19,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2175,12 +2154,12 @@ fn scalar_two_return_conditional_plan(target: NativeTarget) -> TerminalMachineCo
                         TerminalScalarStackMutationKind::Release { byte_size: 32 },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Parameter,
-                    branch_offset: 0,
-                    branch_byte_count: 4,
-                    false_arm_offset: 16,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Parameter,
+                    0,
+                    4,
+                    16,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2265,20 +2244,22 @@ fn scalar_three_leaf_cleanup_plan() -> TerminalMachineCodePlan {
                 ]
             })
             .collect(),
-        control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
-            root: TerminalScalarConditionalBranchEvidence {
-                condition: TerminalScalarConditionalCondition::Parameter,
-                branch_offset: 2,
-                branch_byte_count: 6,
-                false_arm_offset: 64,
-            },
-            nested: TerminalScalarConditionalBranchEvidence {
-                condition: TerminalScalarConditionalCondition::Parameter,
-                branch_offset: 10,
-                branch_byte_count: 6,
-                false_arm_offset: 40,
-            },
-            nested_arm: TerminalScalarConditionalArm::True,
+        control_flow: TerminalScalarControlFlowEvidence::ConditionalTree {
+            decisions: vec![
+                TerminalScalarConditionalBranchEvidence {
+                    condition: TerminalScalarConditionalCondition::Parameter,
+                    branch_offset: 2,
+                    branch_byte_count: 6,
+                    false_arm_offset: 64,
+                },
+                TerminalScalarConditionalBranchEvidence {
+                    condition: TerminalScalarConditionalCondition::Parameter,
+                    branch_offset: 10,
+                    branch_byte_count: 6,
+                    false_arm_offset: 40,
+                },
+            ],
+            crash_leaves: vec![false; 3],
             branches: Vec::new(),
         },
         stack_alignment: 16,
@@ -2350,12 +2331,12 @@ fn scalar_expression_two_return_conditional_plan(target: NativeTarget) -> Termin
                         },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Expression,
-                    branch_offset: 11,
-                    branch_byte_count: 6,
-                    false_arm_offset: 18,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Expression,
+                    11,
+                    6,
+                    18,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2382,12 +2363,12 @@ fn scalar_expression_two_return_conditional_plan(target: NativeTarget) -> Termin
                         TerminalScalarStackMutationKind::Release { byte_size: 16 },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Expression,
-                    branch_offset: 12,
-                    branch_byte_count: 4,
-                    false_arm_offset: 20,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Expression,
+                    12,
+                    4,
+                    20,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2434,12 +2415,12 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
                         TerminalScalarStackMutationKind::Release { byte_size: 8 },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Expression,
-                    branch_offset: 15,
-                    branch_byte_count: 6,
-                    false_arm_offset: 22,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Expression,
+                    15,
+                    6,
+                    22,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2487,12 +2468,12 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
                         TerminalScalarStackMutationKind::Release { byte_size: 16 },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Expression,
-                    branch_offset: 24,
-                    branch_byte_count: 4,
-                    false_arm_offset: 32,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Expression,
+                    24,
+                    4,
+                    32,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2567,12 +2548,12 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
                         TerminalScalarStackMutationKind::Release { byte_size: 8 },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Parameter,
-                    branch_offset: 4,
-                    branch_byte_count: 6,
-                    false_arm_offset: 18,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Parameter,
+                    4,
+                    6,
+                    18,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2660,12 +2641,12 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
                         TerminalScalarStackMutationKind::Release { byte_size: 16 },
                     ),
                 ],
-                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
-                    condition: TerminalScalarConditionalCondition::Parameter,
-                    branch_offset: 0,
-                    branch_byte_count: 4,
-                    false_arm_offset: 36,
-                },
+                control_flow: conditional_tree(
+                    TerminalScalarConditionalCondition::Parameter,
+                    0,
+                    4,
+                    36,
+                ),
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
@@ -2881,6 +2862,24 @@ fn scalar_mutation(
         offset,
         byte_count,
         kind,
+    }
+}
+
+fn conditional_tree(
+    condition: TerminalScalarConditionalCondition,
+    branch_offset: usize,
+    branch_byte_count: usize,
+    false_arm_offset: usize,
+) -> TerminalScalarControlFlowEvidence {
+    TerminalScalarControlFlowEvidence::ConditionalTree {
+        decisions: vec![TerminalScalarConditionalBranchEvidence {
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+        }],
+        crash_leaves: vec![false; 2],
+        branches: Vec::new(),
     }
 }
 

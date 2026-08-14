@@ -424,7 +424,7 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
                 .scalar_stack
                 .as_ref()
                 .map(|stack| stack.control_flow.clone()),
-            Some(TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn { .. })
+            Some(TerminalScalarControlFlowEvidence::ConditionalTree { .. })
         ));
         let emitted_edges = emitted_entry
             .scalar_control_affine_cleanups
