@@ -566,25 +566,6 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             parameters: &[StateParameter],
             expression: ExpressionHandle,
         ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-            fn safe_exact_literal_divisor(expression: &CheckedScalarExpression) -> bool {
-                let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
-                    return false;
-                };
-                let Some(landing) = literal.landing() else {
-                    return false;
-                };
-                if landing.domain != ArithmeticDomain::Exact {
-                    return false;
-                }
-                if landing.landed_type.is_signed() {
-                    literal
-                        .value_i64()
-                        .is_some_and(|value| value != 0 && value != -1)
-                } else {
-                    literal.value_u64().is_some_and(|value| value != 0)
-                }
-            }
-
             let mut path = Vec::new();
             if let Some(parameter_position) =
                 structural_parameter_field_path(program, parameters, expression, &mut path)
@@ -637,13 +618,6 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     )?;
                     let primitive_type = scalar_expression_type(&left)?;
                     let domain = combine_arithmetic_domains(left_domain, right_domain)?;
-                    if matches!(
-                        binary.operator,
-                        BinaryOperator::Divide | BinaryOperator::Modulo
-                    ) && !safe_exact_literal_divisor(&right)
-                    {
-                        return None;
-                    }
                     let kind = match binary.operator {
                         BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
                         BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
@@ -724,18 +698,59 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 ) && operator_is_builtin(operators, expression) =>
             {
                 let integer_operands = (|| {
-                    let (left, _) = lower_structural_integer_expression(
+                    let left = lower_structural_integer_expression(
                         program,
                         operators,
                         parameters,
                         binary.left,
-                    )?;
-                    let (right, _) = lower_structural_integer_expression(
+                    );
+                    let right = lower_structural_integer_expression(
                         program,
                         operators,
                         parameters,
                         binary.right,
-                    )?;
+                    );
+                    let contextual_literal = |expression: ExpressionHandle,
+                                              primitive_type: PrimitiveType|
+                     -> Option<(
+                        CheckedScalarExpression,
+                        ArithmeticDomain,
+                    )> {
+                        let ExpressionNode::Integer(literal) =
+                            program.expression_table.expression(expression)
+                        else {
+                            return None;
+                        };
+                        literal.landing().is_none().then(|| {
+                            (
+                                CheckedScalarExpression::IntegerLiteral {
+                                    literal: literal.with_landing(IntegerLanding {
+                                        landed_type: landed_for_primitive(primitive_type)
+                                            .expect("fixed integer comparison context lands"),
+                                        domain: ArithmeticDomain::Exact,
+                                    }),
+                                },
+                                ArithmeticDomain::Exact,
+                            )
+                        })
+                    };
+                    let mut left = left?;
+                    let mut right = right?;
+                    match (
+                        scalar_expression_type(&left.0),
+                        scalar_expression_type(&right.0),
+                    ) {
+                        (None, Some(primitive_type)) => {
+                            left = contextual_literal(binary.left, primitive_type)?;
+                        }
+                        (Some(primitive_type), None) => {
+                            right = contextual_literal(binary.right, primitive_type)?;
+                        }
+                        (Some(_), Some(_)) => {}
+                        (None, None) => return None,
+                    }
+                    let left = left.0;
+                    let right = right.0;
                     let left_type = scalar_expression_type(&left)?;
                     (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
                         .then_some((left, right))

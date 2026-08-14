@@ -651,6 +651,8 @@ fn build_published_crash_plan(
     operators: &psi_checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> psi_checked_trees::CrashPlan {
+    let structural_runtime_requirements =
+        build_structural_runtime_requirements(program, machine, operators, exact_integer_casts);
     let published = build_published_crash_buckets(
         program,
         program.machine_contracts(machine),
@@ -660,16 +662,47 @@ fn build_published_crash_plan(
         Some(operators),
         exact_integer_casts,
     );
-    let plan = if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+    let plan = (if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !published.is_empty()
     {
         psi_checked_trees::CrashPlan::published_ceiling(published)
     } else {
         psi_checked_trees::CrashPlan::default()
-    };
+    })
+    .with_structural_runtime_requirements(structural_runtime_requirements);
     let checked_sites = build_checked_crash_sites(program, machine, &plan);
     plan.with_checked_sites(checked_sites)
         .expect("one checked crash cause occupies each transition site")
+}
+
+fn build_structural_runtime_requirements(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+) -> Option<Vec<psi_checked_trees::CheckedBooleanExpression>> {
+    let entry = program.machine_states(machine).first()?;
+    program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(entry))
+        .filter(|contract| {
+            contract.kind == psi_typed_trees::signature::SignatureContractKind::Requires
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .map(|fact| {
+            let psi_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                return None;
+            };
+            crate::values::lower_machine_parameter_boolean_expression(
+                program,
+                operators,
+                machine,
+                *expression,
+                exact_integer_casts,
+            )
+        })
+        .collect()
 }
 
 fn build_published_crash_buckets(

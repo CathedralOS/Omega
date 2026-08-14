@@ -3,10 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
-    Proposition, PropositionContext, PropositionError, PropositionId, ScalarTerm, ScalarType,
-    ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
-    content_conservation_fingerprint,
+    ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, PropositionContext, PropositionError, PropositionId,
+    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
+    ValueId, content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -3148,7 +3148,12 @@ fn validate_crash_frontiers(
             context
                 .validate(predicate.proposition())
                 .map_err(ModuleError::MalformedProposition)?;
-            validate_boolean_field_terms(module, machine, predicate.proposition())?;
+            validate_boolean_field_terms(
+                module,
+                machine,
+                predicate.proposition(),
+                &machine.contract.requires,
+            )?;
             validate_contract_scope(
                 predicate.proposition(),
                 contract_values,
@@ -3180,7 +3185,12 @@ fn validate_crash_frontiers(
             context
                 .validate(predicate.proposition())
                 .map_err(ModuleError::MalformedProposition)?;
-            validate_boolean_field_terms(module, machine, predicate.proposition())?;
+            validate_boolean_field_terms(
+                module,
+                machine,
+                predicate.proposition(),
+                &machine.contract.requires,
+            )?;
         }
         let covered = machine
             .contract
@@ -3213,24 +3223,68 @@ fn validate_boolean_field_terms(
     module: &TerminalModule,
     machine: &TerminalMachine,
     proposition: &Proposition,
+    runtime_requirements: &[Proposition],
 ) -> Result<(), ModuleError> {
     fn validate_term(
         module: &TerminalModule,
         machine: &TerminalMachine,
         term: &ScalarTerm,
+        runtime_requirements: &[Proposition],
     ) -> Result<(), ModuleError> {
-        fn safe_exact_literal_divisor(term: &ScalarTerm, integer_type: IntegerType) -> bool {
-            match term {
+        fn safe_exact_divisor(
+            integer_type: IntegerType,
+            dividend: &ScalarTerm,
+            divisor: &ScalarTerm,
+            requirements: &[Proposition],
+        ) -> bool {
+            match divisor {
                 ScalarTerm::Integer {
                     scalar_type,
                     value: IntegerValue::Unsigned(value),
-                } => *scalar_type == integer_type && *value != 0,
+                } => return *scalar_type == integer_type && *value != 0,
                 ScalarTerm::Integer {
                     scalar_type,
                     value: IntegerValue::Signed(value),
-                } => *scalar_type == integer_type && *value != 0 && *value != -1,
-                _ => false,
+                } => return *scalar_type == integer_type && *value != 0 && *value != -1,
+                _ => {}
             }
+            let one = match integer_type.sign() {
+                IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+                IntegerSign::Signed => IntegerValue::Signed(1),
+            };
+            if ScalarTerm::integer(integer_type, one).is_ok_and(|one| {
+                requirements.contains(&Proposition::LessOrEqual(one, divisor.clone()))
+            }) {
+                return true;
+            }
+            if integer_type.sign() != IntegerSign::Signed {
+                return false;
+            }
+            if ScalarTerm::integer(integer_type, IntegerValue::Signed(-2)).is_ok_and(
+                |negative_two| {
+                    requirements.contains(&Proposition::LessOrEqual(divisor.clone(), negative_two))
+                },
+            ) {
+                return true;
+            }
+            let negative_one = ScalarTerm::integer(integer_type, IntegerValue::Signed(-1))
+                .expect("every signed fixed integer admits negative one");
+            if !requirements.contains(&Proposition::LessOrEqual(divisor.clone(), negative_one)) {
+                return false;
+            }
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                unreachable!("signed fixed integer has a signed minimum")
+            };
+            ScalarTerm::integer(
+                integer_type,
+                IntegerValue::Signed(minimum.checked_add(1).expect("minimum has a successor")),
+            )
+            .is_ok_and(|minimum_plus_one| {
+                requirements.contains(&Proposition::LessOrEqual(
+                    minimum_plus_one,
+                    dividend.clone(),
+                ))
+            })
         }
 
         match term {
@@ -3390,7 +3444,7 @@ fn validate_boolean_field_terms(
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }
             | ScalarTerm::IntegerExactCast { operand, .. } => {
-                validate_term(module, machine, operand)?;
+                validate_term(module, machine, operand, runtime_requirements)?;
             }
             ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
@@ -3412,8 +3466,8 @@ fn validate_boolean_field_terms(
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
             | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
             | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-                validate_term(module, machine, left)?;
-                validate_term(module, machine, right)?;
+                validate_term(module, machine, left, runtime_requirements)?;
+                validate_term(module, machine, right, runtime_requirements)?;
             }
             ScalarTerm::ExactIntegerDivide {
                 scalar_type,
@@ -3425,21 +3479,21 @@ fn validate_boolean_field_terms(
                 left,
                 right,
             } => {
-                if !safe_exact_literal_divisor(right, *scalar_type) {
+                if !safe_exact_divisor(*scalar_type, left, right, runtime_requirements) {
                     return Err(ModuleError::UnsafeStructuralCrashExactDivisor {
                         machine: machine.id,
                         scalar_type: *scalar_type,
                     });
                 }
-                validate_term(module, machine, left)?;
-                validate_term(module, machine, right)?;
+                validate_term(module, machine, left, runtime_requirements)?;
+                validate_term(module, machine, right, runtime_requirements)?;
             }
             ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
             | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
             | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
             | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                validate_term(module, machine, value)?;
-                validate_term(module, machine, count)?;
+                validate_term(module, machine, value, runtime_requirements)?;
+                validate_term(module, machine, count, runtime_requirements)?;
             }
             ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
@@ -3450,20 +3504,20 @@ fn validate_boolean_field_terms(
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
-            validate_term(module, machine, left)?;
-            validate_term(module, machine, right)?;
+            validate_term(module, machine, left, runtime_requirements)?;
+            validate_term(module, machine, right, runtime_requirements)?;
         }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
-                validate_boolean_field_terms(module, machine, proposition)?;
+                validate_boolean_field_terms(module, machine, proposition, runtime_requirements)?;
             }
         }
         Proposition::Implication {
             premise,
             conclusion,
         } => {
-            validate_boolean_field_terms(module, machine, premise)?;
-            validate_boolean_field_terms(module, machine, conclusion)?;
+            validate_boolean_field_terms(module, machine, premise, runtime_requirements)?;
+            validate_boolean_field_terms(module, machine, conclusion, runtime_requirements)?;
         }
         Proposition::Truth
         | Proposition::Falsehood

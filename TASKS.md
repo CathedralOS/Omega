@@ -352,10 +352,16 @@ Remaining:
   across whole-root and all-field-projected calls. Exact division and remainder
   additionally accept a same-carrier literal divisor whose nonzero and signed
   overflow safety the producer and verifier both establish independently.
-  Continue with obligation-bearing runtime divisors, other arithmetic families,
-  case-payload paths, and wider aggregate equality involving text, floats, sums,
-  or erased fields. Imported crash capsules remain design-blocked on artifact
-  identity and certificate binding.
+  Standalone whole-root structural Unit machines now also accept a runtime
+  integer-member divisor when their complete bounded `requires` package carries
+  an exact positive bound, an at-most-negative-two bound, or the joint signed
+  negative-one/dividend bound. Checked plans retain the source-independent
+  package; canonical terminal Psi, codec, and independent validation reject a
+  missing, weakened, or redirected premise. Continue that obligation-bearing
+  slice through direct structural calls, then other arithmetic families,
+  case-payload paths, and wider aggregate equality involving text, floats,
+  sums, or erased fields. Imported crash capsules remain design-blocked on
+  artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
