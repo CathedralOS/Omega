@@ -10,7 +10,8 @@ use crate::capacity::{
 };
 use crate::facts::{remap_invariants, remap_proof_obligations};
 use crate::machine_metadata::{
-    machine_contains, machine_operational_summary, machine_owned_data, machine_service_reach,
+    machine_blocking_summary, machine_contains, machine_owned_data, machine_service_reach,
+    machine_suspension_summary,
 };
 use crate::merge::merge_machine_graph;
 use crate::segments::split_state_segments;
@@ -108,7 +109,8 @@ fn build_machine_graph(
         name: machine.name.clone(),
         attached_data: machine.attached_data.clone(),
         service_reach: machine_service_reach(program, machine_symbol),
-        operational: machine_operational_summary(program, machine_symbol),
+        suspension: machine_suspension_summary(program, machine_symbol),
+        blocking: machine_blocking_summary(program, machine_symbol),
         contains: machine_contains(state_graph, program, machine),
         owned_data: machine_owned_data(state_graph, program, machine),
         states,

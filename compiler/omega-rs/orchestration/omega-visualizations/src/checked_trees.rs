@@ -2325,7 +2325,8 @@ fn machine_label(program: &CheckedTrees, machine: &Machine) -> String {
         &program.facts.service_reaches.services,
         &program.facts.service_reaches.rows,
         machine_service_reach(program, machine.symbol),
-        machine_operational_summary(program, machine.symbol),
+        machine_suspension_summary(program, machine.symbol),
+        machine_blocking_summary(program, machine.symbol),
     );
     label
 }
@@ -2370,7 +2371,8 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
         &program.facts.service_reaches.services,
         &program.facts.service_reaches.rows,
         service_reach,
-        operational,
+        suspension_summary(operational),
+        blocking_summary(operational),
     );
 
     if let Some(flow) = flow_state {
@@ -2587,7 +2589,8 @@ fn checked_call_label(
         &program.facts.service_reaches.services,
         &program.facts.service_reaches.rows,
         call.service_reach,
-        call.operational,
+        suspension_summary(call.operational),
+        blocking_summary(call.operational),
     );
     let acknowledgement = call.operational_acknowledgement;
     let acknowledgement_text = match (
@@ -2855,11 +2858,11 @@ fn machine_service_reach(
         .unwrap_or_default()
 }
 
-fn machine_operational_summary(
+fn machine_suspension_summary(
     program: &CheckedTrees,
     symbol: SymbolHandle,
-) -> psi_language_semantics::OperationalMaySummary {
-    let mut summary = psi_language_semantics::OperationalMaySummary::default();
+) -> psi_language_semantics::SuspensionSummary {
+    let mut summary = psi_language_semantics::SuspensionSummary::default();
     for flow in program
         .facts
         .flow
@@ -2870,7 +2873,6 @@ fn machine_operational_summary(
         .filter(|state| state.machine_symbol == symbol)
     {
         summary.direct_may_suspend |= flow.operational.direct_may_suspend;
-        summary.direct_may_block |= flow.operational.direct_may_block;
     }
     if let Some(machine) = program
         .facts
@@ -2880,9 +2882,54 @@ fn machine_operational_summary(
         .find(|machine| machine.symbol == symbol)
     {
         summary.transitive_may_suspend = machine.transitive_may_suspend;
+    }
+    summary
+}
+
+fn machine_blocking_summary(
+    program: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> psi_language_semantics::BlockingSummary {
+    let mut summary = psi_language_semantics::BlockingSummary::default();
+    for flow in program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .filter(|state| state.machine_symbol == symbol)
+    {
+        summary.direct_may_block |= flow.operational.direct_may_block;
+    }
+    if let Some(machine) = program
+        .facts
+        .operational
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+    {
         summary.transitive_may_block = machine.transitive_may_block;
     }
     summary
+}
+
+fn suspension_summary(
+    operational: psi_language_semantics::OperationalMaySummary,
+) -> psi_language_semantics::SuspensionSummary {
+    psi_language_semantics::SuspensionSummary {
+        direct_may_suspend: operational.direct_may_suspend,
+        transitive_may_suspend: operational.transitive_may_suspend,
+    }
+}
+
+fn blocking_summary(
+    operational: psi_language_semantics::OperationalMaySummary,
+) -> psi_language_semantics::BlockingSummary {
+    psi_language_semantics::BlockingSummary {
+        direct_may_block: operational.direct_may_block,
+        transitive_may_block: operational.transitive_may_block,
+    }
 }
 
 fn state_id_for_symbol(

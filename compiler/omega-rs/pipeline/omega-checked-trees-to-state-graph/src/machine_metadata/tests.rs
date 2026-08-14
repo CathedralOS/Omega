@@ -129,3 +129,71 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
     assert_eq!(contained[0].type_symbol, worker_machine_symbol);
     assert_eq!(contained[0].type_name.as_str(), "Worker");
 }
+
+#[test]
+fn graph_metadata_publishes_suspension_without_blocking() {
+    let machine_symbol = SymbolHandle::from_arena_index(21);
+    let state_symbol = SymbolHandle::from_arena_index(22);
+
+    let mut program = CheckedTrees::default();
+    let calls = program
+        .facts
+        .operational
+        .calls
+        .insert_many([Default::default()]);
+    {
+        let call = &mut program.facts.operational.calls.span_mut_or_empty(calls)[0];
+        call.direct_may_suspend = true;
+        call.transitive_may_suspend = true;
+    }
+    let states = program
+        .facts
+        .operational
+        .states
+        .insert_many([Default::default()]);
+    {
+        let state = &mut program.facts.operational.states.span_mut_or_empty(states)[0];
+        state.symbol = state_symbol;
+        state.transitive_may_suspend = true;
+        state.calls = calls;
+    }
+    let machines = program
+        .facts
+        .operational
+        .machines
+        .insert_many([Default::default()]);
+    {
+        let machine = &mut program
+            .facts
+            .operational
+            .machines
+            .span_mut_or_empty(machines)[0];
+        machine.symbol = machine_symbol;
+        machine.transitive_may_suspend = true;
+        machine.states = states;
+    }
+    program.facts.operational.root_machines = machines;
+
+    assert_eq!(
+        machine_suspension_summary(&program, machine_symbol),
+        psi_language_semantics::SuspensionSummary {
+            direct_may_suspend: true,
+            transitive_may_suspend: true,
+        }
+    );
+    assert_eq!(
+        machine_blocking_summary(&program, machine_symbol),
+        psi_language_semantics::BlockingSummary::default()
+    );
+    assert_eq!(
+        state_suspension_summary(&program, state_symbol),
+        psi_language_semantics::SuspensionSummary {
+            direct_may_suspend: true,
+            transitive_may_suspend: true,
+        }
+    );
+    assert_eq!(
+        state_blocking_summary(&program, state_symbol),
+        psi_language_semantics::BlockingSummary::default()
+    );
+}
