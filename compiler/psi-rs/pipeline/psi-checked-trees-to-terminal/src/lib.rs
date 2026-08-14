@@ -6618,10 +6618,10 @@ fn lower_attached_unit_closure_including(
             let Some(contract) = checked.facts.contract_plans.for_machine(*machine_symbol) else {
                 return Ok((*machine_symbol, Vec::new()));
             };
-            let requirements = if contract.crash.has_structural_runtime_divisor() {
+            let requirements = if contract.crash.uses_structural_proof_gated_arithmetic() {
                 let checked_requirements = contract.crash.structural_runtime_requirements().ok_or(
                     LoweringError::Unsupported(
-                        "runtime structural divisor lacks a complete checked requirement package",
+                        "proof-gated structural arithmetic lacks a complete checked requirement package",
                     ),
                 )?;
                 let parameters = lowered_machine_parameters
@@ -6630,7 +6630,7 @@ fn lower_attached_unit_closure_including(
                         (*symbol == *machine_symbol).then_some(parameters)
                     })
                     .expect("every closure machine has lowered parameters");
-                checked_requirements
+                let requirements = checked_requirements
                     .iter()
                     .map(|requirement| {
                         lower_structural_runtime_requirement(
@@ -6639,7 +6639,25 @@ fn lower_attached_unit_closure_including(
                             &structural_types,
                         )
                     })
-                    .collect::<Result<Vec<_>, _>>()?
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut keyed = requirements
+                    .into_iter()
+                    .map(|requirement| {
+                        psi_terminal_codec::canonical_proposition_order_key(&requirement)
+                            .map(|key| (key, requirement))
+                            .map_err(|_| {
+                                LoweringError::Unsupported(
+                                    "structural runtime requirement is not canonically encodable",
+                                )
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                keyed.sort_by(|left, right| left.0.cmp(&right.0));
+                keyed.dedup_by(|left, right| left.0 == right.0);
+                keyed
+                    .into_iter()
+                    .map(|(_, requirement)| requirement)
+                    .collect()
             } else {
                 Vec::new()
             };
@@ -10399,6 +10417,116 @@ fn safe_policy_structural_divisor(
         .any(|bound| requirements.contains(&Proposition::LessOrEqual(divisor.clone(), bound)))
 }
 
+fn nonnegative_shift_count(value: IntegerValue) -> Option<u32> {
+    match value {
+        IntegerValue::Unsigned(value) => u32::try_from(value).ok(),
+        IntegerValue::Signed(value) => u32::try_from(value).ok(),
+    }
+}
+
+fn exact_structural_shift_maximum_count(
+    value_type: IntegerType,
+    count_type: IntegerType,
+    count: &ScalarTerm,
+    requirements: &[Proposition],
+) -> Option<u32> {
+    if count.scalar_type() != ScalarType::Integer(count_type) {
+        return None;
+    }
+    if let Some((literal_type, literal)) = count.integer_value() {
+        let literal = nonnegative_shift_count(literal)?;
+        return (literal_type == count_type && literal < u32::from(value_type.bits()))
+            .then_some(literal);
+    }
+
+    if count_type.sign() == IntegerSign::Signed {
+        let zero = ScalarTerm::integer(count_type, IntegerValue::Signed(0)).ok()?;
+        if !requirements.contains(&Proposition::LessOrEqual(zero, count.clone())) {
+            return None;
+        }
+    }
+
+    let width = u32::from(value_type.bits());
+    let intrinsic_maximum = nonnegative_shift_count(count_type.maximum_value())?;
+    if intrinsic_maximum < width {
+        return Some(intrinsic_maximum);
+    }
+    requirements
+        .iter()
+        .filter_map(|requirement| match requirement {
+            Proposition::LessOrEqual(left, right) if left == count => {
+                let (right_type, right) = right.integer_value()?;
+                let right = nonnegative_shift_count(right)?;
+                (right_type == count_type && right < width).then_some(right)
+            }
+            Proposition::LessThan(left, right) if left == count => {
+                let (right_type, right) = right.integer_value()?;
+                let right = nonnegative_shift_count(right)?;
+                (right_type == count_type && right > 0 && right <= width).then_some(right - 1)
+            }
+            _ => None,
+        })
+        .min()
+}
+
+fn safe_exact_structural_shift(
+    left_shift: bool,
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: &ScalarTerm,
+    count: &ScalarTerm,
+    requirements: &[Proposition],
+) -> bool {
+    if value.scalar_type() != ScalarType::Integer(value_type) {
+        return false;
+    }
+    let Some(maximum_count) =
+        exact_structural_shift_maximum_count(value_type, count_type, count, requirements)
+    else {
+        return false;
+    };
+    if !left_shift || maximum_count == 0 {
+        return true;
+    }
+    if let Some((literal_type, literal)) = value.integer_value() {
+        let maximum_count_value = match count_type.sign() {
+            IntegerSign::Signed => IntegerValue::Signed(i128::from(maximum_count)),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(maximum_count)),
+        };
+        return literal_type == value_type
+            && value_type
+                .exact_shift_left(literal, count_type, maximum_count_value)
+                .is_some();
+    }
+    match value_type.sign() {
+        IntegerSign::Unsigned => {
+            let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
+                unreachable!("unsigned fixed integer has an unsigned maximum")
+            };
+            ScalarTerm::integer(value_type, IntegerValue::Unsigned(maximum >> maximum_count))
+                .is_ok_and(|maximum| {
+                    requirements.contains(&Proposition::LessOrEqual(value.clone(), maximum))
+                })
+        }
+        IntegerSign::Signed => {
+            let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                (value_type.minimum_value(), value_type.maximum_value())
+            else {
+                unreachable!("signed fixed integer has signed bounds")
+            };
+            let minimum =
+                ScalarTerm::integer(value_type, IntegerValue::Signed(minimum >> maximum_count));
+            let maximum =
+                ScalarTerm::integer(value_type, IntegerValue::Signed(maximum >> maximum_count));
+            minimum.is_ok_and(|minimum| {
+                requirements.contains(&Proposition::LessOrEqual(minimum, value.clone()))
+            }) && maximum.is_ok_and(|maximum| {
+                requirements.contains(&Proposition::LessOrEqual(value.clone(), maximum))
+            })
+        }
+    }
+}
+
 fn lower_structural_crash_route_buckets(
     buckets: &[psi_checked_trees::CrashRouteBucket],
     parameters: &[StructuralParameterDeclaration],
@@ -10532,6 +10660,8 @@ fn lower_structural_crash_route_buckets(
                     kind,
                     CheckedIntegerBinaryKind::WrappingShiftLeft
                         | CheckedIntegerBinaryKind::WrappingShiftRight
+                        | CheckedIntegerBinaryKind::ExactShiftLeft
+                        | CheckedIntegerBinaryKind::ExactShiftRight
                 ) =>
                 {
                     let ScalarType::Integer(value_type) = integer_scalar_type(*primitive_type)?
@@ -10558,6 +10688,22 @@ fn lower_structural_crash_route_buckets(
                     let ScalarType::Integer(count_type) = count.scalar_type() else {
                         return unsupported("structural crash shift count is not an integer");
                     };
+                    if matches!(
+                        kind,
+                        CheckedIntegerBinaryKind::ExactShiftLeft
+                            | CheckedIntegerBinaryKind::ExactShiftRight
+                    ) && !safe_exact_structural_shift(
+                        matches!(kind, CheckedIntegerBinaryKind::ExactShiftLeft),
+                        value_type,
+                        count_type,
+                        &value,
+                        &count,
+                        runtime_requirements,
+                    ) {
+                        return unsupported(
+                            "structural crash Exact shift requires explicit terminal count and overflow safety evidence",
+                        );
+                    }
                     match kind {
                         CheckedIntegerBinaryKind::WrappingShiftLeft => {
                             ScalarTerm::wrapping_integer_shift_left(
@@ -10566,6 +10712,16 @@ fn lower_structural_crash_route_buckets(
                         }
                         CheckedIntegerBinaryKind::WrappingShiftRight => {
                             ScalarTerm::wrapping_integer_shift_right(
+                                value_type, count_type, value, count,
+                            )
+                        }
+                        CheckedIntegerBinaryKind::ExactShiftLeft => {
+                            ScalarTerm::exact_integer_shift_left(
+                                value_type, count_type, value, count,
+                            )
+                        }
+                        CheckedIntegerBinaryKind::ExactShiftRight => {
+                            ScalarTerm::exact_integer_shift_right(
                                 value_type, count_type, value, count,
                             )
                         }
