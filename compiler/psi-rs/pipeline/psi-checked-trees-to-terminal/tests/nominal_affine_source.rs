@@ -422,6 +422,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
+        -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
         0i8 <= signed_arithmetic, 0i8 <= signed_divisor,
         1i8 <= signed_divisor, signed_divisor <= 7i8,
         -128i8 / signed_divisor <= signed_arithmetic,
@@ -454,6 +455,9 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small << 1u8) < 11u8)
             && ((small << count) < 29u8)
             && ((small << signed_count) < 255u8)
+            && ((signed_arithmetic << 2u8) < 127i8)
+            && ((signed_arithmetic << count) < 127i8)
+            && ((signed_arithmetic << signed_count) < 127i8)
             && ((signed as i8) < 4i8)
             && ((small as i8) < 4i8)
             && ((signed_arithmetic as u8) < 4u8)
@@ -1826,6 +1830,14 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(42)).unwrap(),
     );
+    let signed_shift_value_lower_requirement = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-32)).unwrap(),
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+    );
+    let signed_shift_value_upper_requirement = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(31)).unwrap(),
+    );
     let signed_nonnegative_requirement = Proposition::LessOrEqual(
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(0)).unwrap(),
         ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
@@ -1981,6 +1993,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &signed_arithmetic_upper_requirement,
         &signed_multiply_lower_requirement,
         &signed_multiply_upper_requirement,
+        &signed_shift_value_lower_requirement,
+        &signed_shift_value_upper_requirement,
         &signed_nonnegative_requirement,
         &signed_shift_count_lower_requirement,
         &signed_shift_count_upper_requirement,
@@ -2569,6 +2583,27 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let signed_value_shift_left_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft {
+                value, obligation, ..
+            } if value == entry.parameters[5].id => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(signed_value_shift_left_obligations.len() >= 3);
+    for obligation in &signed_value_shift_left_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_multiply_obligation = entry
         .blocks
         .iter()
@@ -3680,6 +3715,73 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == runtime_signed_count_shift_left_obligation
     ));
+    for obligation in &signed_value_shift_left_obligations {
+        let mut missing_signed_value_shift_left_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_signed_value_shift_left_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_signed_value_shift_left_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+                if missing == *obligation
+        ));
+    }
+    for (original, replacement) in [
+        (
+            &signed_shift_value_lower_requirement,
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(
+                    signed_arithmetic_type,
+                    signed_arithmetic_type.minimum_value(),
+                )
+                .unwrap(),
+                ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+            ),
+        ),
+        (
+            &signed_shift_value_upper_requirement,
+            Proposition::LessOrEqual(
+                ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+                ScalarTerm::integer(
+                    signed_arithmetic_type,
+                    signed_arithmetic_type.maximum_value(),
+                )
+                .unwrap(),
+            ),
+        ),
+    ] {
+        let mut changed_signed_value_shift_bound =
+            decode_module(&semantics).expect("decode shared semantics");
+        let changed_entry = changed_signed_value_shift_bound.entry;
+        let entry_contract = &mut changed_signed_value_shift_bound
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed_entry)
+            .expect("changed shared entry")
+            .contract;
+        let position = entry_contract
+            .requires
+            .iter()
+            .position(|requirement| requirement == original)
+            .expect("shared convergence retains each signed-value shift bound");
+        entry_contract.requires[position] = replacement;
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &changed_signed_value_shift_bound,
+                &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+                obligation,
+                ..
+            }) if obligation == signed_value_shift_left_obligations[0]
+        ));
+    }
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -3820,6 +3922,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && (small << 1) < 11
                     && (small << count) < 29
                     && (small << signed_count) < 255
+                    && (signed_arithmetic << 2) < 127
+                    && (signed_arithmetic << count) < 127
+                    && (signed_arithmetic << signed_count) < 127
                     && signed < 4
                     && small < 4
                     && signed_arithmetic < 4
