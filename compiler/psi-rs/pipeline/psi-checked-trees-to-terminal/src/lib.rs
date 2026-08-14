@@ -10658,6 +10658,29 @@ fn shared_integer_runtime_parameters_with_shells(
             )?);
             Some(parameters)
         }
+        LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } if remaining_shells > 0
+            && integer_type.sign() == IntegerSign::Unsigned
+            && matches!(
+                right.as_ref(),
+                LoweredDirectExpression::IntegerLiteral {
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } if *value > 0
+            ) =>
+        {
+            let mut parameters =
+                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
+            parameters.extend(shared_integer_runtime_parameters_with_shells(
+                right,
+                remaining_shells - 1,
+            )?);
+            Some(parameters)
+        }
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. } if remaining_shells > 0 => {
             shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
         }

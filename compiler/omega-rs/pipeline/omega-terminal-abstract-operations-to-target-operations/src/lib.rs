@@ -1651,7 +1651,9 @@ fn shared_boolean_cleanup_convergence_return_edge(
             | TerminalAbstractOperation::WrappingIntegerSubtract { .. }
             | TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
             | TerminalAbstractOperation::WrappingIntegerMultiply { .. }
-            | TerminalAbstractOperation::SaturatingIntegerMultiply { .. } => {}
+            | TerminalAbstractOperation::SaturatingIntegerMultiply { .. }
+            | TerminalAbstractOperation::ExactIntegerDivide { .. }
+            | TerminalAbstractOperation::ExactIntegerRemainder { .. } => {}
             _ => return None,
         }
     }

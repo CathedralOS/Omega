@@ -225,10 +225,11 @@ Remaining:
   one total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
   arithmetic shell, one integer-widening shell, or one proof-bearing exact
   unsigned narrowing, addition, subtraction, or multiplication under retained
-  direct parameter upper-bound `requires`. Nested shells, wider exact-cast and
-  exact-arithmetic premise shapes, the remaining partial/exact operations,
-  other unary computation, and member/comparison mixtures remain fenced. Extend
-  those integer comparisons, then
+  direct parameter upper-bound `requires`, or exact division/remainder by a
+  landed nonzero unsigned constant. Nested shells, wider exact-cast and
+  exact-arithmetic premise shapes, runtime divisors, other unary computation,
+  and member/comparison mixtures remain fenced. Extend those integer
+  comparisons, then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

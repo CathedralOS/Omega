@@ -413,7 +413,8 @@ operands are scalar parameters or landed constants, optionally beneath one
 total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
 arithmetic shell, one integer-widening shell, or one exact unsigned narrowing
 or exact addition, subtraction, or multiplication under retained direct
-parameter upper-bound `requires`, may form decision leaves. Psi
+parameter upper-bound `requires`, or exact division/remainder by a landed
+nonzero unsigned constant, may form decision leaves. Psi
 retains every exact operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
@@ -910,9 +911,9 @@ exact source place and canonical field ID. At least one Boolean parameter keeps
 that source outside native expression scratch. Separately, direct integer
 comparisons over scalar parameters and landed constants, with at most one total
 binary, bitwise-not, integer-widening, proof-bearing exact-cast, exact-add,
-exact-subtract, or exact-multiply computation shell per operand, retain their
-exact Psi operations through the same verified, interpreted, and native shared
-join.
+exact-subtract, exact-multiply, exact-divide, or exact-remainder computation
+shell per operand, retain their exact Psi operations through the same verified,
+interpreted, and native shared join.
 The proof-bearing subset accepts direct unsigned parameter upper-bound
 premises; Psi retains each as a terminal machine requirement, and each
 operation certificate cites its exact assumption. Field-only trees, nested or

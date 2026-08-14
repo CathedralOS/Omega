@@ -748,6 +748,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small + 1u8) < 6u8)
                 && ((127u8 - small) < 125u8)
                 && ((small * 2u8) < 10u8)
+                && ((small / 2u8) < 3u8)
+                && ((small % 2u8) <= 1u8)
                 && enabled;
             staged
         }
@@ -808,6 +810,33 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_divide_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains exact division by a nonzero constant");
+    let exact_remainder_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerRemainder { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains exact remainder by a nonzero constant");
+    for obligation in [exact_divide_obligation, exact_remainder_obligation] {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_multiply_obligation = terminal_entry
         .blocks
         .iter()
