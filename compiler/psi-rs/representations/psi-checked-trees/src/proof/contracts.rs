@@ -86,6 +86,7 @@ impl Default for CheckedEvidenceTerm {
                 declaration: SymbolHandle::invalid(),
                 binder_arguments: Vec::new(),
                 arguments: Vec::new(),
+                evidence_interface: None,
             },
             evidence_type: String::new(),
             evidence_interface: None,

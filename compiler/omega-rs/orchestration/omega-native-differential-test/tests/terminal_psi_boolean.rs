@@ -87,6 +87,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -242,6 +243,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -425,6 +427,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -606,6 +609,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -751,6 +755,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -903,6 +908,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -1055,6 +1061,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -1210,6 +1217,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -1350,6 +1358,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
@@ -1477,6 +1486,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,

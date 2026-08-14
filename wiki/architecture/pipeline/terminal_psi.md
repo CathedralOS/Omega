@@ -104,6 +104,16 @@ machine-derived nominal package type that has no source name. Its runtime
 projection is the ordinary result and its other fields erase. Outcome guards
 control which package variant carries each field. Producer conformances remain
 inside proof construction and do not enter proposition or package identity.
+The current producer serializes forwarded terms as dense module-local
+identities over the exact proposition application and a structured canonical
+carrierless interface; the verifier requires each witness application to carry
+that interface and each term row to agree with it. A forwarded output
+contributes only its source vocabulary identity. Named terminal contract lanes
+and generated output fields do not yet reference `EvidenceTermId`, so this is
+identity groundwork rather than stable projection. A producer-backed term is
+rejected at the terminal boundary until its selected conformance and complete
+normalized rows can be serialized as separate proof provenance; the diagnostic
+evidence-type spelling is not consulted as identity.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

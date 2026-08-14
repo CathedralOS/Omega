@@ -9,8 +9,8 @@ use psi_core::{
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, EvidenceInterfaceIdentity,
+    MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "8a547a1a8518f2b17437009ed423c99a46b133352b3a54a6fd5f1eb19028df7c"
+        "bf561ed144c227996323cb967fe50663b7b01b102079a6939fb0a4416b1bed2d"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -539,6 +539,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![machine],
     };
     let bytes = encode_module(&module).expect("local semantic rows encode");
@@ -1212,9 +1213,10 @@ fn structural_unit_calls_participate_in_call_graph_validation() {
 fn decoder_rejects_an_unknown_machine_result_shape() {
     let mut bytes = encode_module(&unit_fixture()).expect("unit terminal module should encode");
     // magic + format + vocabulary + entry + four empty foundation tables +
-    // two empty proposition counts + machine count + machine id + no attachment +
+    // two empty proposition counts + empty evidence-term count + machine count
+    // + machine id + no attachment +
     // empty scalar and structural parameter counts
-    bytes[65] = 0xff;
+    bytes[69] = 0xff;
 
     assert_eq!(
         decode_module(&bytes),
@@ -1351,12 +1353,30 @@ fn proposition_vocabulary_round_trips_and_enters_identity() {
             },
         ],
         arguments: vec!["sequence".to_owned()],
+        evidence_interface: Some(EvidenceInterfaceIdentity {
+            trait_identity: "ConvergenceEvidence".to_owned(),
+            arguments: vec!["unit_sample".to_owned()],
+        }),
     }];
 
     let bytes = encode_module(&module).expect("proposition vocabulary should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("vocabulary has identity");
+    module.proposition_applications[0]
+        .evidence_interface
+        .as_mut()
+        .expect("witness application interface")
+        .trait_identity = "AlternativeConvergenceEvidence".to_owned();
+    assert_ne!(
+        semantic_fingerprint(&module).expect("instantiated interface has identity"),
+        original
+    );
+    module.proposition_applications[0]
+        .evidence_interface
+        .as_mut()
+        .expect("witness application interface")
+        .trait_identity = "ConvergenceEvidence".to_owned();
     module.proposition_declarations[0].evidence = PropositionEvidence::Witness {
         evidence_type: "AlternativeEvidence<Left>".to_owned(),
     };
@@ -1365,6 +1385,7 @@ fn proposition_vocabulary_round_trips_and_enters_identity() {
         original
     );
     module.proposition_declarations[0].evidence = PropositionEvidence::FactOnly;
+    module.proposition_applications[0].evidence_interface = None;
     assert_ne!(
         semantic_fingerprint(&module).expect("changed vocabulary has identity"),
         original
@@ -1392,6 +1413,7 @@ fn proposition_vocabulary_is_category_checked() {
             identity: "Generator".to_owned(),
         }],
         arguments: vec!["value".to_owned()],
+        evidence_interface: None,
     }];
     assert!(matches!(
         encode_module(&module),
@@ -1661,6 +1683,7 @@ fn partial_affine_fixture() -> TerminalModule {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -1870,6 +1893,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -2027,6 +2051,7 @@ fn structural_effect_fixture() -> TerminalModule {
         }],
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(100),
@@ -2245,6 +2270,7 @@ fn unit_fixture() -> TerminalModule {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
             attachment: None,
@@ -2294,6 +2320,7 @@ fn fixture() -> TerminalModule {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -2428,6 +2455,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
             attachment: None,
@@ -2640,6 +2668,7 @@ fn call_fixture() -> TerminalModule {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(100),

@@ -495,10 +495,19 @@ Remaining N6/N8 work:
   retain its conformance symbol; checked facts retain the selected trait,
   canonical type-argument identities, and complete normalized realization
   rows. Wrong arguments and unresolved open endpoints reject before the
-  assignment can discharge the proposition. Continue with generated nominal
-  output packages and terminal evidence identity. `value` is the runtime
-  result; evidence erases, destructuring is complete or explicitly `_`, and
-  guarded fields exist only in the matching refinement. Keep proposition,
+  assignment can discharge the proposition. Terminal Psi now retains a dense,
+  source-handle-free evidence-term vocabulary keyed by its exact proposition
+  application and structured carrierless interface; the verifier requires the
+  term and application interfaces to agree. Direct forwarding contributes one
+  vocabulary identity rather than minting an output witness. This is identity
+  groundwork only: terminal named contract lanes and generated package fields
+  do not yet reference `EvidenceTermId`. Selected-producer lowering remains
+  fail-closed until conformance/row provenance has a separate proof-bundle
+  identity; do not fold that provenance into the term or recover the interface
+  from its display spelling. Continue with those lane/package references and
+  the provenance row. `value` is the runtime result;
+  evidence erases, destructuring is complete or explicitly `_`, and guarded
+  fields exist only in the matching refinement. Keep proposition,
   evidence-term, and provenance identities separate.
 - Finish name-owned generic telescopes and explicit binders:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares an

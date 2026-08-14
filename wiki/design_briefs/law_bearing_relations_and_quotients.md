@@ -491,7 +491,15 @@ transitivity.
 The evidence producer checks the selected conformance. A consumer projects a
 named published evidence term to artifact-local opaque symbols characterized
 solely by the normalized contracts; witness implementation identity does not
-cross the boundary. Proof-only evaluation, when a transparent body is actually
+cross the boundary. Terminal Psi currently serializes the forwarded subset as
+dense evidence-term identities over exact proposition applications and
+structured, source-handle-free interface identities. Forwarding preserves one
+vocabulary row, and the verifier requires the term interface to equal the
+application interface. Named terminal contract lanes and generated fields do
+not yet reference that ID, so projection remains future work. Producer-backed
+terms remain fail-closed until the proof bundle can carry their separate
+conformance/row provenance; a display spelling is never an identity oracle.
+Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.
 Deterministic work metering supplies progress, caching/accounting evidence,

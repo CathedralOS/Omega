@@ -39,6 +39,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -237,6 +238,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -487,6 +489,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),

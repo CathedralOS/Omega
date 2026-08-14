@@ -217,6 +217,7 @@ fn call_module() -> TerminalModule {
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
