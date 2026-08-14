@@ -759,7 +759,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
-            0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
+            0i8 <= signed_arithmetic, 0i8 <= signed_divisor,
+            1i8 <= signed_divisor, signed_divisor <= 7i8,
             -128i8 / signed_divisor <= signed_arithmetic,
             signed_arithmetic <= 127i8 / signed_divisor,
             negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
@@ -785,6 +786,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small / divisor) < 6u8)
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
+                && ((signed_arithmetic >> signed_divisor) < 4i8)
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
                 && ((signed as i8) < 4i8)
@@ -1321,6 +1323,30 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .expect("shared convergence retains the bounded exact left shift");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_shift_left_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let signed_count_exact_shift_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation,
+            } if value == terminal_entry.parameters[5].id
+                && count == terminal_entry.parameters[6].id =>
+            {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the signed-count exact right shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == signed_count_exact_shift_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)

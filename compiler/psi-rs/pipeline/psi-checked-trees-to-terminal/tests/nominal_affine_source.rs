@@ -421,7 +421,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
-        0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
+        0i8 <= signed_arithmetic, 0i8 <= signed_divisor,
+        1i8 <= signed_divisor, signed_divisor <= 7i8,
         -128i8 / signed_divisor <= signed_arithmetic,
         signed_arithmetic <= 127i8 / signed_divisor,
         negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
@@ -447,6 +448,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small / divisor) < 6u8)
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
+            && ((signed_arithmetic >> signed_divisor) < 4i8)
             && ((small << 1u8) < 11u8)
             && ((small << count) < 29u8)
             && ((signed as i8) < 4i8)
@@ -1823,6 +1825,14 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(0)).unwrap(),
         ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
     );
+    let signed_shift_count_lower_requirement = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(0)).unwrap(),
+        signed_divisor_term.clone(),
+    );
+    let signed_shift_count_upper_requirement = Proposition::LessOrEqual(
+        signed_divisor_term.clone(),
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(7)).unwrap(),
+    );
     let signed_divisor_lower_requirement = Proposition::LessOrEqual(
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(1)).unwrap(),
         signed_divisor_term.clone(),
@@ -1959,6 +1969,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &signed_multiply_lower_requirement,
         &signed_multiply_upper_requirement,
         &signed_nonnegative_requirement,
+        &signed_shift_count_lower_requirement,
+        &signed_shift_count_upper_requirement,
         &signed_divisor_lower_requirement,
         &runtime_signed_positive_multiply_lower_requirement,
         &runtime_signed_positive_multiply_upper_requirement,
@@ -2458,6 +2470,28 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .expect("shared convergence retains the bounded exact right shift");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_shift_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let signed_count_exact_shift_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation,
+            } if value == entry.parameters[5].id && count == entry.parameters[6].id => {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the signed-count exact right shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == signed_count_exact_shift_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
@@ -3456,6 +3490,53 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == exact_shift_obligation
     ));
+    let mut missing_signed_count_shift_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_signed_count_shift_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != signed_count_exact_shift_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_signed_count_shift_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == signed_count_exact_shift_obligation
+    ));
+    let mut changed_signed_count_shift_bound =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_signed_count_shift_bound.entry;
+    let entry_contract = &mut changed_signed_count_shift_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let signed_shift_requirement = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &signed_shift_count_upper_requirement)
+        .expect("shared convergence retains the signed exact-shift upper premise");
+    entry_contract.requires[signed_shift_requirement] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[6].id, entry.parameters[6].scalar_type),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+            IntegerValue::Signed(6),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_signed_count_shift_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == signed_count_exact_shift_obligation
+    ));
     let mut missing_shift_left_proof = decode_proof_bundle(&proof).expect("decode shared proof");
     missing_shift_left_proof
         .evidence
@@ -3644,6 +3725,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small / divisor < 6
                     && small % divisor <= small
                     && (small >> small) < 1
+                    && (signed_arithmetic >> signed_divisor) < 4
                     && (small << 1) < 11
                     && (small << count) < 29
                     && signed < 4

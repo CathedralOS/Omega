@@ -421,14 +421,15 @@ under a retained positive or at-most-`-2` factor bound and both carrier-tight
 quotient bounds, one runtime unsigned addition under the retained canonical
 `left <= MAX - right` bound, one runtime signed addition under matching sign and
 `MAX - right` or `MIN - right` bounds, runtime subtraction unsigned under a
-retained direct subtrahend-to-minuend bound or
-signed under matching sign and `MIN + right` or `MAX + right` bounds, one exact
-right shift under a direct unsigned count upper bound, one exact left shift by a
-landed count under a direct unsigned value upper bound or by an unsigned runtime
-count under direct count and value upper bounds, or exact division/remainder by
-a landed nonzero unsigned constant, a landed signed constant other than `0` or
-`-1`, a runtime unsigned divisor under a direct
-positive lower bound, or a runtime signed divisor under a direct positive lower
+retained direct subtrahend-to-minuend bound or signed under matching sign and
+`MIN + right` or `MAX + right` bounds, one exact
+right shift under a direct upper count bound for unsigned counts or direct
+zero-lower and upper bounds for signed counts, one exact left shift by a landed
+count under a direct unsigned value upper bound or by an unsigned runtime count
+under direct count and value upper bounds, or exact division/remainder by a
+landed nonzero unsigned constant, a landed signed constant other than `0` or
+`-1`, a runtime unsigned divisor under a direct positive lower bound, or a
+runtime signed divisor under a direct positive lower
 bound, `divisor <= -2` upper bound, or joint `divisor <= -1` and
 `MIN + 1 <= dividend` bounds, may form decision leaves. Psi retains every exact
 operation and all native targets join its leaves into the
