@@ -971,6 +971,10 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = true && false;
             staged
         }
+        machine Root::shared_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = input && true;
+            staged
+        }
         machine Root::short_circuit_return_expression(token: Token) -> bool {
             let staged: bool = true && false;
             !staged
@@ -1035,6 +1039,21 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one final short-circuit local returned directly retains cleanup");
     assert_eq!(short_circuit.bindings.len(), 1);
     assert_eq!(short_circuit.return_statement_ordinal, 1);
+    assert!(short_circuit.shared_boolean_convergence.is_none());
+    let shared_convergence = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "shared_convergence"))
+        .expect("one direct Boolean decision should publish shared convergence eligibility");
+    assert_eq!(shared_convergence.bindings.len(), 1);
+    assert_eq!(
+        shared_convergence
+            .shared_boolean_convergence
+            .expect("shared convergence marker")
+            .binding_ordinal,
+        0
+    );
     let return_expression = checked
         .facts
         .flow

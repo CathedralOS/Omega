@@ -394,6 +394,15 @@ pub enum TerminalScalarControlFlowEvidence {
         crash_leaves: Vec<bool>,
         branches: Vec<TerminalScalarDivisionBranchEvidence>,
     },
+    /// One native Boolean decision whose two value arms reconverge at an exact
+    /// shared return/cleanup tail. The true arm ends in the retained
+    /// unconditional join branch; the false arm falls through to `merge_offset`.
+    BooleanSharedConvergence {
+        decision: TerminalScalarConditionalBranchEvidence,
+        join_offset: usize,
+        join_byte_count: usize,
+        merge_offset: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

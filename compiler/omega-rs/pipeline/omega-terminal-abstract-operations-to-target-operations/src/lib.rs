@@ -310,6 +310,72 @@ fn lower_function(
             target,
             functions,
         )?;
+        if let Some(shared_return_edge) = shared_boolean_cleanup_convergence_return_edge(function) {
+            let TerminalTargetBooleanControl::Conditional {
+                condition_source,
+                condition_parameter_index,
+                condition_location,
+                when_true,
+                when_false,
+            } = lowered.control
+            else {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            };
+            let (
+                TerminalTargetBooleanControl::ReturnImmediate {
+                    psi_return_edge: true_edge,
+                    value: when_true_value,
+                    ..
+                },
+                TerminalTargetBooleanControl::ReturnImmediate {
+                    psi_return_edge: false_edge,
+                    value: when_false_value,
+                    ..
+                },
+            ) = (*when_true.control, *when_false.control)
+            else {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            };
+            if true_edge != shared_return_edge || false_edge != shared_return_edge {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
+            let cleanup_actions = uniform_conditional_cleanup(
+                function,
+                &[shared_return_edge],
+                &target_structural_parameters,
+                functions,
+                structural_types,
+            )?;
+            return Ok(TerminalTargetFunction {
+                machine: function.machine,
+                attachment: function.attachment,
+                provenance: conditional_provenance(function, lowered.operations, lowered.edges),
+                operation: TerminalTargetOperation::ScalarReturnWithCleanup {
+                    scalar: Box::new(TerminalTargetOperation::ReturnBooleanSharedConvergence {
+                        psi_edge: shared_return_edge,
+                        condition_source,
+                        condition_parameter_index,
+                        condition_location,
+                        when_true: when_true_value,
+                        when_false: when_false_value,
+                    }),
+                    structural_types: structural_types
+                        .values()
+                        .map(|declaration| (*declaration).clone())
+                        .collect(),
+                    call_plan,
+                    structural_parameters: target_structural_parameters,
+                    cleanup_actions,
+                    psi_edge: shared_return_edge,
+                },
+            });
+        }
         let return_edges = finite_boolean_cleanup_return_edges(&lowered.control).ok_or(
             LoweringError::UnsupportedOperationInScalarFunction(function.machine),
         )?;
@@ -1464,6 +1530,66 @@ fn lower_function(
         provenance,
         operation: returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?,
     })
+}
+
+fn shared_boolean_cleanup_convergence_return_edge(
+    function: &TerminalAbstractFunction,
+) -> Option<EdgeId> {
+    let mut conditional_count = 0;
+    let mut jump_target = None;
+    let mut jump_bindings = Vec::new();
+    let mut return_edge = None;
+    for operation in &function.operations {
+        match operation {
+            TerminalAbstractOperation::Conditional { .. } => conditional_count += 1,
+            TerminalAbstractOperation::Jump {
+                target, bindings, ..
+            } => {
+                if bindings.len() != 1 || jump_target.is_some_and(|existing| existing != *target) {
+                    return None;
+                }
+                jump_target = Some(*target);
+                jump_bindings.push(bindings[0]);
+            }
+            TerminalAbstractOperation::Return {
+                psi_edge,
+                value,
+                scalar_type: ScalarType::Boolean,
+                cleanup_actions,
+                ..
+            } if !cleanup_actions.is_empty() => {
+                if return_edge.replace((*psi_edge, *value)).is_some() {
+                    return None;
+                }
+            }
+            TerminalAbstractOperation::BooleanConstant { .. } => {}
+            _ => return None,
+        }
+    }
+    let target = jump_target?;
+    let (edge, returned_value) = return_edge?;
+    if conditional_count != 2
+        || jump_bindings.len() != 3
+        || jump_bindings.iter().any(|binding| {
+            binding.parameter != returned_value || binding.scalar_type != ScalarType::Boolean
+        })
+    {
+        return None;
+    }
+    let target_entry = function
+        .block_entries
+        .iter()
+        .position(|entry| entry.block == target)?;
+    let start = function.block_entries[target_entry].operation_offset;
+    let end = function
+        .block_entries
+        .get(target_entry + 1)
+        .map_or(function.operations.len(), |entry| entry.operation_offset);
+    matches!(
+        function.operations.get(start..end),
+        Some([TerminalAbstractOperation::Return { psi_edge, .. }]) if *psi_edge == edge
+    )
+    .then_some(edge)
 }
 
 fn lower_structural_return_function(

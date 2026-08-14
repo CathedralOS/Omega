@@ -332,8 +332,13 @@ leaf and validates the result and return-link lifetime independently on every
 native path. Terminal production decides every short-circuit local once per
 stage, substitutes each resulting value leaf into the continuation, and
 source-distributes branch-free work and later decision stages without a
-convergence block. Explicit convergence to one shared cleanup return, calls,
-effects, nested nominal ownership,
+convergence block. One deliberately narrow exception accepts an exact
+top-level Boolean identity binding (`input && true` or `input || false`) whose
+typed value leaves jump to one terminal-Psi Boolean parameter and one shared
+cleanup return. Omega retains that join as two native value arms, one
+unconditional join branch, and one cleanup tail; object construction decodes
+the branch and replays the shared tail before image and installation custody.
+Wider explicit convergence, calls, effects, nested nominal ownership,
 projections, and wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
@@ -808,8 +813,11 @@ evidence. If terminal lowering source-distributes one semantic Psi convergence
 call into several leaves, the object boundary permits its repeated operation
 owner only when every physical pair has conflicting outcomes at a validated
 decision. Calls sharing an executable path still reject. This proves the
-source-distributed tree, not an actual reconvergent native join; shared native
-control-flow joins remain outside the theorem. Affine cleanup admits the finite
+source-distributed tree, not an actual reconvergent native join. Separately, the
+exact Boolean identity-binding slice retains one terminal-Psi join and object
+replay validates its native decision, unconditional join branch, and single
+cleanup tail on both targets. General shared native control-flow joins remain
+outside the theorem. Affine cleanup admits the finite
 branch-only trees described above, with one distinct cleanup-bearing return
 edge per surviving leaf. External adapter/interrupt-arrival state and other
 terminal function forms are also absent, so the inspection surface makes no

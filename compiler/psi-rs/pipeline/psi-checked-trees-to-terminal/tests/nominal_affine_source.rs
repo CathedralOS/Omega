@@ -374,6 +374,21 @@ const MIXED_NOMINAL_NESTED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     }
 "#;
 
+const MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
+        let staged: bool = input && true;
+        staged
+    }
+"#;
+
 const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -1460,6 +1475,111 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
         assert_eq!(
             measured.value(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(left && right))
+        );
+        assert!(measured.effects().is_empty());
+    }
+}
+
+#[test]
+fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
+    let tokens = Lexer::new(MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE)
+        .tokenize()
+        .expect("tokenize shared nominal Boolean convergence");
+    let syntax = parse_syntax_trees(&tokens).expect("parse shared nominal Boolean convergence");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve shared nominal Boolean convergence");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type shared nominal Boolean convergence");
+    let checked = lower_typed_trees(typed).expect("check shared nominal Boolean convergence");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("shared nominal Boolean convergence lowers");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("shared nominal Boolean convergence entry");
+    let [token, plain] = entry.structural_parameters.as_slice() else {
+        panic!("shared convergence retains both structural roots")
+    };
+    let (convergence, control_blocks) = entry
+        .blocks
+        .split_last()
+        .expect("shared convergence has control and one return block");
+    let mut jump_targets = Vec::new();
+    let mut decision_count = 0;
+    for block in control_blocks {
+        match &block.terminator {
+            Terminator::Conditional { .. } => decision_count += 1,
+            Terminator::Jump {
+                target,
+                arguments,
+                trivial_affine_discards,
+                ..
+            } => {
+                assert_eq!(arguments.len(), 1);
+                assert!(trivial_affine_discards.is_empty());
+                jump_targets.push(*target);
+            }
+            _ => panic!("shared convergence control contains only decisions and value jumps"),
+        }
+    }
+    assert_eq!(decision_count, 2);
+    assert_eq!(
+        jump_targets,
+        [convergence.id, convergence.id, convergence.id]
+    );
+    let [converged] = convergence.parameters.as_slice() else {
+        panic!("shared convergence must bind one typed Boolean value")
+    };
+    assert_eq!(converged.scalar_type, ScalarType::Boolean);
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &convergence.terminator
+    else {
+        panic!("shared convergence must own the sole cleanup return")
+    };
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+            TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
+        ] if *plain_cleanup == plain.place && token_cleanup.place == token.place
+    ));
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("shared nominal Boolean convergence verifies");
+    let semantics = encode_module(&lowered.semantic_module)
+        .expect("shared nominal Boolean convergence encodes");
+    assert_eq!(
+        decode_module(&semantics).expect("shared convergence decodes"),
+        lowered.semantic_module
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("shared nominal Boolean convergence proof encodes");
+    let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    for input in [false, true] {
+        let mut handler = AcceptTerminalEffects;
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(input)],
+            &structural_arguments,
+            &mut handler,
+        )
+        .expect("shared nominal Boolean convergence interprets");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(input))
         );
         assert!(measured.effects().is_empty());
     }

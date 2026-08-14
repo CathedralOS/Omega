@@ -522,6 +522,122 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
 }
 
 #[test]
+fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
+            let staged: bool = input && true;
+            staged
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize shared convergence");
+    let syntax = parse_syntax_trees(&tokens).expect("parse shared convergence");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve shared convergence");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type shared convergence");
+    let checked = lower_typed_trees(typed).expect("check shared convergence");
+    let lowered = lower_machine(&checked, "Root::measure").expect("lower shared convergence");
+    let semantics = encode_module(&lowered.semantic_module).expect("shared semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("shared proof");
+    let entry_machine = lowered.semantic_module.entry;
+    let abstract_plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("shared convergence crosses Omega boundary");
+
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering: {error:?}", case.target));
+        let target_entry = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("target shared convergence entry");
+        assert!(matches!(
+            &target_entry.operation,
+            TerminalTargetOperation::ScalarReturnWithCleanup { scalar, .. }
+                if matches!(scalar.as_ref(),
+                    TerminalTargetOperation::ReturnBooleanSharedConvergence { .. })
+        ));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment: {error:?}", case.target));
+        assert!(matches!(
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry_machine)
+                .map(|function| &function.operation),
+            Some(TerminalAssignedOperation::ScalarReturnWithCleanup { scalar, .. })
+                if matches!(scalar.as_ref(),
+                    TerminalAssignedOperation::ReturnBooleanSharedConvergence { .. })
+        ));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission: {error:?}", case.target));
+        let emitted = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted shared convergence entry");
+        let cleanup = emitted
+            .scalar_affine_cleanup
+            .as_ref()
+            .expect("one shared scalar cleanup record");
+        assert!(emitted.scalar_control_affine_cleanups.is_empty());
+        assert_eq!(emitted.internal_unit_calls.len(), 1);
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            join_offset,
+            merge_offset,
+            ..
+        } = &emitted
+            .scalar_stack
+            .as_ref()
+            .expect("shared convergence stack evidence")
+            .control_flow
+        else {
+            panic!("native shared convergence must retain its exact join")
+        };
+        assert!(join_offset < merge_offset);
+        assert_eq!(*merge_offset, cleanup.code_offset);
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object replay: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation: {error:?}", case.target));
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("installed shared convergence entry");
+        assert!(installed.scalar_affine_cleanup.is_some());
+        assert!(installed.scalar_control_affine_cleanups.is_empty());
+        let bytes = encode_terminal_installation_record(&installation)
+            .expect("encode shared convergence installation");
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation.clone())
+        );
+
+        let mut forged = machine_code.clone();
+        let function = forged
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("forged shared convergence entry");
+        function.bytes[*join_offset] ^= 1;
+        assert!(build_terminal_object_artifact(&forged).is_err());
+    }
+}
+
+#[test]
 fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
     let source = r#"
         data Helper {}

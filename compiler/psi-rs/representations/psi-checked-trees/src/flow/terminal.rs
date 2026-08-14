@@ -299,6 +299,11 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub bindings: Vec<CheckedScalarBinding>,
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
+    /// One deliberately narrow actual CFG convergence: a single Boolean
+    /// short-circuit binding has a finite set of typed value leaves entering
+    /// one shared direct return/cleanup block. Wider Boolean trees retain the
+    /// source-distributed fallback and publish `None`.
+    pub shared_boolean_convergence: Option<CheckedStructuralBooleanConvergencePlan>,
     /// Complete canonical direct-Boolean caller facts preserved at the closed
     /// scalar return edge. Nominal cleanup actions select root-local subsets
     /// by `source_parameter_index`; no-code actions consume no premise.
@@ -307,6 +312,11 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// order. Keeping trivial and nominal actions in one list prevents either
     /// representation or a later producer from losing their relative order.
     pub cleanup_actions: Vec<CheckedStructuralScalarReturnCleanupAction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedStructuralBooleanConvergencePlan {
+    pub binding_ordinal: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
