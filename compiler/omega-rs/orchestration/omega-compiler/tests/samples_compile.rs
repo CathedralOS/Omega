@@ -28,8 +28,7 @@
 //!    deployable arithmetic cohort has the same exact hosted-root guarantees,
 //!    while four float-lowering fixtures remain checked-only.
 //!  * `system_samples_compile_from_authored_program_entry_bindings` — the
-//!    deployable systems cohort lowers from exact authored roots, while one
-//!    known runtime-engineering fixture remains checked-only.
+//!    complete systems cohort lowers from exact authored roots.
 //!  * `probe_samples_compile_from_authored_program_entry_bindings` — executable
 //!    regression probes name their exact hosted roots; the deliberate trapping
 //!    fixture remains checked-only.
@@ -146,12 +145,12 @@ const EXPLICIT_ENTRY_SYSTEM_SAMPLES: &[&str] = &[
     "file_permissions",
     "framed_payload",
     "logger",
+    "note_vault",
     "status_report",
     "task_runner",
     "vending_machine",
     "wire_protocol",
 ];
-const CHECKED_ONLY_SYSTEM_SAMPLES: &[&str] = &["note_vault"];
 const EXPLICIT_ENTRY_PROBE_SAMPLES: &[&str] = &[
     "alarm_probe",
     "alarm_probe2",
@@ -735,21 +734,6 @@ fn arithmetic_samples_compile_from_authored_program_entry_bindings() {
 #[test]
 fn system_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("systems", EXPLICIT_ENTRY_SYSTEM_SAMPLES);
-
-    for sample in CHECKED_ONLY_SYSTEM_SAMPLES {
-        let main_path = repo_root()
-            .join("samples/cli/systems")
-            .join(sample)
-            .join("main.omg");
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!("checked-only systems sample {sample} should compile: {diagnostics:#?}")
-        });
-        assert_eq!(
-            checked.selected_program_entry_machine(),
-            None,
-            "checked-only systems sample {sample} must not select a storage root"
-        );
-    }
 }
 
 #[test]
