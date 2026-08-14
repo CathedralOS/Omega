@@ -165,7 +165,9 @@ Current ownership is:
   contents without redirecting their origins. Sibling direct value-call
   arguments are independently admitted when each one's receiver and arguments
   are non-rebinding and every call frame is complete, including nested direct
-  calls to a maximum call-tree depth of two. Explicitly discarded call results,
+  calls to a maximum call-tree depth of two. An explicitly discarded concrete
+  primitive result from a nongeneric internal checked-body call is likewise
+  neutral under that complete-frame rule. Other discarded call results,
   explicit binding reborrows, deeper computed arguments, and any opaque node
   remain fences.
   A free or attached helper whose terminal place is rooted in one
@@ -276,9 +278,13 @@ Current ownership is:
   helper-local alias rebind updates that local's origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
-  rebinding, explicitly discarded call results, statement calls with binding
-  reborrows or opaque frames, opaque or recursive result producers, and other
-  computed initializers remain opaque.
+  rebinding and other computed initializers remain opaque. An explicitly
+  discarded concrete primitive result from a nongeneric internal checked-body
+  statement call is neutral when its inferred frame is complete and its
+  receiver and arguments obey the same bounded non-rebinding rule; the frame's
+  side writes remain published. Discarded reference-bearing or aggregate
+  results, boundary or generic calls, statement calls with binding reborrows or
+  opaque frames, and opaque or recursive result producers remain opaque.
   Terminal returned places, stable local mutable aliases, and direct alias
   rebind replacements may contain one or more indexes whose non-rebinding call
   trees are independently complete through depth two. The first index fixes
