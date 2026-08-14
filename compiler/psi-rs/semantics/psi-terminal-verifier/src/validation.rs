@@ -3550,11 +3550,15 @@ fn validate_boolean_field_terms(
                 validate_term(module, machine, right, runtime_requirements)?;
             }
             ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
                 validate_term(module, machine, value, runtime_requirements)?;
                 validate_term(module, machine, count, runtime_requirements)?;
+            }
+            ScalarTerm::ExactIntegerShiftLeft { .. }
+            | ScalarTerm::ExactIntegerShiftRight { .. } => {
+                return Err(ModuleError::UnprovenStructuralCrashExactShift {
+                    machine: machine.id,
+                });
             }
             ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
@@ -6376,6 +6380,9 @@ pub enum ModuleError {
     UnsafeStructuralCrashPolicyDivisor {
         machine: MachineId,
         scalar_type: psi_core::IntegerType,
+    },
+    UnprovenStructuralCrashExactShift {
+        machine: MachineId,
     },
     NonCanonicalCrashRoutes(MachineId),
     EmptyCrashRouteBucket {

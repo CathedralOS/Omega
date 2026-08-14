@@ -715,6 +715,45 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         domain,
                     ))
                 }
+                ExpressionNode::Binary(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                    ) && operator_is_builtin(operators, expression) =>
+                {
+                    let (left, left_domain) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.left,
+                    )?;
+                    let (right, _) = lower_structural_integer_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.right,
+                    )?;
+                    let primitive_type = scalar_expression_type(&left)?;
+                    let right_type = scalar_expression_type(&right)?;
+                    let kind = checked_integer_binary_kind(binary.operator, left_domain)?;
+                    (primitive_type != PrimitiveType::Addr
+                        && is_integer(primitive_type)
+                        && is_integer(right_type)
+                        && matches!(
+                            kind,
+                            CheckedIntegerBinaryKind::WrappingShiftLeft
+                                | CheckedIntegerBinaryKind::WrappingShiftRight
+                        ))
+                    .then_some((
+                        CheckedScalarExpression::IntegerBinary {
+                            kind,
+                            primitive_type,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        },
+                        left_domain,
+                    ))
+                }
                 _ => None,
             }
         }

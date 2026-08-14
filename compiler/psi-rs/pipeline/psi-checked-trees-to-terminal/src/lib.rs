@@ -10530,6 +10530,56 @@ fn lower_structural_crash_route_buckets(
                     right,
                 } if matches!(
                     kind,
+                    CheckedIntegerBinaryKind::WrappingShiftLeft
+                        | CheckedIntegerBinaryKind::WrappingShiftRight
+                ) =>
+                {
+                    let ScalarType::Integer(value_type) = integer_scalar_type(*primitive_type)?
+                    else {
+                        return unsupported("structural crash shift has a non-integer value type");
+                    };
+                    let value = lower_integer_term(
+                        left,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?;
+                    let count = lower_integer_term(
+                        right,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?;
+                    if value.scalar_type() != ScalarType::Integer(value_type) {
+                        return unsupported(
+                            "structural crash shift value does not match its integer type",
+                        );
+                    }
+                    let ScalarType::Integer(count_type) = count.scalar_type() else {
+                        return unsupported("structural crash shift count is not an integer");
+                    };
+                    match kind {
+                        CheckedIntegerBinaryKind::WrappingShiftLeft => {
+                            ScalarTerm::wrapping_integer_shift_left(
+                                value_type, count_type, value, count,
+                            )
+                        }
+                        CheckedIntegerBinaryKind::WrappingShiftRight => {
+                            ScalarTerm::wrapping_integer_shift_right(
+                                value_type, count_type, value, count,
+                            )
+                        }
+                        _ => unreachable!("guarded structural shift kind"),
+                    }
+                    .map_err(LoweringError::InvalidCrashPredicate)
+                }
+                CheckedScalarExpression::IntegerBinary {
+                    kind,
+                    primitive_type,
+                    left,
+                    right,
+                } if matches!(
+                    kind,
                     CheckedIntegerBinaryKind::ExactAdd
                         | CheckedIntegerBinaryKind::ExactSubtract
                         | CheckedIntegerBinaryKind::ExactMultiply
@@ -10927,6 +10977,13 @@ fn substitute_structural_crash_route_roots(
             | ScalarTerm::SaturatingIntegerRemainder { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                substitute_term(value, substitutions)?;
+                substitute_term(count, substitutions)?;
             }
             _ => {}
         }
