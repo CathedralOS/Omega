@@ -1116,6 +1116,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input + -1i8) < 4i8) && enabled;
             staged
         }
+        machine Root::signed_positive_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -127i8 <= input
+        {
+            let staged: bool = ((input - 1i8) < 4i8) && enabled;
+            staged
+        }
+        machine Root::signed_negative_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires input <= 126i8
+        {
+            let staged: bool = ((input - -1i8) < 4i8) && enabled;
+            staged
+        }
         machine Root::exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1534,13 +1554,15 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     for machine in [
         "signed_positive_exact_add_integer_comparison_convergence",
         "signed_negative_exact_add_integer_comparison_convergence",
+        "signed_positive_exact_subtract_integer_comparison_convergence",
+        "signed_negative_exact_subtract_integer_comparison_convergence",
     ] {
         let signed_exact_add_integer_comparison = checked
             .facts
             .flow
             .terminal_structural_scalar_returns
             .for_machine(machine_named(&checked, machine))
-            .expect("one bounded signed exact-add shell retains the scalar-return plan");
+            .expect("one bounded signed exact-arithmetic shell retains the scalar-return plan");
         assert!(
             signed_exact_add_integer_comparison
                 .shared_boolean_convergence
