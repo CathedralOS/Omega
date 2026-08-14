@@ -621,9 +621,12 @@ Remaining N6/N8 work:
   runtime-argument substitution, rejecting missing, extra, unknown, or
   proposition-mismatched terms without visible-fact inference. Continue with
   named-transition evidence lanes (currently rejected explicitly before their
-  call identity can be discarded), assignment/forwarding, private complete-
-  conformance selection, generated output packages, and terminal evidence
-  identity.
+  call identity can be discarded). Bare-name requires-to-ensures forwarding now
+  leaves the runtime statement stream, retains exact resolved/typed owner and
+  term names, and checks to an exact source/output handle pair only when the
+  normalized proposition and evidence interface match. Continue with private
+  complete-conformance selection, generated output packages, path-sensitive
+  definite assignment, and terminal evidence identity.
 - Add named-ensures definite assignment per outcome and compiler-generated
   nominal output packages. `value` is the runtime result; evidence erases,
   destructuring is complete or explicitly `_`, and guarded fields exist only

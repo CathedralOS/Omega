@@ -1692,6 +1692,88 @@ fn lowers_named_contract_evidence_bindings() {
 }
 
 #[test]
+fn classifies_evidence_forwarding_out_of_runtime_statements() {
+    let source = r#"
+    trait Evidence {}
+    proposition carries(value: i32) evidence Evidence;
+    machine forward(value: i32)
+    requires input_proof: carries(value)
+    ensures output_proof: carries(value)
+    {
+        output_proof = input_proof;
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let [forwarding] = program.evidence_forwardings.as_slice() else {
+        panic!("one resolved evidence forwarding expected");
+    };
+    assert!(forwarding.machine_symbol.is_valid());
+    assert!(forwarding.state_symbol.is_valid());
+    assert_eq!(forwarding.target.as_str(), "output_proof");
+    assert_eq!(forwarding.source.as_str(), "input_proof");
+    assert_eq!(program.snapshot().evidence_forwardings.len(), 1);
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == forwarding.machine_symbol)
+        .expect("owner machine");
+    let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+    assert!(
+        program
+            .tables
+            .bodies
+            .statements
+            .statements(state.statement_nodes)
+            .is_empty(),
+        "erased forwarding must not enter runtime statement spans"
+    );
+}
+
+#[test]
+fn binds_evidence_forwarding_to_attached_machine_with_duplicate_short_name() {
+    let source = r#"
+    data Left {}
+    data Right {}
+    trait Evidence {}
+    proposition carries(value: i32) evidence Evidence;
+
+    machine Left::forward(value: i32)
+    requires incoming: carries(value)
+    ensures outgoing: carries(value)
+    {
+        outgoing = incoming;
+    }
+
+    machine Right::forward(value: i32)
+    requires incoming: carries(value)
+    ensures outgoing: carries(value)
+    {
+        outgoing = incoming;
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+
+    assert_eq!(program.evidence_forwardings.len(), 2);
+    for (root_index, forwarding) in program.evidence_forwardings.iter().enumerate() {
+        let machine = program
+            .machines
+            .iter()
+            .nth(root_index)
+            .expect("parallel root machine");
+        assert_eq!(forwarding.machine_root_index, root_index);
+        assert_eq!(forwarding.machine_symbol, machine.symbol);
+    }
+    assert_ne!(
+        program.evidence_forwardings[0].machine_symbol,
+        program.evidence_forwardings[1].machine_symbol
+    );
+}
+
+#[test]
 fn resolves_generic_calls_inside_machine_contracts() {
     let source = r#"
     data Index {

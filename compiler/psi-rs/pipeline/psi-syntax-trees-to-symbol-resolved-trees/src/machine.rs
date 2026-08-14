@@ -19,8 +19,21 @@ pub(crate) fn lower_machine_into(
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
     lowerer.current_machine_is_boundary = machine.boundary;
+    lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
+    lowerer.current_machine_name = Some(machine.name.as_str().to_owned());
+    lowerer.current_evidence_term_names = syntax_trees
+        .items
+        .capability_contracts(machine.contracts)
+        .iter()
+        .filter_map(|contract| contract.binding.as_ref())
+        .map(|binding| binding.as_str().to_owned())
+        .collect();
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
     lowerer.current_machine_is_boundary = false;
+    lowerer.current_machine_root_index = None;
+    lowerer.current_machine_name = None;
+    lowerer.current_state_name = None;
+    lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =

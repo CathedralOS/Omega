@@ -73,6 +73,12 @@ pub(crate) struct Lowerer {
     /// loads a non-pointer as an address (segfault -- probed 2026-07-04). The
     /// ref-param hoist is scoped to boundary machines.
     pub(crate) current_machine_is_boundary: bool,
+    /// Machine contract evidence names are a distinct erased namespace. They
+    /// classify bare-name assignments before ordinary value resolution.
+    pub(crate) current_machine_root_index: Option<usize>,
+    pub(crate) current_machine_name: Option<String>,
+    pub(crate) current_state_name: Option<String>,
+    pub(crate) current_evidence_term_names: Vec<String>,
     /// Maps a match SUBJECT syntax expression handle to the name of the single
     /// hoisted temp for it. All arms of one enum-variant match share the same
     /// syntax subject handle (the parser reuses it across arms), so the first
@@ -151,6 +157,10 @@ impl Lowerer {
             reference_struct_parameters: Vec::new(),
             current_state_parameter_names: Vec::new(),
             current_machine_is_boundary: false,
+            current_machine_root_index: None,
+            current_machine_name: None,
+            current_state_name: None,
+            current_evidence_term_names: Vec::new(),
             match_subject_temps: std::collections::HashMap::new(),
             current_state_parameters: Vec::new(),
             current_state_self_parameter: None,
@@ -189,6 +199,7 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )?;
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        bind_evidence_forwarding_owners(&mut self.symbol_resolved_trees);
         assert_eq!(
             self.symbol_resolved_trees.machines.len(),
             self.pending_machine_service_reaches.len(),
@@ -251,6 +262,7 @@ impl Lowerer {
             service_reach_rows,
             semantic_domains,
             external_bindings,
+            evidence_forwardings,
         } = self.symbol_resolved_trees;
 
         let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
@@ -260,7 +272,36 @@ impl Lowerer {
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
         trees.external_bindings = external_bindings;
+        trees.evidence_forwardings = evidence_forwardings;
         Ok(trees)
+    }
+}
+
+fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
+    let mut owners = Vec::new();
+    for (machine_root_index, machine) in program.machines.iter().enumerate() {
+        for state_handle in program.machine_state_handles(machine.states) {
+            let state = program.machine_state(*state_handle);
+            owners.push((
+                machine_root_index,
+                state.name.as_str().to_owned(),
+                machine.symbol,
+                state.symbol,
+            ));
+        }
+    }
+    for forwarding in &mut program.evidence_forwardings {
+        if let Some((_, _, machine_symbol, state_symbol)) =
+            owners
+                .iter()
+                .find(|(machine_root_index, state_name, _, _)| {
+                    *machine_root_index == forwarding.machine_root_index
+                        && state_name == forwarding.state_name.as_str()
+                })
+        {
+            forwarding.machine_symbol = *machine_symbol;
+            forwarding.state_symbol = *state_symbol;
+        }
     }
 }
 
