@@ -416,17 +416,18 @@ same- or cross-sign, under retained direct parameter range `requires`, or exact
 fixed-width addition with a landed operand, subtraction with a landed
 subtrahend, or multiplication with a landed factor under retained matching
 direct parameter bounds, runtime unsigned multiplication under retained
-`1 <= right` and `left <= MAX / right` bounds, one runtime unsigned addition
-under the retained canonical `left <= MAX - right` bound, one runtime signed
-addition under matching sign and `MAX - right` or `MIN - right` bounds, runtime
-subtraction unsigned under a retained direct subtrahend-to-minuend bound or
+`1 <= right` and `left <= MAX / right` bounds, or runtime signed multiplication
+under a retained positive or at-most-`-2` factor bound and both carrier-tight
+quotient bounds, one runtime unsigned addition under the retained canonical
+`left <= MAX - right` bound, one runtime signed addition under matching sign and
+`MAX - right` or `MIN - right` bounds, runtime subtraction unsigned under a
+retained direct subtrahend-to-minuend bound or
 signed under matching sign and `MIN + right` or `MAX + right` bounds, one exact
-right shift under a direct
-unsigned count upper bound, one exact left shift by a landed count under a direct
-unsigned value upper bound or by an unsigned runtime count under direct count
-and value upper bounds, or exact
-division/remainder by a landed nonzero unsigned constant, a landed signed
-constant other than `0` or `-1`, a runtime unsigned divisor under a direct
+right shift under a direct unsigned count upper bound, one exact left shift by a
+landed count under a direct unsigned value upper bound or by an unsigned runtime
+count under direct count and value upper bounds, or exact division/remainder by
+a landed nonzero unsigned constant, a landed signed constant other than `0` or
+`-1`, a runtime unsigned divisor under a direct
 positive lower bound, or a runtime signed divisor under a direct positive lower
 bound, `divisor <= -2` upper bound, or joint `divisor <= -1` and
 `MIN + 1 <= dividend` bounds, may form decision leaves. Psi retains every exact
@@ -934,12 +935,12 @@ and lower-bound premises; Psi retains each as a terminal machine requirement,
 and each operation certificate cites its exact assumption. Those premises now
 cover same- and cross-sign exact narrowing plus signed or unsigned
 landed-operand addition, landed-subtrahend subtraction, and landed-factor
-multiplication, plus runtime unsigned multiplication, runtime unsigned and
-signed addition under the corresponding computed bounds, and runtime unsigned
-and signed subtraction under the corresponding relational or computed bounds,
-in addition to the separately
-listed shift forms, signed landed-divisor form, runtime signed or unsigned
-positive-divisor forms, and the two signed negative-divisor forms.
+multiplication, plus runtime unsigned and signed multiplication, runtime
+unsigned and signed addition under the corresponding computed bounds, and
+runtime unsigned and signed subtraction under the corresponding relational or
+computed bounds, in addition to the separately listed shift forms, signed
+landed-divisor form, runtime signed or unsigned positive-divisor forms, and the
+two signed negative-divisor forms.
 Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external

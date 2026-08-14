@@ -760,7 +760,11 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
             0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
+            -128i8 / signed_divisor <= signed_arithmetic,
+            signed_arithmetic <= 127i8 / signed_divisor,
             negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
+            127i8 / negative_divisor <= signed_arithmetic,
+            signed_arithmetic <= -128i8 / negative_divisor,
             add_left <= 255u8 - add_right,
             0i8 <= positive_addend, signed_arithmetic <= 127i8 - positive_addend,
             negative_addend <= 0i8, -128i8 - negative_addend <= signed_arithmetic,
@@ -792,6 +796,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic - -1i8) < 4i8)
                 && ((signed_arithmetic * 3i8) < 4i8)
                 && ((signed_arithmetic * -3i8) < 4i8)
+                && ((signed_arithmetic * signed_divisor) <= 127i8)
+                && ((signed_arithmetic * negative_divisor) <= 127i8)
                 && ((signed_arithmetic / 2i8) < 4i8)
                 && ((signed_arithmetic % -2i8) <= 1i8)
                 && ((signed_arithmetic / signed_divisor) < 4i8)
@@ -1382,6 +1388,31 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    for factor in [
+        terminal_entry.parameters[6].id,
+        terminal_entry.parameters[7].id,
+    ] {
+        let obligation = terminal_entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation.kind {
+                OperationKind::ExactIntegerMultiply {
+                    left,
+                    right,
+                    obligation,
+                } if left == terminal_entry.parameters[5].id && right == factor => Some(obligation),
+                _ => None,
+            })
+            .expect("shared convergence retains each signed quotient-bound multiplication");
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_subtract_obligation = terminal_entry
         .blocks
         .iter()

@@ -1208,6 +1208,28 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((left * right) <= 255u8) && enabled;
             staged
         }
+        machine Root::runtime_signed_positive_exact_multiply_integer_comparison_convergence(
+            token: Token,
+            left: i8,
+            right: i8,
+            enabled: bool
+        ) -> bool
+        requires 1i8 <= right, -128i8 / right <= left, left <= 127i8 / right
+        {
+            let staged: bool = ((left * right) < 4i8) && enabled;
+            staged
+        }
+        machine Root::runtime_signed_negative_exact_multiply_integer_comparison_convergence(
+            token: Token,
+            left: i8,
+            right: i8,
+            enabled: bool
+        ) -> bool
+        requires right <= -2i8, 127i8 / right <= left, left <= -128i8 / right
+        {
+            let staged: bool = ((left * right) <= 127i8) && enabled;
+            staged
+        }
         machine Root::runtime_signed_positive_exact_add_integer_comparison_convergence(
             token: Token,
             left: i8,
@@ -1828,6 +1850,24 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    for machine in [
+        "runtime_signed_positive_exact_multiply_integer_comparison_convergence",
+        "runtime_signed_negative_exact_multiply_integer_comparison_convergence",
+    ] {
+        let runtime_signed_exact_multiply_integer_comparison = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect(
+                "one signed quotient-bound runtime exact-multiply shell retains the scalar-return plan",
+            );
+        assert!(
+            runtime_signed_exact_multiply_integer_comparison
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
     for machine in [
         "runtime_signed_positive_exact_add_integer_comparison_convergence",
         "runtime_signed_negative_exact_add_integer_comparison_convergence",

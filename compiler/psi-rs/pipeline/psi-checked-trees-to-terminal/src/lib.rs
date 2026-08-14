@@ -4343,14 +4343,7 @@ fn lower_nominal_structural_scalar_return_machine(
                         )
                     })?
                 }
-                CheckedStructuralScalarIntegerBoundPlan::UnsignedMaximumDivideParameter(
-                    position,
-                ) => {
-                    if integer_type.sign() != IntegerSign::Unsigned {
-                        return unsupported(
-                            "nominal scalar maximum-divide bound requires an unsigned carrier",
-                        );
-                    }
+                CheckedStructuralScalarIntegerBoundPlan::MaximumDivideParameter(position) => {
                     let bound_parameter = scalar_parameters
                         .get(usize::try_from(*position).map_err(|_| {
                             LoweringError::Unsupported(
@@ -4372,6 +4365,41 @@ fn lower_nominal_structural_scalar_return_machine(
                     ScalarTerm::exact_integer_divide(
                         integer_type,
                         maximum,
+                        ScalarTerm::value(bound_parameter.id, scalar_type),
+                    )
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "nominal scalar computed-bound division is invalid",
+                        )
+                    })?
+                }
+                CheckedStructuralScalarIntegerBoundPlan::SignedMinimumDivideParameter(position) => {
+                    if integer_type.sign() != IntegerSign::Signed {
+                        return unsupported(
+                            "nominal scalar minimum-divide bound requires a signed carrier",
+                        );
+                    }
+                    let bound_parameter = scalar_parameters
+                        .get(usize::try_from(*position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "nominal scalar computed-bound parameter position exceeds usize",
+                            )
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "nominal scalar computed-bound parameter is absent",
+                        ))?;
+                    if bound_parameter.scalar_type != scalar_type {
+                        return unsupported("nominal scalar computed-bound parameter type drifted");
+                    }
+                    let minimum = ScalarTerm::integer(integer_type, integer_type.minimum_value())
+                        .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "nominal scalar computed-bound minimum is invalid",
+                        )
+                    })?;
+                    ScalarTerm::exact_integer_divide(
+                        integer_type,
+                        minimum,
                         ScalarTerm::value(bound_parameter.id, scalar_type),
                     )
                     .map_err(|_| {
