@@ -416,7 +416,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         enabled: bool
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
-        small <= 7u8, 1u8 <= divisor, divisor <= small, count <= 2u8,
+        small <= 7u8, 1u8 <= divisor, divisor <= small,
+        small <= 255u8 / divisor, count <= 2u8,
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
@@ -436,6 +437,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((127u8 - small) < 125u8)
             && ((small - divisor) < 4u8)
             && ((small * 2u8) < 10u8)
+            && ((small * divisor) < 50u8)
             && ((small / 2u8) < 3u8)
             && ((small % 2u8) <= 1u8)
             && ((small / divisor) < 6u8)
@@ -1784,7 +1786,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let add_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 254));
     let divisor_lower_requirement =
         Proposition::LessOrEqual(unsigned_term(8, 1), divisor_term.clone());
-    let runtime_subtract_requirement = Proposition::LessOrEqual(divisor_term, small_term);
+    let runtime_subtract_requirement =
+        Proposition::LessOrEqual(divisor_term.clone(), small_term.clone());
     let left_shift_count_requirement = Proposition::LessOrEqual(count_term, unsigned_term(8, 2));
     let signed_lower_requirement = Proposition::LessOrEqual(
         ScalarTerm::integer(signed_type, IntegerValue::Signed(-128)).unwrap(),
@@ -1827,6 +1830,15 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-1)).unwrap(),
     );
     let add_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let runtime_multiply_requirement = Proposition::LessOrEqual(
+        small_term,
+        ScalarTerm::exact_integer_divide(
+            add_type,
+            ScalarTerm::integer(add_type, IntegerValue::Unsigned(255)).unwrap(),
+            divisor_term,
+        )
+        .unwrap(),
+    );
     let runtime_add_requirement = Proposition::LessOrEqual(
         add_left_term,
         ScalarTerm::exact_integer_subtract(
@@ -1896,6 +1908,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &add_upper_requirement,
         &divisor_lower_requirement,
         &runtime_subtract_requirement,
+        &runtime_multiply_requirement,
         &left_shift_count_requirement,
         &signed_lower_requirement,
         &signed_upper_requirement,
@@ -2455,6 +2468,28 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let runtime_exact_multiply_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply {
+                left,
+                right,
+                obligation,
+            } if left == entry.parameters[1].id && right == entry.parameters[2].id => {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the computed-bound runtime multiplication");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == runtime_exact_multiply_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_subtract_obligation = entry
         .blocks
         .iter()
@@ -2803,6 +2838,54 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == exact_multiply_obligation
     ));
+    let mut missing_runtime_multiply_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_runtime_multiply_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != runtime_exact_multiply_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_runtime_multiply_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == runtime_exact_multiply_obligation
+    ));
+    let mut changed_runtime_multiply_bound =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_runtime_multiply_bound.entry;
+    let entry_contract = &mut changed_runtime_multiply_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let runtime_multiply_requirement_position = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &runtime_multiply_requirement)
+        .expect("shared convergence retains the computed runtime-multiply bound");
+    entry_contract.requires[runtime_multiply_requirement_position] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type),
+        ScalarTerm::exact_integer_divide(
+            add_type,
+            ScalarTerm::integer(add_type, IntegerValue::Unsigned(254)).unwrap(),
+            ScalarTerm::value(entry.parameters[2].id, entry.parameters[2].scalar_type),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_runtime_multiply_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == runtime_exact_multiply_obligation
+    ));
     let mut changed_exact_bound = decode_module(&semantics).expect("decode shared semantics");
     let changed_entry = changed_exact_bound.entry;
     let entry_contract = &mut changed_exact_bound
@@ -2887,6 +2970,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == runtime_exact_divide_obligation
             || obligation == runtime_exact_remainder_obligation
+            || obligation == runtime_exact_multiply_obligation
     ));
     let mut changed_signed_divisor_bound =
         decode_module(&semantics).expect("decode shared semantics");
@@ -3406,6 +3490,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && 127 - small < 125
                     && small - divisor < 4
                     && small * 2 < 10
+                    && small * divisor < 50
                     && small / 2 < 3
                     && small % 2 <= 1
                     && small / divisor < 6

@@ -910,6 +910,8 @@ fn reconstruct_machine_semantics(
                     else {
                         unreachable!("validator requires exact-multiply integer result type")
                     };
+                    let mut available_bounds = axioms.clone();
+                    available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
@@ -917,7 +919,7 @@ fn reconstruct_machine_semantics(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
-                                &axioms,
+                                &available_bounds,
                             ),
                             class: ObligationClass::Derivable,
                         },

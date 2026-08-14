@@ -351,6 +351,8 @@ pub enum CheckedStructuralScalarIntegerBoundPlan {
     SignedMinimumPlusParameter(u32),
     /// The maximum of this signed carrier plus the named dense parameter.
     SignedMaximumPlusParameter(u32),
+    /// The maximum of this unsigned carrier divided by the named dense parameter.
+    UnsignedMaximumDivideParameter(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
