@@ -145,15 +145,15 @@ runtime statement stream and records an exact checked source-to-output binding;
 both normalized proposition application and evidence interface must match. It
 does not search visible facts or mint another witness. Producer-conformance
 assignment and path-sensitive outgoing definite assignment remain separate
-steps. The initial definite-assignment gate covers direct ordinary returns:
-each outgoing slot is assigned exactly once, duplicate assignment rejects, and
-a crash-only path has no outgoing package. The transition graph retains that
-assignment state across named edges. A state-level named `requires` now binds
-an exact arrival term, and every named transition carries a separate erased
-identifier lane after `;`; checked binding substitutes the target state's
-ordinary arguments before comparing proposition identity. Machine-level
-incoming terms remain live across internal transitions and are not redundantly
-repassed in the state-arrival lane.
+steps. Definite assignment records each erased forwarding's exact statement
+coordinate and carries assignment state through the finite named-state graph.
+Every ordinary outcome must assign each outgoing slot exactly once; duplicate
+assignment rejects, and a crash-only outcome has no outgoing package. A
+state-level named `requires` binds an exact arrival term, and every named
+transition carries a separate erased identifier lane after `;`; checked binding
+substitutes the target state's ordinary arguments before comparing proposition
+identity. Machine-level incoming terms remain live across internal transitions
+and are not redundantly repassed in the state-arrival lane.
 
 Named requirements are positional erased inputs. Calls pass them explicitly in
 clause order after a `;` lane separator, never through visible-fact or

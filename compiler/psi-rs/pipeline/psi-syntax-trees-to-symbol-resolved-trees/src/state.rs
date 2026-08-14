@@ -322,7 +322,7 @@ fn lower_statement_into_pending(
     // lets of every arm after the first are spliced BEFORE the run's first
     // transition instead. The hoisted reads are pure loads; evaluating them
     // ahead of the whole dispatch has no observable effect.
-    let mut lowered = lower_statement_handle(lowerer, syntax_trees, statement)?;
+    let mut lowered = lower_statement_handle(lowerer, syntax_trees, statement, pending.len())?;
     let ends_in_transition = matches!(lowered.last(), Some(Statement::Transition(_)));
     if ends_in_transition {
         let lets_count = lowered.len() - 1;

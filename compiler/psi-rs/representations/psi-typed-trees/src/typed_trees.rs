@@ -60,6 +60,7 @@ pub struct TypedTrees {
 pub struct EvidenceForwarding {
     pub machine_symbol: psi_symbols::SymbolHandle,
     pub state_symbol: psi_symbols::SymbolHandle,
+    pub statement_index: usize,
     pub target: crate::name::Identifier,
     pub source: crate::name::Identifier,
 }

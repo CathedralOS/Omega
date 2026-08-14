@@ -54,6 +54,9 @@ pub struct EvidenceForwarding {
     pub state_name: DiagnosticName,
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
+    /// Runtime-statement insertion point in the owning state. Evidence erases,
+    /// so several forwardings may share one coordinate.
+    pub statement_index: usize,
     pub target: DiagnosticName,
     pub source: DiagnosticName,
 }

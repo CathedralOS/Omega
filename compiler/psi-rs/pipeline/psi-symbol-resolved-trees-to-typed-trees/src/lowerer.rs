@@ -43,6 +43,7 @@ pub fn lower_symbol_resolved_trees(
             |forwarding| psi_typed_trees::typed_trees::EvidenceForwarding {
                 machine_symbol: forwarding.machine_symbol,
                 state_symbol: forwarding.state_symbol,
+                statement_index: forwarding.statement_index,
                 target: crate::name::lower_name(&forwarding.target),
                 source: crate::name::lower_name(&forwarding.source),
             },

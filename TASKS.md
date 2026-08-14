@@ -461,15 +461,15 @@ Remaining N6/N8 work:
   carry separate erased argument lanes and bind them positionally after runtime
   substitution; missing, extra, unknown, non-nominal, or mismatched terms reject.
   Enclosing terms remain live without retransmission. Bare-name forwarding is
-  proof-only and retains an exact source/output handle pair; direct ordinary
-  returns assign every named output exactly once, while crash-only paths assign
-  none. Continue with private complete-conformance selection, generated output
-  packages, and terminal evidence identity.
-- Extend named-ensures definite assignment to every ordinary outcome and emit
-  compiler-generated nominal output packages. `value` is the runtime result;
-  evidence erases, destructuring is complete or explicitly `_`, and guarded
-  fields exist only in the matching refinement. Keep proposition, evidence-term,
-  and provenance identities separate.
+  proof-only and retains an exact source/output handle pair plus its statement
+  coordinate. A path-sensitive must-analysis carries those assignments through
+  the finite named-state graph, requires every ordinary outcome to assign each
+  output exactly once, and exempts crash-only outcomes. Continue with private
+  complete-conformance selection, generated nominal output packages, and
+  terminal evidence identity. `value` is the runtime result; evidence erases,
+  destructuring is complete or explicitly `_`, and guarded fields exist only in
+  the matching refinement. Keep proposition, evidence-term, and provenance
+  identities separate.
 - Finish name-owned generic telescopes and explicit binders:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares an
   implementation; `Evidence: Subject satisfies Trait` binds one. Identity

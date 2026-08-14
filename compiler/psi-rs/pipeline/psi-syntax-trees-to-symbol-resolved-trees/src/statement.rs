@@ -33,11 +33,13 @@ pub(crate) fn lower_statement_handle(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     statement: syntax::statement::StatementHandle,
+    statement_index: usize,
 ) -> Result<Vec<Statement>, Diagnostic> {
     lower_statement_node(
         lowerer,
         syntax_trees,
         syntax_trees.statements.statement(statement),
+        statement_index,
     )
 }
 
@@ -45,6 +47,7 @@ fn lower_statement_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     statement: &syntax::statement::StatementNode,
+    statement_index: usize,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
         syntax::statement::StatementNode::AssemblyFact(fact) => {
@@ -76,6 +79,7 @@ fn lower_statement_node(
                         ),
                         machine_symbol: SymbolHandle::invalid(),
                         state_symbol: SymbolHandle::invalid(),
+                        statement_index,
                         target: crate::name::lower_name(target),
                         source: crate::name::lower_name(source),
                     },

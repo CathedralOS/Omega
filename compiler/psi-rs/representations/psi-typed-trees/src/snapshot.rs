@@ -38,6 +38,7 @@ pub struct TypedTreesSnapshot {
 pub struct EvidenceForwardingSnapshot {
     pub machine_symbol: u32,
     pub state_symbol: u32,
+    pub statement_index: usize,
     pub target: String,
     pub source: String,
 }
@@ -116,6 +117,7 @@ impl TypedTreesSnapshot {
                 .map(|forwarding| EvidenceForwardingSnapshot {
                     machine_symbol: forwarding.machine_symbol.arena_index(),
                     state_symbol: forwarding.state_symbol.arena_index(),
+                    statement_index: forwarding.statement_index,
                     target: forwarding.target.to_string(),
                     source: forwarding.source.to_string(),
                 })

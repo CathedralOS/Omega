@@ -189,10 +189,10 @@ machine, the source must be an exact named `requires` term of that machine, and
 their normalized proposition application and evidence interface must match.
 The outgoing field then denotes the incoming term itself. A visible matching
 fact cannot replace the source assignment. Checked lowering already enforces
-that every named output is assigned exactly once before a direct ordinary
-return; assigning it twice rejects, while a crash-only path produces no output
-package and need not assign it. Internal transition paths join this same
-judgment once their explicit erased evidence lane is retained.
+that every named output is assigned exactly once on every ordinary outcome of
+the finite named-state graph. Assignment is ordered at its source statement and
+carried across named transitions; assigning twice rejects, while a crash-only
+outcome produces no output package and need not assign it.
 
 Name a `requires` clause only when its body projects or forwards the term.
 Changing `requires P` to `requires proof: P` adds an explicit erased input and

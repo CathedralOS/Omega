@@ -146,6 +146,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
         forwardings.append(psi_checked_trees::EvidenceForwardingFact {
             machine_symbol: forwarding.machine_symbol,
             state_symbol: forwarding.state_symbol,
+            statement_index: forwarding.statement_index,
             output,
             source,
         });
@@ -212,39 +213,66 @@ fn validate_evidence_forwarding_definite_assignment(
                         .then_some(forwarding)
                 })
                 .collect::<Vec<_>>();
-            for forwarding in assignments {
-                if !assigned.insert(forwarding.output.arena_index()) {
-                    let term = proof.evidence_terms.get(forwarding.output);
-                    diagnostic_messages.insert(format!(
-                        "named ensures evidence `{}` is assigned more than once on a reachable path through {}::{}",
-                        term.name, machine.name, state.name
-                    ));
-                }
+            let statements = program.statement_table.statements(state.statement_nodes);
+            if assignments
+                .iter()
+                .any(|forwarding| forwarding.statement_index > statements.len())
+            {
+                diagnostic_messages.insert(format!(
+                    "named ensures evidence assignment coordinate is outside {}::{}",
+                    machine.name, state.name
+                ));
+                continue;
             }
 
-            let mut has_transition = false;
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::Transition(transition) = statement else {
+            let mut stops_fallthrough = false;
+            for statement_index in 0..=statements.len() {
+                for forwarding in assignments
+                    .iter()
+                    .filter(|forwarding| forwarding.statement_index == statement_index)
+                {
+                    if !assigned.insert(forwarding.output.arena_index()) {
+                        let term = proof.evidence_terms.get(forwarding.output);
+                        diagnostic_messages.insert(format!(
+                            "named ensures evidence `{}` is assigned more than once on a reachable path through {}::{}",
+                            term.name, machine.name, state.name
+                        ));
+                    }
+                }
+
+                let Some(StatementNode::Transition(transition)) = statements.get(statement_index)
+                else {
                     continue;
                 };
-                has_transition = true;
-                if transition.exit != TransitionExit::Ordinary {
-                    continue;
-                }
-                for target_handle in [transition.target, transition.continuation] {
-                    if !target_handle.is_valid() {
-                        continue;
-                    }
-                    match program.statement_table.transition_target(target_handle) {
-                        TransitionTargetNode::Named { path, .. } => {
-                            let target = if path.symbol == machine.symbol {
-                                entry.symbol
-                            } else {
-                                path.symbol
-                            };
-                            if states.iter().any(|state| state.symbol == target) {
-                                work.push_back((target, assigned.clone()));
-                            } else {
+                if transition.exit == TransitionExit::Ordinary {
+                    for target_handle in [transition.target, transition.continuation] {
+                        if !target_handle.is_valid() {
+                            continue;
+                        }
+                        match program.statement_table.transition_target(target_handle) {
+                            TransitionTargetNode::Named { path, .. } => {
+                                let target = if path.symbol == machine.symbol {
+                                    entry.symbol
+                                } else {
+                                    path.symbol
+                                };
+                                if states.iter().any(|state| state.symbol == target) {
+                                    work.push_back((target, assigned.clone()));
+                                } else {
+                                    append_missing_evidence_diagnostics(
+                                        proof,
+                                        machine,
+                                        state,
+                                        &outputs,
+                                        &assigned,
+                                        &mut diagnostic_messages,
+                                    );
+                                }
+                            }
+                            TransitionTargetNode::SelfTarget => {
+                                work.push_back((entry.symbol, assigned.clone()));
+                            }
+                            TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
                                 append_missing_evidence_diagnostics(
                                     proof,
                                     machine,
@@ -255,24 +283,31 @@ fn validate_evidence_forwarding_definite_assignment(
                                 );
                             }
                         }
-                        TransitionTargetNode::SelfTarget => {
-                            work.push_back((entry.symbol, assigned.clone()));
-                        }
-                        TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
-                            append_missing_evidence_diagnostics(
-                                proof,
-                                machine,
-                                state,
-                                &outputs,
-                                &assigned,
-                                &mut diagnostic_messages,
-                            );
-                        }
                     }
+                }
+                // Resolved-to-typed lowering has already rejected every
+                // non-exhaustive maximal transition run. A miss proceeds to
+                // the next consecutive arm, but the run as a whole cannot
+                // fall through. Evidence forwarding is erased from the
+                // runtime statement table, so its recorded coordinate must
+                // also split runs: an assignment between two authored
+                // dispatches cannot be backdated into the first one's exits.
+                let next_coordinate_has_assignment = assignments
+                    .iter()
+                    .any(|forwarding| forwarding.statement_index == statement_index + 1);
+                let run_ends = transition.continuation.is_valid()
+                    || next_coordinate_has_assignment
+                    || !matches!(
+                        statements.get(statement_index + 1),
+                        Some(StatementNode::Transition(_))
+                    );
+                if run_ends {
+                    stops_fallthrough = true;
+                    break;
                 }
             }
 
-            if !has_transition {
+            if !stops_fallthrough {
                 append_missing_evidence_diagnostics(
                     proof,
                     machine,
