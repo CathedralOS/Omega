@@ -236,7 +236,8 @@ Remaining:
   landed nonzero unsigned constant, a landed signed constant other than `0` or
   `-1`, a runtime unsigned divisor under a retained direct positive lower bound,
   or a runtime signed divisor under a retained direct positive lower bound or
-  `divisor <= -2` upper bound.
+  `divisor <= -2` upper bound, or under joint `divisor <= -1` and
+  `MIN + 1 <= dividend` bounds.
   Nested proof-bearing shells, computed exact-cast and wider exact-arithmetic
   premise shapes, other unary computation, and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
