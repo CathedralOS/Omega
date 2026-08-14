@@ -224,7 +224,8 @@ Remaining:
   tail through interpretation and every native target. Either operand may use
   up to two total bitwise-not, binary bitwise, wrapping shift/arithmetic,
   saturating arithmetic, or integer-widening shells, or one proof-bearing exact
-  fixed-width narrowing under retained direct parameter range `requires`, or
+  fixed-width narrowing, same- or cross-sign, under retained direct parameter
+  range `requires`, or
   exact fixed-width addition with a landed operand, subtraction with a landed
   subtrahend, or multiplication with a landed factor under retained matching
   direct parameter bounds, or exact unsigned subtraction under a retained
@@ -233,7 +234,7 @@ Remaining:
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
   landed nonzero unsigned constant or runtime unsigned divisor under a retained
-  direct lower bound. Nested proof-bearing shells, wider exact-cast and
+  direct lower bound. Nested proof-bearing shells, computed exact-cast and wider
   exact-arithmetic premise shapes, other unary computation, and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
   then

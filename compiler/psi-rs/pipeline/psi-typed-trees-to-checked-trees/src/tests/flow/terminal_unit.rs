@@ -1096,6 +1096,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input as i8) < 4i8) && enabled;
             staged
         }
+        machine Root::unsigned_to_signed_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 127u8
+        {
+            let staged: bool = ((input as i8) < 4i8) && enabled;
+            staged
+        }
+        machine Root::signed_to_unsigned_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires 0i8 <= input
+        {
+            let staged: bool = ((input as u8) < 4u8) && enabled;
+            staged
+        }
         machine Root::signed_positive_exact_add_integer_comparison_convergence(
             token: Token,
             input: i8,
@@ -1582,6 +1602,22 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    for machine in [
+        "unsigned_to_signed_exact_cast_integer_comparison_convergence",
+        "signed_to_unsigned_exact_cast_integer_comparison_convergence",
+    ] {
+        let cross_sign_exact_cast_integer_comparison = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect("one bounded cross-sign exact-cast shell retains the scalar-return plan");
+        assert!(
+            cross_sign_exact_cast_integer_comparison
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
     for machine in [
         "signed_positive_exact_add_integer_comparison_convergence",
         "signed_negative_exact_add_integer_comparison_convergence",

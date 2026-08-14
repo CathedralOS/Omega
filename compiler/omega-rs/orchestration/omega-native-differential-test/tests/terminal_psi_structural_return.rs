@@ -748,7 +748,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             small <= 7u8, 1u8 <= divisor, divisor <= small, count <= 2u8,
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
-            -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8
+            -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
+            0i8 <= signed_arithmetic
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -766,6 +767,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
                 && ((signed as i8) < 4i8)
+                && ((small as i8) < 4i8)
+                && ((signed_arithmetic as u8) < 4u8)
                 && ((signed_arithmetic + 1i8) < 4i8)
                 && ((signed_arithmetic + -1i8) < 4i8)
                 && ((signed_arithmetic - 1i8) < 4i8)
@@ -852,6 +855,34 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let cross_sign_cast_obligations = [
+        terminal_entry.parameters[1].id,
+        terminal_entry.parameters[5].id,
+    ]
+    .into_iter()
+    .map(|parameter| {
+        terminal_entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation.kind {
+                OperationKind::IntegerExactCast {
+                    operand,
+                    obligation,
+                } if operand == parameter => Some(obligation),
+                _ => None,
+            })
+            .expect("shared convergence retains each cross-sign guarded exact cast")
+    });
+    for obligation in cross_sign_cast_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let signed_arithmetic_parameter = terminal_entry.parameters[5].id;
     let signed_add_sites = terminal_entry
         .blocks
