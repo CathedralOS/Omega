@@ -140,8 +140,15 @@ changes the proof fingerprint, not terminal semantic identity, runtime, or
 fuel. Each ensured lane also retains its public generated-package field name
 beside the exact `EvidenceTermId`; required lanes have no output field, `value`
 remains reserved for the ordinary runtime result, and missing or duplicate
-names reject. Projection of the retained carrierless conformance surface
-remains future work; diagnostic display spelling is never an identity oracle.
+names reject. The retained carrierless interface includes its complete direct
+and inherited requirement surface, including each declaring trait's normalized
+argument pack. A proof-static projection carries the canonical evidence-term
+ID plus the exact declaring-trait application and requirement-overload
+identity. Forwarding is canonicalized before applications are serialized, so
+input and output aliases project the same opaque identity while separate terms
+remain distinct. The verifier requires the term and exact row to exist in the
+retained interface; diagnostic display spelling is never an identity oracle.
+Generated-package projection remains separate work.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

@@ -505,8 +505,12 @@ verifier accepts an ensures-only ID only through one matching row; that row
 changes proof identity, not semantic identity, runtime, or fuel. Each ensured
 lane retains its public generated-package field name beside the exact term ID;
 required lanes have no output field, and missing, reserved, or duplicate names
-reject. Projection of the complete conformance surface remains future work. A
-display spelling is never an identity oracle.
+reject. The interface also retains its complete normalized requirement surface.
+`term.member` resolves to an exact checked term and requirement row, then
+terminal Psi replaces the term handle with its forwarding-canonical ID and
+retains the declaring trait application plus canonical requirement overload.
+The verifier rejects unknown terms and rows. A display spelling is never an
+identity oracle; generated-package projection remains future work.
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.

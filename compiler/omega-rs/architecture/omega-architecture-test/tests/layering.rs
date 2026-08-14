@@ -605,6 +605,9 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
     let path = root.join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+    let production_source = source
+        .split_once("#[cfg(test)]")
+        .map_or(source.as_str(), |(production, _)| production);
     let manifest_path =
         root.join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
@@ -623,7 +626,7 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
         "terminal-Psi production must consume checked carriers without a typed-tree dependency"
     );
     assert!(
-        !source.contains("psi_typed_trees"),
+        !production_source.contains("psi_typed_trees"),
         "terminal-Psi production must not reopen typed-tree vocabulary"
     );
     assert!(

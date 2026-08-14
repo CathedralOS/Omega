@@ -71,6 +71,126 @@ const EMPTY_PRODUCER_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_SOURCE: &str = r#"
+    trait Parent<T> {
+        machine modulus(value: T) -> i32;
+    }
+    trait Evidence<T>: Parent<T> {}
+
+    proposition ready<T>() evidence Evidence<T>;
+    proposition selected<machine Witness>();
+    proposition chosen<machine Witness>() = selected<Witness>();
+
+    data Root {}
+    machine Root::project()
+    requires first: ready<i32>()
+    requires second: ready<i32>()
+    requires selected<first.modulus>()
+    requires selected<first.modulus>()
+    requires chosen<first.modulus>()
+    requires selected<second.modulus>()
+    {
+    }
+
+    machine Root::forward()
+    requires incoming: ready<i32>()
+    requires selected<incoming.modulus>()
+    ensures outgoing: ready<i32>()
+    {
+        outgoing = incoming;
+    }
+"#;
+
+#[test]
+fn source_projection_uses_canonical_term_and_exact_requirement_identity() {
+    let checked = check(PROJECTED_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::project")
+        .expect("carrierless projection should cross terminal Psi");
+    let projections = lowered
+        .semantic_module
+        .proposition_applications
+        .iter()
+        .flat_map(|application| &application.binder_arguments)
+        .filter_map(|argument| argument.evidence_projection.as_ref())
+        .collect::<Vec<_>>();
+    assert_eq!(projections.len(), 2, "the repeated projection deduplicates");
+    assert_eq!(
+        projections[0].requirement_identity,
+        projections[1].requirement_identity
+    );
+    assert_eq!(projections[0].declaring_trait_identity, "Parent");
+    assert_eq!(projections[0].declaring_trait_arguments.len(), 1);
+    assert_ne!(
+        projections[0].term, projections[1].term,
+        "separate evidence introductions retain distinct opaque projections"
+    );
+    assert!(lowered.semantic_module.evidence_terms.iter().all(|term| {
+        term.interface.requirements.iter().any(|requirement| {
+            requirement.requirement_identity == projections[0].requirement_identity
+        })
+    }));
+
+    let bytes = encode_module(&lowered.semantic_module).expect("projection module encodes");
+    assert_eq!(
+        decode_module(&bytes).expect("projection module decodes"),
+        lowered.semantic_module
+    );
+
+    let mut wrong_term = lowered.semantic_module.clone();
+    let projection = wrong_term
+        .proposition_applications
+        .iter_mut()
+        .flat_map(|application| &mut application.binder_arguments)
+        .find_map(|argument| argument.evidence_projection.as_mut())
+        .expect("projection");
+    projection.term = psi_core::EvidenceTermId::new(99).expect("test evidence term");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&wrong_term),
+        Err(psi_terminal_verifier::ModuleError::UnknownEvidenceProjectionTerm { .. })
+    ));
+
+    let mut wrong_requirement = lowered.semantic_module.clone();
+    wrong_requirement
+        .proposition_applications
+        .iter_mut()
+        .flat_map(|application| &mut application.binder_arguments)
+        .find_map(|argument| argument.evidence_projection.as_mut())
+        .expect("projection")
+        .requirement_identity = "forged requirement".to_owned();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&wrong_requirement),
+        Err(psi_terminal_verifier::ModuleError::EvidenceProjectionRequirementMismatch { .. })
+    ));
+}
+
+#[test]
+fn forwarded_projection_uses_the_shared_terminal_term_identity() {
+    let checked = check(PROJECTED_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::forward")
+        .expect("forwarded carrierless projection should cross terminal Psi");
+    let projection = lowered
+        .semantic_module
+        .proposition_applications
+        .iter()
+        .flat_map(|application| &application.binder_arguments)
+        .find_map(|argument| argument.evidence_projection.as_ref())
+        .expect("projection");
+    let requires = lowered
+        .semantic_module
+        .evidence_contract_lanes
+        .iter()
+        .find(|lane| lane.kind == EvidenceContractLaneKind::Requires)
+        .expect("requires lane");
+    let ensures = lowered
+        .semantic_module
+        .evidence_contract_lanes
+        .iter()
+        .find(|lane| lane.kind == EvidenceContractLaneKind::Ensures)
+        .expect("ensures lane");
+    assert_eq!(requires.term, ensures.term);
+    assert_eq!(projection.term, requires.term);
+}
+
 #[test]
 fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
     let checked = check(FORWARDED_SOURCE);
@@ -391,6 +511,13 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     assert_eq!(producer.evidence_trait_identity, "Evidence");
     assert_eq!(producer.rows.len(), 1);
     assert!(!producer.rows[0].requirement_identity.is_empty());
+    assert_eq!(
+        producer.rows[0].declaring_trait_arguments,
+        lowered.semantic_module.evidence_terms[0]
+            .interface
+            .requirements[0]
+            .declaring_trait_arguments
+    );
 
     let semantic = semantic_fingerprint(&lowered.semantic_module).expect("terminal identity");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("producer proof encodes");
@@ -487,6 +614,18 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
             &AdmissionProfile::default()
         ),
         Err(psi_terminal_verifier::VerificationError::NonCanonicalEvidenceProducerRows(_))
+    ));
+
+    let mut wrong_complete_map = lowered.proof_bundle.clone();
+    wrong_complete_map.evidence_producers[0].rows[0].requirement_identity =
+        "different complete row".to_owned();
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &wrong_complete_map,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::EvidenceProducerInterfaceMismatch(_))
     ));
 
     let verified = psi_terminal_verifier::verify_module(

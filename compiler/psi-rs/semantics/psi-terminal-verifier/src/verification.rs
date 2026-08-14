@@ -33,6 +33,7 @@ pub struct EvidenceProducerProvenance {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvidenceProducerRealization {
     pub declaring_trait_identity: String,
+    pub declaring_trait_arguments: Vec<String>,
     pub requirement_identity: String,
     pub realization_machine_identity: String,
     pub realization_state_identity: String,
@@ -243,6 +244,7 @@ fn validate_evidence_producer_provenance(
         let mut previous_row = None;
         for row in &provenance.rows {
             if row.declaring_trait_identity.is_empty()
+                || row.declaring_trait_arguments.iter().any(String::is_empty)
                 || row.requirement_identity.is_empty()
                 || row.realization_machine_identity.is_empty()
                 || row.realization_state_identity.is_empty()
@@ -255,6 +257,21 @@ fn validate_evidence_producer_provenance(
                 ));
             }
             previous_row = Some(row);
+        }
+        let mut realized_requirements = provenance
+            .rows
+            .iter()
+            .map(|row| psi_terminal::EvidenceRequirementIdentity {
+                declaring_trait_identity: row.declaring_trait_identity.clone(),
+                declaring_trait_arguments: row.declaring_trait_arguments.clone(),
+                requirement_identity: row.requirement_identity.clone(),
+            })
+            .collect::<Vec<_>>();
+        realized_requirements.sort();
+        if realized_requirements != term.interface.requirements {
+            return Err(VerificationError::EvidenceProducerInterfaceMismatch(
+                provenance.term,
+            ));
         }
     }
     if let Some(term) = unmatched_ensures

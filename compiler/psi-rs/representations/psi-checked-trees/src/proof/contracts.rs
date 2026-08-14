@@ -71,8 +71,7 @@ pub struct CheckedEvidenceTerm {
     /// Exact instantiated interface identity. `None` keeps an unresolved
     /// generic endpoint fail-closed for producer selection while preserving
     /// the diagnostic spelling above.
-    pub evidence_interface:
-        Option<psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity>,
+    pub evidence_interface: Option<crate::CheckedEvidenceInterfaceIdentity>,
 }
 
 impl Default for CheckedEvidenceTerm {

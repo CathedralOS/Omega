@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 9_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "67ee8df7579e4935bf9560a7ea31c1edaa9c12e02ff74500197bf45742103fa5"
+        "1f67ed3b94337c2d105215529644c307d7eba5c4af6c4f9a8b03f67b8ea263c1"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -51,7 +51,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 9_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -61,7 +61,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 9_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -93,7 +93,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 9_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 10_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1358,16 +1358,19 @@ fn proposition_vocabulary_round_trips_and_enters_identity() {
             PropositionBinderArgumentIdentity {
                 kind: PropositionBinderArgumentKind::Machine,
                 identity: "unit_sample".to_owned(),
+                evidence_projection: None,
             },
             PropositionBinderArgumentIdentity {
                 kind: PropositionBinderArgumentKind::Const,
                 identity: "32u32".to_owned(),
+                evidence_projection: None,
             },
         ],
         arguments: vec!["sequence".to_owned()],
         evidence_interface: Some(EvidenceInterfaceIdentity {
             trait_identity: "ConvergenceEvidence".to_owned(),
             arguments: vec!["unit_sample".to_owned()],
+            requirements: Vec::new(),
         }),
     }];
 
@@ -1423,6 +1426,7 @@ fn proposition_vocabulary_is_category_checked() {
         binder_arguments: vec![PropositionBinderArgumentIdentity {
             kind: PropositionBinderArgumentKind::Machine,
             identity: "Generator".to_owned(),
+            evidence_projection: None,
         }],
         arguments: vec!["value".to_owned()],
         evidence_interface: None,
@@ -1517,10 +1521,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&10_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&11_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(10))
+        Err(CodecError::UnsupportedFormatMarker(11))
     );
 
     let mut stale_format = bytes.clone();

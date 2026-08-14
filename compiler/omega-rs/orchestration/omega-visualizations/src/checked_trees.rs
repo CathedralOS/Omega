@@ -3981,9 +3981,11 @@ mod tests {
                 type_arguments: vec!["Card".to_owned()],
                 const_arguments: Vec::new(),
                 machine_arguments: vec![SymbolHandle::from_arena_index(8)],
+                conformance_arguments: Vec::new(),
                 template_contract_fingerprint: 0x1111,
                 accepted_template_commitment: Some("accepted_map".to_owned()),
                 machine_argument_contract_fingerprints: vec![0x2222],
+                conformance_argument_fingerprints: Vec::new(),
                 fingerprint: 0x3333,
             });
 

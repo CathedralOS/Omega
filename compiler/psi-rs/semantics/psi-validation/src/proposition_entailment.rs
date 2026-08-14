@@ -11,7 +11,6 @@ pub(crate) fn validate_proposition_entailment(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_evidence_projection_bindings(program, diagnostics);
     for machine in program.machines() {
         if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
             continue;
@@ -67,24 +66,6 @@ pub(crate) fn validate_proposition_entailment(
                     )));
                 }
             }
-        }
-    }
-}
-
-fn validate_evidence_projection_bindings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    for (_, fact) in program.proof_facts.iter() {
-        let ProofFact::Proposition(application) = fact else {
-            continue;
-        };
-        for projection in application
-            .binder_arguments
-            .iter()
-            .filter_map(|argument| argument.evidence_projection.as_ref())
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "carrierless evidence projection `{}.{}` has no checked retained-term and normalized-row binding",
-                projection.term, projection.member
-            )));
         }
     }
 }
@@ -201,6 +182,7 @@ pub fn select_subjectless_evidence_conformance<'program>(
             .iter()
             .map(|argument| program.normalized_type_identity(*argument))
             .collect(),
+        requirements: expected_interface.requirements.clone(),
     };
     (&selected_interface == expected_interface).then_some((conformance, evidence_trait.symbol))
 }

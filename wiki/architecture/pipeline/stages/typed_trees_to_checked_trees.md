@@ -423,8 +423,13 @@ Current ownership is:
   handles. The verifier admits an ensures-only term exactly through that row;
   provenance affects proof identity, never terminal semantic identity or
   execution. Each ensured terminal lane retains the public generated-package
-  field name beside its exact term ID; required lanes have no output field.
-  Boolean, membership, fact-only, or non-nominal bindings reject.
+  field name beside its exact term ID; required lanes have no output field. A
+  proof-static `term.member` binder argument resolves in its named-contract
+  scope to the exact checked evidence-term handle and one unambiguous direct or
+  inherited requirement row. The row retains the declaring trait's normalized
+  argument pack; unknown and ambiguous members reject, and the erased
+  projection cannot select an executable machine parameter. Boolean,
+  membership, fact-only, or non-nominal bindings reject.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
