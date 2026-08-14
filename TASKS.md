@@ -502,51 +502,23 @@ Remaining N6/N8 work:
   after `;` and projected as `term.member`. Never infer evidence from visible
   facts or attached state names.
 
-  The implemented front half retains optional single-proposition bindings on
-  machine/state contracts through resolved and typed snapshots, then mints one
-  exact erased checked term identity with independent requires/ensures lane
-  position and normalized proposition application. Calls and named transitions
-  carry separate erased argument lanes and bind them positionally after runtime
-  substitution; missing, extra, unknown, non-nominal, or mismatched terms reject.
-  Enclosing terms remain live without retransmission. Bare-name forwarding is
-  proof-only and retains an exact source/output handle pair plus its statement
-  coordinate. A path-sensitive must-analysis carries those assignments through
-  the finite named-state graph, requires every ordinary outcome to assign each
-  output exactly once, and exempts crash-only outcomes. A concrete subjectless
-  conformance alias may now privately introduce a named output, including an
-  exact instantiated generic evidence interface. Resolved and typed trees
-  retain its conformance symbol; checked facts retain the selected trait,
-  canonical type-argument identities, and complete normalized realization
-  rows. Wrong arguments and unresolved open endpoints reject before the
-  assignment can discharge the proposition. Terminal Psi now retains a dense,
-  source-handle-free evidence-term vocabulary keyed by its exact proposition
-  application and structured carrierless interface; the verifier requires the
-  term and application interfaces to agree. Direct forwarding contributes one
-  vocabulary identity rather than minting an output witness. The selected
-  terminal machine now carries canonical positional `requires`/`ensures` lane
-  rows that reference those exact IDs; a forwarded output uses the same ID as
-  its input. Verification requires known machine/term IDs, dense positions per
-  lane kind, exact term/application interfaces, and no orphan terms. A selected
-  producer now emits a separate canonical proof-bundle provenance identity
-  keyed to its ensured term, with exact conformance, evidence-trait, and
-  complete normalized realization rows. An ensures-only term verifies only
-  through one matching row; missing, unused, malformed, reordered, or
-  interface-mismatched rows reject. Provenance changes the proof fingerprint,
-  not terminal semantic identity, runtime, or fuel. Each ensured lane now also
-  retains its public generated-package field name beside the exact
-  `EvidenceTermId`; required lanes have no output field, `value` remains
-  reserved, and missing or duplicate names reject. The retained carrierless
-  interface includes its complete direct and inherited requirement surface
-  with exact declaring-trait argument packs. Proof-static `term.member` binds
-  to one checked term and exact normalized row; terminal Psi canonicalizes
-  forwarding before retaining the opaque projection, and its codec and
-  verifier reject unknown terms or rows. Continue with generated-package
-  projection without folding provenance into the term or treating display
-  spelling as an identity oracle.
-  `value` is the runtime result;
-  evidence erases, destructuring is complete or explicitly `_`, and guarded
-  fields exist only in the matching refinement. Keep proposition,
-  evidence-term, and provenance identities separate.
+  The accepted front half carries exact erased terms through resolved, typed,
+  checked, call/transition, and finite-state definite-assignment paths. It
+  supports positional input lanes, forwarding, concrete subjectless producer
+  selection, normalized direct/inherited requirement rows, and exact generic
+  evidence interfaces. Terminal Psi retains canonical term declarations,
+  requires/ensures lanes, public output-field names, opaque member projections,
+  and separate producer provenance; codec and verification reject identity,
+  interface, lane, field-name, row, producer, and orphan drift. The detailed
+  accepted carrier is stated in
+  [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
+
+  Next, materialize the compiler-generated output package and its complete
+  projection/destructuring surface. `value` is the runtime result; evidence
+  fields erase, guarded fields exist only in the matching refinement, and
+  destructuring is complete or explicitly `_`. Keep proposition, evidence-term,
+  and provenance identities separate; neither provenance nor display spelling
+  is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
   front half now parses `Name<Telescope>: [Subject] satisfies Trait { ... }`,
   retains lifetime/type/const/static-machine parameters through resolved and
