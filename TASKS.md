@@ -224,12 +224,11 @@ Remaining:
   tail through interpretation and every native target. Either operand may use
   one total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
   arithmetic shell, one integer-widening shell, or one proof-bearing exact
-  unsigned narrowing or exact addition under retained direct parameter
-  upper-bound `requires`, or one carrier-total exact subtraction. Nested shells,
-  wider exact-cast and exact-arithmetic premise shapes, the remaining
-  partial/exact operations, other unary computation, and member/comparison
-  mixtures remain fenced. Extend those
-  integer comparisons, then
+  unsigned narrowing, addition, subtraction, or multiplication under retained
+  direct parameter upper-bound `requires`. Nested shells, wider exact-cast and
+  exact-arithmetic premise shapes, the remaining partial/exact operations,
+  other unary computation, and member/comparison mixtures remain fenced. Extend
+  those integer comparisons, then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

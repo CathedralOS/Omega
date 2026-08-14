@@ -402,13 +402,14 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         small: u8,
         enabled: bool
     ) -> bool
-    requires input <= 255u64, small <= 254u8
+    requires input <= 255u64, small <= 254u8, small <= 127u8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
             && ((small + 1u8) < 6u8)
-            && ((255u8 - small) < 253u8)
+            && ((127u8 - small) < 125u8)
+            && ((small * 2u8) < 10u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1725,6 +1726,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_multiply_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the bounded exact multiplication");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_multiply_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_subtract_obligation = entry
         .blocks
         .iter()
@@ -1733,7 +1750,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             OperationKind::ExactIntegerSubtract { obligation, .. } => Some(obligation),
             _ => None,
         })
-        .expect("shared convergence retains the carrier-total exact subtraction");
+        .expect("shared convergence retains the bounded exact subtraction");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_subtract_obligation
             && matches!(
@@ -1828,9 +1845,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let [
         Proposition::LessOrEqual(subject, _),
         Proposition::LessOrEqual(_, _),
+        Proposition::LessOrEqual(_, _),
     ] = entry_contract.requires.as_slice()
     else {
-        panic!("shared convergence retains both unsigned upper-bound premises")
+        panic!("shared convergence retains all unsigned upper-bound premises")
     };
     entry_contract.requires[0] = Proposition::LessOrEqual(
         subject.clone(),
@@ -1872,10 +1890,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let Proposition::LessOrEqual(add_subject, _) = &entry_contract.requires[1] else {
+    let Proposition::LessOrEqual(add_subject, _) = &entry_contract.requires[2] else {
         panic!("shared convergence retains the exact-add upper-bound premise")
     };
-    entry_contract.requires[1] = Proposition::LessOrEqual(
+    entry_contract.requires[2] = Proposition::LessOrEqual(
         add_subject.clone(),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -1907,6 +1925,50 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ),
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == exact_subtract_obligation
+    ));
+    let mut missing_exact_multiply_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_exact_multiply_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != exact_multiply_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_exact_multiply_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == exact_multiply_obligation
+    ));
+    let mut changed_exact_bound = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_exact_bound.entry;
+    let entry_contract = &mut changed_exact_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let Proposition::LessOrEqual(exact_subject, _) = &entry_contract.requires[1] else {
+        panic!("shared convergence retains the subtract/multiply upper-bound premise")
+    };
+    entry_contract.requires[1] = Proposition::LessOrEqual(
+        exact_subject.clone(),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerValue::Unsigned(126),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_exact_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == exact_subtract_obligation || obligation == exact_multiply_obligation
     ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
@@ -1954,7 +2016,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small < 5
                     && input < 5
                     && small + 1 < 6
-                    && 255 - small < 253
+                    && 127 - small < 125
+                    && small * 2 < 10
                     && input == 3
                     && enabled
             ))

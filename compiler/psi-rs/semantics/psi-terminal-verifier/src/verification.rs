@@ -2101,6 +2101,7 @@ fn exact_integer_multiply_obligation(
     };
     match (integer_type.sign(), constant) {
         (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
+        | (IntegerSign::Unsigned, IntegerValue::Unsigned(1))
         | (IntegerSign::Signed, IntegerValue::Signed(0))
         | (IntegerSign::Signed, IntegerValue::Signed(1)) => Proposition::Truth,
         (IntegerSign::Unsigned, IntegerValue::Unsigned(constant)) => {
@@ -3350,8 +3351,13 @@ mod tests {
             ScalarType::Integer(u8_type),
         );
         let unsigned_five = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(5)).expect("5u8");
+        let unsigned_one = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(1)).expect("1u8");
         let unsigned_maximum =
             ScalarTerm::integer(u8_type, IntegerValue::Unsigned(51)).expect("51u8");
+        assert_eq!(
+            exact_integer_multiply_obligation(u8_type, unsigned_value.clone(), unsigned_one, &[],),
+            Proposition::Truth
+        );
         assert_eq!(
             exact_integer_multiply_obligation(
                 u8_type,

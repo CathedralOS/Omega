@@ -740,13 +740,14 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             small: u8,
             enabled: bool
         ) -> bool
-        requires input <= 255u64, small <= 254u8
+        requires input <= 255u64, small <= 254u8, small <= 127u8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && ((small as u16) < 5u16)
                 && ((input as u8) < 5u8)
                 && ((small + 1u8) < 6u8)
-                && ((255u8 - small) < 253u8)
+                && ((127u8 - small) < 125u8)
+                && ((small * 2u8) < 10u8)
                 && enabled;
             staged
         }
@@ -807,6 +808,22 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_multiply_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the bounded exact multiplication");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_multiply_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_subtract_obligation = terminal_entry
         .blocks
         .iter()
@@ -815,7 +832,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             OperationKind::ExactIntegerSubtract { obligation, .. } => Some(obligation),
             _ => None,
         })
-        .expect("shared convergence retains the carrier-total exact subtraction");
+        .expect("shared convergence retains the bounded exact subtraction");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_subtract_obligation
             && matches!(
