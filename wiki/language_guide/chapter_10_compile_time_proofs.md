@@ -183,6 +183,13 @@ rows. Forwarding instead uses ordinary assignment:
 result_evidence = existing_evidence;
 ```
 
+This form is an erased identity binding, not a runtime load/store and not a new
+proof introduction. The target must be a named `ensures` term of the current
+machine, the source must be an exact named `requires` term of that machine, and
+their normalized proposition application and evidence interface must match.
+The outgoing field then denotes the incoming term itself. A visible matching
+fact cannot replace the source assignment.
+
 Name a `requires` clause only when its body projects or forwards the term.
 Changing `requires P` to `requires proof: P` adds an explicit erased input and
 is a breaking call-interface revision. Named `ensures` labels are public output

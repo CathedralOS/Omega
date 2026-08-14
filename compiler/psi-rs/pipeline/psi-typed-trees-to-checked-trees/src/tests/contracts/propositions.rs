@@ -214,6 +214,133 @@ fn evidence_only_call_binds_after_leading_semicolon() {
 }
 
 #[test]
+fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+            outgoing = incoming;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("matching named evidence terms should forward");
+    let forwardings = checked
+        .facts
+        .proof
+        .evidence_forwardings
+        .iter()
+        .map(|(_, forwarding)| forwarding)
+        .collect::<Vec<_>>();
+    let [forwarding] = forwardings.as_slice() else {
+        panic!("one checked forwarding expected");
+    };
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(forwarding.source)
+            .name,
+        "incoming"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(forwarding.output)
+            .name,
+        "outgoing"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(forwarding.source)
+            .proposition,
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(forwarding.output)
+            .proposition
+    );
+}
+
+#[test]
+fn evidence_forwarding_rejects_unknown_source() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+            outgoing = absent;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("forwarding must name an exact incoming term");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("source `absent` is not a named requires binding")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn evidence_forwarding_rejects_assignment_to_incoming_term() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32)
+        requires incoming: carries(value)
+        {
+            incoming = incoming;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("incoming evidence aliases are immutable inputs");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("target `incoming` is not a named ensures binding")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn evidence_forwarding_rejects_proposition_mismatch() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        proposition differs(value: i32) evidence Evidence;
+        machine forward(value: i32)
+        requires differs(value)
+        requires incoming: carries(value)
+        ensures outgoing: differs(value)
+        {
+            outgoing = incoming;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("forwarding cannot change proposition identity");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("because their proposition identities differ")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn named_requires_call_rejects_ambient_fact_inference() {
     let source = r#"
         trait Evidence {}

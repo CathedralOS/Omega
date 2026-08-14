@@ -36,6 +36,18 @@ pub fn lower_symbol_resolved_trees(
     lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
+    lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees
+        .evidence_forwardings
+        .iter()
+        .map(
+            |forwarding| psi_typed_trees::typed_trees::EvidenceForwarding {
+                machine_symbol: forwarding.machine_symbol,
+                state_symbol: forwarding.state_symbol,
+                target: crate::name::lower_name(&forwarding.target),
+                source: crate::name::lower_name(&forwarding.source),
+            },
+        )
+        .collect();
 
     for invariant_definition in &symbol_resolved_trees.invariant_definitions {
         let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
@@ -184,6 +196,7 @@ impl Lowerer<'_> {
             machine_specializations: _,
             boundary_calling_plans: _,
             open_index_normalizations: _,
+            evidence_forwardings,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
@@ -191,6 +204,7 @@ impl Lowerer<'_> {
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
+        trees.evidence_forwardings = evidence_forwardings;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(&mut trees)?;
         Ok(trees)

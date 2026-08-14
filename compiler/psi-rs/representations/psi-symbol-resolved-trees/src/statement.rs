@@ -41,6 +41,23 @@ pub struct Assignment {
     pub value: crate::expression::ExpressionHandle,
 }
 
+/// An erased named-`ensures` assignment classified out of the runtime
+/// statement stream. Names remain diagnostic at this phase; owner symbols are
+/// bound after ordinary machine/state symbol assignment.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EvidenceForwarding {
+    /// Stable lowering-time coordinate used to bind the owning machine after
+    /// symbols are assigned. Short machine names are not unique for attached
+    /// machines, so owner binding must not key only on diagnostic spelling.
+    pub machine_root_index: usize,
+    pub machine_name: DiagnosticName,
+    pub state_name: DiagnosticName,
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub target: DiagnosticName,
+    pub source: DiagnosticName,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalData {
     pub symbol: SymbolHandle,

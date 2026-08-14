@@ -4,6 +4,32 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_typed_evidence_forwarding_owner_identity() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32)
+        requires input_proof: carries(value)
+        ensures output_proof: carries(value)
+        {
+            output_proof = input_proof;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let [forwarding] = typed.evidence_forwardings.as_slice() else {
+        panic!("one typed evidence forwarding expected");
+    };
+    assert!(forwarding.machine_symbol.is_valid());
+    assert!(forwarding.state_symbol.is_valid());
+    assert_eq!(forwarding.target.as_str(), "output_proof");
+    assert_eq!(forwarding.source.as_str(), "input_proof");
+    assert_eq!(typed.snapshot().evidence_forwardings.len(), 1);
+}
+
+#[test]
 fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
     let source = r#"
         data Evidence {

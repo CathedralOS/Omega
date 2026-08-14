@@ -51,6 +51,17 @@ pub struct TypedTrees {
     /// input; these records bind each operator node to the public operation
     /// contract and proved algebra instance that license normalization.
     pub open_index_normalizations: Vec<OpenIndexNormalization>,
+    /// Exact owner identity and authored names for erased evidence forwarding;
+    /// checked lowering binds both names to checked evidence-term handles.
+    pub evidence_forwardings: Vec<EvidenceForwarding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceForwarding {
+    pub machine_symbol: psi_symbols::SymbolHandle,
+    pub state_symbol: psi_symbols::SymbolHandle,
+    pub target: crate::name::Identifier,
+    pub source: crate::name::Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,6 +301,7 @@ impl TypedTrees {
             machine_specializations: Vec::new(),
             boundary_calling_plans: Vec::new(),
             open_index_normalizations: Vec::new(),
+            evidence_forwardings: Vec::new(),
         }
     }
 

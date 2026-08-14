@@ -30,6 +30,16 @@ mod tests;
 pub struct TypedTreesSnapshot {
     pub roots: TypedRootsSnapshot,
     pub tables: TypedTableSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EvidenceForwardingSnapshot {
+    pub machine_symbol: u32,
+    pub state_symbol: u32,
+    pub target: String,
+    pub source: String,
 }
 
 impl TypedTreesSnapshot {
@@ -100,6 +110,16 @@ impl TypedTreesSnapshot {
                 type_reference_count: program.type_reference_table.type_reference_count(),
                 type_constraint_count: program.type_reference_table.constraint_count(),
             },
+            evidence_forwardings: program
+                .evidence_forwardings
+                .iter()
+                .map(|forwarding| EvidenceForwardingSnapshot {
+                    machine_symbol: forwarding.machine_symbol.arena_index(),
+                    state_symbol: forwarding.state_symbol.arena_index(),
+                    target: forwarding.target.to_string(),
+                    source: forwarding.source.to_string(),
+                })
+                .collect(),
         }
     }
 

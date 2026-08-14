@@ -57,6 +57,31 @@ fn lower_statement_node(
             })])
         }
         syntax::statement::StatementNode::Assignment(assignment) => {
+            if let Some((target, source)) = evidence_forwarding_names(
+                lowerer,
+                syntax_trees,
+                assignment.target,
+                assignment.value,
+            ) {
+                lowerer.symbol_resolved_trees.evidence_forwardings.push(
+                    psi_symbol_resolved_trees::statement::EvidenceForwarding {
+                        machine_root_index: lowerer
+                            .current_machine_root_index
+                            .unwrap_or(usize::MAX),
+                        machine_name: DiagnosticName::generated(
+                            lowerer.current_machine_name.as_deref().unwrap_or_default(),
+                        ),
+                        state_name: DiagnosticName::generated(
+                            lowerer.current_state_name.as_deref().unwrap_or_default(),
+                        ),
+                        machine_symbol: SymbolHandle::invalid(),
+                        state_symbol: SymbolHandle::invalid(),
+                        target: crate::name::lower_name(target),
+                        source: crate::name::lower_name(source),
+                    },
+                );
+                return Ok(Vec::new());
+            }
             let target = lower_statement_expression(lowerer, syntax_trees, assignment.target)?;
             let value = lower_statement_expression(lowerer, syntax_trees, assignment.value)?;
             let mut hoisted = Vec::new();
@@ -348,6 +373,39 @@ fn lower_statement_node(
             Ok(hoisted)
         }
     }
+}
+
+fn evidence_forwarding_names<'syntax>(
+    lowerer: &Lowerer,
+    syntax_trees: &'syntax SyntaxTrees,
+    target: syntax::expression::ExpressionHandle,
+    source: syntax::expression::ExpressionHandle,
+) -> Option<(
+    &'syntax syntax::identifier::Identifier,
+    &'syntax syntax::identifier::Identifier,
+)> {
+    let target = bare_syntax_name(syntax_trees, target)?;
+    let source = bare_syntax_name(syntax_trees, source)?;
+    (lowerer
+        .current_evidence_term_names
+        .iter()
+        .any(|name| name == target.as_str() || name == source.as_str()))
+    .then_some((target, source))
+}
+
+fn bare_syntax_name(
+    syntax_trees: &SyntaxTrees,
+    expression: syntax::expression::ExpressionHandle,
+) -> Option<&syntax::identifier::Identifier> {
+    let syntax::expression::ExpressionNode::Name(path) =
+        syntax_trees.expressions.expression(expression)
+    else {
+        return None;
+    };
+    let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
+        return None;
+    };
+    Some(name)
 }
 
 /// Hoists every runtime-indexed read in OPERAND position out of `value`.

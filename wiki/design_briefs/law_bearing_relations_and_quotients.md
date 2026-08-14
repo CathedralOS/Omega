@@ -139,6 +139,14 @@ ordinary `term.member` syntax; no `open` form exists. Producer conformance
 selection occurs privately when the proof body assigns the named output, while
 forwarding assigns an existing term and preserves its identity.
 
+The initial forwarding form is a bare-name assignment from a current machine's
+named `requires` term to one of its named `ensures` terms. It erases before the
+runtime statement stream and records an exact checked source-to-output binding;
+both normalized proposition application and evidence interface must match. It
+does not search visible facts or mint another witness. Producer-conformance
+assignment and path-sensitive outgoing definite assignment remain separate
+steps.
+
 Named requirements are positional erased inputs. Calls pass them explicitly in
 clause order after a `;` lane separator, never through visible-fact or
 conformance inference. Each position checks the supplied term against the

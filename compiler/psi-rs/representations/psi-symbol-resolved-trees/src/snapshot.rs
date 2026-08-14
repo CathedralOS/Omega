@@ -29,6 +29,16 @@ mod tests;
 pub struct SymbolResolvedTreesSnapshot {
     pub roots: SymbolResolvedRootsSnapshot,
     pub tables: ResolvedTableSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EvidenceForwardingSnapshot {
+    pub machine_symbol: u32,
+    pub state_symbol: u32,
+    pub target: String,
+    pub source: String,
 }
 
 impl SymbolResolvedTreesSnapshot {
@@ -103,6 +113,16 @@ impl SymbolResolvedTreesSnapshot {
                     .references
                     .type_reference_count(),
             },
+            evidence_forwardings: symbol_resolved_trees
+                .evidence_forwardings
+                .iter()
+                .map(|forwarding| EvidenceForwardingSnapshot {
+                    machine_symbol: forwarding.machine_symbol.arena_index(),
+                    state_symbol: forwarding.state_symbol.arena_index(),
+                    target: forwarding.target.to_string(),
+                    source: forwarding.source.to_string(),
+                })
+                .collect(),
         }
     }
 

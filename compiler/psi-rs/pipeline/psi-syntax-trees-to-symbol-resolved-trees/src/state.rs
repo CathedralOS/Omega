@@ -39,6 +39,7 @@ fn lower_state_parts(
     contracts: HandleSpan<syntax::item::CapabilityContract>,
     statements: psi_arena::HandleSpan<syntax::statement::StatementHandle>,
 ) -> Result<State, Diagnostic> {
+    lowerer.current_state_name = Some(name.as_str().to_owned());
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
         .is_valid()

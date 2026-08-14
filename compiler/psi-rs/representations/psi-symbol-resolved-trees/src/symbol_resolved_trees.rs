@@ -21,6 +21,8 @@ pub struct SymbolResolvedTrees {
     pub semantic_domains: psi_language_semantics::SemanticDomainTable,
     /// PRV4: normalized `via` bindings, interned once at lowering.
     pub external_bindings: psi_language_semantics::ExternalBindingTable,
+    /// Erased evidence assignments removed from runtime statement spans.
+    pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -120,6 +122,7 @@ impl SymbolResolvedTrees {
             service_reach_rows: psi_language_semantics::ServiceReachRowTable::default(),
             semantic_domains: psi_language_semantics::SemanticDomainTable::default(),
             external_bindings: psi_language_semantics::ExternalBindingTable::default(),
+            evidence_forwardings: Vec::new(),
         }
     }
 

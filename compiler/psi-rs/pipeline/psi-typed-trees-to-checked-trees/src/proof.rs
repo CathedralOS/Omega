@@ -1,4 +1,5 @@
 use crate::context::*;
+use psi_checked_trees::CheckedEvidenceTerm;
 mod contracts;
 mod obligations;
 
@@ -82,12 +83,88 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_facts,
         evidence_terms,
         psi_arena::Arena::default(),
+        psi_arena::Arena::default(),
         contract_fact_refs,
         contract_calls,
         contract_exits,
         contract_operator_uses,
         proposition_vocabulary,
     )
+}
+
+pub(crate) fn bind_evidence_forwarding_facts(
+    program: &psi_typed_trees::TypedTrees,
+    proof: &mut ProofFacts,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let mut forwardings = psi_arena::Arena::default();
+
+    for forwarding in &program.evidence_forwardings {
+        let output = evidence_term_named(
+            &proof.evidence_terms,
+            forwarding.machine_symbol,
+            forwarding.target.as_str(),
+            ContractProofFactKind::Ensures,
+        );
+        let source = evidence_term_named(
+            &proof.evidence_terms,
+            forwarding.machine_symbol,
+            forwarding.source.as_str(),
+            ContractProofFactKind::Requires,
+        );
+        let Some(output) = output else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "evidence forwarding target `{}` is not a named ensures binding of this machine",
+                forwarding.target
+            )));
+            continue;
+        };
+        let Some(source) = source else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "evidence forwarding source `{}` is not a named requires binding of this machine",
+                forwarding.source
+            )));
+            continue;
+        };
+        let output_term = proof.evidence_terms.get(output);
+        let source_term = proof.evidence_terms.get(source);
+        if output_term.proposition != source_term.proposition
+            || output_term.evidence_type != source_term.evidence_type
+        {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "cannot forward evidence term `{}` into `{}` because their proposition identities differ",
+                forwarding.source, forwarding.target
+            )));
+            continue;
+        }
+        forwardings.append(psi_checked_trees::EvidenceForwardingFact {
+            machine_symbol: forwarding.machine_symbol,
+            state_symbol: forwarding.state_symbol,
+            output,
+            source,
+        });
+    }
+
+    if diagnostics.is_empty() {
+        proof.evidence_forwardings = forwardings;
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn evidence_term_named(
+    terms: &psi_arena::Arena<CheckedEvidenceTerm>,
+    machine_symbol: SymbolHandle,
+    name: &str,
+    kind: ContractProofFactKind,
+) -> Option<psi_arena::Handle<CheckedEvidenceTerm>> {
+    terms.iter().find_map(|(handle, term)| {
+        (term.owner == ContractProofFactOwner::Machine { machine_symbol }
+            && term.kind == kind
+            && term.name == name)
+            .then_some(handle)
+    })
 }
 
 fn build_checked_proposition_vocabulary(

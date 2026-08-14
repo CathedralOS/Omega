@@ -102,6 +102,17 @@ pub struct ContractEvidenceArgument {
     pub lane_position: usize,
 }
 
+/// An erased outgoing evidence slot forwarded from one exact incoming term.
+/// Consumers follow `source`; `output` retains the declared public field and
+/// proposition identity without minting a new witness.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EvidenceForwardingFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub output: Handle<CheckedEvidenceTerm>,
+    pub source: Handle<CheckedEvidenceTerm>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContractCallFact {
     pub caller_machine_symbol: SymbolHandle,

@@ -2,7 +2,8 @@ use psi_arena::Arena;
 
 use crate::{
     CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
-    ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, ProofObligationFact,
+    ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
+    ProofObligationFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -11,6 +12,7 @@ pub struct ProofFacts {
     pub contract_facts: Arena<ContractProofFact>,
     pub evidence_terms: Arena<CheckedEvidenceTerm>,
     pub contract_evidence_arguments: Arena<ContractEvidenceArgument>,
+    pub evidence_forwardings: Arena<EvidenceForwardingFact>,
     pub contract_fact_refs: Arena<ContractProofFactRef>,
     pub contract_calls: Arena<ContractCallFact>,
     pub contract_exits: Arena<ContractExitFact>,
@@ -26,6 +28,7 @@ impl ProofFacts {
         contract_facts: Arena<ContractProofFact>,
         evidence_terms: Arena<CheckedEvidenceTerm>,
         contract_evidence_arguments: Arena<ContractEvidenceArgument>,
+        evidence_forwardings: Arena<EvidenceForwardingFact>,
         contract_fact_refs: Arena<ContractProofFactRef>,
         contract_calls: Arena<ContractCallFact>,
         contract_exits: Arena<ContractExitFact>,
@@ -37,6 +40,7 @@ impl ProofFacts {
             contract_facts,
             evidence_terms,
             contract_evidence_arguments,
+            evidence_forwardings,
             contract_fact_refs,
             contract_calls,
             contract_exits,
@@ -50,8 +54,8 @@ impl ProofFacts {
 mod tests {
     use crate::{
         CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
-        ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, ProofFacts,
-        ProofObligationFact,
+        ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
+        ProofFacts, ProofObligationFact,
     };
     use psi_arena::Arena;
 
@@ -61,6 +65,7 @@ mod tests {
         let contract_facts = Arena::<ContractProofFact>::with_capacity(2);
         let evidence_terms = Arena::<CheckedEvidenceTerm>::with_capacity(2);
         let contract_evidence_arguments = Arena::<ContractEvidenceArgument>::with_capacity(2);
+        let evidence_forwardings = Arena::<EvidenceForwardingFact>::with_capacity(2);
         let contract_fact_refs = Arena::<ContractProofFactRef>::with_capacity(3);
         let contract_calls = Arena::<ContractCallFact>::with_capacity(4);
         let contract_exits = Arena::<ContractExitFact>::with_capacity(5);
@@ -72,6 +77,7 @@ mod tests {
             contract_facts.clone(),
             evidence_terms.clone(),
             contract_evidence_arguments.clone(),
+            evidence_forwardings.clone(),
             contract_fact_refs.clone(),
             contract_calls.clone(),
             contract_exits.clone(),
@@ -86,6 +92,7 @@ mod tests {
             facts.contract_evidence_arguments,
             contract_evidence_arguments
         );
+        assert_eq!(facts.evidence_forwardings, evidence_forwardings);
         assert_eq!(facts.contract_fact_refs, contract_fact_refs);
         assert_eq!(facts.contract_calls, contract_calls);
         assert_eq!(facts.contract_exits, contract_exits);
