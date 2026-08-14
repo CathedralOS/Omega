@@ -8,7 +8,7 @@ use crate::places::declared_place_type;
 use crate::properties::{
     declared_property_requirements, referenced_type_parameter, type_satisfies_declared_property,
 };
-use crate::struct_literals::data_declares_field;
+use crate::struct_literals::{construction_field_type, data_declares_field};
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
 use psi_arena::HandleSpan;
@@ -2632,9 +2632,10 @@ fn statement_call_preserves_transparent_result(
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. One primitive-only record or selected-case literal may
 /// independently contain such a tree in each field, and one nested record or
-/// selected-case literal may do the same. Reference-bearing or generic
-/// literals, wider aggregate depth, computed field expressions, and unknown
-/// return types fail closed.
+/// selected-case literal may do the same. A declared primitive field may wrap
+/// those calls in one binary operator. Reference-bearing or generic literals,
+/// wider aggregate depth, deeper computed field expressions, and unknown return
+/// types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
 
@@ -2724,9 +2725,76 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         remaining_aggregate_depth - 1,
                     )
                 }
+                ExpressionNode::Binary(_)
+                    if struct_literal_field_is_primitive(program, literal, field.name.as_str()) =>
+                {
+                    primitive_binary_aggregate_field_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        field.value,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                    )
+                }
                 _ => false,
             }
         })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn primitive_binary_aggregate_field_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    [binary.left, binary.right].into_iter().all(|operand| {
+        if !expression_is_effectful_for_transparent_result(program, operand) {
+            return true;
+        }
+        matches!(
+            program.expression_table.expression(operand),
+            ExpressionNode::Call(_)
+        ) && value_call_assignment_preserves_transparent_result(
+            program,
+            current_machine,
+            operand,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+        )
+    })
+}
+
+fn struct_literal_field_is_primitive(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    field_name: &str,
+) -> bool {
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name == literal.type_name);
+    let Some(definition) = definitions.next() else {
+        return false;
+    };
+    definitions.next().is_none()
+        && construction_field_type(
+            program,
+            definition,
+            literal.case_name.as_ref().map(|name| name.as_str()),
+            field_name,
+        )
+        .is_some_and(|field_type| program.primitive_type_reference(field_type).is_some())
 }
 
 fn value_call_assignment_preserves_transparent_result(

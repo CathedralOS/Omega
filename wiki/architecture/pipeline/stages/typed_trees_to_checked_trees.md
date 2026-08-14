@@ -193,10 +193,13 @@ Current ownership is:
   selected-case literal may likewise contain an independently bounded call
   tree in each direct common or payload field. A direct field may instead be
   one nested concrete primitive-only record or selected-case literal whose
-  direct common or payload fields obey the same rule. This aggregate depth-two
-  rail composes without changing the call-depth budget. A third aggregate
-  level, generic, recursive, or reference-bearing carriers, and calls under
-  operators or other computed field shapes remain fences.
+  direct common or payload fields obey the same rule. A declared primitive
+  field at either aggregate level may also contain one binary operator whose
+  effectful operands are independently bounded non-reference call trees. This
+  aggregate depth-two rail and scalar operator shell do not change the
+  depth-four call budget. A third aggregate level, generic, recursive, or
+  reference-bearing carriers, nested operators, and other computed field
+  shapes remain fences.
   Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are
