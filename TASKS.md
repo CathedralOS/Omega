@@ -643,10 +643,13 @@ reach or trust, and private proof improvements do not change public identity.
   by prefix/arm and independently replays their special and ordinary paths.
   The same forms may occur in typed call arguments in the condition or either
   arm and retain exact relocation and closure custody through installation.
-  Extend accounting to broader language-level nested/reconvergent conditionals,
-  crashes in arms, and the external entry adapter before calling it a complete
-  root `StackPlan`; zero-byte internal closures remain inadmissible until that
-  adapter demand exists.
+  A bounded return/crash conditional with exactly one direct accountable return
+  and one direct crash now binds the crash arm and replays its exact `UD2`/`BRK`
+  terminal through installation. Extend accounting to division-bearing
+  return/crash combinations, two-crash shapes, broader language-level
+  nested/reconvergent conditionals, and the external entry adapter before
+  calling it a complete root `StackPlan`; zero-byte internal closures remain
+  inadmissible until that adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

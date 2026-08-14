@@ -2307,6 +2307,33 @@ fn validate_scalar_stack(
             alignment: evidence.stack_alignment,
         });
     }
+    if let TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash {
+        condition,
+        branch_offset,
+        branch_byte_count,
+        false_arm_offset,
+        crash_arm,
+    } = evidence.control_flow
+    {
+        if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                machine,
+            ));
+        }
+        return validate_top_level_two_return_scalar_stack(
+            architecture,
+            machine,
+            bytes,
+            calls,
+            evidence,
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+            None,
+            Some(crash_arm),
+        );
+    }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
         condition,
         branch_offset,
@@ -2331,6 +2358,7 @@ fn validate_scalar_stack(
             *branch_byte_count,
             *false_arm_offset,
             Some(branches),
+            None,
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
@@ -2355,6 +2383,7 @@ fn validate_scalar_stack(
             branch_offset,
             branch_byte_count,
             false_arm_offset,
+            None,
             None,
         );
     }
@@ -3360,6 +3389,77 @@ fn replay_scalar_conditional_region_with_divisions(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+fn replay_scalar_conditional_terminal_region(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    crash: bool,
+    division_branches: &[TerminalScalarDivisionBranchEvidence],
+    claimed: &mut std::collections::BTreeMap<usize, TerminalScalarStackMutation>,
+    call_sites: &mut std::collections::BTreeMap<
+        usize,
+        omega_terminal_machine_code::TerminalInternalCallRelocation,
+    >,
+    evidence: &TerminalScalarStackEvidence,
+    validated_calls: &mut Vec<TerminalObjectScalarCallStack>,
+) -> Result<u32, TerminalObjectError> {
+    if !crash {
+        return replay_scalar_conditional_region_with_divisions(
+            architecture,
+            machine,
+            bytes,
+            start,
+            end,
+            true,
+            division_branches,
+            claimed,
+            call_sites,
+            true,
+            evidence,
+            validated_calls,
+        );
+    }
+    if !division_branches.is_empty() {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: start,
+        });
+    }
+    let crash_bytes: &[u8] = match architecture {
+        Architecture::X86_64 => &[0x0f, 0x0b],
+        Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4],
+    };
+    let crash_offset = end.checked_sub(crash_bytes.len()).ok_or(
+        TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: start,
+        },
+    )?;
+    if crash_offset < start || bytes.get(crash_offset..end) != Some(crash_bytes) {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: crash_offset,
+        });
+    }
+    replay_scalar_conditional_region(
+        architecture,
+        machine,
+        bytes,
+        start,
+        crash_offset,
+        false,
+        claimed,
+        call_sites,
+        true,
+        evidence,
+        validated_calls,
+        None,
+    )
+}
+
 fn validate_top_level_two_return_scalar_stack(
     architecture: Architecture,
     machine: MachineId,
@@ -3371,6 +3471,7 @@ fn validate_top_level_two_return_scalar_stack(
     branch_byte_count: usize,
     false_arm_offset: usize,
     division_branches: Option<&[TerminalScalarDivisionBranchEvidence]>,
+    crash_arm: Option<omega_terminal_machine_code::TerminalScalarConditionalArm>,
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -3429,11 +3530,17 @@ fn validate_top_level_two_return_scalar_stack(
         false_arm_offset,
     )?;
     let division_branches = division_branches.unwrap_or_default();
-    if division_branches.is_empty()
-        != matches!(
-            evidence.control_flow,
-            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
-        )
+    let composite_divisions = matches!(
+        evidence.control_flow,
+        TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches { .. }
+    );
+    let return_and_crash = matches!(
+        evidence.control_flow,
+        TerminalScalarControlFlowEvidence::TopLevelReturnAndCrash { .. }
+    );
+    if composite_divisions != !division_branches.is_empty()
+        || return_and_crash != crash_arm.is_some()
+        || return_and_crash && composite_divisions
     {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
             machine,
@@ -3468,31 +3575,29 @@ fn validate_top_level_two_return_scalar_stack(
             offset: branch_offset,
         });
     }
-    let true_peak = replay_scalar_conditional_region_with_divisions(
+    let true_peak = replay_scalar_conditional_terminal_region(
         architecture,
         machine,
         bytes,
         true_arm_offset,
         false_arm_offset,
-        true,
+        crash_arm == Some(omega_terminal_machine_code::TerminalScalarConditionalArm::True),
         true_divisions,
         &mut claimed,
         &mut call_sites,
-        true,
         evidence,
         &mut validated_calls,
     )?;
-    let false_peak = replay_scalar_conditional_region_with_divisions(
+    let false_peak = replay_scalar_conditional_terminal_region(
         architecture,
         machine,
         bytes,
         false_arm_offset,
         bytes.len(),
-        true,
+        crash_arm == Some(omega_terminal_machine_code::TerminalScalarConditionalArm::False),
         false_divisions,
         &mut claimed,
         &mut call_sites,
-        true,
         evidence,
         &mut validated_calls,
     )?;
