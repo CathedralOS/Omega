@@ -1239,6 +1239,87 @@ fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
 }
 
 #[test]
+fn explicit_conformance_evidence_forwards_through_a_generic_caller() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+
+        data Card { rank: i32; }
+
+        CardOrder: Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool {
+                self.rank < other.rank
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine forward<Element, Evidence: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            choose<Element, Evidence>(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            forward<Card, CardOrder>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let selected = typed
+        .conformances()
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "CardOrder")
+        })
+        .expect("selected conformance")
+        .symbol;
+    let checked = lower_typed_trees(typed)
+        .expect("concrete evidence should propagate through the specialized generic caller");
+
+    let specialization_count = |name: &str| {
+        checked
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                checked.machines().iter().any(|machine| {
+                    machine.symbol == specialization.template && machine.name.as_str() == name
+                })
+            })
+            .count()
+    };
+    assert_eq!(specialization_count("forward"), 1);
+    assert_eq!(specialization_count("choose"), 1);
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                checked.machines().iter().any(|machine| {
+                    machine.symbol == specialization.template
+                        && matches!(machine.name.as_str(), "forward" | "choose")
+                })
+            })
+            .all(|specialization| specialization.conformance_arguments == [selected])
+    );
+}
+
+#[test]
 fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts() {
     let source = r#"
         data Light {}
