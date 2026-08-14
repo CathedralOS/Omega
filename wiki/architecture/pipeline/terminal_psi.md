@@ -444,10 +444,15 @@ right shifts are likewise retained as total structural terms: the value's
 carrier and the independently typed integer count remain distinct, and the
 language-defined Euclidean count reduction survives projected calls, codecs,
 verification, fixed fuel, and interpretation without a count obligation. Exact
-shifts remain fail-closed until their count-range and left-shift overflow
-evidence can be reconstructed independently; the verifier rejects an Exact
-shift inserted into a structural crash term. Trapping arithmetic also remains
-fail-closed here. Exact division and remainder accept a
+right shifts accept a self-proving in-range literal count or a complete retained
+package proving a runtime count nonnegative and below the shifted carrier width.
+Exact left shifts require the same count evidence plus carrier-tight value bounds
+at the greatest possible count; a zero count or a compile-known value that shifts
+safely is self-proving. The producer canonically orders the complete requirement
+package, and projected calls rebase one exact obligation per requirement.
+Independent verification reconstructs the count and overflow checks and rejects
+missing or weakened evidence. Trapping arithmetic remains fail-closed here.
+Exact division and remainder accept a
 same-carrier literal divisor only when it is nonzero and cannot trigger signed
 `MIN / -1` overflow. Wrapping and Saturating division and remainder accept any
 same-carrier nonzero literal, including signed `-1`: their selected policy

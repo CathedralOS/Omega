@@ -750,11 +750,11 @@ impl CrashPlan {
         self.structural_runtime_requirements.as_deref()
     }
 
-    /// Whether a published structural crash predicate performs Exact division
-    /// or remainder with a divisor whose safety must come from the retained
-    /// runtime requirement package rather than a self-proving literal.
-    pub fn has_structural_runtime_divisor(&self) -> bool {
-        fn scalar_has_runtime_divisor(expression: &crate::CheckedScalarExpression) -> bool {
+    /// Whether a published structural crash predicate contains proof-gated
+    /// arithmetic whose safety may depend on the complete retained runtime
+    /// requirement package rather than self-proving literals alone.
+    pub fn uses_structural_proof_gated_arithmetic(&self) -> bool {
+        fn scalar_uses_proof_gated_arithmetic(expression: &crate::CheckedScalarExpression) -> bool {
             match expression {
                 crate::CheckedScalarExpression::IntegerBinary {
                     kind, left, right, ..
@@ -771,7 +771,7 @@ impl CrashPlan {
                             | crate::CheckedIntegerBinaryKind::SaturatingDivide
                             | crate::CheckedIntegerBinaryKind::SaturatingRemainder
                     );
-                    let current = matches!(
+                    let runtime_divisor = matches!(
                         kind,
                         crate::CheckedIntegerBinaryKind::ExactDivide
                             | crate::CheckedIntegerBinaryKind::ExactRemainder
@@ -792,32 +792,44 @@ impl CrashPlan {
                                 }
                             })
                     );
-                    current || scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
+                    let exact_shift = matches!(
+                        kind,
+                        crate::CheckedIntegerBinaryKind::ExactShiftLeft
+                            | crate::CheckedIntegerBinaryKind::ExactShiftRight
+                    );
+                    runtime_divisor
+                        || exact_shift
+                        || scalar_uses_proof_gated_arithmetic(left)
+                        || scalar_uses_proof_gated_arithmetic(right)
                 }
                 crate::CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
                 | crate::CheckedScalarExpression::IntegerWiden { operand, .. }
                 | crate::CheckedScalarExpression::IntegerExactCast { operand, .. } => {
-                    scalar_has_runtime_divisor(operand)
+                    scalar_uses_proof_gated_arithmetic(operand)
                 }
                 crate::CheckedScalarExpression::Boolean(expression) => {
-                    boolean_has_runtime_divisor(expression)
+                    boolean_uses_proof_gated_arithmetic(expression)
                 }
                 _ => false,
             }
         }
 
-        fn boolean_has_runtime_divisor(expression: &crate::CheckedBooleanExpression) -> bool {
+        fn boolean_uses_proof_gated_arithmetic(
+            expression: &crate::CheckedBooleanExpression,
+        ) -> bool {
             match expression {
                 crate::CheckedBooleanExpression::Not(operand) => {
-                    boolean_has_runtime_divisor(operand)
+                    boolean_uses_proof_gated_arithmetic(operand)
                 }
                 crate::CheckedBooleanExpression::Equal { left, right }
                 | crate::CheckedBooleanExpression::And { left, right }
                 | crate::CheckedBooleanExpression::Or { left, right } => {
-                    boolean_has_runtime_divisor(left) || boolean_has_runtime_divisor(right)
+                    boolean_uses_proof_gated_arithmetic(left)
+                        || boolean_uses_proof_gated_arithmetic(right)
                 }
                 crate::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
-                    scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
+                    scalar_uses_proof_gated_arithmetic(left)
+                        || scalar_uses_proof_gated_arithmetic(right)
                 }
                 _ => false,
             }
@@ -826,7 +838,7 @@ impl CrashPlan {
         self.published.iter().any(|bucket| {
             bucket.alternative_guards().iter().any(|guard| {
                 matches!(guard, CrashRouteGuard::Predicate(predicate)
-                    if predicate.scalar_expression().is_some_and(boolean_has_runtime_divisor))
+                    if predicate.scalar_expression().is_some_and(boolean_uses_proof_gated_arithmetic))
             })
         })
     }

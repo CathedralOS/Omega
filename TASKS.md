@@ -376,10 +376,14 @@ Remaining:
   divisor bound, because their signed overflow case is policy-defined. Wrapping
   left and right shifts now retain distinct value/count carriers and the
   language-defined modulo-width count behavior through projected calls, codecs,
-  independent verification, fixed fuel, and interpretation; forged Exact shift
-  terms reject while their safety evidence is absent. Continue with Exact shifts,
-  Trapping arithmetic, case-payload paths, and wider aggregate equality involving
-  text, floats, sums, or erased fields.
+  independent verification, fixed fuel, and interpretation. Exact right shifts
+  now retain a self-proving literal count or the complete nonnegative/below-width
+  requirement package. Exact left shifts additionally reconstruct carrier-tight
+  value bounds at the greatest possible count. Projected calls preserve the
+  canonically ordered package and one exact obligation per requirement; missing
+  count or overflow evidence rejects independently. Continue with Trapping
+  arithmetic, case-payload paths, and wider aggregate equality involving text,
+  floats, sums, or erased fields.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source

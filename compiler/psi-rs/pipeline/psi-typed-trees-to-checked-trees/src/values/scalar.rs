@@ -737,12 +737,15 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     let right_type = scalar_expression_type(&right)?;
                     let kind = checked_integer_binary_kind(binary.operator, left_domain)?;
                     (primitive_type != PrimitiveType::Addr
+                        && right_type != PrimitiveType::Addr
                         && is_integer(primitive_type)
                         && is_integer(right_type)
                         && matches!(
                             kind,
                             CheckedIntegerBinaryKind::WrappingShiftLeft
                                 | CheckedIntegerBinaryKind::WrappingShiftRight
+                                | CheckedIntegerBinaryKind::ExactShiftLeft
+                                | CheckedIntegerBinaryKind::ExactShiftRight
                         ))
                     .then_some((
                         CheckedScalarExpression::IntegerBinary {

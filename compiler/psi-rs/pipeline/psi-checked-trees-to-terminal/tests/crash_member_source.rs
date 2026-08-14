@@ -388,6 +388,40 @@ const PROJECTED_INTEGER_MEMBER_WRAPPING_SHIFT_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_EXACT_SHIFT_SOURCE: &str = r#"
+    data ShiftValues {
+        value: u8;
+        count: i16;
+        shifted_left: u8;
+        shifted_right: u8;
+    }
+    data Envelope { values: ShiftValues; spare: ShiftValues; }
+    data Helper {}
+    machine Helper::inspect(values: ShiftValues)
+    requires
+        0i16 <= values.count,
+        values.count < 8i16,
+        values.value <= 1u8
+    crashes Abort
+        values.value << values.count == values.shifted_left
+            && values.value >> values.count == values.shifted_right
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    requires
+        0i16 <= envelope.values.count,
+        envelope.values.count < 8i16,
+        envelope.values.value <= 1u8
+    crashes Abort
+        envelope.values.value << envelope.values.count == envelope.values.shifted_left
+            && envelope.values.value >> envelope.values.count
+                == envelope.values.shifted_right
+    {
+        Helper::inspect(envelope.values);
+    }
+"#;
+
 const POLICY_NEGATIVE_ONE_LITERAL_DIVISION_SOURCE: &str = r#"
     data Values {
         dividend: i8 in Wrapping;
@@ -2890,7 +2924,154 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
     *predicate = CrashPredicateTerm::new(proposition);
     assert!(matches!(
         psi_terminal_verifier::validate_module(&forged_exact),
-        Err(psi_terminal_verifier::ModuleError::UnprovenStructuralCrashExactShift { .. })
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashExactShift { .. })
+    ));
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("spare".to_owned())];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
+fn exact_shifts_rebase_complete_count_and_overflow_requirements() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_EXACT_SHIFT_SOURCE)
+        .tokenize()
+        .expect("Exact shifts tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("Exact shifts parse");
+    let resolved = lower_syntax_trees(&syntax).expect("Exact shifts resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("Exact shifts type");
+    let checked = lower_typed_trees(typed).expect("Exact shifts check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected Exact shifts retain complete safety requirements");
+    let root = &lowered.semantic_module.machines[0];
+    assert_eq!(root.contract.requires.len(), 3);
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one Exact shift route")
+    };
+    let Proposition::Conjunction(conjuncts) = root_route.proposition() else {
+        panic!("Exact shift route is one conjunction")
+    };
+    let mut counts = [0; 2];
+    for conjunct in conjuncts {
+        let Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::IntegerEqual { left, .. }) =
+            conjunct
+        else {
+            panic!("each Exact shift clause remains an integer equality")
+        };
+        match left.as_ref() {
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                ..
+            } => {
+                assert_eq!(value_type.bits(), 8);
+                assert_eq!(count_type.bits(), 16);
+                counts[0] += 1;
+            }
+            ScalarTerm::ExactIntegerShiftRight {
+                value_type,
+                count_type,
+                ..
+            } => {
+                assert_eq!(value_type.bits(), 8);
+                assert_eq!(count_type.bits(), 16);
+                counts[1] += 1;
+            }
+            _ => panic!("unexpected Exact shift term"),
+        }
+    }
+    assert_eq!(counts, [1; 2]);
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        requirement_obligations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected Exact shift call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [StructuralPathSegment::Field(identity)] if identity == "values"
+    ));
+    assert_eq!(requirement_obligations.len(), 3);
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call carries one Exact shift continuation")
+    };
+    assert_eq!(continuation, root_route);
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("verifier reconstructs projected Exact shift requirements");
+    assert_eq!(reconstructed.len(), 3);
+    assert!(reconstructed.iter().all(|item| {
+        root.contract
+            .requires
+            .contains(&item.obligation.proposition)
+    }));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently checks Exact shift count and overflow bounds");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("Exact shift route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("Exact shift fixed fuel recomputes");
+    let semantics = encode_module(&lowered.semantic_module).expect("Exact shift semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("Exact shift proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 79,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("Exact shifts remain verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut missing_requirements = lowered.semantic_module.clone();
+    missing_requirements.machines[0].contract.requires.clear();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&missing_requirements),
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashExactShift { .. })
     ));
 
     let mut redirected = lowered.semantic_module.clone();

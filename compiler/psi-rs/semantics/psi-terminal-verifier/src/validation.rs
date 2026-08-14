@@ -3323,6 +3323,122 @@ fn validate_boolean_field_terms(
                 })
         }
 
+        fn nonnegative_shift_count(value: IntegerValue) -> Option<u32> {
+            match value {
+                IntegerValue::Unsigned(value) => u32::try_from(value).ok(),
+                IntegerValue::Signed(value) => u32::try_from(value).ok(),
+            }
+        }
+
+        fn exact_shift_maximum_count(
+            value_type: IntegerType,
+            count_type: IntegerType,
+            count: &ScalarTerm,
+            requirements: &[Proposition],
+        ) -> Option<u32> {
+            if count.scalar_type() != ScalarType::Integer(count_type) {
+                return None;
+            }
+            if let Some((literal_type, literal)) = count.integer_value() {
+                let literal = nonnegative_shift_count(literal)?;
+                return (literal_type == count_type && literal < u32::from(value_type.bits()))
+                    .then_some(literal);
+            }
+            if count_type.sign() == IntegerSign::Signed {
+                let zero = ScalarTerm::integer(count_type, IntegerValue::Signed(0)).ok()?;
+                if !requirements.contains(&Proposition::LessOrEqual(zero, count.clone())) {
+                    return None;
+                }
+            }
+            let width = u32::from(value_type.bits());
+            let intrinsic_maximum = nonnegative_shift_count(count_type.maximum_value())?;
+            if intrinsic_maximum < width {
+                return Some(intrinsic_maximum);
+            }
+            requirements
+                .iter()
+                .filter_map(|requirement| match requirement {
+                    Proposition::LessOrEqual(left, right) if left == count => {
+                        let (right_type, right) = right.integer_value()?;
+                        let right = nonnegative_shift_count(right)?;
+                        (right_type == count_type && right < width).then_some(right)
+                    }
+                    Proposition::LessThan(left, right) if left == count => {
+                        let (right_type, right) = right.integer_value()?;
+                        let right = nonnegative_shift_count(right)?;
+                        (right_type == count_type && right > 0 && right <= width)
+                            .then_some(right - 1)
+                    }
+                    _ => None,
+                })
+                .min()
+        }
+
+        fn safe_exact_shift(
+            left_shift: bool,
+            value_type: IntegerType,
+            count_type: IntegerType,
+            value: &ScalarTerm,
+            count: &ScalarTerm,
+            requirements: &[Proposition],
+        ) -> bool {
+            if value.scalar_type() != ScalarType::Integer(value_type) {
+                return false;
+            }
+            let Some(maximum_count) =
+                exact_shift_maximum_count(value_type, count_type, count, requirements)
+            else {
+                return false;
+            };
+            if !left_shift || maximum_count == 0 {
+                return true;
+            }
+            if let Some((literal_type, literal)) = value.integer_value() {
+                let maximum_count_value = match count_type.sign() {
+                    IntegerSign::Signed => IntegerValue::Signed(i128::from(maximum_count)),
+                    IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(maximum_count)),
+                };
+                return literal_type == value_type
+                    && value_type
+                        .exact_shift_left(literal, count_type, maximum_count_value)
+                        .is_some();
+            }
+            match value_type.sign() {
+                IntegerSign::Unsigned => {
+                    let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
+                        unreachable!("unsigned fixed integer has an unsigned maximum")
+                    };
+                    ScalarTerm::integer(
+                        value_type,
+                        IntegerValue::Unsigned(maximum >> maximum_count),
+                    )
+                    .is_ok_and(|maximum| {
+                        requirements.contains(&Proposition::LessOrEqual(value.clone(), maximum))
+                    })
+                }
+                IntegerSign::Signed => {
+                    let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                        (value_type.minimum_value(), value_type.maximum_value())
+                    else {
+                        unreachable!("signed fixed integer has signed bounds")
+                    };
+                    let minimum = ScalarTerm::integer(
+                        value_type,
+                        IntegerValue::Signed(minimum >> maximum_count),
+                    );
+                    let maximum = ScalarTerm::integer(
+                        value_type,
+                        IntegerValue::Signed(maximum >> maximum_count),
+                    );
+                    minimum.is_ok_and(|minimum| {
+                        requirements.contains(&Proposition::LessOrEqual(minimum, value.clone()))
+                    }) && maximum.is_ok_and(|maximum| {
+                        requirements.contains(&Proposition::LessOrEqual(value.clone(), maximum))
+                    })
+                }
+            }
+        }
+
         match term {
             ScalarTerm::BooleanField { root, path } => {
                 let mut structural_type = machine
@@ -3554,11 +3670,36 @@ fn validate_boolean_field_terms(
                 validate_term(module, machine, value, runtime_requirements)?;
                 validate_term(module, machine, count, runtime_requirements)?;
             }
-            ScalarTerm::ExactIntegerShiftLeft { .. }
-            | ScalarTerm::ExactIntegerShiftRight { .. } => {
-                return Err(ModuleError::UnprovenStructuralCrashExactShift {
-                    machine: machine.id,
-                });
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            | ScalarTerm::ExactIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
+            } => {
+                let left_shift = matches!(term, ScalarTerm::ExactIntegerShiftLeft { .. });
+                if !safe_exact_shift(
+                    left_shift,
+                    *value_type,
+                    *count_type,
+                    value,
+                    count,
+                    runtime_requirements,
+                ) {
+                    return Err(ModuleError::UnsafeStructuralCrashExactShift {
+                        machine: machine.id,
+                        value_type: *value_type,
+                        count_type: *count_type,
+                        left_shift,
+                    });
+                }
+                validate_term(module, machine, value, runtime_requirements)?;
+                validate_term(module, machine, count, runtime_requirements)?;
             }
             ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
@@ -6381,8 +6522,11 @@ pub enum ModuleError {
         machine: MachineId,
         scalar_type: psi_core::IntegerType,
     },
-    UnprovenStructuralCrashExactShift {
+    UnsafeStructuralCrashExactShift {
         machine: MachineId,
+        value_type: psi_core::IntegerType,
+        count_type: psi_core::IntegerType,
+        left_shift: bool,
     },
     NonCanonicalCrashRoutes(MachineId),
     EmptyCrashRouteBucket {
