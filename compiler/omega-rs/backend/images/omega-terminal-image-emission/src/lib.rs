@@ -2307,6 +2307,32 @@ fn validate_scalar_stack(
             alignment: evidence.stack_alignment,
         });
     }
+    if let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+        condition,
+        branch_offset,
+        branch_byte_count,
+        false_arm_offset,
+        branches,
+    } = &evidence.control_flow
+    {
+        if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                machine,
+            ));
+        }
+        return validate_top_level_two_return_scalar_stack(
+            architecture,
+            machine,
+            bytes,
+            calls,
+            evidence,
+            *condition,
+            *branch_offset,
+            *branch_byte_count,
+            *false_arm_offset,
+            Some(branches),
+        );
+    }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
         condition,
         branch_offset,
@@ -2329,6 +2355,7 @@ fn validate_scalar_stack(
             branch_offset,
             branch_byte_count,
             false_arm_offset,
+            None,
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
@@ -3131,6 +3158,208 @@ fn validate_scalar_cleanup_preservation_record(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn replay_x86_scalar_division_region(
+    machine: MachineId,
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    require_return: bool,
+    branches: &[TerminalScalarDivisionBranchEvidence],
+    claimed: &mut std::collections::BTreeMap<usize, TerminalScalarStackMutation>,
+    call_sites: &mut std::collections::BTreeMap<
+        usize,
+        omega_terminal_machine_code::TerminalInternalCallRelocation,
+    >,
+    evidence: &TerminalScalarStackEvidence,
+    validated_calls: &mut Vec<TerminalObjectScalarCallStack>,
+) -> Result<u32, TerminalObjectError> {
+    if branches.is_empty() || start > end || end > bytes.len() {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: start,
+        });
+    }
+    let mut cursor = start;
+    let mut depth = 0_u32;
+    let mut peak = 0_u32;
+    for branch in branches {
+        let branch_end = branch
+            .branch_offset
+            .checked_add(branch.branch_byte_count)
+            .ok_or(TerminalObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: branch.branch_offset,
+            })?;
+        let join_end = branch
+            .join_offset
+            .checked_add(branch.join_byte_count)
+            .ok_or(TerminalObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: branch.join_offset,
+            })?;
+        if cursor > branch.branch_offset
+            || branch.branch_offset < start
+            || branch.branch_offset >= branch_end
+            || branch_end > branch.join_offset
+            || join_end != branch.ordinary_arm_offset
+            || branch.ordinary_arm_offset >= branch.merge_offset
+            || branch.merge_offset > end
+        {
+            return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: branch.branch_offset,
+            });
+        }
+        let conditional = decode_exact_x86_instruction(
+            machine,
+            bytes,
+            branch.branch_offset,
+            branch.branch_byte_count,
+        )?;
+        let join = decode_exact_x86_instruction(
+            machine,
+            bytes,
+            branch.join_offset,
+            branch.join_byte_count,
+        )?;
+        if conditional.mnemonic() != iced_x86::Mnemonic::Jne
+            || conditional.flow_control() != iced_x86::FlowControl::ConditionalBranch
+            || usize::try_from(conditional.near_branch_target()).ok()
+                != Some(branch.ordinary_arm_offset)
+            || join.mnemonic() != iced_x86::Mnemonic::Jmp
+            || join.flow_control() != iced_x86::FlowControl::UnconditionalBranch
+            || usize::try_from(join.near_branch_target()).ok() != Some(branch.merge_offset)
+        {
+            return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: branch.branch_offset,
+            });
+        }
+        replay_x86_scalar_linear_region(
+            machine,
+            bytes,
+            cursor,
+            branch.branch_offset,
+            false,
+            claimed,
+            call_sites,
+            evidence,
+            validated_calls,
+            &mut depth,
+            &mut peak,
+        )?;
+        let branch_depth = depth;
+        let mut special_depth = branch_depth;
+        let mut special_peak = peak;
+        replay_x86_scalar_linear_region(
+            machine,
+            bytes,
+            branch_end,
+            branch.join_offset,
+            false,
+            claimed,
+            call_sites,
+            evidence,
+            validated_calls,
+            &mut special_depth,
+            &mut special_peak,
+        )?;
+        let mut ordinary_depth = branch_depth;
+        let mut ordinary_peak = peak;
+        replay_x86_scalar_linear_region(
+            machine,
+            bytes,
+            branch.ordinary_arm_offset,
+            branch.merge_offset,
+            false,
+            claimed,
+            call_sites,
+            evidence,
+            validated_calls,
+            &mut ordinary_depth,
+            &mut ordinary_peak,
+        )?;
+        if special_depth != ordinary_depth {
+            return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
+        }
+        depth = special_depth;
+        peak = special_peak.max(ordinary_peak);
+        cursor = branch.merge_offset;
+    }
+    replay_x86_scalar_linear_region(
+        machine,
+        bytes,
+        cursor,
+        end,
+        require_return,
+        claimed,
+        call_sites,
+        evidence,
+        validated_calls,
+        &mut depth,
+        &mut peak,
+    )?;
+    if depth != 0 {
+        return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
+    }
+    Ok(peak)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replay_scalar_conditional_region_with_divisions(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    require_return: bool,
+    division_branches: &[TerminalScalarDivisionBranchEvidence],
+    claimed: &mut std::collections::BTreeMap<usize, TerminalScalarStackMutation>,
+    call_sites: &mut std::collections::BTreeMap<
+        usize,
+        omega_terminal_machine_code::TerminalInternalCallRelocation,
+    >,
+    allow_calls: bool,
+    evidence: &TerminalScalarStackEvidence,
+    validated_calls: &mut Vec<TerminalObjectScalarCallStack>,
+) -> Result<u32, TerminalObjectError> {
+    if division_branches.is_empty() {
+        return replay_scalar_conditional_region(
+            architecture,
+            machine,
+            bytes,
+            start,
+            end,
+            require_return,
+            claimed,
+            call_sites,
+            allow_calls,
+            evidence,
+            validated_calls,
+            None,
+        );
+    }
+    if architecture != Architecture::X86_64 || !allow_calls {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: start,
+        });
+    }
+    replay_x86_scalar_division_region(
+        machine,
+        bytes,
+        start,
+        end,
+        require_return,
+        division_branches,
+        claimed,
+        call_sites,
+        evidence,
+        validated_calls,
+    )
+}
+
 fn validate_top_level_two_return_scalar_stack(
     architecture: Architecture,
     machine: MachineId,
@@ -3141,6 +3370,7 @@ fn validate_top_level_two_return_scalar_stack(
     branch_offset: usize,
     branch_byte_count: usize,
     false_arm_offset: usize,
+    division_branches: Option<&[TerminalScalarDivisionBranchEvidence]>,
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -3198,19 +3428,39 @@ fn validate_top_level_two_return_scalar_stack(
         branch_byte_count,
         false_arm_offset,
     )?;
-    let prefix_peak = replay_scalar_conditional_region(
+    let division_branches = division_branches.unwrap_or_default();
+    if division_branches.is_empty()
+        != matches!(
+            evidence.control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+        )
+    {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: branch_offset,
+        });
+    }
+    let prefix_branch_count =
+        division_branches.partition_point(|branch| branch.branch_offset < branch_offset);
+    let true_branch_count = division_branches[prefix_branch_count..]
+        .partition_point(|branch| branch.branch_offset < false_arm_offset)
+        + prefix_branch_count;
+    let (prefix_divisions, remaining_divisions) = division_branches.split_at(prefix_branch_count);
+    let (true_divisions, false_divisions) =
+        remaining_divisions.split_at(true_branch_count - prefix_branch_count);
+    let prefix_peak = replay_scalar_conditional_region_with_divisions(
         architecture,
         machine,
         bytes,
         0,
         branch_offset,
         false,
+        prefix_divisions,
         &mut claimed,
         &mut call_sites,
         condition == TerminalScalarConditionalCondition::Expression,
         evidence,
         &mut validated_calls,
-        None,
     )?;
     if condition == TerminalScalarConditionalCondition::Parameter && prefix_peak != 0 {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -3218,33 +3468,33 @@ fn validate_top_level_two_return_scalar_stack(
             offset: branch_offset,
         });
     }
-    let true_peak = replay_scalar_conditional_region(
+    let true_peak = replay_scalar_conditional_region_with_divisions(
         architecture,
         machine,
         bytes,
         true_arm_offset,
         false_arm_offset,
         true,
+        true_divisions,
         &mut claimed,
         &mut call_sites,
         true,
         evidence,
         &mut validated_calls,
-        None,
     )?;
-    let false_peak = replay_scalar_conditional_region(
+    let false_peak = replay_scalar_conditional_region_with_divisions(
         architecture,
         machine,
         bytes,
         false_arm_offset,
         bytes.len(),
         true,
+        false_divisions,
         &mut claimed,
         &mut call_sites,
         true,
         evidence,
         &mut validated_calls,
-        None,
     )?;
     if let Some((&offset, _)) = claimed.first_key_value() {
         return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });

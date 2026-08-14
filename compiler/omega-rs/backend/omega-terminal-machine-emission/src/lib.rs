@@ -337,13 +337,17 @@ fn emit_function(
                 )?,
             };
             scalar_stack_eligible = direct_accountable_integer_arm(when_true)
-                && direct_accountable_integer_arm(when_false)
-                && (architecture != Architecture::X86_64
-                    || collect_x86_division_branch_evidence(&fragment.bytes)?.is_empty());
+                && direct_accountable_integer_arm(when_false);
             if scalar_stack_eligible {
-                scalar_control_flow = fragment
+                let conditional = fragment
                     .conditional
                     .expect("top-level integer conditional retains its branch evidence");
+                let branches = if architecture == Architecture::X86_64 {
+                    collect_x86_division_branch_evidence(&fragment.bytes)?
+                } else {
+                    Vec::new()
+                };
+                scalar_control_flow = conditional_with_division_branches(conditional, branches)?;
             }
             internal_calls = fragment.internal_calls;
             fragment.bytes
@@ -376,13 +380,17 @@ fn emit_function(
             };
             scalar_stack_eligible = accountable_conditional_boolean_expression(condition)
                 && direct_accountable_integer_arm(when_true)
-                && direct_accountable_integer_arm(when_false)
-                && (architecture != Architecture::X86_64
-                    || collect_x86_division_branch_evidence(&fragment.bytes)?.is_empty());
+                && direct_accountable_integer_arm(when_false);
             if scalar_stack_eligible {
-                scalar_control_flow = fragment
+                let conditional = fragment
                     .conditional
                     .expect("top-level integer expression conditional retains its branch evidence");
+                let branches = if architecture == Architecture::X86_64 {
+                    collect_x86_division_branch_evidence(&fragment.bytes)?
+                } else {
+                    Vec::new()
+                };
+                scalar_control_flow = conditional_with_division_branches(conditional, branches)?;
             }
             internal_calls = fragment.internal_calls;
             fragment.bytes
@@ -6494,6 +6502,33 @@ fn collect_x86_division_branch_evidence(
     Ok(branches)
 }
 
+fn conditional_with_division_branches(
+    conditional: TerminalScalarControlFlowEvidence,
+    branches: Vec<TerminalScalarDivisionBranchEvidence>,
+) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
+    if branches.is_empty() {
+        return Ok(conditional);
+    }
+    let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        condition,
+        branch_offset,
+        branch_byte_count,
+        false_arm_offset,
+    } = conditional
+    else {
+        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    };
+    Ok(
+        TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+            branches,
+        },
+    )
+}
+
 fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bool {
     match expression {
         TerminalAssignedScalarExpression::Boolean(expression) => {
@@ -9361,14 +9396,20 @@ mod tests {
             };
             plan
         };
-        assert_eq!(
-            emit_machine_code(&signed_division_plan(NativeTarget::linux_x64()))
-                .expect("signed x86 conditional division still emits")
-                .functions[0]
-                .scalar_stack,
-            None,
-            "the compiler-generated signed x86 division diamond remains fenced"
-        );
+        let signed_x86 = emit_machine_code(&signed_division_plan(NativeTarget::linux_x64()))
+            .expect("signed x86 conditional division emits");
+        let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+            branches,
+            ..
+        } = &signed_x86.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("signed x86 conditional division stack evidence")
+            .control_flow
+        else {
+            panic!("signed x86 conditional division must retain composite evidence")
+        };
+        assert_eq!(branches.len(), 1);
         assert!(matches!(
             emit_machine_code(&signed_division_plan(NativeTarget::linux_arm64()))
                 .expect("signed AArch64 conditional division emits")
@@ -9572,7 +9613,7 @@ mod tests {
     }
 
     #[test]
-    fn expression_condition_division_fences_x86_policy_diamonds() {
+    fn expression_condition_division_retains_x86_policy_diamonds() {
         let signed_plan = |target: NativeTarget, argument_register: MachineRegister| {
             let mut plan = calling_expression_condition_plan(target, argument_register);
             let TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
@@ -9604,17 +9645,23 @@ mod tests {
             };
             plan
         };
-        assert_eq!(
-            emit_machine_code(&signed_plan(
-                NativeTarget::linux_x64(),
-                MachineRegister::X86Rdi,
-            ))
-            .expect("signed x86 condition division still emits")
-            .functions[0]
-                .scalar_stack,
-            None,
-            "the compiler-generated signed x86 division diamond remains fenced"
-        );
+        let signed_x86 = emit_machine_code(&signed_plan(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+        ))
+        .expect("signed x86 condition division emits");
+        let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+            branches,
+            ..
+        } = &signed_x86.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("signed x86 condition division stack evidence")
+            .control_flow
+        else {
+            panic!("signed x86 condition division must retain composite evidence")
+        };
+        assert_eq!(branches.len(), 1);
         assert!(matches!(
             emit_machine_code(&signed_plan(
                 NativeTarget::linux_arm64(),
@@ -9839,18 +9886,24 @@ mod tests {
             );
         }
 
-        assert_eq!(
-            emit_machine_code(&division_argument_plan(
-                NativeTarget::linux_x64(),
-                MachineRegister::X86Rdi,
-                true,
-            ))
-            .expect("signed x86 condition call-argument division still emits")
-            .functions[0]
-                .scalar_stack,
-            None,
-            "the signed x86 call-argument division diamond remains fenced"
-        );
+        let signed_x86 = emit_machine_code(&division_argument_plan(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            true,
+        ))
+        .expect("signed x86 condition call-argument division emits");
+        let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+            branches,
+            ..
+        } = &signed_x86.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("signed x86 condition call-argument stack evidence")
+            .control_flow
+        else {
+            panic!("signed x86 condition call argument must retain composite evidence")
+        };
+        assert_eq!(branches.len(), 1);
         assert!(
             emit_machine_code(&division_argument_plan(
                 NativeTarget::linux_arm64(),
