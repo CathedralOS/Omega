@@ -340,8 +340,11 @@ state through a raw address.
 - Build Cathedral's page-table hierarchy, validation states, installation, and
   teardown in Omega source using `source/drivers/facts/x86_page_table_entry.omg`.
 - Use pre-reserved storage for the fixed bootstrap table; dynamic hierarchy
-  allocation waits for the package allocator. Do not restore a compiler-owned
-  page-table model.
+  allocation waits for the package allocator. Cathedral now represents one
+  512-entry page candidate and validates its complete exact-zero starting
+  state with a checked bounded scan. Physical backing, address-space-profile
+  hierarchy, mappings, installation, and teardown remain. Do not restore a
+  compiler-owned page-table model.
 
 #### Exception roots and first timer
 
