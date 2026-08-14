@@ -336,10 +336,13 @@ Remaining:
   and reconstructs both roots independently across whole-root calls. Exact
   addition, subtraction, and multiplication over same-typed relevant fixed-integer
   members now remain typed proposition terms and reconstruct every nested operand
-  across whole-root and all-field-projected calls. Continue with other arithmetic
-  families, case-payload paths, and wider aggregate equality involving text,
-  floats, sums, or erased fields. Imported crash capsules remain design-blocked
-  on artifact identity and certificate binding.
+  across whole-root and all-field-projected calls. Exact division and remainder
+  additionally accept a same-carrier literal divisor whose nonzero and signed
+  overflow safety the producer and verifier both establish independently.
+  Continue with obligation-bearing runtime divisors, other arithmetic families,
+  case-payload paths, and wider aggregate equality involving text, floats, sums,
+  or erased fields. Imported crash capsules remain design-blocked on artifact
+  identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

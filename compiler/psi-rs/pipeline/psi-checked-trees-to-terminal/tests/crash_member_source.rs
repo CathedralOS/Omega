@@ -230,6 +230,37 @@ const PROJECTED_INTEGER_MEMBER_MULTIPLICATION_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_DIVISION_SOURCE: &str = r#"
+    data Metrics { current: u64; limit: u64; parity: u64; }
+    data Batch { metrics: Metrics; shadow: Metrics; }
+    data Envelope { batch: Batch; spare: Batch; }
+    data Helper {}
+    machine Helper::inspect(metrics: Metrics)
+    crashes Abort
+        metrics.current / 2u64 <= metrics.limit
+            && metrics.current % 2u64 == metrics.parity
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.batch.metrics.current / 2u64 <= envelope.batch.metrics.limit
+            && envelope.batch.metrics.current % 2u64
+                == envelope.batch.metrics.parity
+    {
+        Helper::inspect(envelope.batch.metrics);
+    }
+"#;
+
+const RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
+    data Metrics { current: u64; divisor: u64; limit: u64; }
+    data Root {}
+    machine Root::enter(metrics: Metrics)
+    crashes Abort
+        metrics.current / metrics.divisor <= metrics.limit
+    {}
+"#;
+
 const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
     data Flag { active: bool; }
     data Pair { left: Flag; right: Flag; decoy: Flag; }
@@ -1831,6 +1862,211 @@ fn exact_member_multiplication_rebases_every_operand_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected multiplication-member validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn arithmetic_fields(proposition: &Proposition) -> [&ScalarTerm; 3] {
+        let Proposition::Conjunction(conjuncts) = proposition else {
+            panic!("division and remainder route is one conjunction")
+        };
+        let mut division = None;
+        let mut remainder = None;
+        let mut parity = None;
+        for conjunct in conjuncts {
+            let Proposition::Equal(ScalarTerm::Boolean(true), predicate) = conjunct else {
+                continue;
+            };
+            match predicate {
+                ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
+                    let ScalarTerm::ExactIntegerDivide {
+                        left: dividend,
+                        right: divisor,
+                        ..
+                    } = left.as_ref()
+                    else {
+                        continue;
+                    };
+                    assert!(matches!(
+                        divisor.as_ref(),
+                        ScalarTerm::Integer {
+                            value: psi_core::IntegerValue::Unsigned(2),
+                            ..
+                        }
+                    ));
+                    division = Some(dividend.as_ref());
+                    assert!(matches!(right.as_ref(), ScalarTerm::IntegerField { .. }));
+                }
+                ScalarTerm::IntegerEqual { left, right, .. } => {
+                    let ScalarTerm::ExactIntegerRemainder {
+                        left: dividend,
+                        right: divisor,
+                        ..
+                    } = left.as_ref()
+                    else {
+                        continue;
+                    };
+                    assert!(matches!(
+                        divisor.as_ref(),
+                        ScalarTerm::Integer {
+                            value: psi_core::IntegerValue::Unsigned(2),
+                            ..
+                        }
+                    ));
+                    remainder = Some(dividend.as_ref());
+                    parity = Some(right.as_ref());
+                }
+                _ => {}
+            }
+        }
+        [
+            division.expect("division member"),
+            remainder.expect("remainder member"),
+            parity.expect("remainder comparison member"),
+        ]
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_DIVISION_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected exact member division and remainder lower");
+
+    let root = &lowered.semantic_module.machines[0];
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one division/remainder member route")
+    };
+    for term in arithmetic_fields(root_route.proposition()) {
+        let ScalarTerm::IntegerField {
+            root: field_root,
+            path,
+            scalar_type,
+        } = term
+        else {
+            panic!("caller division operand is a typed member path")
+        };
+        assert_eq!(*field_root, root.structural_parameters[0].place);
+        assert_eq!(path.len(), 3);
+        assert_eq!(
+            *scalar_type,
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+        );
+    }
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    assert_eq!(structural_arguments.len(), 1);
+    assert_eq!(structural_arguments[0].path.len(), 2);
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains the division/remainder member continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently substitutes division/remainder member operands");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("division/remainder member route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 53,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("member division remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut unsafe_divisor =
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Helper::inspect")
+            .expect("standalone helper division lowers")
+            .semantic_module;
+    let CrashRouteGuard::Predicate(predicate) =
+        &mut unsafe_divisor.machines[0].contract.crash_routes[0].alternatives[0]
+    else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Conjunction(conjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(ScalarTerm::ExactIntegerDivide {
+        scalar_type, right, ..
+    }) = conjuncts.iter_mut().find_map(|conjunct| {
+        let Proposition::Equal(_, ScalarTerm::IntegerLessOrEqual { left, .. }) = conjunct else {
+            return None;
+        };
+        Some(left.as_mut())
+    })
+    else {
+        unreachable!()
+    };
+    *right =
+        Box::new(ScalarTerm::integer(*scalar_type, psi_core::IntegerValue::Unsigned(0)).unwrap());
+    *predicate = CrashPredicateTerm::new(proposition);
+    let unsafe_result = psi_terminal_verifier::validate_module(&unsafe_divisor);
+    assert!(
+        matches!(
+            unsafe_result,
+            Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashExactDivisor { .. })
+        ),
+        "unexpected unsafe-divisor validation result: {unsafe_result:?}"
+    );
+
+    let tokens = Lexer::new(RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
+        .tokenize()
+        .expect("runtime-divisor tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("runtime-divisor parse");
+    let resolved = lower_syntax_trees(&syntax).expect("runtime-divisor resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor type");
+    let checked = lower_typed_trees(typed).expect("runtime-divisor check");
+    assert!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter").is_err(),
+        "a runtime member divisor remains fenced without explicit terminal safety evidence"
     );
 }
 

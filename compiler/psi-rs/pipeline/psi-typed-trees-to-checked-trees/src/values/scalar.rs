@@ -565,6 +565,25 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             parameters: &[StateParameter],
             expression: ExpressionHandle,
         ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+            fn safe_exact_literal_divisor(expression: &CheckedScalarExpression) -> bool {
+                let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+                    return false;
+                };
+                let Some(landing) = literal.landing() else {
+                    return false;
+                };
+                if landing.domain != ArithmeticDomain::Exact {
+                    return false;
+                }
+                if landing.landed_type.is_signed() {
+                    literal
+                        .value_i64()
+                        .is_some_and(|value| value != 0 && value != -1)
+                } else {
+                    literal.value_u64().is_some_and(|value| value != 0)
+                }
+            }
+
             let mut path = Vec::new();
             if let Some(parameter_position) =
                 structural_parameter_field_path(program, parameters, expression, &mut path)
@@ -596,7 +615,11 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 ExpressionNode::Binary(binary)
                     if matches!(
                         binary.operator,
-                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                        BinaryOperator::Add
+                            | BinaryOperator::Subtract
+                            | BinaryOperator::Multiply
+                            | BinaryOperator::Divide
+                            | BinaryOperator::Modulo
                     ) && operator_is_builtin(operators, expression) =>
                 {
                     let (left, left_domain) = lower_structural_integer_expression(
@@ -613,10 +636,19 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     )?;
                     let primitive_type = scalar_expression_type(&left)?;
                     let domain = combine_arithmetic_domains(left_domain, right_domain)?;
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Divide | BinaryOperator::Modulo
+                    ) && !safe_exact_literal_divisor(&right)
+                    {
+                        return None;
+                    }
                     let kind = match binary.operator {
                         BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
                         BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
                         BinaryOperator::Multiply => CheckedIntegerBinaryKind::ExactMultiply,
+                        BinaryOperator::Divide => CheckedIntegerBinaryKind::ExactDivide,
+                        BinaryOperator::Modulo => CheckedIntegerBinaryKind::ExactRemainder,
                         _ => return None,
                     };
                     (domain == ArithmeticDomain::Exact
