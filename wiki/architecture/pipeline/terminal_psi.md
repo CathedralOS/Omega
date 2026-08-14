@@ -929,23 +929,12 @@ terminal boundary. It additionally accepts one direct relevant Boolean field
 identity on one claim-free affine nominal-cleanup root; the terminal operation,
 verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
-that source outside native expression scratch. Separately, direct integer
-comparisons over scalar parameters and landed constants, with up to two total
-binary, bitwise-not, or integer-widening computation shells, or one
-proof-bearing exact-cast, exact-add, exact-subtract, exact-multiply, exact shift,
-exact-divide, or exact-remainder shell per operand, retain their exact Psi
-operations through the same verified, interpreted, and native shared join.
-The proof-bearing subset accepts direct fixed-width integer parameter upper-
-and lower-bound premises; Psi retains each as a terminal machine requirement,
-and each operation certificate cites its exact assumption. Those premises now
-cover same- and cross-sign exact narrowing plus signed or unsigned
-landed-operand addition, landed-subtrahend subtraction, and landed-factor
-multiplication, plus runtime unsigned and signed multiplication, runtime
-unsigned and signed addition under the corresponding computed bounds, and
-runtime unsigned and signed subtraction under the corresponding relational or
-computed bounds, in addition to the separately listed shift forms, signed
-landed-divisor form, runtime signed or unsigned positive-divisor forms, and the
-two signed negative-divisor forms.
+that source outside native expression scratch. The bounded direct-integer-
+comparison form specified in the nominal-cleanup section above retains the same
+exact Psi operations, contract premises, and certificates through this
+verified, interpreted, and native shared join. The operation list and accepted
+proof shapes are stated once there; this native accounting section adds no
+second vocabulary.
 Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
 member/comparison mixtures, external
