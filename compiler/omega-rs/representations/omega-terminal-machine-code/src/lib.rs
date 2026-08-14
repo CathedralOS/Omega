@@ -6,7 +6,7 @@
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
-    TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalProviderExecutionBinding,
     TerminalPsiProvenance,
 };
 use psi_core::{
@@ -177,7 +177,7 @@ pub struct TerminalBoundarySettlementRecord {
     pub psi_operation: OperationId,
     pub boundary: BoundaryMachineId,
     pub provider_execution: TerminalProviderExecutionRecord,
-    pub realization: TerminalMetadataOnlyPortRealization,
+    pub realization: TerminalBoundaryRealization,
     /// Exact typed Psi custody arguments, including structural projections.
     /// These are provider-settlement evidence and do not describe an internal
     /// Unit-call ABI.
@@ -188,6 +188,9 @@ pub struct TerminalBoundarySettlementRecord {
     pub operation_ordinal: usize,
     /// Byte offset immediately after all preceding executable operations.
     pub code_offset: usize,
+    /// Zero for metadata-only settlements; otherwise the exact provider
+    /// instruction interval that produces the boundary result.
+    pub byte_count: usize,
 }
 
 /// Non-authoritative serialized projection of an admitted provider execution.

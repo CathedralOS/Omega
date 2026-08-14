@@ -784,6 +784,7 @@ dependencies = [
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
+ "omega-x86-encoding",
  "psi-arena",
  "psi-checked-interpreter",
  "psi-checked-trees",

@@ -161,6 +161,24 @@ pub struct TerminalMetadataOnlyPortRealization {
     pub value: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalDirectPortReadU8Realization {
+    pub service: ServiceId,
+    pub port: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalBoundaryRealization {
+    MetadataOnlyPort(TerminalMetadataOnlyPortRealization),
+    DirectPortReadU8(TerminalDirectPortReadU8Realization),
+}
+
+impl From<TerminalMetadataOnlyPortRealization> for TerminalBoundaryRealization {
+    fn from(realization: TerminalMetadataOnlyPortRealization) -> Self {
+        Self::MetadataOnlyPort(realization)
+    }
+}
+
 /// The first boundary realization is metadata-only: an exact selected
 /// provider execution settles the claim, while the preceding semantic effect
 /// (for example `PortWrite`) performs the hardware operation. No code is
@@ -169,7 +187,7 @@ pub struct TerminalMetadataOnlyPortRealization {
 pub struct TerminalBoundarySettlementBinding {
     pub boundary: BoundaryMachineId,
     pub provider_execution: TerminalProviderExecutionBinding,
-    pub realization: TerminalMetadataOnlyPortRealization,
+    pub realization: TerminalBoundaryRealization,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -256,6 +274,22 @@ pub enum TerminalTargetOperation {
         structural_parameters: Vec<TerminalTargetStructuralParameter>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
+    },
+    /// One direct x86 provider realization for a verified bodyless boundary
+    /// returning an unsigned byte. Structural arguments and receipts are
+    /// semantic custody metadata; the selected port read produces the ABI
+    /// scalar result.
+    ReturnBoundaryPortReadU8 {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        boundary: BoundaryMachineId,
+        provider_execution: TerminalProviderExecutionBinding,
+        realization: TerminalDirectPortReadU8Realization,
+        arguments: Vec<StructuralArgument>,
+        completion_receipts: Vec<CompletionReceipt>,
+        call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
     },
     /// One finite short-circuit Boolean tree whose value-return leaves all
     /// execute the same complete structural cleanup stream. Each leaf retains

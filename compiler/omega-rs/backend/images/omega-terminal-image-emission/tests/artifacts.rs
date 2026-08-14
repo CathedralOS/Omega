@@ -1759,7 +1759,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "5b45fc989f56b0cab4ed9630aec9cb9ea168c3c51661d76dd9d05262891aa41f"
+        "38980296cb4fa412622170d6d51e264d5bc57036b0e3d2c919392b65434120c5"
     );
 
     let mut changed_plan = plan;
@@ -1902,11 +1902,12 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 psi_operation: settlement_operation,
                 boundary,
                 provider_execution: provider_execution.into(),
-                realization,
+                realization: realization.into(),
                 arguments: Vec::new(),
                 completion_receipts: Vec::new(),
                 operation_ordinal: 1,
                 code_offset: 27,
+                byte_count: 0,
             }],
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),
@@ -1921,7 +1922,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     assert_eq!(artifact.port_effects()[0].effect.service, service);
     assert_eq!(
         artifact.boundary_settlements()[0].settlement.realization,
-        realization
+        realization.into()
     );
     let image = emit_terminal_executable_image(&artifact, 3).expect("effect image");
     assert_eq!(image.fuel_attribution(), artifact.fuel_attribution());
@@ -1944,9 +1945,12 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         Err(TerminalObjectError::InvalidFuelAttribution(machine_id(1)))
     );
     let mut wrong_realization = plan;
-    wrong_realization.functions[0].boundary_settlements[0]
-        .realization
-        .value = 0x21;
+    wrong_realization.functions[0].boundary_settlements[0].realization =
+        TerminalMetadataOnlyPortRealization {
+            value: 0x21,
+            ..realization
+        }
+        .into();
     assert!(matches!(
         build_terminal_object_artifact(&wrong_realization),
         Err(TerminalObjectError::BoundaryRealizationMismatch { .. })

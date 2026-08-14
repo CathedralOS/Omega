@@ -325,9 +325,11 @@ Owners:
   carry exact whole-root receipts from source checking through terminal Psi
   encoding, verification, and retry-safe interpretation. Omega retains the
   result in its abstract plan and rejects the old metadata-only settlement path
-  rather than dropping it. Finish a native result-returning provider
-  realization, then provider-view invalidation; projected/content-bearing
-  result calls remain fail-closed.
+  rather than dropping it. An admitted x86-64 `u8` port-read provider now has
+  an exact result-returning native realization whose arguments, receipts,
+  instruction interval, and provider identity survive installation. Other
+  result shapes and targets remain fail-closed. Finish provider-view
+  invalidation; projected/content-bearing result calls remain fail-closed.
 - **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
   representation and initialization transition are settled, carry the exact
   view through foreign signatures, calling plans, borrow checking, and both
