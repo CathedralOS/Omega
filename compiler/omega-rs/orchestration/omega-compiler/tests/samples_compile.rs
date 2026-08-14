@@ -28,7 +28,7 @@
 //!    deployable arithmetic cohort has the same exact hosted-root guarantees,
 //!    while four float-lowering fixtures remain checked-only.
 //!  * `system_samples_compile_from_authored_program_entry_bindings` — the
-//!    deployable systems cohort lowers from exact authored roots, while three
+//!    deployable systems cohort lowers from exact authored roots, while two
 //!    known runtime-engineering fixtures remain checked-only.
 //!  * `probe_samples_compile_from_authored_program_entry_bindings` — executable
 //!    regression probes name their exact hosted roots; the deliberate trapping
@@ -148,8 +148,9 @@ const EXPLICIT_ENTRY_SYSTEM_SAMPLES: &[&str] = &[
     "status_report",
     "task_runner",
     "vending_machine",
+    "wire_protocol",
 ];
-const CHECKED_ONLY_SYSTEM_SAMPLES: &[&str] = &["file_journal", "note_vault", "wire_protocol"];
+const CHECKED_ONLY_SYSTEM_SAMPLES: &[&str] = &["file_journal", "note_vault"];
 const EXPLICIT_ENTRY_PROBE_SAMPLES: &[&str] = &[
     "alarm_probe",
     "alarm_probe2",
