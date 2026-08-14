@@ -203,10 +203,12 @@ Remaining:
   its immediate predecessor one or more times. One finite `!`/`&&`/`||` binding
   containing exactly one runtime Boolean input plus constants now retains its
   typed value exits into one terminal-Psi convergence parameter and one shared
-  cleanup return; Omega collapses the nested semantic tree to one physical
-  two-arm join through target assignment, native emission, decoded object/image
-  custody, and installation on all targets. Extend shared convergence to
-  multiple inputs or comparison/member leaves, then add complete slices for
+  cleanup return. Boolean equality against a constant normalizes to that same
+  identity/negation carrier; Omega collapses the nested semantic tree to one
+  physical two-arm join through target assignment, native emission, decoded
+  object/image custody, and installation on all targets. Extend shared
+  convergence to multiple inputs or member/integer comparisons, then add
+  complete slices for
   calls and effects, wider partial-value cleanup, nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail
   recursion. Dynamic or
@@ -446,8 +448,9 @@ reach or trust, and private proof improvements do not change public identity.
   obligations through terminal verification, interpretation, fuel, and all
   native artifact paths. Nominal scalar cleanup admits finite continuation
   chains whose stages contain arbitrarily nested finite short-circuit Boolean
-  decisions. One exact identity-shaped decision can instead feed a typed shared
-  terminal-Psi convergence value and one native cleanup tail. Extend contextual
+  decisions. One exact identity/negation-shaped decision, including Boolean
+  equality against a constant, can instead feed a typed shared terminal-Psi
+  convergence value and one native cleanup tail. Extend contextual
   cleanup beyond the current receiver-independent Boolean subset, finite
   continuation trees, and that narrow shared-convergence shape; add
   wider structural partial values, repeated-cycle resource composition, and

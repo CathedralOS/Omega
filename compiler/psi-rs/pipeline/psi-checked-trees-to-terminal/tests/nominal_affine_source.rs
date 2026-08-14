@@ -384,7 +384,7 @@ const MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE: &str = r#"
 
     data Root {}
     machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
-        let staged: bool = input && true;
+        let staged: bool = (input == false) && true;
         staged
     }
 "#;
@@ -1524,6 +1524,18 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         }
     }
     assert_eq!(decision_count, 2);
+    assert!(entry.blocks.iter().all(|block| {
+        block
+            .operations
+            .iter()
+            .all(|operation| !matches!(operation.kind, OperationKind::BooleanEqual { .. }))
+    }));
+    assert!(entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::BooleanNot { .. }))
+    }));
     assert_eq!(
         jump_targets,
         [convergence.id, convergence.id, convergence.id]
@@ -1579,7 +1591,7 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         .expect("shared nominal Boolean convergence interprets");
         assert_eq!(
             measured.value(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(input))
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(!input))
         );
         assert!(measured.effects().is_empty());
     }

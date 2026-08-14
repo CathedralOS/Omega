@@ -388,14 +388,15 @@ native path. Terminal production decides every short-circuit local once per
 stage, substitutes each resulting value leaf into the continuation, and
 source-distributes branch-free work and later decision stages without a
 convergence block. One bounded exception accepts a finite `!`/`&&`/`||` tree with
-exactly one runtime Boolean input and otherwise constant leaves. Every typed
-value leaf jumps to one terminal-Psi Boolean parameter and one shared cleanup
-return. Omega folds the constant-only decisions and retains one physical
-two-arm join, one unconditional join branch, and one cleanup tail on every
-target; object construction decodes the branch and replays the shared tail
-before image and installation custody. Multiple inputs, comparison/member
-leaves, calls, effects, nested nominal ownership, projections, and wider cleanup
-shapes still fail closed.
+exactly one runtime Boolean input and otherwise constant leaves. Boolean
+equality with a constant normalizes to the same identity/negation leaves. Every
+typed value leaf jumps to one terminal-Psi Boolean parameter and one shared
+cleanup return. Omega folds the constant-only decisions and retains one
+physical two-arm join, one unconditional join branch, and one cleanup tail on
+every target; object construction decodes the branch and replays the shared
+tail before image and installation custody. Multiple inputs, member/integer
+comparisons, calls, effects, nested nominal ownership, projections, and wider
+cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -875,8 +876,12 @@ replay validates its native decision, unconditional join branch, and single
 cleanup tail on every target. General shared native control-flow joins remain
 outside the theorem. Affine cleanup admits the finite
 branch-only trees described above, with one distinct cleanup-bearing return
-edge per surviving leaf. External adapter/interrupt-arrival state and other
-terminal function forms are also absent, so the inspection surface makes no
+edge per surviving leaf. The shared form also accepts Boolean equality against
+a constant: Psi normalizes that leaf to identity or negation before emitting
+the existing convergence carrier, so no comparison operation crosses the
+terminal boundary. Multiple inputs, member/integer comparisons, external
+adapter/interrupt-arrival state, and other terminal function forms remain
+outside the shared-join theorem, so the inspection surface makes no
 installed-root WCSU claim.
 
 ## Implementation queue

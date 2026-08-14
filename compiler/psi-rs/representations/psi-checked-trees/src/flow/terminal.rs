@@ -301,8 +301,10 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub return_statement_ordinal: u32,
     /// One bounded actual CFG convergence: a single finite `!`/`&&`/`||`
     /// binding with one runtime Boolean input has typed value leaves entering
-    /// one shared direct return/cleanup block. Multiple inputs or richer leaves
-    /// retain the source-distributed fallback and publish `None`.
+    /// one shared direct return/cleanup block. Boolean equality with a constant
+    /// is normalized to identity/negation; multiple inputs, member/integer
+    /// comparisons, or richer leaves retain the source-distributed fallback
+    /// and publish `None`.
     pub shared_boolean_convergence: Option<CheckedStructuralBooleanConvergencePlan>,
     /// Complete canonical direct-Boolean caller facts preserved at the closed
     /// scalar return edge. Nominal cleanup actions select root-local subsets
