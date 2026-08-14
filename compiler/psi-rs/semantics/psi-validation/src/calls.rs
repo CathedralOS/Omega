@@ -2641,7 +2641,7 @@ fn statement_call_preserves_transparent_result(
 /// member-projection, or indexing shells. One
 /// primitive-only record, selected-case, or fixed-array literal may
 /// independently contain such a tree in each direct field/element, and one
-/// nested aggregate of the same kind may do the same. Reference-bearing or
+/// nested aggregate of either concrete kind may do the same. Reference-bearing or
 /// generic literals, wider aggregate or scalar-computation depth, and unknown
 /// return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
@@ -2748,8 +2748,8 @@ fn assignment_target_type(
 /// literal does not carry itself. Only literal-length, caller-isolated arrays
 /// participate; every effectful element independently obeys the ordinary
 /// depth-four call budget, primitive elements may use the depth-two scalar
-/// computation rail, and one nested fixed-array literal consumes the second
-/// aggregate level.
+/// computation rail, and one nested fixed-array or concrete aggregate literal
+/// consumes the second aggregate level.
 #[allow(clippy::too_many_arguments)]
 fn array_value_assignment_preserves_transparent_result(
     program: &TypedTrees,
@@ -2812,6 +2812,20 @@ fn array_value_assignment_preserves_transparent_result(
                 aliases,
                 remaining_aggregate_depth - 1,
             ),
+            ExpressionNode::StructLiteral(literal)
+                if struct_literal_matches_expected_type(program, literal, element_type) =>
+            {
+                aggregate_value_assignment_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    *element,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                    remaining_aggregate_depth - 1,
+                )
+            }
             ExpressionNode::Binary(_)
             | ExpressionNode::Cast(_)
             | ExpressionNode::Indexed(_)
@@ -2949,6 +2963,23 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         parameters,
                         aliases,
                         remaining_aggregate_depth - 1,
+                    )
+                }
+                ExpressionNode::ArrayLiteral(_) => {
+                    struct_literal_field_type(program, literal, field.name.as_str()).is_some_and(
+                        |field_type| {
+                            array_value_assignment_preserves_transparent_result(
+                                program,
+                                current_machine,
+                                field.value,
+                                field_type,
+                                symbols,
+                                active_states,
+                                parameters,
+                                aliases,
+                                remaining_aggregate_depth - 1,
+                            )
+                        },
                     )
                 }
                 ExpressionNode::Binary(_)
@@ -3102,6 +3133,43 @@ fn struct_literal_field_is_primitive(
     literal: &TableStructLiteral,
     field_name: &str,
 ) -> bool {
+    struct_literal_field_type(program, literal, field_name)
+        .is_some_and(|field_type| program.primitive_type_reference(field_type).is_some())
+}
+
+fn struct_literal_field_type(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name == literal.type_name);
+    let definition = definitions.next()?;
+    definitions.next().is_none().then_some(())?;
+    construction_field_type(
+        program,
+        definition,
+        literal.case_name.as_ref().map(|name| name.as_str()),
+        field_name,
+    )
+}
+
+fn struct_literal_matches_expected_type(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    expected_type: TypeReferenceHandle,
+) -> bool {
+    let Some(expected_type) = crate::places::unwrapped_type_reference(program, expected_type)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(expected_type)
+    else {
+        return false;
+    };
     let mut definitions = program
         .data_definitions()
         .iter()
@@ -3110,13 +3178,12 @@ fn struct_literal_field_is_primitive(
         return false;
     };
     definitions.next().is_none()
-        && construction_field_type(
-            program,
-            definition,
-            literal.case_name.as_ref().map(|name| name.as_str()),
-            field_name,
-        )
-        .is_some_and(|field_type| program.primitive_type_reference(field_type).is_some())
+        && definition.type_parameters.is_empty()
+        && if symbol.is_valid() {
+            definition.symbol == *symbol
+        } else {
+            definition.name == *name
+        }
 }
 
 fn value_call_assignment_preserves_transparent_result(

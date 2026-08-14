@@ -418,7 +418,10 @@ compiler concept is introduced.
   operators, primitive value casts, member projections, or indexing without
   widening that budget. Literal-length caller-isolated fixed-array assignment
   values preserve the same relation through one nested array level; every
-  element retains the same call and primitive-computation budgets.
+  element retains the same call and primitive-computation budgets. Within that
+  same two-level aggregate budget, fixed arrays may contain concrete record or
+  selected-case literals, and concrete record or selected-case fields may
+  contain literal fixed arrays.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
