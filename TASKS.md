@@ -190,10 +190,11 @@ Remaining:
   Codec, independent verification, interpretation, fixed fuel, and all Omega
   artifact/install paths agree on these carriers.
 
-  The nominal-cleanup Boolean slice source-distributes one short-circuit local
-  through a finite chain of single-use branch-free continuation locals. Add
-  complete slices for value reuse, repeated short-circuit stages, explicit
-  shared convergence, nested decisions, calls and effects,
+  The nominal-cleanup Boolean slice decides one short-circuit local once, then
+  source-distributes its value leaves through a finite chain of branch-free
+  continuation locals; each stage may use its immediate predecessor one or more
+  times. Add complete slices for repeated short-circuit stages, explicit shared
+  convergence, nested decisions, calls and effects,
   wider partial-value cleanup, nested nominal ownership, returned transfer,
   loops, suspension, scoped ordering, and ranked tail recursion. Dynamic or
   nested indexing, wider projections/signatures, content-bearing splits, and

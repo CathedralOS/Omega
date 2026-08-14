@@ -312,10 +312,8 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
         {
             let inverted: bool = !right;
             let staged: bool = left && inverted;
-            let completed: bool = !staged;
-            let restored: bool = !completed;
-            let inverted_again: bool = !restored;
-            inverted_again
+            let reused: bool = staged == staged;
+            reused
         }
     "#;
     let tokens = Lexer::new(source)
@@ -337,6 +335,16 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
         .find(|machine| machine.id == entry_machine)
         .expect("bounded Boolean cleanup entry");
     assert_eq!(entry.contract.requires.len(), 2);
+    assert_eq!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::BooleanEqual { .. }))
+            .count(),
+        3,
+        "the reused value is decided once and its continuation is distributed over the leaves"
+    );
     let mut return_obligations = Vec::new();
     let return_edges = entry
         .blocks

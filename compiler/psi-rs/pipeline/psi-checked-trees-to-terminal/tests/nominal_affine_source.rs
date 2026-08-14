@@ -352,6 +352,28 @@ const MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     }
 "#;
 
+const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(
+        token: Token,
+        left: bool,
+        plain: Plain,
+        right: bool
+    ) -> bool
+    {
+        let staged: bool = left && right;
+        let reused: bool = staged == staged;
+        reused
+    }
+"#;
+
 const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -1319,6 +1341,116 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
         );
         assert_eq!(measured.usage().total_units(), expected_fuel);
+        assert!(measured.effects().is_empty());
+    }
+}
+
+#[test]
+fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
+    let tokens = Lexer::new(MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE)
+        .tokenize()
+        .expect("tokenize reused nominal short-circuit scalar return");
+    let syntax =
+        parse_syntax_trees(&tokens).expect("parse reused nominal short-circuit scalar return");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve reused nominal short-circuit scalar return");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type reused nominal short-circuit scalar return");
+    let checked =
+        lower_typed_trees(typed).expect("check reused nominal short-circuit scalar return");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("pure reused short-circuit value source-distributes through nominal cleanup");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("reused nominal short-circuit entry");
+    let [token, plain] = entry.structural_parameters.as_slice() else {
+        panic!("reused nominal short-circuit entry retains both structural roots")
+    };
+    let mut conditional_count = 0;
+    let mut return_count = 0;
+    for block in &entry.blocks {
+        match &block.terminator {
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                conditional_count += 1;
+                assert!(when_true.trivial_affine_discards.is_empty());
+                assert!(when_false.trivial_affine_discards.is_empty());
+            }
+            Terminator::Return {
+                cleanup_actions, ..
+            } => {
+                return_count += 1;
+                assert!(matches!(
+                    cleanup_actions.as_slice(),
+                    [
+                        TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+                        TerminalAffineCleanupAction::InvokeNominal(token_cleanup),
+                    ] if *plain_cleanup == plain.place && token_cleanup.place == token.place
+                ));
+            }
+            _ => panic!("source-distributed reuse emits only decisions and cleanup leaves"),
+        }
+    }
+    assert_eq!(
+        conditional_count, 2,
+        "the short-circuit value is decided once"
+    );
+    assert_eq!(return_count, 3, "every value leaf retains cleanup");
+    assert_eq!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::BooleanEqual { .. }))
+            .count(),
+        3,
+        "the branch-free reuse continuation is source-distributed over the three leaves"
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("reused nominal short-circuit cleanup verifies on every leaf");
+    let semantics = encode_module(&lowered.semantic_module)
+        .expect("reused nominal short-circuit module encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("reused nominal short-circuit proof encodes");
+    assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+
+    let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
+        let mut handler = AcceptTerminalEffects;
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &[
+                TerminalScalarValue::Boolean(left),
+                TerminalScalarValue::Boolean(right),
+            ],
+            &structural_arguments,
+            &mut handler,
+        )
+        .expect("reused nominal short-circuit path interprets from canonical artifacts");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+        );
         assert!(measured.effects().is_empty());
     }
 }

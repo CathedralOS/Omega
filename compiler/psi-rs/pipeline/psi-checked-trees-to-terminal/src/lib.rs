@@ -3205,7 +3205,7 @@ fn lower_nominal_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    let inlined_final_short_circuit_bindings = plan
+    let source_distributed_short_circuit_bindings = plan
         .bindings
         .len()
         .checked_sub(1)
@@ -3229,7 +3229,7 @@ fn lower_nominal_structural_scalar_return_machine(
                 return_expression,
                 scalar_parameter_count,
                 binding_index + 1,
-            ) || boolean_local_reference_count(return_expression, local_position) != 1
+            ) || boolean_local_reference_count(return_expression, local_position) == 0
             {
                 return None;
             }
@@ -3252,11 +3252,12 @@ fn lower_nominal_structural_scalar_return_machine(
             ) {
                 return None;
             }
-            let expression = inline_boolean_local(return_expression, local_position, &expression);
-            let decision = lower_boolean_value_decision(&expression);
-            (boolean_decision_test_count(&decision) == 2
-                && boolean_decision_block_count(&decision) == 5)
-                .then_some((binding_index, expression))
+            let decision = source_distribute_boolean_local(
+                lower_boolean_value_decision(&expression),
+                return_expression,
+                local_position,
+            );
+            Some((binding_index, decision))
         })
         .or_else(|| {
             let final_binding_index = plan.bindings.len().checked_sub(1)?;
@@ -3308,7 +3309,7 @@ fn lower_nominal_structural_scalar_return_machine(
                 ) {
                     return None;
                 }
-                let mut expression = *short_circuit_expression;
+                let mut decision = lower_boolean_value_decision(&short_circuit_expression);
                 for continuation_index in short_circuit_index + 1..=final_binding_index {
                     let continuation_ordinal = u32::try_from(continuation_index).ok()?;
                     let continuation_expression = lower_checked_scalar_expression_at(
@@ -3332,17 +3333,17 @@ fn lower_nominal_structural_scalar_return_machine(
                         scalar_parameter_count,
                         continuation_index,
                     ) || boolean_local_reference_count(&continuation_expression, prior_position)
-                        != 1
+                        == 0
                     {
                         return None;
                     }
-                    expression =
-                        inline_boolean_local(&continuation_expression, prior_position, &expression);
+                    decision = source_distribute_boolean_local(
+                        decision,
+                        &continuation_expression,
+                        prior_position,
+                    );
                 }
-                let decision = lower_boolean_value_decision(&expression);
-                (boolean_decision_test_count(&decision) == 2
-                    && boolean_decision_block_count(&decision) == 5)
-                    .then_some((short_circuit_index, expression))
+                Some((short_circuit_index, decision))
             })
         });
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
@@ -3356,9 +3357,9 @@ fn lower_nominal_structural_scalar_return_machine(
                 "nominal scalar return bindings are not a direct expression prefix",
             );
         }
-        if inlined_final_short_circuit_bindings
+        if source_distributed_short_circuit_bindings
             .as_ref()
-            .is_some_and(|(first_inlined, _)| binding_index >= *first_inlined)
+            .is_some_and(|(first_distributed, _)| binding_index >= *first_distributed)
         {
             continue;
         }
@@ -3398,25 +3399,23 @@ fn lower_nominal_structural_scalar_return_machine(
         );
         scalar_values.push(ValueDeclaration { id, scalar_type });
     }
-    let expression = inlined_final_short_circuit_bindings
+    let expression = authored_return_expression;
+    let expression_available_locals = source_distributed_short_circuit_bindings
         .as_ref()
-        .map(|(_, expression)| LoweredDirectExpression::Boolean {
-            expression: Box::new(expression.clone()),
-        })
-        .unwrap_or(authored_return_expression);
-    let expression_available_locals = inlined_final_short_circuit_bindings
-        .as_ref()
-        .map_or(plan.bindings.len(), |(first_inlined, _)| *first_inlined);
-    let nominal_short_circuit_return = inlined_final_short_circuit_bindings.is_some()
-        || matches!(
-            &expression,
-            LoweredDirectExpression::Boolean { expression }
-                if is_one_top_level_structural_boolean_decision(
-                    expression,
-                    scalar_parameter_count,
-                    expression_available_locals,
-                )
-        );
+        .map_or(plan.bindings.len(), |(first_distributed, _)| {
+            *first_distributed
+        });
+    let authored_short_circuit_return = matches!(
+        &expression,
+        LoweredDirectExpression::Boolean { expression }
+            if is_one_top_level_structural_boolean_decision(
+                expression,
+                scalar_parameter_count,
+                expression_available_locals,
+            )
+    );
+    let nominal_short_circuit_return =
+        source_distributed_short_circuit_bindings.is_some() || authored_short_circuit_return;
     if !is_branch_free_structural_scalar_expression(
         &expression,
         scalar_parameter_count,
@@ -3466,13 +3465,21 @@ fn lower_nominal_structural_scalar_return_machine(
         .iter()
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
-    validate_direct_parameter_types(&expression, &parameter_types)?;
+    if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
+        validate_boolean_decision_parameter_types(decision, &parameter_types)?;
+    } else {
+        validate_direct_parameter_types(&expression, &parameter_types)?;
+    }
     let blocks = if nominal_short_circuit_return {
-        let LoweredDirectExpression::Boolean { expression } = &expression else {
-            unreachable!("the bounded nominal decision is Boolean")
-        };
         let entry_operation_count = operations.operations.len();
-        let decision = lower_boolean_value_decision(expression);
+        let decision = if let Some((_, decision)) = source_distributed_short_circuit_bindings {
+            decision
+        } else {
+            let LoweredDirectExpression::Boolean { expression } = &expression else {
+                unreachable!("the bounded nominal decision is Boolean")
+            };
+            lower_boolean_value_decision(expression)
+        };
         let mut next_edge = first_unused_edge;
         let (mut root, mut children) = emit_inlined_boolean_value_blocks(
             &decision,
@@ -3831,6 +3838,40 @@ fn inline_boolean_local(
             right: Box::new(inline_boolean_local(right, local, replacement)),
         },
         expression => expression.clone(),
+    }
+}
+
+fn source_distribute_boolean_local(
+    decision: LoweredBooleanDecision,
+    continuation: &LoweredBooleanReturnExpression,
+    local: usize,
+) -> LoweredBooleanDecision {
+    // Preserve source evaluation exactly once: decide the staged value first,
+    // then substitute only its already-computed leaf into each pure
+    // continuation copy. Replacing every use with the original decision tree
+    // would duplicate both execution and logical fuel.
+    bind_boolean_decision(decision, &|value| {
+        lower_boolean_value_decision(&inline_boolean_local(continuation, local, value))
+    })
+}
+
+fn validate_boolean_decision_parameter_types(
+    decision: &LoweredBooleanDecision,
+    parameter_types: &[ScalarType],
+) -> Result<(), LoweringError> {
+    match decision {
+        LoweredBooleanDecision::Value(expression) => {
+            validate_boolean_parameter_types(expression, parameter_types)
+        }
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            validate_boolean_parameter_types(condition, parameter_types)?;
+            validate_boolean_decision_parameter_types(when_true, parameter_types)?;
+            validate_boolean_decision_parameter_types(when_false, parameter_types)
+        }
     }
 }
 
