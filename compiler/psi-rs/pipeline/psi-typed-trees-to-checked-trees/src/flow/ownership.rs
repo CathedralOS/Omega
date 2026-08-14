@@ -7,7 +7,7 @@ mod place_types;
 mod type_references;
 
 use calls::append_call_ownership_events;
-pub(crate) use calls::owned_method_receiver_place;
+pub(crate) use calls::{owned_call_operand_places, owned_method_receiver_place};
 use events::{DirectMoveEventSink, append_move_event_for_place};
 pub(crate) use events::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, normalized_event_place_root,

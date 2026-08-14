@@ -2984,7 +2984,7 @@ fn permission_kind_for_move(
         state_symbol,
         statement_index,
         &call_site,
-        target_state,
+        parameters,
         SymbolHandle::invalid(),
     ) {
         if place.root == event.root && place.segments.as_slice() == event_segments {

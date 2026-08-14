@@ -4,7 +4,9 @@ use psi_diagnostics::Diagnostic;
 use crate::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
-use super::super::overlap::{borrow_access_overlaps_loan, borrow_accesses_overlap};
+use super::super::overlap::{
+    borrow_access_overlaps_loan, borrow_accesses_overlap, canonical_place_overlaps_loan,
+};
 
 pub(super) fn check_call_access_conflicts(
     program: &psi_typed_trees::TypedTrees,
@@ -26,6 +28,28 @@ pub(super) fn check_call_access_conflicts(
         .borrow_loan_constraints(entry_constraints)
         .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();
+
+    for transferred in crate::flow::owned_call_operand_places(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        borrow_call,
+    ) {
+        for (loan_handle, loan) in &active_loans {
+            if !canonical_place_overlaps_loan(program, &transferred, loan, &facts.borrow) {
+                continue;
+            }
+            let detail =
+                active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
+            diagnostics.push(Diagnostic::error(format!(
+                "state `{target_name}` receives an owned value while local borrow `{}` is still active{}",
+                symbol_name(program, loan.owner_symbol),
+                detail
+                    .map(|detail| format!(" ({detail})"))
+                    .unwrap_or_default(),
+            )));
+        }
+    }
 
     for (index, access) in accesses.iter().enumerate() {
         if access.kind != BorrowAccessKind::Mutable {

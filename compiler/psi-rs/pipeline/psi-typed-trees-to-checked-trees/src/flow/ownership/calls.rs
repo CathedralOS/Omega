@@ -12,11 +12,10 @@ pub(crate) fn owned_method_receiver_place(
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &CallSite<'_>,
-    target_state: &psi_typed_trees::state::State,
+    declared_parameters: &[psi_typed_trees::signature::StateParameter],
     fallback_receiver_symbol: SymbolHandle,
 ) -> Option<CanonicalPlace> {
     let arguments = call_site_argument_expressions(program, call_site);
-    let declared_parameters = program.state_parameters(target_state);
     let positional_parameter_count = declared_parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -59,11 +58,11 @@ pub(in crate::flow) fn append_call_ownership_events(
         return;
     };
     let arguments = call_site_argument_expressions(program, &call_site);
-    let Some(target_state) = find_state(program, borrow_call.target_symbol) else {
+    let declared_parameters = call_target_parameters(program, borrow_call.target_symbol);
+    let Some(declared_parameters) = declared_parameters else {
         return;
     };
 
-    let declared_parameters = program.state_parameters(target_state);
     // A static invocation of a consuming attached machine spells the by-value
     // self explicitly (`Receipt::ack(receipt)`). In that shape the argument
     // count equals the full parameter count and self participates in ordinary
@@ -91,7 +90,7 @@ pub(in crate::flow) fn append_call_ownership_events(
             state.symbol,
             borrow_call.statement_index,
             &call_site,
-            target_state,
+            declared_parameters,
             borrow_call.receiver_symbol,
         ) {
             append_move_event_for_place(program, sink, receiver, source);
@@ -116,4 +115,88 @@ pub(in crate::flow) fn append_call_ownership_events(
             source,
         );
     }
+}
+
+/// Parameters of any callable target retained by typed trees. Boundary-trait
+/// requirements and compile-time machine parameters have signatures but no
+/// state body; their owned by-value arguments still transfer exactly as an
+/// ordinary state call's arguments do.
+pub(crate) fn call_target_parameters(
+    program: &psi_typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<&[psi_typed_trees::signature::StateParameter]> {
+    if let Some(state) = find_state(program, target_symbol) {
+        return Some(program.state_parameters(state));
+    }
+    if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
+        return Some(program.state_signature_parameters(signature));
+    }
+    program.traits().iter().find_map(|trait_definition| {
+        program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == target_symbol)
+            .map(|signature| program.state_signature_parameters(signature))
+    })
+}
+
+/// Canonical caller places transferred into owned by-value call operands.
+/// Borrow checking uses this exact parameter alignment so moving a provider
+/// validity claim cannot bypass an outstanding view merely because the target
+/// is bodyless.
+pub(crate) fn owned_call_operand_places(
+    program: &psi_typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+) -> Vec<CanonicalPlace> {
+    let Some(call_site) = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) else {
+        return Vec::new();
+    };
+    let arguments = call_site_argument_expressions(program, &call_site);
+    let Some(parameters) = call_target_parameters(program, borrow_call.target_symbol) else {
+        return Vec::new();
+    };
+    let includes_explicit_self =
+        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
+    let mut places = Vec::new();
+
+    if !includes_explicit_self
+        && borrow_call.has_receiver
+        && let Some(receiver) = owned_method_receiver_place(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            &call_site,
+            parameters,
+            borrow_call.receiver_symbol,
+        )
+    {
+        places.push(receiver);
+    }
+
+    for (parameter, argument) in parameters
+        .iter()
+        .filter(|parameter| includes_explicit_self || !parameter.is_self)
+        .zip(arguments)
+    {
+        if !type_requires_ownership(program, parameter.type_reference) {
+            continue;
+        }
+        if let Some(place) = canonical_place_from_expression_in_state(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            *argument,
+        ) {
+            places.push(place);
+        }
+    }
+    places
 }

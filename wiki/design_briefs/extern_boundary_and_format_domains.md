@@ -525,7 +525,9 @@ only a terminal completion consuming that claim to re-establish buffer custody
 under the same `Content<A>` algebra. Provider-owned storage uses the ordinary
 receiver-borrow path when all invalidators require exclusive receiver access:
 invalidation after the view's last use passes, while invalidation before a
-later use rejects.
+later use rejects. Providers with independent invalidation instead return the
+view from an explicit linear validity claim; the invalidator consumes that
+claim, with the same last-use acceptance and live-view rejection.
 
 The selected provider era enters the compiler-tracked set of live claims for a
 value (its claim frontier) only when that value's meaning depends on state owned

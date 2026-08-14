@@ -177,8 +177,11 @@ fn append_move_events_for_call_arguments(
     call: &psi_typed_trees::expression::TableCallExpression,
     source: FlowOwnershipEventSource,
 ) {
-    // State borrow calls are owned by the call-flow argument-move pass.
-    if find_state(program, call.target_symbol).is_some() {
+    // Calls with an ordinary state or a bodyless callable signature are owned
+    // by the call-flow argument-move pass. Expression recursion handles only
+    // operators/unresolved targets; otherwise a boundary-trait value call
+    // would record every owned argument twice.
+    if super::calls::call_target_parameters(program, call.target_symbol).is_some() {
         return;
     }
 

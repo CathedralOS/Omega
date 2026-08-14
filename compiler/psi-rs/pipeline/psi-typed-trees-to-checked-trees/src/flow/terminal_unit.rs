@@ -4080,7 +4080,7 @@ fn structural_call_arguments(
                     caller_state.symbol,
                     statement_index,
                     call_site,
-                    target_state,
+                    target_parameters,
                     receiver_symbol,
                 )
                 .or_else(|| crate::flow::canonical_place_from_symbol(receiver_symbol))?
