@@ -433,13 +433,18 @@ all-field-projected calls rebase every member leaf recursively. The verifier
 independently repeats that substitution and validates every declared leaf and
 arithmetic-node type; both codecs preserve the nested term. Other arithmetic
 policies and operators remain fail-closed except for Exact division and
-remainder by a same-carrier literal divisor. The accepted divisor is nonzero
-and, for a signed carrier, not `-1`, so the operation is total for every member
-dividend. Checked production repeats that gate while terminal validation
-independently requires the exact safe literal; changing it to zero, signed
-`-1`, or an arbitrary term rejects. Runtime divisors remain outside the slice
-until their nonzero and signed-overflow obligations are explicit terminal
-evidence. Case-payload paths and imported crash capsules also remain fail-closed.
+remainder by a same-carrier divisor. A safe nonzero literal remains accepted.
+One standalone whole-root structural Unit machine may instead name a runtime
+integer-member divisor when its complete bounded `requires` package proves one
+of the verifier-owned totality shapes: `1 <= divisor`, `divisor <= -2`, or the
+joint signed bounds `divisor <= -1` and `MIN + 1 <= dividend`. Checked plans
+retain that package without source handles, terminal Psi publishes the exact
+requirements, and independent validation reconstructs the divisor and dividend
+paths before accepting the route. Removing, weakening, or redirecting a bound
+rejects. Direct structural calls carrying these requirements remain fenced
+until their terminal operations retain and discharge exact requirement
+obligations. Case-payload paths and imported crash capsules also remain
+fail-closed.
 Structural/content contracts reject because custody effects require their own
 vertical slice rather than an ordinary scalar flag.
 

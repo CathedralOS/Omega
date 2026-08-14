@@ -256,9 +256,52 @@ const RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
     data Metrics { current: u64; divisor: u64; limit: u64; }
     data Root {}
     machine Root::enter(metrics: Metrics)
+    requires
+        1 <= metrics.divisor
     crashes Abort
         metrics.current / metrics.divisor <= metrics.limit
     {}
+"#;
+
+const UNPROVEN_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
+    data Metrics { current: u64; divisor: u64; limit: u64; }
+    data Root {}
+    machine Root::enter(metrics: Metrics)
+    crashes Abort
+        metrics.current / metrics.divisor <= metrics.limit
+    {}
+"#;
+
+const NEGATIVE_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
+    data Metrics { current: i64; divisor: i64; limit: i64; }
+    data Root {}
+    machine Root::enter(metrics: Metrics)
+    requires
+        metrics.divisor <= -2
+    crashes Abort
+        metrics.current % metrics.divisor <= metrics.limit
+    {}
+"#;
+
+const RUNTIME_DIVISOR_CALL_SOURCE: &str = r#"
+    data Metrics { current: u64; divisor: u64; limit: u64; }
+    data Helper {}
+    machine Helper::inspect(metrics: Metrics)
+    requires
+        1 <= metrics.divisor
+    crashes Abort
+        metrics.current / metrics.divisor <= metrics.limit
+    {}
+
+    data Root {}
+    machine Root::enter(metrics: Metrics)
+    requires
+        1 <= metrics.divisor
+    crashes Abort
+        metrics.current / metrics.divisor <= metrics.limit
+    {
+        Helper::inspect(metrics);
+    }
 "#;
 
 const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
@@ -2064,9 +2107,114 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
     let resolved = lower_syntax_trees(&syntax).expect("runtime-divisor resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor type");
     let checked = lower_typed_trees(typed).expect("runtime-divisor check");
+    let runtime_divisor = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("a positive runtime-divisor requirement is explicit terminal safety evidence");
+    let runtime_machine = &runtime_divisor.semantic_module.machines[0];
+    assert_eq!(runtime_machine.contract.requires.len(), 1);
+    assert!(matches!(
+        &runtime_machine.contract.requires[0],
+        Proposition::LessOrEqual(
+            ScalarTerm::Integer {
+                value: psi_core::IntegerValue::Unsigned(1),
+                ..
+            },
+            ScalarTerm::IntegerField { .. }
+        )
+    ));
+    psi_terminal_verifier::verify_module(
+        &runtime_divisor.semantic_module,
+        &runtime_divisor.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the verifier independently accepts the runtime-divisor requirement");
+    let encoded = encode_module(&runtime_divisor.semantic_module)
+        .expect("runtime-divisor semantic module encodes");
+    assert_eq!(
+        decode_module(&encoded),
+        Ok(runtime_divisor.semantic_module.clone()),
+        "the exact runtime safety requirement survives canonical encoding"
+    );
+
+    let mut missing_requirement = runtime_divisor.semantic_module.clone();
+    missing_requirement.machines[0].contract.requires.clear();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&missing_requirement),
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashExactDivisor { .. })
+    ));
+
+    let mut redirected_requirement = runtime_divisor.semantic_module.clone();
+    let StructuralTypeShape::Record { fields } = &redirected_requirement.structural_types[0].shape
+    else {
+        unreachable!()
+    };
+    let limit = fields[2].id;
+    let Proposition::LessOrEqual(_, ScalarTerm::IntegerField { path, .. }) =
+        &mut redirected_requirement.machines[0].contract.requires[0]
+    else {
+        unreachable!()
+    };
+    *path = vec![CanonicalStructuralPathSegment::Field(limit)];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected_requirement),
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashExactDivisor { .. })
+    ));
+
+    let tokens = Lexer::new(UNPROVEN_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
+        .tokenize()
+        .expect("unproven-runtime-divisor tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("unproven-runtime-divisor parse");
+    let resolved = lower_syntax_trees(&syntax).expect("unproven-runtime-divisor resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("unproven-runtime-divisor type");
+    let checked = lower_typed_trees(typed).expect("unproven-runtime-divisor check");
     assert!(
         psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter").is_err(),
         "a runtime member divisor remains fenced without explicit terminal safety evidence"
+    );
+}
+
+#[test]
+fn signed_runtime_member_divisor_requires_an_overflow_safe_bound() {
+    let tokens = Lexer::new(NEGATIVE_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
+        .tokenize()
+        .expect("negative-runtime-divisor tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("negative-runtime-divisor parse");
+    let resolved = lower_syntax_trees(&syntax).expect("negative-runtime-divisor resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("negative-runtime-divisor type");
+    let checked = lower_typed_trees(typed).expect("negative-runtime-divisor check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("a divisor bounded at or below negative two is total for every dividend");
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the verifier independently accepts the negative runtime-divisor bound");
+
+    let mut overflow_permitting = lowered.semantic_module.clone();
+    let Proposition::LessOrEqual(_, ScalarTerm::Integer { value, .. }) =
+        &mut overflow_permitting.machines[0].contract.requires[0]
+    else {
+        unreachable!()
+    };
+    *value = psi_core::IntegerValue::Signed(-1);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&overflow_permitting),
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashExactDivisor { .. })
+    ));
+}
+
+#[test]
+fn runtime_divisor_call_requirements_remain_fenced_until_obligation_transport() {
+    let tokens = Lexer::new(RUNTIME_DIVISOR_CALL_SOURCE)
+        .tokenize()
+        .expect("runtime-divisor-call tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("runtime-divisor-call parse");
+    let resolved = lower_syntax_trees(&syntax).expect("runtime-divisor-call resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor-call type");
+    let checked = lower_typed_trees(typed).expect("runtime-divisor-call check");
+    assert!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter").is_err(),
+        "direct calls stay fenced until terminal Unit calls carry exact requirement obligations"
     );
 }
 

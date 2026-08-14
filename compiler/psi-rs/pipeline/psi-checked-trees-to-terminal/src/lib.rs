@@ -6608,6 +6608,41 @@ fn lower_attached_unit_closure_including(
         lowered_claims.push((*machine_symbol, claims, claim_bindings));
     }
 
+    let lowered_machine_runtime_requirements = closure
+        .iter()
+        .map(|machine_symbol| {
+            let Some(contract) = checked.facts.contract_plans.for_machine(*machine_symbol) else {
+                return Ok((*machine_symbol, Vec::new()));
+            };
+            let requirements = if checked_crash_plan_has_runtime_divisor(&contract.crash) {
+                let checked_requirements = contract.crash.structural_runtime_requirements().ok_or(
+                    LoweringError::Unsupported(
+                        "runtime structural divisor lacks a complete checked requirement package",
+                    ),
+                )?;
+                let parameters = lowered_machine_parameters
+                    .iter()
+                    .find_map(|(symbol, parameters)| {
+                        (*symbol == *machine_symbol).then_some(parameters)
+                    })
+                    .expect("every closure machine has lowered parameters");
+                checked_requirements
+                    .iter()
+                    .map(|requirement| {
+                        lower_structural_runtime_requirement(
+                            requirement,
+                            parameters,
+                            &structural_types,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                Vec::new()
+            };
+            Ok((*machine_symbol, requirements))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+
     let machine_ids = closure
         .iter()
         .enumerate()
@@ -6625,6 +6660,10 @@ fn lower_attached_unit_closure_including(
             .iter()
             .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
             .expect("every closure machine has lowered parameters");
+        let runtime_requirements = lowered_machine_runtime_requirements
+            .iter()
+            .find_map(|(symbol, requirements)| (*symbol == plan.machine).then_some(requirements))
+            .expect("every closure machine has lowered runtime requirements");
         let (_, entry_claims, claim_bindings) = lowered_claims
             .iter()
             .find(|(symbol, _, _)| *symbol == plan.machine)
@@ -6705,6 +6744,12 @@ fn lower_attached_unit_closure_including(
                             target_contract.crash.published(),
                             target_parameters,
                             &structural_types,
+                            lowered_machine_runtime_requirements
+                                .iter()
+                                .find_map(|(symbol, requirements)| {
+                                    (*symbol == *target_machine).then_some(requirements.as_slice())
+                                })
+                                .expect("every closure target has lowered runtime requirements"),
                         )?
                     } else {
                         Vec::new()
@@ -6898,6 +6943,7 @@ fn lower_attached_unit_closure_including(
                     contract_plan.crash.published(),
                     parameters,
                     &structural_types,
+                    runtime_requirements,
                 )?
             } else {
                 Vec::new()
@@ -6942,7 +6988,7 @@ fn lower_attached_unit_closure_including(
             contract: MachineContract {
                 id: contract_id(terminal_machine.get()),
                 crash_routes,
-                requires: Vec::new(),
+                requires: runtime_requirements.clone(),
                 ensures: Vec::new(),
             },
         });
@@ -10105,10 +10151,234 @@ fn lower_checked_crash_route_buckets(
         .collect()
 }
 
+fn lower_structural_member_term(
+    parameter_position: u32,
+    path: &[String],
+    expected: ScalarType,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    if path.is_empty() {
+        return unsupported("structural scalar contract has an empty member path");
+    }
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.position == parameter_position)
+        .ok_or(LoweringError::Unsupported(
+            "structural scalar contract names a non-structural parameter",
+        ))?;
+    let mut structural_type = parameter.structural_type;
+    let mut terminal_path = Vec::with_capacity(path.len());
+    for (index, identity) in path.iter().enumerate() {
+        let declaration = structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar contract path type is absent",
+            ))?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return unsupported("structural scalar contract path receiver is not a record");
+        };
+        let field = fields
+            .iter()
+            .find(|candidate| candidate.identity == *identity)
+            .filter(|field| !field.relevance.is_erased())
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar contract path field is absent or erased",
+            ))?;
+        terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
+        let is_last = index + 1 == path.len();
+        match (&field.field_type, is_last) {
+            (StructuralFieldType::Structural(next), false) => structural_type = *next,
+            (StructuralFieldType::Scalar(actual), true) if *actual == expected => {}
+            _ => {
+                return unsupported(
+                    "structural scalar contract path does not end at the retained scalar type",
+                );
+            }
+        }
+    }
+    Ok(match expected {
+        ScalarType::Boolean => ScalarTerm::boolean_field_path(parameter.place, terminal_path),
+        ScalarType::Integer(integer_type) => {
+            ScalarTerm::integer_field_path(parameter.place, terminal_path, integer_type)
+        }
+    })
+}
+
+fn lower_structural_runtime_requirement(
+    expression: &CheckedBooleanExpression,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<Proposition, LoweringError> {
+    fn integer_term(
+        expression: &CheckedScalarExpression,
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+    ) -> Result<ScalarTerm, LoweringError> {
+        match expression {
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                primitive_type,
+            } => {
+                let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                else {
+                    return unsupported("structural runtime requirement member is not an integer");
+                };
+                lower_structural_member_term(
+                    *parameter_position,
+                    path,
+                    ScalarType::Integer(integer_type),
+                    parameters,
+                    structural_types,
+                )
+            }
+            CheckedScalarExpression::IntegerLiteral { literal } => {
+                let scalar_type = integer_landing_scalar_type(literal)?;
+                let ScalarType::Integer(integer_type) = scalar_type else {
+                    return unsupported("structural runtime requirement literal is not an integer");
+                };
+                ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
+            _ => unsupported(
+                "structural runtime requirements currently admit only integer members and literals",
+            ),
+        }
+    }
+
+    let CheckedBooleanExpression::IntegerComparison { kind, left, right } = expression else {
+        return unsupported(
+            "structural runtime divisor evidence must be an integer comparison requirement",
+        );
+    };
+    let left = integer_term(left, parameters, structural_types)?;
+    let right = integer_term(right, parameters, structural_types)?;
+    match kind {
+        CheckedIntegerComparisonKind::Equal => Ok(Proposition::Equal(left, right)),
+        CheckedIntegerComparisonKind::LessThan => Ok(Proposition::LessThan(left, right)),
+        CheckedIntegerComparisonKind::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
+    }
+}
+
+fn safe_exact_structural_divisor(
+    integer_type: IntegerType,
+    dividend: &ScalarTerm,
+    divisor: &ScalarTerm,
+    requirements: &[Proposition],
+) -> bool {
+    match divisor {
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(value),
+        } => return *scalar_type == integer_type && *value != 0,
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Signed(value),
+        } => return *scalar_type == integer_type && *value != 0 && *value != -1,
+        _ => {}
+    }
+
+    let one = match integer_type.sign() {
+        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+        IntegerSign::Signed => IntegerValue::Signed(1),
+    };
+    if let Ok(one) = ScalarTerm::integer(integer_type, one)
+        && requirements.contains(&Proposition::LessOrEqual(one, divisor.clone()))
+    {
+        return true;
+    }
+    if integer_type.sign() != IntegerSign::Signed {
+        return false;
+    }
+    if let Ok(negative_two) = ScalarTerm::integer(integer_type, IntegerValue::Signed(-2))
+        && requirements.contains(&Proposition::LessOrEqual(divisor.clone(), negative_two))
+    {
+        return true;
+    }
+    let Ok(negative_one) = ScalarTerm::integer(integer_type, IntegerValue::Signed(-1)) else {
+        return false;
+    };
+    if !requirements.contains(&Proposition::LessOrEqual(divisor.clone(), negative_one)) {
+        return false;
+    }
+    let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+        unreachable!("signed fixed integer has a signed minimum")
+    };
+    ScalarTerm::integer(
+        integer_type,
+        IntegerValue::Signed(minimum.checked_add(1).expect("minimum has a successor")),
+    )
+    .is_ok_and(|minimum_plus_one| {
+        requirements.contains(&Proposition::LessOrEqual(
+            minimum_plus_one,
+            dividend.clone(),
+        ))
+    })
+}
+
+fn checked_crash_plan_has_runtime_divisor(plan: &psi_checked_trees::CrashPlan) -> bool {
+    fn scalar_has_runtime_divisor(expression: &CheckedScalarExpression) -> bool {
+        match expression {
+            CheckedScalarExpression::IntegerBinary {
+                kind, left, right, ..
+            } => {
+                let current = matches!(
+                    kind,
+                    CheckedIntegerBinaryKind::ExactDivide
+                        | CheckedIntegerBinaryKind::ExactRemainder
+                ) && !matches!(
+                    right.as_ref(),
+                    CheckedScalarExpression::IntegerLiteral { literal }
+                        if literal.landing().is_some_and(|landing| {
+                            if landing.landed_type.is_signed() {
+                                literal.value_i64().is_some_and(|value| value != 0 && value != -1)
+                            } else {
+                                literal.value_u64().is_some_and(|value| value != 0)
+                            }
+                        })
+                );
+                current || scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
+            }
+            CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+            | CheckedScalarExpression::IntegerWiden { operand, .. }
+            | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+                scalar_has_runtime_divisor(operand)
+            }
+            CheckedScalarExpression::Boolean(expression) => boolean_has_runtime_divisor(expression),
+            _ => false,
+        }
+    }
+
+    fn boolean_has_runtime_divisor(expression: &CheckedBooleanExpression) -> bool {
+        match expression {
+            CheckedBooleanExpression::Not(operand) => boolean_has_runtime_divisor(operand),
+            CheckedBooleanExpression::Equal { left, right }
+            | CheckedBooleanExpression::And { left, right }
+            | CheckedBooleanExpression::Or { left, right } => {
+                boolean_has_runtime_divisor(left) || boolean_has_runtime_divisor(right)
+            }
+            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+                scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
+            }
+            _ => false,
+        }
+    }
+
+    plan.published().iter().any(|bucket| {
+        bucket.alternative_guards().iter().any(|guard| {
+            matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
+                if predicate.scalar_expression().is_some_and(boolean_has_runtime_divisor))
+        })
+    })
+}
+
 fn lower_structural_crash_route_buckets(
     buckets: &[psi_checked_trees::CrashRouteBucket],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
+    runtime_requirements: &[Proposition],
 ) -> Result<Vec<psi_terminal::CrashRouteBucket>, LoweringError> {
     fn checked_member_path(
         expression: &psi_checked_trees::CrashPredicateExpression,
@@ -10125,87 +10395,18 @@ fn lower_structural_crash_route_buckets(
         }
     }
 
-    fn lower_member_term(
-        parameter_position: u32,
-        path: &[String],
-        expected: ScalarType,
-        parameters: &[StructuralParameterDeclaration],
-        structural_types: &[StructuralTypeDeclaration],
-    ) -> Result<ScalarTerm, LoweringError> {
-        if path.is_empty() {
-            return unsupported("structural crash route has an empty member path");
-        }
-        let parameter = parameters
-            .iter()
-            .find(|parameter| parameter.position == parameter_position)
-            .ok_or(LoweringError::Unsupported(
-                "structural crash route names a non-structural parameter",
-            ))?;
-        let mut structural_type = parameter.structural_type;
-        let mut terminal_path = Vec::with_capacity(path.len());
-        for (index, identity) in path.iter().enumerate() {
-            let declaration = structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)
-                .ok_or(LoweringError::Unsupported(
-                    "structural crash route path type is absent",
-                ))?;
-            let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                return unsupported("structural crash route path receiver is not a record");
-            };
-            let field = fields
-                .iter()
-                .find(|candidate| candidate.identity == *identity)
-                .filter(|field| !field.relevance.is_erased())
-                .ok_or(LoweringError::Unsupported(
-                    "structural crash route path field is absent or erased",
-                ))?;
-            terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
-            let is_last = index + 1 == path.len();
-            match (&field.field_type, is_last) {
-                (StructuralFieldType::Structural(next), false) => {
-                    structural_type = *next;
-                }
-                (StructuralFieldType::Scalar(actual), true) if *actual == expected => {}
-                _ => {
-                    return unsupported(
-                        "structural crash route path does not end at the retained scalar type",
-                    );
-                }
-            }
-        }
-        Ok(match expected {
-            ScalarType::Boolean => ScalarTerm::boolean_field_path(parameter.place, terminal_path),
-            ScalarType::Integer(integer_type) => {
-                ScalarTerm::integer_field_path(parameter.place, terminal_path, integer_type)
-            }
-        })
-    }
-
     fn lower_term(
         expression: &CheckedBooleanExpression,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
+        runtime_requirements: &[Proposition],
     ) -> Result<ScalarTerm, LoweringError> {
         fn lower_integer_term(
             expression: &CheckedScalarExpression,
             parameters: &[StructuralParameterDeclaration],
             structural_types: &[StructuralTypeDeclaration],
+            runtime_requirements: &[Proposition],
         ) -> Result<ScalarTerm, LoweringError> {
-            fn safe_exact_literal_divisor(term: &ScalarTerm, integer_type: IntegerType) -> bool {
-                match term {
-                    ScalarTerm::Integer {
-                        scalar_type,
-                        value: IntegerValue::Unsigned(value),
-                    } => *scalar_type == integer_type && *value != 0,
-                    ScalarTerm::Integer {
-                        scalar_type,
-                        value: IntegerValue::Signed(value),
-                    } => *scalar_type == integer_type && *value != 0 && *value != -1,
-                    _ => false,
-                }
-            }
-
             match expression {
                 CheckedScalarExpression::StructuralParameterField {
                     parameter_position,
@@ -10218,7 +10419,7 @@ fn lower_structural_crash_route_buckets(
                             "structural crash integer member has a non-integer type",
                         );
                     };
-                    lower_member_term(
+                    lower_structural_member_term(
                         *parameter_position,
                         path,
                         ScalarType::Integer(integer_type),
@@ -10256,8 +10457,18 @@ fn lower_structural_crash_route_buckets(
                             "structural crash exact arithmetic has a non-integer type",
                         );
                     };
-                    let left = Box::new(lower_integer_term(left, parameters, structural_types)?);
-                    let right = Box::new(lower_integer_term(right, parameters, structural_types)?);
+                    let left = Box::new(lower_integer_term(
+                        left,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?);
+                    let right = Box::new(lower_integer_term(
+                        right,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )?);
                     if left.scalar_type() != ScalarType::Integer(integer_type)
                         || right.scalar_type() != ScalarType::Integer(integer_type)
                     {
@@ -10269,10 +10480,14 @@ fn lower_structural_crash_route_buckets(
                         kind,
                         CheckedIntegerBinaryKind::ExactDivide
                             | CheckedIntegerBinaryKind::ExactRemainder
-                    ) && !safe_exact_literal_divisor(&right, integer_type)
-                    {
+                    ) && !safe_exact_structural_divisor(
+                        integer_type,
+                        &left,
+                        &right,
+                        runtime_requirements,
+                    ) {
                         return unsupported(
-                            "structural crash exact division requires a statically safe literal divisor",
+                            "structural crash exact division requires explicit terminal divisor safety evidence",
                         );
                     }
                     Ok(match kind {
@@ -10321,25 +10536,30 @@ fn lower_structural_crash_route_buckets(
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
-            } => lower_member_term(
+            } => lower_structural_member_term(
                 *parameter_position,
                 path,
                 ScalarType::Boolean,
                 parameters,
                 structural_types,
             ),
-            CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(lower_term(operand, parameters, structural_types)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
+            CheckedBooleanExpression::Not(operand) => ScalarTerm::boolean_not(lower_term(
+                operand,
+                parameters,
+                structural_types,
+                runtime_requirements,
+            )?)
+            .map_err(LoweringError::InvalidCrashPredicate),
             CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-                lower_term(left, parameters, structural_types)?,
-                lower_term(right, parameters, structural_types)?,
+                lower_term(left, parameters, structural_types, runtime_requirements)?,
+                lower_term(right, parameters, structural_types, runtime_requirements)?,
             )
             .map_err(LoweringError::InvalidCrashPredicate),
             CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-                let left = lower_integer_term(left, parameters, structural_types)?;
-                let right = lower_integer_term(right, parameters, structural_types)?;
+                let left =
+                    lower_integer_term(left, parameters, structural_types, runtime_requirements)?;
+                let right =
+                    lower_integer_term(right, parameters, structural_types, runtime_requirements)?;
                 let ScalarType::Integer(integer_type) = left.scalar_type() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
@@ -10369,6 +10589,7 @@ fn lower_structural_crash_route_buckets(
         expression: &CheckedBooleanExpression,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
+        runtime_requirements: &[Proposition],
     ) -> Result<Proposition, LoweringError> {
         if let CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } = expression
@@ -10379,7 +10600,9 @@ fn lower_structural_crash_route_buckets(
             flatten_checked_boolean_connective(right, conjunction, &mut leaves);
             let propositions = leaves
                 .into_iter()
-                .map(|leaf| lower_proposition(leaf, parameters, structural_types))
+                .map(|leaf| {
+                    lower_proposition(leaf, parameters, structural_types, runtime_requirements)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             let mut keyed = propositions
                 .into_iter()
@@ -10412,7 +10635,12 @@ fn lower_structural_crash_route_buckets(
         }
         Ok(Proposition::Equal(
             ScalarTerm::boolean(true),
-            lower_term(expression, parameters, structural_types)?,
+            lower_term(
+                expression,
+                parameters,
+                structural_types,
+                runtime_requirements,
+            )?,
         ))
     }
 
@@ -10428,7 +10656,12 @@ fn lower_structural_crash_route_buckets(
                     }
                     psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
                         let proposition = if let Some(expression) = predicate.scalar_expression() {
-                            lower_proposition(expression, parameters, structural_types)?
+                            lower_proposition(
+                                expression,
+                                parameters,
+                                structural_types,
+                                runtime_requirements,
+                            )?
                         } else {
                             let mut path = Vec::new();
                             let parameter_position = predicate
@@ -10439,7 +10672,7 @@ fn lower_structural_crash_route_buckets(
                                 ))?;
                             Proposition::Equal(
                                 ScalarTerm::boolean(true),
-                                lower_member_term(
+                                lower_structural_member_term(
                                     parameter_position,
                                     &path,
                                     ScalarType::Boolean,

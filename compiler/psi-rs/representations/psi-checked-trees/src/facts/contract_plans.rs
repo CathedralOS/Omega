@@ -716,6 +716,11 @@ impl CrashRouteBucket {
 pub struct CrashPlan {
     interface: CrashInterface,
     published: Vec<CrashRouteBucket>,
+    /// Complete source-independent lowering of the machine and entry-state
+    /// `requires` package into the bounded structural scalar vocabulary.
+    /// `None` means at least one authored requirement is outside that
+    /// vocabulary; consumers must not publish a partial terminal contract.
+    structural_runtime_requirements: Option<Vec<crate::CheckedBooleanExpression>>,
     checked_sites: Vec<CheckedCrashSite>,
     checked_calls: Vec<CheckedCrashCallSite>,
 }
@@ -727,9 +732,22 @@ impl CrashPlan {
         Self {
             interface: CrashInterface::PublishedCeiling,
             published,
+            structural_runtime_requirements: None,
             checked_sites: Vec::new(),
             checked_calls: Vec::new(),
         }
+    }
+
+    pub fn with_structural_runtime_requirements(
+        mut self,
+        requirements: Option<Vec<crate::CheckedBooleanExpression>>,
+    ) -> Self {
+        self.structural_runtime_requirements = requirements;
+        self
+    }
+
+    pub fn structural_runtime_requirements(&self) -> Option<&[crate::CheckedBooleanExpression]> {
+        self.structural_runtime_requirements.as_deref()
     }
 
     pub fn with_checked_sites(mut self, mut checked_sites: Vec<CheckedCrashSite>) -> Option<Self> {
