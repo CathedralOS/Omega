@@ -190,8 +190,10 @@ Remaining:
   Codec, independent verification, interpretation, fixed fuel, and all Omega
   artifact/install paths agree on these carriers.
 
-  Add complete slices for value reuse, additional continuation locals and
-  stages, explicit shared convergence, nested decisions, calls and effects,
+  The nominal-cleanup Boolean slice source-distributes one short-circuit local
+  through up to two branch-free continuation locals. Add complete slices for
+  value reuse, further continuation locals and stages, explicit shared
+  convergence, nested decisions, calls and effects,
   wider partial-value cleanup, nested nominal ownership, returned transfer,
   loops, suspension, scoped ordering, and ranked tail recursion. Dynamic or
   nested indexing, wider projections/signatures, content-bearing splits, and
@@ -410,7 +412,7 @@ reach or trust, and private proof improvements do not change public identity.
   calls, shared targets, edge/action ownership, and direct-Boolean contextual
   obligations through terminal verification, interpretation, fuel, and all
   native artifact paths. Extend contextual cleanup beyond the current
-  receiver-independent Boolean subset and single continuation local; add typed
+  receiver-independent Boolean subset and two continuation locals; add typed
   shared convergence, wider structural partial values, repeated-cycle resource
   composition, and conservation/backend-ledger reporting. This is not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.

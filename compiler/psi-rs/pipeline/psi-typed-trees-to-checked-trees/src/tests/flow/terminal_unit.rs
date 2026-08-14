@@ -990,6 +990,13 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_local_and_fences_wider
             let restored: bool = !inverted;
             restored
         }
+        machine Root::three_continuation_locals(token: Token) -> bool {
+            let staged: bool = true && false;
+            let inverted: bool = !staged;
+            let restored: bool = !inverted;
+            let inverted_again: bool = !restored;
+            inverted_again
+        }
         machine Root::nested_short_circuit(token: Token) -> bool {
             true && (false || true)
         }
@@ -1034,10 +1041,18 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_local_and_fences_wider
         .expect("one branch-free continuation local may consume the short-circuit local once");
     assert_eq!(continuation_local.bindings.len(), 2);
     assert_eq!(continuation_local.return_statement_ordinal, 2);
+    let two_continuation_locals = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "two_continuation_locals"))
+        .expect("two branch-free continuation locals may consume the short-circuit local in order");
+    assert_eq!(two_continuation_locals.bindings.len(), 3);
+    assert_eq!(two_continuation_locals.return_statement_ordinal, 3);
 
     for machine in [
         "reused_short_circuit_return",
-        "two_continuation_locals",
+        "three_continuation_locals",
         "nested_short_circuit",
         "repeated_short_circuit",
         "mutable_local",

@@ -327,10 +327,10 @@ stores, loads, calls, and stack ceiling from emitted bytes. The bounded Boolean
 form instead retains three edge-specific cleanup intervals and validates the
 result and return-link lifetime independently on every native path.
 One final top-level short-circuit Boolean local may be consumed exactly once by
-a branch-free Boolean return suffix, including one intervening branch-free
-Boolean continuation local returned directly. Terminal production
+a branch-free Boolean return suffix, including up to two intervening
+branch-free Boolean continuation locals returned directly. Terminal production
 source-distributes either form into the same three proof-bearing cleanup leaves
-without a convergence block. Value reuse, a second continuation local,
+without a convergence block. Value reuse, a third continuation local,
 repeated stages, explicit convergence to one shared cleanup return, nested
 decisions, calls, effects, nested nominal ownership, projections, and wider
 cleanup shapes still fail closed.

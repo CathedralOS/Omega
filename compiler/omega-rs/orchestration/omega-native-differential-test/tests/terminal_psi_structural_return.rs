@@ -313,7 +313,8 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
             let inverted: bool = !right;
             let staged: bool = left && inverted;
             let completed: bool = !staged;
-            completed
+            let restored: bool = !completed;
+            restored
         }
     "#;
     let tokens = Lexer::new(source)
