@@ -55,57 +55,19 @@ Remaining:
 - **ENTRY-CONTENT-ROOTS.** Complete the physical entry bridge and explicit-entry
   corpus migration. Bind the exact mapped, zeroed receiver reservation and its
   exclusive activation loan through installation to the selected physical
-  provider and generated native bridge. Finish classifying `Main::main`
-  fixtures: pure language/checker fixtures stop at checked artifacts, while
-  deployable/provider/artifact/ABI/layout/native tests select an exact
-  target-owned `ProgramEntry`; temporary legacy ABI probes name their fixture
-  entry explicitly. The CLI basics cohort and the five deployable proof
-  samples, the eight CLI algorithm samples, the six CLI interpreter samples,
-  eight deployable CLI game samples, all eleven CLI text samples, all thirteen
-  CLI collection samples, eleven deployable CLI rendering samples, and twelve
-  deployable CLI simulation samples now author all four hosted roots; the two
-  proof-only samples remain targetless.
-  The formerly staged `bouncing_ball_2d` and `particle_sim` samples now select
-  the required core float-operation providers explicitly; their direct and
-  nested mutable floating-point machine-field writes lower on all four hosted
-  targets.
-  Sample refresh names the exact host and never invents an entry;
-  the native sample oracle selects authored roots directly and stages only
-  unrooted legacy sources. The complete basics cohort, including
-  `temperature_convert`, now lowers directly from its authored host entry. The
-  all twenty-one CLI arithmetic samples now author all four hosted roots and
-  lower through the same production entry matrix without staging, including
-  the four float-heavy samples through explicitly selected core float
-  operations. All fifteen CLI
-  systems samples likewise author all four hosted roots and lower through the
-  production entry matrix, including `note_vault`'s multiple contained
-  `SystemTime` receivers. Eleven
-  executable CLI regression probes now
-  name all four hosted roots explicitly; the deliberate trapping fixture
-  remains checked-only. All three stdin samples likewise select exact authored
-  roots on every hosted target. The four GUI applications now retain their GUI
-  subsystem policy while selecting exact authored roots on Windows x64 and
-  macOS arm64. They remain checked-only on both Linux targets pending native
-  `Gui`/`Input` call and machine-owned result-write lowering. The
-  fourteen deployable plan-laid runtime canaries likewise author all four
-  hosted roots, and the active pass umbrella exercises them through production
-  entry selection rather than its explicit legacy fixture seam. Their direct
-  native runtime tests select the authored host root as well. Eighteen
-  deployable recast runtime canaries—now the complete twenty-three-fixture
-  rooted cohort—likewise author all four hosted roots and
-  now pass through production entry selection in the active umbrella. The
-  active pass-canary umbrella uses its explicit legacy fixture entry and asserts
-  that state-graph lowering occurred, so it cannot silently collapse into
-  checked-only coverage. Production and development interpreter execution
-  likewise requires an exact choice, while checked-only compilation selects no
-  storage root. Restored explicit legacy-entry coverage exposed and fixed lost
-  checked float-operator identity across inlined calls, generic float builtins,
-  desugared `abs`, nested field/literal arithmetic, and anonymous literal casts.
-  The sqrt, min/max/abs/clamp, running-fold, literal-cast, classification, and
-  named-provider runtime cohorts now lower and execute with exact retained
-  provider evidence. Final firmware composition of
-  `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
-  owner Q2; the remaining bridge and corpus work is not.
+  provider and generated native bridge. Pure language/checker fixtures stop at
+  checked artifacts; deployable/provider/artifact/ABI/layout/native fixtures
+  select an exact target-owned `ProgramEntry`; temporary ABI probes name their
+  explicit fixture seam. Sample refresh and native execution must use authored
+  roots and never invent one, while targetless checking selects none.
+
+  The CLI corpus is rooted on all hosted targets except the four GUI samples,
+  which currently select Windows x64 and macOS arm64. Linux needs an ordinary
+  source-level `Gui`/`Input` provider plus its general call/result realization;
+  that is engineering work, not a language-design blocker. Proof-only and
+  deliberately trapping fixtures remain targetless. Final firmware composition
+  of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
+  owner Q2; the remaining physical bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
@@ -215,181 +177,42 @@ Owners:
 Remaining:
 
 - **PSIIR.** Extend the accepted terminal vocabulary as complete vertical
-  slices. Current support covers scalar direct calls and guarded crash
-  continuations; canonical Unit structural/content calls; exact affine cleanup
-  on Unit/scalar returns and structural control edges; a bounded scalar/local
-  Boolean computation subset; and attached acyclic structural control with up
-  to two Boolean decision states plus one exact equal-frontier diamond. Codec,
-  independent verification, interpretation, fuel, and Omega consumption agree
-  on each accepted carrier. Unsupported claims, cleanup, calls, topology, or
-  computation fail closed rather than falling back to source trees.
+  slices. The accepted carrier includes scalar direct calls and guarded crash
+  continuations, canonical Unit structural/content calls, literal fixed-array
+  custody with one typed fixed-index projection, structural results, exact
+  affine cleanup on Unit/scalar returns and structural edges, bounded scalar and
+  local Boolean computation, and acyclic control with two decisions plus one
+  equal-frontier diamond. Whole-root nominal cleanup supports finite mixed
+  claim-free affine/scalar parameter lists, bounded helper calls, contextual
+  direct-Boolean obligations, shared cleanup targets, and edge-specific ordered
+  action streams. One claim-free affine record may transfer pairwise
+  prefix-disjoint all-field paths and clean every maximal residual subtree.
+  Codec, independent verification, interpretation, fixed fuel, and all Omega
+  artifact/install paths agree on these carriers.
 
-  Literal fixed-array custody retains complete dense sibling claims and one
-  typed literal-index projection through either boundary settlement or an exact
-  one-parameter ordinary Unit call. Verification rebases the selected claim,
-  interpretation keeps unselected siblings live, and Omega realizes the
-  internal call on all five targets, including indirect Windows homes. Exact
-  path/type/layout/copy/claim custody survives object, image, and canonical
-  installation validation. Dynamic or nested indexing, wider call signatures,
-  contracts over fixed-index projections, content-bearing splits, and partial
-  returns remain fenced.
-
-  The structural partial-value cleanup slice is complete for one claim-free
-  affine record: source-ordered ordinary Unit calls may transfer a finite
-  nonempty set of pairwise prefix-disjoint, nonempty all-field paths, provided
-  at least one residual subtree remains. Return disposes every maximal live
-  residual subtree in recursive reverse declaration order; a partially moved
-  ancestor is never discarded whole.
-  Checked plans, canonical terminal format, independent verification,
-  interpretation/fuel, and all five Omega artifact/install paths preserve the
-  exact root, field paths, and leaf types without a runtime bitmap or cleanup
-  bytes. Claims/content, non-crash contracts, wider crash predicates,
-  arrays/cases, and nominal `drop` remain fenced for partial-record cleanup.
-
-  The whole-root nominal cleanup slice is complete for a finite nonempty list
-  of claim-free, unqualified affine parameters whose records are empty or
-  contain only relevant Boolean/integer fields. One attached `T::drop` may be
-  empty or make a finite source-ordered list of calls to distinct exact-empty helpers.
-  Multiple attached drops execute in reverse parameter order and may share one
-  cleanup target. Every body in the action list may use the same bounded
-  helper-call form, including a shared cleanup target or helper. Checked production, canonical
-  terminal encoding, independent verification, interpretation, and fixed fuel
-  preserve each whole receiver, charge the root edge once, and count every
-  cleanup invocation. Omega carries one ordered cleanup-action stream through
-  all five object/image/install paths. Empty drops add no call; each accepted
-  executable form emits a call owned by its exact edge/action ordinal before
-  return teardown and retains source-ordered operation-owned helper custody.
-  The bounded empty/helper-call bodies additionally admit the finite
-  direct-Boolean contextual contract subset described under CML4 across one or
-  more cleanup roots.
-  Shared targets reuse one proof receiver while each root receives distinct
-  edge obligations. Nested/erased receivers, wider body shapes, locals,
-  claims, qualifications, other contract forms, and non-root edges remain
-  fenced.
-
-  Scalar return edges now use the same ordered cleanup-action vocabulary. The
-  source-produced nominal branch accepts a finite nonempty list of direct,
-  claim-free affine parameters that may freely mix no-code and nominal roots,
-  a finite set of direct primitive scalar inputs interleaved at authored
-  parameter positions, a finite source-ordered prefix of immutable branch-free
-  primitive locals, and either one branch-free scalar result or one top-level
-  Boolean `&&`/`||` whose operands are branch-free over those inputs and locals,
-  and the same empty or bounded zero-argument helper-call `drop` body for each nominal
-  root. Checked plans retain the complete authored parameter partition while
-  terminal Psi gives scalar values and structural places independent dense
-  namespaces. Local and result operations materialize in source order before
-  every cleanup action. Every action then runs in reverse authored structural
-  root order through verification, interpretation, fixed fuel, and all five Omega
-  object/image/install paths; nominal targets may be distinct or shared and
-  no-code actions retain their exact positions without emitting instructions.
-  Native lowering preserves the computed ABI result and, where required, the
-  return link across executable cleanup calls with byte-validated stack
-  evidence.
-  The finite mixed list additionally admits the same direct-
-  Boolean contextual requirements as Unit cleanup: checked production retains
-  root-specific caller premises (including supported premises on no-code
-  roots), terminal Psi reconstructs and verifies every nominal action
-  obligation, and Omega projects proof-only receivers/obligation identities
-  after verification while preserving the complete runtime action order
-  through all five targets. The bounded Boolean form retains two decisions and
-  three distinct return edges; every leaf owns the same complete cleanup
-  stream, and native artifacts retain three edge-specific cleanup intervals.
-  One final top-level short-circuit Boolean local may be consumed once by a
-  branch-free return suffix, including one intervening branch-free Boolean
-  continuation local returned directly; either form is source-distributed into
-  the same three proof-bearing cleanup leaves. Value reuse, a second
-  continuation local, repeated stages, explicit convergence to one cleanup
-  return, nested decisions, calls, effects, nested nominal ownership, and wider
-  scalar bodies remain to be added as complete vertical slices.
-
-  The root-only structural result carrier now reaches exact one-fragment Omega
-  native realization and installation, including a finite claim-free affine
-  parameter tail and a finite consecutive prefix of established empty-record
-  affine locals. Both clean up in canonical reverse order with no emitted
-  cleanup code; register and stack ABI homes survive installation. Next add
-  wider partial-value cleanup,
-  remaining edge kinds and conservation,
-  returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
-  or wider joins, reordered custody, computed structural guards/successors,
-  wider projections, and incomplete evidence remain fenced until their entire
-  slice is verifier-owned.
-  One-state Unit/effect bodies also accept a finite leading run of immutable,
-  unqualified, empty-record affine locals. Establishment is source ordered;
-  return cleanup is reverse-local then reverse-parameter order. Complete
-  custody and fuel attribution survive all five native artifact pipelines as
-  zero-byte runtime work. Nonempty, mutable, qualified, content-bearing,
-  nominal-cleanup, or post-effect locals remain fenced.
-  Ranked tail-recursive call graphs remain rejected until tail position and
-  ranking evidence are terminal and verifier-owned. Retire checked/source-tree
-  consumers with each slice; nothing below terminal Psi may depend on
-  typed/source trees, `ExpressionHandle`, source rendering, or an Omega-to-Psi
-  bridge. Bind canonical partition-composition replay rows to an exact operation
-  and verifier-selected callee guarantee before exposing the theorem; their
-  independently reconstructed fingerprints are identity, never authority.
+  Add complete slices for value reuse, additional continuation locals and
+  stages, explicit shared convergence, nested decisions, calls and effects,
+  wider partial-value cleanup, nested nominal ownership, returned transfer,
+  loops, suspension, scoped ordering, and ranked tail recursion. Dynamic or
+  nested indexing, wider projections/signatures, content-bearing splits, and
+  unsupported contracts remain fenced until independently verifier-owned.
+  Retire checked/source-tree consumers with each slice; nothing below terminal
+  Psi may depend on typed/source trees, `ExpressionHandle`, source rendering, or
+  an Omega-to-Psi bridge. Bind partition-composition replay to the exact
+  operation and verifier-selected callee guarantee; fingerprints are identity,
+  never authority.
 - **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
-  scalar slice. Source-produced direct calls now consume checked
-  invocation-specific rows, preserve parameter and computed direct-local
-  substitutions, and emit verifier-reconstructed guarded continuations.
-  Positional calls stage short-circuit arguments left-to-right; guarded staged
-  calls bind their continuations from the fingerprint-pinned, parameter-relative
-  callee contract to exact terminal argument values. Nonempty paths to relevant
-  Boolean fields of record parameters retain every canonical field identity,
-  rebase across whole-root and all-field-projected structural Unit calls,
-  round-trip through both codecs, and are checked independently by the
-  verifier. Fixed-index argument prefixes and built-in Boolean member equality,
-  inequality, negation, and conjunction now compose and rebase every retained
-  path. Same-typed relevant fixed-integer members now retain canonical paths
-  through equality, inequality, and ordered comparisons, including conjunction,
-  whole-root and all-field-projected structural calls, both codecs, and
-  independent leaf-type checking. Built-in fixed-integer `&`, `|`, `^`, and
-  `~` now remain typed structural proposition terms, recursively rebase every
-  member operand across all-field-projected calls, and retain their total
-  carrier-width meaning through codecs and independent verification; overloaded
-  forms and the address carrier remain fenced. Terminal proposition disjunction
-  now retains distinct canonical branches, rebases every nested member path
-  across all-field-projected calls, and is independently reconstructed by the
-  verifier.
-  Source whole-record equality between same-typed `Equatable` parameters now
-  retains the language-defined inline expansion for finite nonempty trees of
-  relevant Boolean and fixed-integer fields, flattens the resulting conjunction,
-  and reconstructs both roots independently across whole-root calls. Exact
-  addition, subtraction, and multiplication over same-typed relevant fixed-integer
-  members now remain typed proposition terms and reconstruct every nested operand
-  across whole-root and all-field-projected calls. Wrapping and Saturating
-  addition, subtraction, and multiplication now retain their distinct total
-  policy semantics through the same projected-call, codec, verifier, fixed-fuel,
-  and interpretation path. Exact division and remainder additionally accept a
-  same-carrier literal divisor whose nonzero and signed overflow safety the
-  producer and verifier both establish independently. Wrapping and Saturating
-  division and remainder now accept same-carrier nonzero literals, including
-  signed `-1`, while independently rejecting zero; the retained term preserves
-  the selected `MIN / -1` behavior through codecs and interpretation.
-  Whole-root structural Unit closures now also accept a runtime integer-member
-  divisor when every machine's complete bounded `requires` package carries an
-  exact positive bound, an at-most-negative-two bound, or the joint signed
-  negative-one/dividend bound. Checked plans retain the source-independent
-  package. Direct and all-field-projected calls rebase each callee requirement,
-  retain one exact obligation, and cite the matching caller assumption;
-  canonical terminal Psi, codec, independent verification, and interpretation
-  reject missing evidence, a wrong assumption, or a weakened or redirected
-  premise. Wrapping and Saturating division and remainder use the same package
-  and projected-call path but require only the positive or negative nonzero
-  divisor bound, because their signed overflow case is policy-defined. Wrapping
-  left and right shifts now retain distinct value/count carriers and the
-  language-defined modulo-width count behavior through projected calls, codecs,
-  independent verification, fixed fuel, and interpretation. Exact right shifts
-  now retain a self-proving literal count or the complete nonnegative/below-width
-  requirement package. Exact left shifts additionally reconstruct carrier-tight
-  value bounds at the greatest possible count. Projected calls preserve the
-  canonically ordered package and one exact obligation per requirement; missing
-  count or overflow evidence rejects independently. Continue with case-payload
-  paths and wider aggregate equality involving text, floats, sums, or erased
-  fields. Trapping arithmetic in contract predicates is design-blocked on
-  `OWNER_QUESTIONS.md` Q10: the language must settle whether a trapping subterm
-  contributes a `Trap` route, denotes a partial/false proposition, or requires
-  independent nontrapping evidence.
-  Imported crash capsules remain design-blocked on artifact identity and
-  certificate binding.
+  scalar slice. Direct and staged calls retain invocation-specific substitutions
+  and verifier-reconstructed continuations. Canonical Boolean and fixed-integer
+  member paths rebase across whole-root, fixed-index, and all-field-projected
+  structural calls. The proposition carrier covers Boolean composition,
+  relevant-record equality, fixed-width bitwise terms, policy-distinct integer
+  arithmetic, evidence-bounded division/remainder, and exact or wrapping shifts;
+  codecs, verification, fuel, and interpretation reject missing or redirected
+  premises. Continue with case-payload paths and aggregate equality over text,
+  floats, sums, and erased fields. Trapping predicate arithmetic is
+  design-blocked on owner Q10; imported crash capsules remain blocked on
+  artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
@@ -578,91 +401,27 @@ reach or trust, and private proof improvements do not change public identity.
 ### Multiplicity, tasks, and execution
 
 - **CML4:** construct the complete `EdgeCleanupPlan` after outgoing-value
-  materialization and transfer-map commitment. Accepted terminal slices carry
-  exact reverse-declaration affine cleanup through Unit/scalar returns and
-  bounded acyclic structural control, including short-circuit Boolean stages and
-  one equal-frontier diamond. Partial-record transfer accepts a finite
-  source-ordered set of pairwise prefix-disjoint, nonempty all-field paths. It
-  preserves and disposes every maximal residual subtree in recursive reverse
-  declaration order through interpretation and all five native artifact paths.
-  One whole
-  affine parameter whose record is
-  empty or contains only relevant Boolean/integer fields now invokes an exact
-  attached nominal cleanup through interpretation, fuel, and all five native
-  artifact paths on Unit return and on the bounded branch-free scalar-return
-  branch.
-  The cleanup may be empty or make a finite source-ordered
-  zero-argument calls to mutually distinct exact-empty helpers; native
-  artifacts retain the cleanup edge and helper operations as distinct call
-  owners. Finite nominal cleanup lists run in reverse parameter order through
-  interpretation, fuel, and every native artifact path. They may share a
-  target, and every action may use the bounded executable body, including a
-  shared cleanup target or helper; native calls retain exact edge/action
-  ordinals. One contextual subset additionally accepts a finite
-  canonical set of direct relevant Boolean receiver-field `requires` clauses
-  in either polarity
-  across a finite cleanup-root list when the caller's canonical Boolean fact
-  set proves every one at the Unit return edge; unrelated supported caller
-  facts remain available. Shared cleanup targets retain one target-local proof
-  receiver while each action gets distinct positional obligations. Terminal Psi
-  retains every proof-only receiver substitution and positional obligation,
-  independently verifies the
-  source-produced semantic/proof artifact, and removes proof metadata before
-  all five Omega runtime carriers. Missing premises reject with an edge- and
-  cleanup-specific diagnostic. Contextual scalar cleanup distributes one
-  bounded short-circuit stage through at most one single-use branch-free
-  continuation local; unlike the claim-free scalar lane, it does not yet retain
-  a typed convergence block or shared cleanup edge. Extend contextual cleanup
-  beyond this direct-Boolean, receiver-independent-body subset; add wider
-  structural partial-value cleanup,
-  repeated-cycle resource composition, and
-  conservation/backend-ledger reporting. The accepted slices are not yet a
+  materialization and transfer-map commitment. Current Unit/scalar and bounded
+  acyclic slices retain reverse-declaration cleanup, partial-record transfer of
+  prefix-disjoint all-field paths, maximal-residual disposal, nominal helper
+  calls, shared targets, edge/action ownership, and direct-Boolean contextual
+  obligations through terminal verification, interpretation, fuel, and all
+  native artifact paths. Extend contextual cleanup beyond the current
+  receiver-independent Boolean subset and single continuation local; add typed
+  shared convergence, wider structural partial values, repeated-cycle resource
+  composition, and conservation/backend-ledger reporting. This is not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
-  park/resume, and implement the suspension-safe-loan subset. Accepted Unit,
-  branch-free scalar, and one two-arm scalar conditional native shape retain and
-  replay exact code-positioned frame/link/temporary evidence and compose an
-  acyclic closure demand. The canonical terminal installation record now seals
-  those per-function and per-call facts, and a decoded record reproduces the
-  same internal closure demand. That decoded demand can now bind the exact
-  installed bytes and entry, enter artifact-wide nesting composition, survive
-  selected-provider admission, and appear as recomputable terminal evidence in
-  the installed-root report; opaque providers retain a distinct admitted-summary
-  path. Direct integer-return division and remainder now retain exact linear
-  facts on AArch64 and branch-free x86 paths; signed x86 wrapping/saturating
-  forms retain and independently replay every compiler-generated reconvergent
-  diamond. Integer division/remainder inside typed scalar call arguments now
-  retains the same facts through ABI assignment, typed relocation, object/image
-  validation, installation serialization, and installed-closure recomposition.
-  Direct branch-free division/remainder in the condition or either arm of the
-  bounded two-return conditional now reuses its prefix/arm maximum: AArch64
-  retains all emitted policy forms and branch-free x86 uses the same replay.
-  Signed x86 Wrapping/Saturating forms retain composite outer-conditional plus
-  inner-diamond evidence; the object boundary partitions the ordered diamonds
-  by prefix/arm and independently replays their special and ordinary paths.
-  The same forms may occur in typed call arguments in the condition or either
-  arm and retain exact relocation and closure custody through installation.
-  A bounded conditional may instead end one or both direct arms in a crash.
-  Evidence binds the crashing arm set and replays each exact `UD2`/`BRK`
-  terminal through installation; any returning arm remains directly
-  accountable. Ordered x86 division diamonds from the condition or returning
-  arm retain the same composite path proof. Every accountable acyclic
-  conditional-control tree now uses one depth-independent evidence shape:
-  physically ordered decisions, a true-before-false DFS crash bitmap, and one
-  ordered x86 division-diamond ledger. Object construction reconstructs the
-  exact nested regions, replays every expression prefix and terminal leaf,
-  rejects malformed topology or cross-region diamonds, and preserves the
-  result through image installation. Boolean parameter/expression conditionals
-  use the same tree evidence and retain typed call-stack facts. When one
-  semantic Psi call after a convergence block is source-distributed into
-  multiple terminal leaves, repeated operation ownership is accepted only
-  when the validated decision paths prove every physical call pair mutually
-  exclusive. This accounts source-distributed convergence without claiming a
-  shared native join. Affine cleanup remains the intentionally bounded
-  three-leaf exception; extend accounting to actual reconvergent native
-  control flow.
+  park/resume, and implement the suspension-safe-loan subset. Current Unit,
+  scalar, and acyclic conditional shapes retain exact frame/link/temporary,
+  call, crash-terminal, and target-generated division-diamond evidence from
+  instruction selection through decoded installation and artifact-wide closure
+  composition. One depth-independent conditional-tree carrier accounts nested
+  decisions and mutually exclusive source-distributed convergence calls.
+  Extend that accounting to actual shared native joins and general affine
+  cleanup rather than claiming convergence from duplicated leaves.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
