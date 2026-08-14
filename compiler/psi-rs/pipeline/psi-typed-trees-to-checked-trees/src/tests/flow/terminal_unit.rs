@@ -1086,6 +1086,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input as u8) < 4u8) && enabled;
             staged
         }
+        machine Root::signed_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: i64,
+            enabled: bool
+        ) -> bool
+        requires -128i64 <= input, input <= 127i64
+        {
+            let staged: bool = ((input as i8) < 4i8) && enabled;
+            staged
+        }
         machine Root::exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1484,6 +1494,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one guarded exact-cast shell retains the scalar-return plan");
     assert!(
         exact_cast_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let signed_exact_cast_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "signed_exact_cast_integer_comparison_convergence",
+        ))
+        .expect("one signed exact-cast shell retains the scalar-return plan");
+    assert!(
+        signed_exact_cast_integer_comparison
             .shared_boolean_convergence
             .is_some()
     );
