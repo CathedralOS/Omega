@@ -67,6 +67,7 @@ pub struct PropositionBinderArgument {
     pub kind: PropositionBinderArgumentKind,
     pub path: Box<[Identifier]>,
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
+    pub evidence_projection: Option<crate::expression::EvidenceProjection>,
     pub symbol: SymbolHandle,
 }
 
@@ -774,6 +775,9 @@ fn canonical_application_label(name: &str, binders: &[String], arguments: &[Stri
 fn display_binder_argument(argument: &PropositionBinderArgument) -> String {
     if let Some(literal) = &argument.const_literal {
         return literal.text().to_owned();
+    }
+    if let Some(projection) = &argument.evidence_projection {
+        return format!("{}.{}", projection.term, projection.member);
     }
     argument
         .path

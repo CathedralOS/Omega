@@ -210,21 +210,28 @@ pub(crate) fn lower_proposition_application(
                 )
             }
             resolved::proposition::PropositionBinderKind::Machine => {
-                let symbol = resolve_proposition_static_path(lowerer, argument);
-                if argument.const_literal.is_some()
-                    || classify_proposition_static_symbol(lowerer, symbol)
-                        != Some(typed::proposition::PropositionBinderArgumentKind::Machine)
-                {
-                    return Err(Diagnostic::error(format!(
-                        "proposition `{}` machine binder `{}` received a non-machine argument",
-                        call.target.as_str(),
-                        binder.name.as_str()
-                    )));
+                if argument.evidence_projection.is_some() {
+                    (
+                        typed::proposition::PropositionBinderArgumentKind::Machine,
+                        psi_symbols::SymbolHandle::invalid(),
+                    )
+                } else {
+                    let symbol = resolve_proposition_static_path(lowerer, argument);
+                    if argument.const_literal.is_some()
+                        || classify_proposition_static_symbol(lowerer, symbol)
+                            != Some(typed::proposition::PropositionBinderArgumentKind::Machine)
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "proposition `{}` machine binder `{}` received a non-machine argument",
+                            call.target.as_str(),
+                            binder.name.as_str()
+                        )));
+                    }
+                    (
+                        typed::proposition::PropositionBinderArgumentKind::Machine,
+                        symbol,
+                    )
                 }
-                (
-                    typed::proposition::PropositionBinderArgumentKind::Machine,
-                    symbol,
-                )
             }
         };
         typed_binder_arguments.push(typed::proposition::PropositionBinderArgument {
@@ -236,6 +243,12 @@ pub(crate) fn lower_proposition_application(
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             const_literal: argument.const_literal.clone(),
+            evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
+                typed::expression::EvidenceProjection {
+                    term: crate::name::lower_name(&projection.term),
+                    member: crate::name::lower_name(&projection.member),
+                }
+            }),
             symbol,
         });
     }
