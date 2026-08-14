@@ -391,6 +391,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         196,
     ),
     ("calls/runtime_looping_value_return_exit", 70),
+    ("calls/runtime_looping_cast_return_exit", 70),
     (
         "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
         70,
@@ -543,6 +544,19 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("layouts/runtime_plan_laid_value_by_value_param_exit", 70),
     ("layouts/runtime_plan_laid_record_view_exit", 70),
     ("layouts/runtime_plan_laid_record_mutable_write_exit", 70),
+    (
+        "layouts/runtime_plan_laid_fixed_array_mutable_write_exit",
+        70,
+    ),
+    ("layouts/runtime_plan_laid_fixed_array_view_exit", 70),
+    (
+        "layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit",
+        70,
+    ),
+    (
+        "layouts/runtime_plan_laid_nested_record_mutable_write_exit",
+        70,
+    ),
     (
         "layouts/runtime_plan_laid_record_array_mutable_write_exit",
         70,
