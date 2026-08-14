@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-13.
+Last pruned: 2026-08-14.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -75,11 +75,11 @@ Remaining:
   `temperature_convert`, now lowers directly from its authored host entry. The
   seventeen deployable CLI arithmetic samples now author all four hosted roots
   and lower through the same production entry matrix without staging; the four
-  float-lowering fixtures remain explicitly checked-only. Twelve deployable CLI
-  systems samples likewise author all four hosted roots; `file_journal` remains
-  checked-only pending cross-target metadata/domain lowering, `note_vault`
-  pending per-instance contained-machine dispatch, and `wire_protocol` pending
-  its native round-trip mismatch. Eleven executable CLI regression probes now
+  float-lowering fixtures remain explicitly checked-only. Thirteen deployable
+  CLI systems samples likewise author all four hosted roots; `file_journal`
+  remains checked-only pending cross-target metadata/domain lowering, and
+  `note_vault` pending per-instance contained-machine dispatch. Eleven
+  executable CLI regression probes now
   name all four hosted roots explicitly; the deliberate trapping fixture
   remains checked-only. All three stdin samples likewise select exact authored
   roots on every hosted target. The four GUI applications now retain their GUI
