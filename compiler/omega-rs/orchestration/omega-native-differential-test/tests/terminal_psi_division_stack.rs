@@ -161,6 +161,173 @@ fn conditional_condition_division_stack_facts_survive_object_image_and_installat
     }
 }
 
+#[test]
+fn conditional_call_argument_division_stack_facts_survive_installation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assign_registers(&conditional_call_argument_division_plan(target))
+            .expect("assign conditional division call arguments");
+        let emitted = emit_machine_code(&assigned).expect("emit conditional division calls");
+        let caller = &emitted.functions[0];
+        let stack = caller
+            .scalar_stack
+            .as_ref()
+            .expect("conditional division call stack evidence");
+        assert!(matches!(
+            stack.control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+        ));
+        assert_eq!(caller.internal_calls.len(), 2);
+        assert!(
+            caller
+                .internal_calls
+                .iter()
+                .all(|call| call.scalar_stack.is_some())
+        );
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays conditional division calls");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("compose conditional division call closure");
+        assert_eq!(demand.contributing_machines().len(), 3);
+        let object = emit_terminal_object_container(&artifact);
+        assert_eq!(object.output.relocations, 2);
+        let image = emit_terminal_executable_image(&artifact, 17)
+            .expect("emit conditional division call executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(4).expect("profile decision"),
+        )
+        .expect("build conditional division call installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode conditional division call installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode conditional division call installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed conditional division call closure");
+        assert_eq!(installed, demand);
+    }
+}
+
+fn conditional_call_argument_division_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let argument_register = match target.architecture {
+        Architecture::X86_64 => MachineRegister::X86Rdi,
+        Architecture::Aarch64 => MachineRegister::Aarch64X(0),
+    };
+    let argument_location = TerminalScalarParameterLocation::Register(argument_register);
+    let immediate = |source, value| TerminalTargetIntegerExpression::Immediate {
+        source_value: value_id(source),
+        value: IntegerValue::Unsigned(value),
+    };
+    TerminalTargetOperationPlan {
+        terminal_psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([45; 32]),
+        },
+        target,
+        entry: machine_id(1),
+        functions: vec![
+            TerminalTargetFunction {
+                machine: machine_id(1),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: (1..=5).map(operation_id).collect(),
+                    edges: (1..=4).map(edge_id).collect(),
+                },
+                operation: TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+                    condition_source: value_id(1),
+                    condition: TerminalTargetBooleanExpression::Call {
+                        psi_operation: operation_id(3),
+                        source_value: value_id(1),
+                        callee: machine_id(2),
+                        arguments: vec![TerminalTargetCallArgument {
+                            scalar_type: psi_core::ScalarType::Boolean,
+                            location: argument_location,
+                            expression: TerminalTargetScalarExpression::Boolean(
+                                TerminalTargetBooleanExpression::IntegerEqual {
+                                    psi_operation: operation_id(2),
+                                    scalar_type,
+                                    left: Box::new(
+                                        TerminalTargetIntegerExpression::WrappingDivide {
+                                            psi_operation: operation_id(1),
+                                            left: Box::new(immediate(2, 24)),
+                                            right: Box::new(immediate(3, 3)),
+                                        },
+                                    ),
+                                    right: Box::new(immediate(4, 8)),
+                                },
+                            ),
+                        }],
+                    },
+                    scalar_type,
+                    when_true: TerminalTargetConditionalIntegerArm {
+                        psi_edge: edge_id(1),
+                        control: Box::new(TerminalTargetIntegerControl::Return {
+                            psi_return_edge: edge_id(3),
+                            source_value: value_id(5),
+                            expression: TerminalTargetIntegerExpression::Call {
+                                psi_operation: operation_id(5),
+                                source_value: value_id(5),
+                                callee: machine_id(3),
+                                arguments: vec![TerminalTargetCallArgument {
+                                    scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                    location: argument_location,
+                                    expression: TerminalTargetScalarExpression::Integer {
+                                        scalar_type,
+                                        expression:
+                                            TerminalTargetIntegerExpression::ExactRemainder {
+                                                psi_operation: operation_id(4),
+                                                left: Box::new(immediate(6, 43)),
+                                                right: Box::new(immediate(7, 6)),
+                                            },
+                                    },
+                                }],
+                            },
+                        }),
+                    },
+                    when_false: TerminalTargetConditionalIntegerArm {
+                        psi_edge: edge_id(2),
+                        control: Box::new(TerminalTargetIntegerControl::Return {
+                            psi_return_edge: edge_id(4),
+                            source_value: value_id(8),
+                            expression: immediate(8, 2),
+                        }),
+                    },
+                },
+            },
+            TerminalTargetFunction {
+                machine: machine_id(2),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge_id(5)],
+                },
+                operation: TerminalTargetOperation::ReturnBooleanParameter {
+                    psi_edge: edge_id(5),
+                    source_value: value_id(9),
+                    parameter_index: 0,
+                    location: argument_location,
+                },
+            },
+            TerminalTargetFunction {
+                machine: machine_id(3),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge_id(6)],
+                },
+                operation: TerminalTargetOperation::ReturnIntegerParameter {
+                    psi_edge: edge_id(6),
+                    source_value: value_id(10),
+                    scalar_type,
+                    parameter_index: 0,
+                    location: argument_location,
+                },
+            },
+        ],
+    }
+}
+
 fn conditional_condition_division_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
     let immediate = |source, value| TerminalTargetIntegerExpression::Immediate {
