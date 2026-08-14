@@ -307,8 +307,8 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// admitted. Integer-comparison leaves separately accept scalar parameters
     /// and landed constants beneath at most one total binary, bitwise-not,
     /// integer-widening, proof-bearing exact-cast, exact-add, exact-subtract,
-    /// exact-multiply, exact-divide, or exact-remainder computation shell.
-    /// Proof-bearing parameter bounds remain explicit.
+    /// exact-multiply, exact-right-shift, exact-divide, or exact-remainder
+    /// computation shell. Proof-bearing parameter bounds remain explicit.
     /// Nested or multiple field identities, member/comparison mixtures, wider
     /// integer computations, and richer leaves retain the source-distributed
     /// fallback and publish `None`.

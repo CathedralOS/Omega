@@ -402,7 +402,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         small: u8,
         enabled: bool
     ) -> bool
-    requires input <= 255u64, small <= 254u8, small <= 127u8
+    requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && ((small as u16) < 5u16))
@@ -412,6 +412,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small * 2u8) < 10u8)
             && ((small / 2u8) < 3u8)
             && ((small % 2u8) <= 1u8)
+            && ((small >> small) < 1u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1760,6 +1761,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_shift_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftRight { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the bounded exact right shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_shift_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_multiply_obligation = entry
         .blocks
         .iter()
@@ -1880,6 +1897,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Proposition::LessOrEqual(subject, _),
         Proposition::LessOrEqual(_, _),
         Proposition::LessOrEqual(_, _),
+        Proposition::LessOrEqual(_, _),
     ] = entry_contract.requires.as_slice()
     else {
         panic!("shared convergence retains all unsigned upper-bound premises")
@@ -1924,10 +1942,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let Proposition::LessOrEqual(add_subject, _) = &entry_contract.requires[2] else {
+    let Proposition::LessOrEqual(add_subject, _) = &entry_contract.requires[3] else {
         panic!("shared convergence retains the exact-add upper-bound premise")
     };
-    entry_contract.requires[2] = Proposition::LessOrEqual(
+    entry_contract.requires[3] = Proposition::LessOrEqual(
         add_subject.clone(),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -1982,10 +2000,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .find(|machine| machine.id == changed_entry)
         .expect("changed shared entry")
         .contract;
-    let Proposition::LessOrEqual(exact_subject, _) = &entry_contract.requires[1] else {
+    let Proposition::LessOrEqual(exact_subject, _) = &entry_contract.requires[2] else {
         panic!("shared convergence retains the subtract/multiply upper-bound premise")
     };
-    entry_contract.requires[1] = Proposition::LessOrEqual(
+    entry_contract.requires[2] = Proposition::LessOrEqual(
         exact_subject.clone(),
         ScalarTerm::integer(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -2019,6 +2037,49 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if missing == obligation
         ));
     }
+    let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_shift_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != exact_shift_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_shift_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == exact_shift_obligation
+    ));
+    let mut changed_shift_bound = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_shift_bound.entry;
+    let entry_contract = &mut changed_shift_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let Proposition::LessOrEqual(shift_subject, _) = &entry_contract.requires[1] else {
+        panic!("shared convergence retains the exact-shift count premise")
+    };
+    entry_contract.requires[1] = Proposition::LessOrEqual(
+        shift_subject.clone(),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerValue::Unsigned(6),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_shift_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == exact_shift_obligation
+    ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -2069,6 +2130,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small * 2 < 10
                     && small / 2 < 3
                     && small % 2 <= 1
+                    && (small >> small) < 1
                     && input == 3
                     && enabled
             ))

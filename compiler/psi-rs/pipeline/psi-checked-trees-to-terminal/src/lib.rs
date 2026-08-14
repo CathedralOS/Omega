@@ -10645,7 +10645,8 @@ fn shared_integer_runtime_parameters_with_shells(
                 | LoweredIntegerBinaryKind::SaturatingMultiply
                 | LoweredIntegerBinaryKind::ExactAdd
                 | LoweredIntegerBinaryKind::ExactSubtract
-                | LoweredIntegerBinaryKind::ExactMultiply,
+                | LoweredIntegerBinaryKind::ExactMultiply
+                | LoweredIntegerBinaryKind::ExactShiftRight,
             left,
             right,
             ..
@@ -14767,6 +14768,7 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
                                 | OperationKind::ExactIntegerAdd { obligation, .. }
                                 | OperationKind::ExactIntegerSubtract { obligation, .. }
                                 | OperationKind::ExactIntegerMultiply { obligation, .. }
+                                | OperationKind::ExactIntegerShiftRight { obligation, .. }
                                 if obligation == site.obligation.id
                         )
                     })
