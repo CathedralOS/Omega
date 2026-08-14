@@ -76,7 +76,9 @@ Remaining:
   fourteen deployable plan-laid runtime canaries likewise author all four
   hosted roots, and the active pass umbrella exercises them through production
   entry selection rather than its explicit legacy fixture seam. Their direct
-  native runtime tests select the authored host root as well. The
+  native runtime tests select the authored host root as well. Eighteen
+  deployable recast runtime canaries likewise author all four hosted roots and
+  now pass through production entry selection in the active umbrella. The
   active pass-canary umbrella uses its explicit legacy fixture entry and asserts
   that state-graph lowering occurred, so it cannot silently collapse into
   checked-only coverage. Production and development interpreter execution
@@ -467,8 +469,8 @@ state through a raw address.
   Do not grant false port-I/O reach to the x2APIC provider as a workaround.
 
 Acceptance: QEMU installs Cathedral-owned memory/interrupt structures, reports
-timer ticks over owned serial output, and halts between ticks. No
-customer-shaped compiler concept is introduced.
+timer ticks over owned serial output, and halts between ticks. No customer-shaped
+compiler concept is introduced.
 
 ## Parallel compiler and language lanes
 
