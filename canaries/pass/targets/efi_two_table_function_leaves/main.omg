@@ -49,17 +49,23 @@ data Main {
 }
 boundary machine Main::main(&mut self, handle: addr, table: &EfiSystemTable) -> i32
 reaches BootServices + BootServices
+invokes BootServices;
 {
     self.map_size = 256;
     let boot_services: addr = table.boot_services;
-    _ = self.bs.get_memory_map(
+    let map_size_ref: &mut u64 = &mut self.map_size;
+    let map_address: addr = &self.map_buf;
+    let key_ref: &mut u64 = &mut self.key;
+    let descriptor_size: &mut u64 = &mut self.desc_size;
+    let descriptor_version: &mut u32 = &mut self.desc_version;
+    let map_status: i32 = self.bs.get_memory_map(
         boot_services,
-        &mut self.map_size,
-        &self.map_buf,
-        &mut self.key,
-        &mut self.desc_size,
-        &mut self.desc_version
+        map_size_ref,
+        map_address,
+        key_ref,
+        descriptor_size,
+        descriptor_version
     );
-    _ = self.bs.exit_boot_services(boot_services, handle, self.key);
+    let exit_status: i32 = self.bs.exit_boot_services(boot_services, handle, self.key);
     transition { _ -> (0) }
 }
