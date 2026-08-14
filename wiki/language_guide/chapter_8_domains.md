@@ -1276,37 +1276,10 @@ Working interpretation:
   conversion remain distinct according to denotation, representation, and
   runtime work.
 
-> **Implementation gate:** the current Rust trees carry independent predicate
-> bodies, closed semantic-role records, transparent aliases, and normalized
-> establishment routes. Explicit `as` into an empty domain (or an alias whose
-> expanded atoms are all empty) is now compiler-derived and records vacuous
-> qualification evidence; the former core qualification-satisfier trait has
-> been retired. Predicate `requires` and exact `Trait::requirement` body routes
-> now have independent syntax/IR records; authored routes resolve to checked or
-> boundary requirement identities, and mixed routed/predicate results must
-> prove the predicates. Parameter-position establishment at installed external
-> roots remains implementation work; it reuses the same route spelling and
-> retains compiler-derived semantic positions rather than adding syntax.
-> Predicate-in-body syntax is retired with directed
-> `requires` migration guidance, and the source, sample, and embedded-test
-> corpora use the settled clause. Domain operators use ordinary top-level
-> declarations with exact or uniquely inferred semantic homes; nested
-> declarations reject, and operator association grants no establishment
-> authority. Owner machines and boundary contract placement do not infer
-> establishment routes; every routed qualification names its exact checked or
-> boundary requirement in the domain declaration. Exact integer representation
-> conversion now uses proof-directed `as`; unit conversion remains ordinary
-> library behavior. Structured const values and closed indexed-family binding
-> constraints and indexed explicit qualification are live, including direct
-> const destination binders and exact instance evidence. Constrained-position
-> const-machine specialization is live. Computed open result indices now retain
-> licensed normalization authority and named compatibility evidence; exact
-> active local facts may discharge remaining equality without rewriting identity.
-> Per-atom weakening is enforced at ordinary value-flow boundaries:
-> predicate-only atoms may disappear implicitly, while semantic meaning,
-> non-owning routed provenance, and non-Exact arithmetic policy require an
-> explicit bare `as`; same-data-carrier erasure is a zero-work identity cast.
-> Owned obligations remain governed by multiplicity/custody. Arithmetic
-> policies still have special lowering paths. General
-> domain work must preserve every domain-theory axis independently in the IR; see
+> **Implementation gate:** Parameter-position establishment at installed
+> external roots remains implementation work. It reuses the same route spelling
+> and retains compiler-derived semantic positions rather than adding syntax.
+>
+> General domain work must preserve every domain-theory axis independently in
+> the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

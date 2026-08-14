@@ -278,10 +278,13 @@ Omega/
 - `pipeline/` crates transform one representation into the next.
 - Pipeline crates may depend on input and output representations, but should not
   become owners of shared helper structures.
-- Long-lived representation boundaries should remain explicit: tokens, syntax,
-  symbol-resolved, typed, checked, state graph, control flow, abstract
-  operations, target operations, assigned target operations, machine
-  instructions, machine program, and machine bytes.
+- Long-lived representation boundaries remain explicit within their semantic
+  owners. Psi owns tokens, syntax, symbol-resolved, typed, checked, and terminal
+  Psi. Omega consumes terminal Psi and owns abstract operations, target
+  operations, assigned target operations, machine instructions, machine
+  program, and machine bytes.
+- State graph and control flow are transitional bootstrap representations, not
+  durable language or cross-owner boundaries.
 - Do not skip from source-shaped trees to backend-specific structs.
 
 ### Backend

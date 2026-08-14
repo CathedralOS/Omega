@@ -239,23 +239,6 @@ contract, not in the hidden ranking witness.
 10. Swapping a provider's valid ranking witness revalidates that provider only;
     caller and requirement contract identities remain unchanged.
 
-## Migration ruling
-
-The old block form and standalone `decreases`/`increases` clauses are retired:
-
-```omega
-// retired
-terminates { decreases items -> Slice::Length; }
-
-// current
-terminates by items -> Slice::Length;
-```
-
-The parser, typed and checked trees, proof cache, diagnostics, canaries, core,
-standard library, samples, and compiler lattice corpus must migrate as one
-deliberate source-breaking pass. Historical decision records may quote
-the old spelling when clearly labeled; normative documentation may not.
-
 ## Deferred, explicitly
 
 - Source spelling for joint rankings across differently shaped mutual-cycle
