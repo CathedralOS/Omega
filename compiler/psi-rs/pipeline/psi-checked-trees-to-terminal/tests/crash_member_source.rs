@@ -2,7 +2,7 @@ use psi_core::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, Proposition, ScalarTerm,
     StructuralFieldId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -2204,7 +2204,14 @@ fn signed_runtime_member_divisor_requires_an_overflow_safe_bound() {
 }
 
 #[test]
-fn runtime_divisor_call_requirements_remain_fenced_until_obligation_transport() {
+fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
     let tokens = Lexer::new(RUNTIME_DIVISOR_CALL_SOURCE)
         .tokenize()
         .expect("runtime-divisor-call tokenize");
@@ -2212,10 +2219,81 @@ fn runtime_divisor_call_requirements_remain_fenced_until_obligation_transport() 
     let resolved = lower_syntax_trees(&syntax).expect("runtime-divisor-call resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor-call type");
     let checked = lower_typed_trees(typed).expect("runtime-divisor-call check");
-    assert!(
-        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter").is_err(),
-        "direct calls stay fenced until terminal Unit calls carry exact requirement obligations"
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("a whole-root Unit call carries its exact runtime-divisor requirement");
+    let root = &lowered.semantic_module.machines[0];
+    let OperationKind::CallUnit {
+        requirement_obligations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("root emits one structural Unit call")
+    };
+    let [obligation] = requirement_obligations.as_slice() else {
+        panic!("the call owns one exact requirement obligation")
+    };
+    assert_eq!(lowered.proof_bundle.evidence.len(), 1);
+    assert_eq!(lowered.proof_bundle.evidence[0].obligation, *obligation);
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the verifier independently rebases and proves the call requirement");
+    assert_eq!(verified.accepted_facts().len(), 1);
+
+    let semantics = encode_module(&lowered.semantic_module).expect("call semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("call proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
     );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 61,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("verified runtime-divisor call executes as erased proof metadata");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+
+    let mut missing = lowered.proof_bundle.clone();
+    missing.evidence.clear();
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(id)) if id == *obligation
+    ));
+
+    let mut wrong_assumption = lowered.proof_bundle.clone();
+    let EvidenceRoute::CertificateDerived(certificate) = &mut wrong_assumption.evidence[0].route
+    else {
+        unreachable!()
+    };
+    certificate.proof.rule = ProofRule::Assumption { index: 1 };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &wrong_assumption,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { .. })
+    ));
 }
 
 #[test]
