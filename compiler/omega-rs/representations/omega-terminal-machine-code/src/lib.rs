@@ -372,9 +372,18 @@ pub struct TerminalScalarCleanupPreservationEvidence {
     pub aarch64_return_link: Option<TerminalAarch64ReturnLinkEvidence>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalScalarControlFlowEvidence {
     Linear,
+    /// A direct scalar return containing one or more compiler-generated x86-64
+    /// signed division/remainder diamonds. Each branch selects the `-1`
+    /// overflow handling arm or the ordinary DIV/IDIV arm, and both paths
+    /// reconverge before expression evaluation continues. The object boundary
+    /// validates both branch targets and replays the two stack paths
+    /// independently.
+    LinearWithDivisionBranches {
+        branches: Vec<TerminalScalarDivisionBranchEvidence>,
+    },
     /// One top-level Boolean branch followed by two independently returning
     /// linear integer arms. The true arm begins directly after the branch and
     /// ends where the false arm begins; the false arm ends at the function
@@ -395,6 +404,16 @@ pub enum TerminalScalarControlFlowEvidence {
         nested: TerminalScalarConditionalBranchEvidence,
         nested_arm: TerminalScalarConditionalArm,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalScalarDivisionBranchEvidence {
+    pub branch_offset: usize,
+    pub branch_byte_count: usize,
+    pub ordinary_arm_offset: usize,
+    pub join_offset: usize,
+    pub join_byte_count: usize,
+    pub merge_offset: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

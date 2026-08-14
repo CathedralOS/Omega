@@ -580,10 +580,14 @@ reach or trust, and private proof improvements do not change public identity.
   installed bytes and entry, enter artifact-wide nesting composition, survive
   selected-provider admission, and appear as recomputable terminal evidence in
   the installed-root report; opaque providers retain a distinct admitted-summary
-  path. Extend accounting to nested/reconvergent conditionals, crashes in arms,
-  division/remainder, and the external entry adapter before calling it a
-  complete root `StackPlan`; zero-byte internal closures remain inadmissible
-  until that adapter demand exists.
+  path. Direct integer-return division and remainder now retain exact linear
+  facts on AArch64 and branch-free x86 paths; signed x86 wrapping/saturating
+  forms retain and independently replay every compiler-generated reconvergent
+  diamond. Extend accounting to language-level nested/reconvergent conditionals,
+  division inside their conditions/arms or call-argument materialization,
+  crashes in arms, and the external entry adapter before calling it a complete
+  root `StackPlan`; zero-byte internal closures remain inadmissible until that
+  adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

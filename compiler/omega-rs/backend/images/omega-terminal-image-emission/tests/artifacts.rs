@@ -19,9 +19,10 @@ use omega_terminal_machine_code::{
     TerminalScalarCleanupPreservationEvidence, TerminalScalarConditionalArm,
     TerminalScalarConditionalBranchEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlAffineCleanupRecord, TerminalScalarControlFlowEvidence,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord, TerminalUnitCallStackEvidence,
-    TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord, TerminalUnitStackEvidence,
+    TerminalScalarDivisionBranchEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord,
+    TerminalUnitCallStackEvidence, TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -921,6 +922,96 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
         Err(TerminalObjectError::UnsupportedScalarStackMutation {
             machine: machine_id(1),
             offset: 0,
+        })
+    );
+}
+
+#[test]
+fn object_replays_x86_division_diamond_stack_paths_and_rejects_forgery() {
+    let mut plan = two_function_plan();
+    plan.functions.truncate(1);
+    plan.entry = machine_id(1);
+    plan.functions[0].bytes = vec![
+        0x48, 0x89, 0xf8, // mov rax, rdi
+        0x50, // push rax
+        0x48, 0x89, 0xf0, // mov rax, rsi
+        0x41, 0x5a, // pop r10
+        0x50, // push rax
+        0x4c, 0x89, 0xd0, // mov rax, r10
+        0x48, 0x83, 0x3c, 0x24, 0xff, // cmp qword [rsp], -1
+        0x0f, 0x85, 0x0c, 0x00, 0x00, 0x00, // jne ordinary
+        0x48, 0xf7, 0xd8, // neg rax
+        0x48, 0x83, 0xc4, 0x08, // add rsp, 8
+        0xe9, 0x0a, 0x00, 0x00, 0x00, // jmp merge
+        0x48, 0x99, // cqo
+        0x48, 0xf7, 0x3c, 0x24, // idiv qword [rsp]
+        0x48, 0x83, 0xc4, 0x08, // add rsp, 8
+        0xc3, // ret
+    ];
+    plan.functions[0].scalar_stack = Some(TerminalScalarStackEvidence {
+        mutations: vec![
+            scalar_mutation(3, 1, TerminalScalarStackMutationKind::X86Push),
+            scalar_mutation(7, 2, TerminalScalarStackMutationKind::X86Pop),
+            scalar_mutation(9, 1, TerminalScalarStackMutationKind::X86Push),
+            scalar_mutation(
+                27,
+                4,
+                TerminalScalarStackMutationKind::Release { byte_size: 8 },
+            ),
+            scalar_mutation(
+                42,
+                4,
+                TerminalScalarStackMutationKind::Release { byte_size: 8 },
+            ),
+        ],
+        control_flow: TerminalScalarControlFlowEvidence::LinearWithDivisionBranches {
+            branches: vec![TerminalScalarDivisionBranchEvidence {
+                branch_offset: 18,
+                branch_byte_count: 6,
+                ordinary_arm_offset: 36,
+                join_offset: 31,
+                join_byte_count: 5,
+                merge_offset: 46,
+            }],
+        },
+        stack_alignment: 16,
+        cleanup_preservation: None,
+    });
+    let artifact = build_terminal_object_artifact(&plan).expect("division stack artifact");
+    assert_eq!(
+        artifact.functions()[0]
+            .scalar_stack
+            .expect("scalar stack")
+            .local_peak_bytes,
+        8
+    );
+
+    let mut forged_branch = plan.clone();
+    let TerminalScalarControlFlowEvidence::LinearWithDivisionBranches { branches } =
+        &mut forged_branch.functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("stack evidence")
+            .control_flow
+    else {
+        unreachable!()
+    };
+    branches[0].ordinary_arm_offset = 35;
+    assert_eq!(
+        build_terminal_object_artifact(&forged_branch),
+        Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine: machine_id(1),
+            offset: 18,
+        })
+    );
+
+    let mut forged_join = plan;
+    forged_join.functions[0].bytes[32] = 0x09;
+    assert_eq!(
+        build_terminal_object_artifact(&forged_join),
+        Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine: machine_id(1),
+            offset: 18,
         })
     );
 }
