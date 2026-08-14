@@ -1311,7 +1311,7 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
         .expect("named dynamic cast target");
     let identity = typed.normalized_type_identity(cast_target);
     assert!(
-        identity.as_str().contains("Item::First"),
+        identity.as_str().contains("conformance(First)"),
         "named dynamic identity: {identity}"
     );
 
@@ -1604,7 +1604,7 @@ fn named_whole_trait_conformance_survives_typing() {
         typed
             .symbols
             .name(typed.symbols.get(conformance.symbol).parent),
-        "Item"
+        "root"
     );
     validate_program(&typed).expect("one named conformance should validate");
 }
