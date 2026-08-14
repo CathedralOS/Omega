@@ -413,6 +413,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small / 2u8) < 3u8)
             && ((small % 2u8) <= 1u8)
             && ((small >> small) < 1u8)
+            && ((small << 1u8) < 11u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1777,6 +1778,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let exact_shift_left_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the bounded exact left shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_shift_left_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_multiply_obligation = entry
         .blocks
         .iter()
@@ -2080,6 +2097,19 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == exact_shift_obligation
     ));
+    let mut missing_shift_left_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_shift_left_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != exact_shift_left_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_shift_left_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == exact_shift_left_obligation
+    ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -2131,6 +2161,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small / 2 < 3
                     && small % 2 <= 1
                     && (small >> small) < 1
+                    && (small << 1) < 11
                     && input == 3
                     && enabled
             ))
