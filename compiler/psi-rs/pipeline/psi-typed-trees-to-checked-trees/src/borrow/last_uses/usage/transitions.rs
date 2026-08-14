@@ -33,7 +33,9 @@ pub(super) fn transition_target_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match target {
-        psi_typed_trees::statement::TransitionTargetNode::Named { path, arguments } => {
+        psi_typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
             path.head_symbol == symbol
                 || path.symbol == symbol
                 || program
@@ -56,7 +58,9 @@ pub(super) fn transition_target_uses_local_name(
     local_name: &str,
 ) -> bool {
     match target {
-        psi_typed_trees::statement::TransitionTargetNode::Named { path, arguments } => {
+        psi_typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
             program
                 .statement_table
                 .name_path_members(path.members)

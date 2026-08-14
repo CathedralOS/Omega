@@ -11,7 +11,10 @@ pub(crate) enum CallSite<'program> {
         expression: ExpressionHandle,
         call: &'program psi_typed_trees::expression::TableCallExpression,
     },
-    TransitionNamed(psi_arena::HandleSpan<ExpressionHandle>),
+    TransitionNamed {
+        arguments: psi_arena::HandleSpan<ExpressionHandle>,
+        evidence_arguments: &'program [Identifier],
+    },
 }
 
 pub(crate) fn find_call_site<'program>(
@@ -61,7 +64,9 @@ pub(crate) fn call_site_evidence_arguments<'program>(
     match call_site {
         CallSite::Statement(call) => &call.evidence_arguments,
         CallSite::Expression { call, .. } => &call.evidence_arguments,
-        CallSite::TransitionNamed(_) => &[],
+        CallSite::TransitionNamed {
+            evidence_arguments, ..
+        } => evidence_arguments,
     }
 }
 

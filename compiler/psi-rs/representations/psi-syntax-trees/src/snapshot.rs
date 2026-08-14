@@ -510,6 +510,7 @@ pub enum TransitionTargetSnapshot {
     Named {
         path: Vec<IdentifierSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
+        evidence_arguments: Vec<IdentifierSnapshot>,
     },
     Value {
         expression: ExpressionSnapshot,
@@ -1614,7 +1615,10 @@ fn snapshot_transition_target(
 ) -> TransitionTargetSnapshot {
     match target {
         TransitionTargetNode::Named {
-            path, arguments, ..
+            path,
+            arguments,
+            evidence_arguments,
+            ..
         } => TransitionTargetSnapshot::Named {
             path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
             arguments: syntax_trees
@@ -1623,6 +1627,7 @@ fn snapshot_transition_target(
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
+            evidence_arguments: snapshot_identifier_slice(evidence_arguments),
         },
         TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
             expression: snapshot_expression_handle(syntax_trees, *expression),

@@ -197,6 +197,7 @@ fn reclassify_state_call_value_target(
                 path,
                 path_starts_at_self: false,
                 arguments: call.arguments,
+                evidence_arguments: call.evidence_arguments.clone(),
             },
         },
     )

@@ -123,7 +123,9 @@ fn collect_state_argument_facts_from_target(
     }
 
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { path, arguments } => {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
             let Some(target_state) = program
                 .machine_states(machine)
                 .iter()

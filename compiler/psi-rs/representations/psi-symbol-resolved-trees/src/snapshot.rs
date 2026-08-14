@@ -569,6 +569,7 @@ pub enum TransitionTargetSnapshot {
     Named {
         path: Vec<String>,
         arguments: Vec<ExpressionSnapshot>,
+        evidence_arguments: Vec<String>,
     },
     Value {
         value: ExpressionSnapshot,
@@ -1369,6 +1370,11 @@ fn transition_target_snapshot(
                 .expression_handles(named.arguments)
                 .iter()
                 .map(|expression| table_expression_snapshot(program, *expression))
+                .collect(),
+            evidence_arguments: named
+                .evidence_arguments
+                .iter()
+                .map(|name| name.as_str().to_owned())
                 .collect(),
         },
         TransitionTarget::Value(expression) => TransitionTargetSnapshot::Value {

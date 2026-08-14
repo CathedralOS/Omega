@@ -22,8 +22,9 @@ pub(crate) fn validate_transition_target_node(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let TransitionTargetNode::Named { path, arguments } =
-        program.statement_table.transition_target(target)
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = program.statement_table.transition_target(target)
     else {
         return;
     };

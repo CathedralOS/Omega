@@ -1892,7 +1892,9 @@ impl<'program> Evaluator<'program> {
                 let value = self.eval_expression(*expression, frame)?;
                 Ok(TransitionDecision::Value(value))
             }
-            TransitionTargetNode::Named { path, arguments } => {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
                 let members = self.program.statement_table.name_path_members(path.members);
                 let state_name = members
                     .last()

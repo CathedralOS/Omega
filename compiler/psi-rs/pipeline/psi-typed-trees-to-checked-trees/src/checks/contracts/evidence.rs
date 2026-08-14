@@ -32,12 +32,21 @@ pub(super) fn bind_call_evidence_arguments(
             continue;
         };
         let authored = call_site_evidence_arguments(&call_site);
+        let is_named_transition = matches!(call_site, crate::CallSite::TransitionNamed { .. });
         let mut parameters = facts
             .proof
             .contract_fact_refs
             .span_or_empty(call.requires)
             .iter()
-            .filter_map(|fact_ref| facts.proof.contract_facts.get(fact_ref.fact).evidence_term)
+            .filter_map(|fact_ref| {
+                let fact = facts.proof.contract_facts.get(fact_ref.fact);
+                if is_named_transition
+                    && matches!(fact.owner, ContractProofFactOwner::Machine { .. })
+                {
+                    return None;
+                }
+                fact.evidence_term
+            })
             .collect::<Vec<_>>();
         parameters
             .sort_by_key(|parameter| facts.proof.evidence_terms.get(*parameter).lane_position);
@@ -58,6 +67,7 @@ pub(super) fn bind_call_evidence_arguments(
             let Some(source) = source_term_by_name(
                 &facts.proof.evidence_terms,
                 call.caller_machine_symbol,
+                call.caller_state_symbol,
                 name.as_str(),
             ) else {
                 diagnostics.push(Diagnostic::error(format!(
@@ -103,15 +113,22 @@ pub(super) fn bind_call_evidence_arguments(
 fn source_term_by_name(
     terms: &psi_arena::Arena<CheckedEvidenceTerm>,
     caller_machine_symbol: psi_symbols::SymbolHandle,
+    caller_state_symbol: psi_symbols::SymbolHandle,
     name: &str,
 ) -> Option<Handle<CheckedEvidenceTerm>> {
     terms.iter().find_map(|(handle, term)| {
-        (term.owner
-            == ContractProofFactOwner::Machine {
-                machine_symbol: caller_machine_symbol,
-            }
-            && term.kind == ContractProofFactKind::Requires
-            && term.name == name)
+        let owner_matches = matches!(
+            term.owner,
+            ContractProofFactOwner::Machine { machine_symbol }
+                if machine_symbol == caller_machine_symbol
+        ) || matches!(
+            term.owner,
+            ContractProofFactOwner::MachineState {
+                machine_symbol,
+                state_symbol,
+            } if machine_symbol == caller_machine_symbol && state_symbol == caller_state_symbol
+        );
+        (owner_matches && term.kind == ContractProofFactKind::Requires && term.name == name)
             .then_some(handle)
     })
 }

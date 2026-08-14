@@ -693,7 +693,7 @@ fn fact_substitutions<'program>(
     let target_symbol = match &call_site {
         crate::CallSite::Statement(call) => call.target_symbol,
         crate::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::CallSite::TransitionNamed(_) => call_flow_at_point(flow, point)
+        crate::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
             .map_or_else(SymbolHandle::invalid, |call| call.target_symbol),
     };
     let Some(parameters) = crate::call_target_parameters(program, target_symbol) else {

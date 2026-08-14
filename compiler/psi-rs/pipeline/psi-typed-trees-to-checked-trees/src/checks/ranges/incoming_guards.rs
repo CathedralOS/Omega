@@ -624,8 +624,9 @@ fn push_edge(
     if !target.is_valid() {
         return;
     }
-    let TransitionTargetNode::Named { path, arguments } =
-        program.statement_table.transition_target(target)
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = program.statement_table.transition_target(target)
     else {
         return;
     };

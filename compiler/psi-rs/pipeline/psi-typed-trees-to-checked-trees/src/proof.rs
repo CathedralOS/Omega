@@ -42,7 +42,13 @@ pub(crate) fn build_proof_facts_with_operators(
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
         for state in program.machine_states(machine) {
-            append_state_contract_facts(program, machine, state, &mut contract_facts);
+            append_state_contract_facts(
+                program,
+                machine,
+                state,
+                &mut contract_facts,
+                &mut evidence_terms,
+            );
         }
         append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
         for parameter in program.machine_type_parameters(machine) {

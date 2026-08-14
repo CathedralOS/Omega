@@ -16,12 +16,13 @@ pub(super) fn plan_transition_target(
     }
 
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { path, arguments: _ }
-            if is_local_transition_path(
-                source_key,
-                program.statement_table.name_path_members(path.members),
-                path.head_symbol,
-            ) =>
+        TransitionTargetNode::Named {
+            path, arguments: _, ..
+        } if is_local_transition_path(
+            source_key,
+            program.statement_table.name_path_members(path.members),
+            path.head_symbol,
+        ) =>
         {
             let members = program.statement_table.name_path_members(path.members);
             let name = members
@@ -80,7 +81,9 @@ pub(super) fn plan_transition_target(
                 name,
             })
         }
-        TransitionTargetNode::Named { path, arguments: _ } => {
+        TransitionTargetNode::Named {
+            path, arguments: _, ..
+        } => {
             let members = program.statement_table.name_path_members(path.members);
             if members.len() == 2 {
                 // `self.X(..)` where X is a segment of THIS machine:

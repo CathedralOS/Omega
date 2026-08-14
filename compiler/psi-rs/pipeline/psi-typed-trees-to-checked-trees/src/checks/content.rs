@@ -370,7 +370,9 @@ fn returned_partition_invocations(
                     .filter(|target| target.is_valid())
                 {
                     match program.statement_table.transition_target(target) {
-                        TransitionTargetNode::Named { path, arguments } => {
+                        TransitionTargetNode::Named {
+                            path, arguments, ..
+                        } => {
                             returned.push(ReturnedPartitionInvocation {
                                 statement_index,
                                 target_symbol: path.symbol,
@@ -584,7 +586,7 @@ fn partition_invocation_call_ordinal(
                 ) => *expected == expression,
                 (
                     ReturnedPartitionInvocationForm::NamedTransition,
-                    crate::CallSite::TransitionNamed(arguments),
+                    crate::CallSite::TransitionNamed { arguments, .. },
                 ) => {
                     program.statement_table.expression_handles(arguments)
                         == invocation.arguments.as_slice()

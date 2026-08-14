@@ -367,6 +367,23 @@ invariant is its own signature, so a mutation that invalidates the invariant
 must be followed by a guard or other proof that re-establishes it before the
 back-edge:
 
+A witness-bearing arrival requirement may bind its evidence term. Each named
+transition supplies those state-local terms explicitly, in clause order, after
+the same `;` separator used by ordinary calls:
+
+```omega
+state ready(value: i32)
+requires proof: carries(value);
+{
+    transition { _ -> next(value; proof) }
+}
+```
+
+An internal transition does not retransmit the enclosing machine's named
+`requires` package; those terms remain in scope throughout that machine
+invocation. Missing, extra, unknown, or proposition-mismatched state-arrival
+terms reject before execution, and evidence contributes no runtime argument.
+
 ```omega
 state fill(&mut self, i: u64)
 requires

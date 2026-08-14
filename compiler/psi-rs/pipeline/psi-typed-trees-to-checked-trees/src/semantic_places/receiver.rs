@@ -82,7 +82,7 @@ pub(crate) fn receiver_place_for_call(
                 .find(|parameter| parameter.is_self)?;
             Some(facts.append_symbol_place(self_parameter.symbol))
         }
-        super::CallSite::TransitionNamed(_) => {
+        super::CallSite::TransitionNamed { .. } => {
             let caller_state = super::find_state_in_machine(
                 program,
                 call.caller_machine_symbol,

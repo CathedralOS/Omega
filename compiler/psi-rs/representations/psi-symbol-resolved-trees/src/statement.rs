@@ -173,6 +173,7 @@ pub struct NamedTransitionTargetStorage {
     pub path: HandleSpan<DiagnosticName>,
     pub path_starts_at_self: bool,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    pub evidence_arguments: Box<[DiagnosticName]>,
 }
 
 impl Deref for NamedTransitionTarget {
@@ -493,6 +494,7 @@ impl StatementTable {
                     expressions,
                     copy_expression_handles,
                 ),
+                evidence_arguments: named.evidence_arguments.clone(),
             },
             TransitionTarget::Value(expression) => {
                 TransitionTargetNode::Value(expression_handle_from_tree(
@@ -643,6 +645,7 @@ pub enum TransitionTargetNode {
     Named {
         path: TableNamePath,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
+        evidence_arguments: Box<[DiagnosticName]>,
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,
@@ -699,6 +702,7 @@ mod tests {
                     path,
                     path_starts_at_self: false,
                     arguments,
+                    evidence_arguments: Box::default(),
                 },
             }),
             continuation: None,

@@ -1473,8 +1473,9 @@ fn build_structural_unit_control_machine(
                     && transition.guard == TransitionGuardNode::Always
                     && !transition.continuation.is_valid() =>
             {
-                let TransitionTargetNode::Named { path, arguments } =
-                    program.statement_table.transition_target(transition.target)
+                let TransitionTargetNode::Named {
+                    path, arguments, ..
+                } = program.statement_table.transition_target(transition.target)
                 else {
                     return None;
                 };
@@ -1638,8 +1639,9 @@ fn build_structural_unit_control_machine(
                     |statement_ordinal: u32,
                      transition: &psi_typed_trees::statement::TableTransition|
                      -> Option<CheckedStructuralControlSuccessorPlan> {
-                        let TransitionTargetNode::Named { path, arguments } =
-                            program.statement_table.transition_target(transition.target)
+                        let TransitionTargetNode::Named {
+                            path, arguments, ..
+                        } = program.statement_table.transition_target(transition.target)
                         else {
                             return None;
                         };

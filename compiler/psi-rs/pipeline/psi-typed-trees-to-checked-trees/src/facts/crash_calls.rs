@@ -677,7 +677,7 @@ pub(super) fn attach_checked_crash_calls(
             ) else {
                 continue;
             };
-            if matches!(call_site, crate::CallSite::TransitionNamed(_)) {
+            if matches!(call_site, crate::CallSite::TransitionNamed { .. }) {
                 // A named transition transfers within the current machine; it
                 // is not an invocation of that machine's public crash ceiling.
                 continue;
@@ -1078,7 +1078,7 @@ fn machine_non_transition_invocation_sites(
                 call.statement_index,
                 call.call_ordinal,
             )?;
-            if matches!(site, crate::CallSite::TransitionNamed(_)) {
+            if matches!(site, crate::CallSite::TransitionNamed { .. }) {
                 continue;
             }
             let (target_machine, target_state) =

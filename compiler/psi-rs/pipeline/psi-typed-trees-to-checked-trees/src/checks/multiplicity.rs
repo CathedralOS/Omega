@@ -1293,6 +1293,7 @@ fn state_result_named_transitions(
                     let psi_typed_trees::statement::TransitionTargetNode::Named {
                         path,
                         arguments,
+                        ..
                     } = program.statement_table.transition_target(handle)
                     else {
                         return None;

@@ -293,6 +293,14 @@ fn validate_state_signature_contracts(
             )));
             continue;
         }
+        if matches!(owner, StateSignatureOwner::Machine(_)) {
+            validate_named_evidence_binding(
+                program,
+                &format!("{owner} state `{}`", signature.name),
+                contract,
+                diagnostics,
+            );
+        }
         validate_crash_route_shapes(program, contract, diagnostics);
         validate_proof_facts(
             program,
@@ -313,7 +321,12 @@ pub(crate) fn validate_machine_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in program.machine_contracts(machine) {
-        validate_named_evidence_binding(program, machine, contract, diagnostics);
+        validate_named_evidence_binding(
+            program,
+            &format!("machine `{}`", machine.name),
+            contract,
+            diagnostics,
+        );
         validate_crash_route_shapes(program, contract, diagnostics);
         validate_proof_facts(
             program,
@@ -329,7 +342,7 @@ pub(crate) fn validate_machine_contracts(
 
 fn validate_named_evidence_binding(
     program: &TypedTrees,
-    machine: &Machine,
+    owner: &str,
     contract: &psi_typed_trees::signature::SignatureContract,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -339,16 +352,14 @@ fn validate_named_evidence_binding(
     let facts = program.proof_facts.span_or_empty(contract.facts);
     let [psi_typed_trees::domain::ProofFact::Proposition(application)] = facts else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` named {} evidence `{binding}` must bind exactly one proposition application",
-            machine.name,
+            "{owner} named {} evidence `{binding}` must bind exactly one proposition application",
             contract_kind_label(&contract.kind),
         )));
         return;
     };
     let Some(normalized) = program.normalize_nominal_proposition_application(application) else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` named {} evidence `{binding}` does not resolve to one nominal proposition endpoint",
-            machine.name,
+            "{owner} named {} evidence `{binding}` does not resolve to one nominal proposition endpoint",
             contract_kind_label(&contract.kind),
         )));
         return;
@@ -358,8 +369,7 @@ fn validate_named_evidence_binding(
         psi_typed_trees::proposition::PropositionEvidenceClassification::Witness { .. }
     ) {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` named {} evidence `{binding}` binds fact-only proposition `{}`; only a witness-bearing proposition has a projectable evidence term",
-            machine.name,
+            "{owner} named {} evidence `{binding}` binds fact-only proposition `{}`; only a witness-bearing proposition has a projectable evidence term",
             contract_kind_label(&contract.kind),
             normalized.name,
         )));

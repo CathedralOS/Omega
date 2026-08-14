@@ -173,6 +173,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                             let psi_typed_trees::statement::TransitionTargetNode::Named {
                                 path,
                                 arguments,
+                                ..
                             } = program.statement_table.transition_target(target)
                             else {
                                 continue;
@@ -499,6 +500,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                             let psi_typed_trees::statement::TransitionTargetNode::Named {
                                 path,
                                 arguments,
+                                ..
                             } = target_node
                             else {
                                 continue;

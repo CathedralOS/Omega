@@ -47,6 +47,8 @@ Must own:
 - Typed machine contracts retain the optional named evidence binding separately
   from the proposition fact it names; this stage does not infer or select the
   evidence producer.
+- Typed named transitions retain their erased evidence-identifier lane without
+  assigning it a runtime argument type or storage position.
 
 Must not own:
 

@@ -181,21 +181,40 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
 
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
+        let (binding, fact_input) = if let Ok((binding, after_binding)) = input.take_identifier()
+            && after_binding.at_punctuation(PunctuationKind::Colon)
+        {
+            (
+                Some(binding),
+                after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
+            )
+        } else {
+            (None, input)
+        };
         let ((facts, token_count), rest) =
-            crate::parser::proof_fact::parse_proof_facts_until(syntax_trees, input, |input| {
-                input.at_punctuation(PunctuationKind::LeftBrace)
-                    || input.at_contextual("requires")
-                    || input.at_contextual("ensures")
-                    || input.at_contextual("reaches")
-                    || input.at_contextual("effects")
-                    || input.at_contextual("terminates")
-                    || input.tokens.is_empty()
-            })?;
+            crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
+                syntax_trees,
+                fact_input,
+                |input| {
+                    input.at_punctuation(PunctuationKind::LeftBrace)
+                        || input.at_contextual("requires")
+                        || input.at_contextual("ensures")
+                        || input.at_contextual("reaches")
+                        || input.at_contextual("effects")
+                        || input.at_contextual("terminates")
+                        || input.tokens.is_empty()
+                },
+                true,
+            )?;
+        if binding.is_some() && facts.count() != 1 {
+            return Err(fact_input
+                .error_here("a named state requires clause must contain exactly one proposition"));
+        }
         let handle = syntax_trees
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Requires,
-                binding: None,
+                binding,
                 facts,
                 token_count,
             });

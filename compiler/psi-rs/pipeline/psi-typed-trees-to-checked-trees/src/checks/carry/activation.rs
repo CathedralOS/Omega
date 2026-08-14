@@ -289,7 +289,9 @@ impl ActivationCarryAccumulator<'_> {
             return;
         }
         match self.program.statement_table.transition_target(target) {
-            TransitionTargetNode::Named { path, arguments } => {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
                 self.add_call_signature(path.symbol);
                 for argument in self.program.statement_table.expression_handles(*arguments) {
                     self.visit_expression(*argument);

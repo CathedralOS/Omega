@@ -151,8 +151,9 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 expression: CheckedScalarExpression::Boolean(Box::new(guard)),
                             });
                         }
-                        let TransitionTargetNode::Named { path, arguments } =
-                            program.statement_table.transition_target(transition.target)
+                        let TransitionTargetNode::Named {
+                            path, arguments, ..
+                        } = program.statement_table.transition_target(transition.target)
                         else {
                             continue;
                         };

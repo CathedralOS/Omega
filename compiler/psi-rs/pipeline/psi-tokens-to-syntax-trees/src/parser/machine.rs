@@ -626,6 +626,7 @@ fn rewrite_terminal_tail_self_calls(
                     path,
                     path_starts_at_self: false,
                     arguments: argument_span,
+                    evidence_arguments: Box::default(),
                 });
         syntax_trees.statements.replace_statement(
             statement_handle,

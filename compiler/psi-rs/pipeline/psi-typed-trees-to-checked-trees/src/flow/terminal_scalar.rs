@@ -211,8 +211,9 @@ fn checked_successor(
     statement_ordinal: u32,
     transition: &psi_typed_trees::statement::TableTransition,
 ) -> Option<CheckedScalarSuccessor> {
-    let TransitionTargetNode::Named { path, arguments } =
-        program.statement_table.transition_target(transition.target)
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = program.statement_table.transition_target(transition.target)
     else {
         return None;
     };
