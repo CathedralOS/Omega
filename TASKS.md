@@ -653,9 +653,15 @@ reach or trust, and private proof improvements do not change public identity.
   ordered x86 division-diamond ledger. Object construction reconstructs the
   exact nested regions, replays every expression prefix and terminal leaf,
   rejects malformed topology or cross-region diamonds, and preserves the
-  result through image installation. Affine cleanup remains the intentionally
-  bounded three-leaf exception. Extend accounting to genuinely reconvergent
-  conditionals.
+  result through image installation. Boolean parameter/expression conditionals
+  use the same tree evidence and retain typed call-stack facts. When one
+  semantic Psi call after a convergence block is source-distributed into
+  multiple terminal leaves, repeated operation ownership is accepted only
+  when the validated decision paths prove every physical call pair mutually
+  exclusive. This accounts source-distributed convergence without claiming a
+  shared native join. Affine cleanup remains the intentionally bounded
+  three-leaf exception; extend accounting to actual reconvergent native
+  control flow.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root

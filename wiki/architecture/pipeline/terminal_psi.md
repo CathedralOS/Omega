@@ -789,49 +789,29 @@ fuel evidence carries no provider receipt.
 closure and proof bundle, recomputes and validates its acyclic entry
 certificate, and publishes the exact terminal identity, schedule, entry, and
 ceiling. This is build-time semantic evidence, not installed-root evidence:
-the native terminal Unit and branch-free scalar slices now retain exact
-emitter evidence that object construction validates and replays to derive
-local peaks plus caller-live stack at each typed internal-call relocation and
-compose that acyclic closure below function entry. Conditional scalar control
-flow without cleanup is limited to one exact two-terminal-arm shape: a top-level
-Boolean parameter or linear Boolean-expression condition with two direct linear
-integer returns. The bounded nominal-cleanup exception is one top-level
-short-circuit Boolean result represented by exactly two decisions and three
-direct return leaves. Its three edge-specific cleanup suffixes replay
-independently and compose by maximum. The balanced expression prefix and arms
-retain exact x86 and AArch64 branch encodings. Typed scalar calls in the
-prefix or either arm reuse the exact call evidence and closure composition.
-Direct integer returns additionally retain division and remainder stack facts.
-AArch64 and branch-free x86 forms reuse linear replay; signed x86 wrapping and
-saturating forms retain each compiler-generated `-1`/ordinary diamond with its
-exact conditional target, join target, and independently balanced stack paths.
-Multiple such diamonds may occur in one direct expression. Typed scalar-call
-arguments may contain the same bounded integer division/remainder expressions;
-their facts survive assignment, the typed call relocation, object/image
-validation, installation serialization, and installed-closure recomposition.
-The same replay now accepts direct division or remainder in the Boolean
-condition operands or either arm of the one top-level two-return conditional.
-AArch64 admits every emitted policy form and branch-free x86 uses the same
-region replay. Signed x86 Wrapping/Saturating forms carry composite evidence
-for the outer two-return branch and each inner division diamond. Object
-construction partitions the ordered diamonds by expression prefix or return
-arm, validates their exact conditional/join targets, and independently replays
-the special and ordinary paths. These forms may also occur in typed call
-arguments in the condition or either arm; exact call relocation and closure
-evidence survives object, image, and installation custody. Accountable acyclic
-conditional-control trees retain one physically ordered decision list, a DFS
-return/crash bitmap, and an ordered x86 division-diamond ledger. Object
-construction recursively reconstructs and replays every exact prefix and leaf;
-AArch64 uses the same branch-free replay. Affine cleanup remains a separately
-bounded three-leaf exception. Genuinely reconvergent control remains outside
-this theorem. Evidence binds every crashing leaf; object
-construction requires each such region to end in exact x86 `UD2` or AArch64
-`BRK #0` while independently replaying any returning region. The same evidence
-carries ordered x86 division diamonds from the condition or returning arm,
-including signed policy forms, and partitions them away from every crash
-region. External adapter/interrupt-arrival state and other terminal function
-forms are not yet part of that theorem, so the inspection surface still makes
-no installed-root WCSU claim.
+the native terminal Unit and scalar slices retain exact emitter evidence that
+object construction replays into local peaks, caller-live bytes at typed calls,
+and an acyclic closure demand. Accountable acyclic scalar conditionals use one
+depth-independent carrier: physically ordered decisions, a true-before-false
+DFS return/crash bitmap, and one ordered x86 division-diamond ledger. Object
+construction reconstructs every exact prefix and leaf, validates each branch
+and terminal crash encoding, partitions division diamonds by region, and takes
+the maximum across exclusive paths. AArch64 and branch-free x86 expressions
+reuse linear replay; signed x86 wrapping/saturating division retains its exact
+special/ordinary diamonds. The same facts survive typed call arguments,
+relocations, object/image validation, installation serialization, and installed
+closure recomposition.
+
+Boolean parameter/expression conditionals retain the same tree and call-stack
+evidence. If terminal lowering source-distributes one semantic Psi convergence
+call into several leaves, the object boundary permits its repeated operation
+owner only when every physical pair has conflicting outcomes at a validated
+decision. Calls sharing an executable path still reject. This proves the
+source-distributed tree, not an actual reconvergent native join; shared native
+control-flow joins remain outside the theorem. Affine cleanup is separately
+limited to its bounded three-leaf shape. External adapter/interrupt-arrival
+state and other terminal function forms are also absent, so the inspection
+surface makes no installed-root WCSU claim.
 
 ## Implementation queue
 
