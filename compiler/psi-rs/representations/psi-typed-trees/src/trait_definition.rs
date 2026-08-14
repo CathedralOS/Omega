@@ -47,6 +47,8 @@ pub enum ConformanceSubject {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Conformance {
     pub symbol: SymbolHandle,
+    pub lifetime_parameters: Vec<Identifier>,
+    pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub subject: ConformanceSubject,
     pub trait_name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,

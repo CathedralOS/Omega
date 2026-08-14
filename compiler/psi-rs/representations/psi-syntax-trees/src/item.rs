@@ -573,6 +573,10 @@ pub enum ConformanceSubject {
 /// subjectless form is `EvidenceName: satisfies Evidence { ... }`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
+    /// Generic binders belong to the declared conformance name, not to its
+    /// carrier or trait application.
+    pub lifetime_parameters: Vec<Identifier>,
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub subject: ConformanceSubject,
     pub trait_name: Identifier,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,

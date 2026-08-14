@@ -907,7 +907,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
         } else if input.at_keyword(psi_tokens::KeywordKind::Machine) {
             if !allow_machine_parameters {
                 return Err(input.error_here(
-                    "`<machine M>` is a static machine parameter and is only legal on a machine declaration",
+                    "`<machine M>` is a static machine parameter and is only legal on a machine or conformance declaration",
                 ));
             }
             let input = input.take_keyword(psi_tokens::KeywordKind::Machine, "machine")?;

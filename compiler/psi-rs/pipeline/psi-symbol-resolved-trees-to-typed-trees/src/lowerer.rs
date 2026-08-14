@@ -97,6 +97,7 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for conformance in &symbol_resolved_trees.conformances {
+        let source_type_parameters = conformance.type_parameters;
         let mut arguments = psi_arena::HandleSpan::empty();
         for argument in symbol_resolved_trees
             .tables
@@ -111,8 +112,14 @@ pub fn lower_symbol_resolved_trees(
                 .type_reference_table
                 .push_type_reference_handle(&mut arguments, argument);
         }
-        let conformance = psi_typed_trees::trait_definition::Conformance {
+        let mut conformance = psi_typed_trees::trait_definition::Conformance {
             symbol: conformance.symbol,
+            lifetime_parameters: conformance
+                .lifetime_parameters
+                .iter()
+                .map(crate::name::lower_name)
+                .collect(),
+            type_parameters: psi_arena::HandleSpan::empty(),
             subject: match &conformance.subject {
                 psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
                     type_name,
@@ -153,6 +160,12 @@ pub fn lower_symbol_resolved_trees(
                 }
             },
         };
+        for parameter in symbol_resolved_trees.data_type_parameters(source_type_parameters) {
+            let parameter = crate::data::lower_type_parameter(&mut lowerer, parameter)?;
+            lowerer
+                .typed_trees
+                .push_conformance_type_parameter(&mut conformance, parameter);
+        }
         lowerer.typed_trees.push_conformance(conformance);
     }
 

@@ -888,6 +888,38 @@ fn named_conformance_bound_rejects_a_different_concrete_carrier() {
 }
 
 #[test]
+fn named_conformance_bound_rejects_a_name_owned_by_another_carrier() {
+    let source = r#"
+        trait Marker {}
+        data Good {}
+        data Bad {}
+        Primary: Good satisfies Marker;
+
+        machine accept<T>(value: &T)
+        where T satisfies Bad::Primary
+        {}
+
+        machine caller(bad: &Bad) {
+            accept(bad);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the package-scoped conformance name still retains its carrier");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("names conformance `Bad::Primary`, but that declaration belongs to `Good`")
+    }));
+}
+
+#[test]
 fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts() {
     let source = r#"
         data Light {}

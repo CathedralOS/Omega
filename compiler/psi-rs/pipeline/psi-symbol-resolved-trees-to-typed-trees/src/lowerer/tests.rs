@@ -4,6 +4,42 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_typed_name_owned_conformance_telescope() {
+    let source = r#"
+        trait Converter<Source, Target> {}
+
+        GenericConversion<'scope, Source, const Width: u64, machine Convert>:
+            Source satisfies Converter<Source, u64>
+        where machine Convert(value: Source) -> u64;
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let conformance = typed.conformances().first().expect("one conformance");
+
+    assert_eq!(conformance.lifetime_parameters.len(), 1);
+    assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
+    let parameters = typed.conformance_type_parameters(conformance);
+    assert_eq!(parameters.len(), 3);
+    assert!(
+        parameters
+            .iter()
+            .all(|parameter| parameter.symbol.is_valid())
+    );
+    let arguments = typed
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    assert_eq!(arguments.len(), 2);
+    assert!(matches!(
+        typed.type_reference_table.type_reference(arguments[0]),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == parameters[0].symbol && name.as_str() == "Source"
+    ));
+}
+
+#[test]
 fn retains_typed_evidence_forwarding_owner_identity() {
     let source = r#"
         trait Evidence {}

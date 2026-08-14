@@ -34,29 +34,21 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
 
     assign_domain_symbols(program, symbols, &mut root_children);
     assign_data_symbols(program, symbols, &mut root_children);
-    let subjectless_symbols = program
+    let conformance_symbols = program
         .conformances
         .iter()
-        .filter(|conformance| {
-            matches!(
-                conformance.subject,
-                psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-            ) && conformance.alias.is_some()
-        })
+        .filter(|conformance| conformance.alias.is_some())
         .map(|_| next_child_of_kind(&mut root_children, symbols, SymbolKind::Conformance))
         .collect::<Vec<_>>();
-    let mut subjectless_symbols = subjectless_symbols.into_iter();
+    let mut conformance_symbols = conformance_symbols.into_iter();
     program.conformances.for_each_mut(|conformance| {
-        if matches!(
-            conformance.subject,
-            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-        ) && conformance.alias.is_some()
-        {
-            conformance.symbol = subjectless_symbols
+        if conformance.alias.is_some() {
+            conformance.symbol = conformance_symbols
                 .next()
                 .unwrap_or_else(SymbolHandle::invalid);
         }
     });
+    assign_conformance_parameter_symbols(program, symbols);
     assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);
@@ -65,6 +57,78 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
     program.wire_schemas.for_each_mut(|wire_schema| {
         wire_schema.symbol =
             next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
+    });
+}
+
+fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+    let type_constraints = &program.tables.types.constraints;
+    let declarations = &mut program.tables.declarations;
+    let data_type_parameters = &mut declarations.data_type_parameters;
+    let state_parameters = &mut declarations.state_parameters;
+    let child_type_references = &mut declarations.child_type_references;
+
+    program.roots.conformances.for_each_mut(|conformance| {
+        let mut children = symbols
+            .child_handles(conformance.symbol)
+            .into_iter()
+            .flatten();
+        for parameter in data_type_parameters.span_mut_or_empty(conformance.type_parameters) {
+            let kind = match parameter.kind {
+                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    SymbolKind::MachineParameter
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                    SymbolKind::PropositionParameter
+                }
+                _ => SymbolKind::TypeParameter,
+            };
+            parameter.symbol = next_child_of_kind(&mut children, symbols, kind);
+        }
+        let local_type_parameters = data_type_parameters
+            .span_or_empty(conformance.type_parameters)
+            .to_vec();
+
+        for index in 0..conformance.type_parameters.len() {
+            let (parameter_symbol, kind) = {
+                let parameter =
+                    &data_type_parameters.span_or_empty(conformance.type_parameters)[index];
+                (parameter.symbol, parameter.kind.clone())
+            };
+            let resolved_kind = match kind {
+                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
+                    assign_machine_parameter_signature_symbols(
+                        symbols,
+                        data_type_parameters,
+                        state_parameters,
+                        child_type_references,
+                        type_constraints,
+                        &mut contract,
+                        parameter_symbol,
+                        &local_type_parameters,
+                        conformance.symbol,
+                    );
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Proposition {
+                    mut contract,
+                } => {
+                    assign_proposition_parameter_signature_symbols(
+                        symbols,
+                        state_parameters,
+                        child_type_references,
+                        type_constraints,
+                        &mut contract,
+                        parameter_symbol,
+                        &local_type_parameters,
+                        conformance.symbol,
+                    );
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
+                }
+                other => other,
+            };
+            data_type_parameters.span_mut_or_empty(conformance.type_parameters)[index].kind =
+                resolved_kind;
+        }
     });
 }
 

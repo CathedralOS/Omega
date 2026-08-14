@@ -55,6 +55,11 @@ pub(crate) fn lower_item(
         syntax::item::Item::Conformance(conformance) => {
             let arguments =
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
+            let type_parameters = crate::data::lower_type_parameters(
+                lowerer,
+                syntax_trees,
+                conformance.type_parameters,
+            )?;
             let implementation = match &conformance.body {
                 syntax::item::ConformanceBody::AttachedRequirementMachines => {
                     psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
@@ -140,6 +145,12 @@ pub(crate) fn lower_item(
                 .conformances
                 .push(psi_symbol_resolved_trees::trait_definition::Conformance {
                 symbol: psi_symbols::SymbolHandle::invalid(),
+                lifetime_parameters: conformance
+                    .lifetime_parameters
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
+                type_parameters,
                 subject: match &conformance.subject {
                     syntax::item::ConformanceSubject::Carrier(type_name) => {
                         psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
