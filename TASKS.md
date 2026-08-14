@@ -73,9 +73,10 @@ Remaining:
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
   `temperature_convert`, now lowers directly from its authored host entry. The
-  thirteen deployable plan-laid runtime canaries likewise author all four
+  fourteen deployable plan-laid runtime canaries likewise author all four
   hosted roots, and the active pass umbrella exercises them through production
-  entry selection rather than its explicit legacy fixture seam. The
+  entry selection rather than its explicit legacy fixture seam. Their direct
+  native runtime tests select the authored host root as well. The
   active pass-canary umbrella uses its explicit legacy fixture entry and asserts
   that state-graph lowering occurred, so it cannot silently collapse into
   checked-only coverage. Production and development interpreter execution
@@ -586,8 +587,11 @@ Remaining N6/N8 work:
   after `;` and projected as `term.member`. Never infer evidence from visible
   facts or attached state names. The optional contract binding now parses only
   on machine `requires`/`ensures`, requires exactly one proposition, and remains
-  distinct through resolved and typed trees plus snapshots. Continue with
-  checked witness-bearing classification, erased call-lane arguments,
+  distinct through resolved and typed trees plus snapshots. Checked trees now
+  reject Boolean, membership, fact-only, and non-nominal bindings, and mint one
+  exact erased term identity per witness-bearing binding with its independent
+  requires/ensures lane position, normalized proposition application, and
+  carrierless interface. Continue with erased call-lane arguments,
   assignment/forwarding, private complete-conformance selection, generated
   output packages, and terminal evidence identity.
 - Add named-ensures definite assignment per outcome and compiler-generated

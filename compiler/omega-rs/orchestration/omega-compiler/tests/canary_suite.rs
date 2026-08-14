@@ -44678,13 +44678,8 @@ fn plan_laid_value_field_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-plan-laid-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("plan-laid value canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("plan-laid value canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44756,13 +44751,8 @@ fn plan_laid_erased_field_is_semantic_but_not_physical() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("plan-laid erased field should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("plan-laid erased field should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("run plan-laid erased-field canary");
@@ -44998,13 +44988,8 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-bits-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("compact-bit plan-laid canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("compact-bit plan-laid canary should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("compact-bit plan-laid canary should run");
@@ -45060,13 +45045,8 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-integer-at-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("IntegerAt projection canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("IntegerAt projection canary should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("IntegerAt projection canary should run");
@@ -45115,13 +45095,8 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("total IntegerAt mutation canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("total IntegerAt mutation canary should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("total IntegerAt mutation canary should run");
@@ -45171,13 +45146,8 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("proved-fit IntegerAt mutation canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("proved-fit IntegerAt mutation canary should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("proved-fit IntegerAt mutation canary should run");
@@ -45278,13 +45248,8 @@ fn plan_laid_value_by_value_param_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-plan-laid-byval-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("plan-laid by-value-param canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("plan-laid by-value-param canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45321,13 +45286,8 @@ fn plan_laid_record_view_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-view-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("plan-laid record-view canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("plan-laid record-view canary should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("plan-laid record-view canary should run");
@@ -45385,13 +45345,8 @@ fn plan_laid_fixed_array_record_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("plan-laid fixed-array view should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("plan-laid fixed-array view should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("plan-laid fixed-array view should run");
@@ -45431,13 +45386,8 @@ fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mutable plan-laid fixed-array view should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("mutable plan-laid fixed-array view should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("mutable plan-laid fixed-array view should run");
@@ -45478,13 +45428,8 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mutable plan-laid nested-array view should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("mutable plan-laid nested-array view should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("mutable plan-laid nested-array view should run");
@@ -45589,13 +45534,8 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mutable plan-laid record view should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("mutable plan-laid record view should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("mutable plan-laid record-view canary should run");
@@ -45995,12 +45935,25 @@ fn compile_rooted_backend_canary_without_output(
     result
 }
 
+fn compile_rooted_canary_for_native_host(
+    canary_dir: &Path,
+    build_dir: PathBuf,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    production_compile(CompileOptions {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir),
+        target_name: Some(native_hosted_target().into()),
+        write_output: true,
+    })
+}
+
 // These runtime/layout fixtures are deployable on every hosted target. Their
 // authored build roots are part of the canary: the pass umbrella must exercise
 // production entry selection and may not substitute the legacy entry seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
+    "layouts/runtime_plan_laid_erased_field_exit",
     "layouts/runtime_plan_laid_integer_at_projection_exit",
     "layouts/runtime_plan_laid_integer_at_proved_write_exit",
     "layouts/runtime_plan_laid_integer_at_total_write_exit",
