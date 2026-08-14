@@ -746,6 +746,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small as u16) < 5u16)
                 && ((input as u8) < 5u8)
                 && ((small + 1u8) < 6u8)
+                && ((255u8 - small) < 253u8)
                 && enabled;
             staged
         }
@@ -801,6 +802,22 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         .expect("shared convergence retains the guarded exact cast");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let exact_subtract_obligation = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerSubtract { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the carrier-total exact subtraction");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == exact_subtract_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)

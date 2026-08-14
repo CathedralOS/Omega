@@ -412,8 +412,8 @@ installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath one
 total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
 arithmetic shell, one integer-widening shell, or one exact unsigned narrowing
-or exact addition under retained direct parameter upper-bound `requires`, may
-form decision leaves. Psi
+or exact addition under retained direct parameter upper-bound `requires`, or
+one carrier-total exact subtraction, may form decision leaves. Psi
 retains every exact operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
@@ -909,9 +909,9 @@ verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
 that source outside native expression scratch. Separately, direct integer
 comparisons over scalar parameters and landed constants, with at most one total
-binary, bitwise-not, integer-widening, proof-bearing exact-cast, or
-proof-bearing exact-add computation shell per operand, retain their exact Psi
-operations through the same verified, interpreted, and native shared join.
+binary, bitwise-not, integer-widening, proof-bearing exact-cast, exact-add, or
+exact-subtract computation shell per operand, retain their exact Psi operations
+through the same verified, interpreted, and native shared join.
 The proof-bearing subset accepts direct unsigned parameter upper-bound
 premises; Psi retains each as a terminal machine requirement, and each
 operation certificate cites its exact assumption. Field-only trees, nested or

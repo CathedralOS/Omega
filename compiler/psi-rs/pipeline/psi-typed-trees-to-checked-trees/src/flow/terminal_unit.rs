@@ -1401,8 +1401,8 @@ enum SharedBooleanRuntimeInput {
 /// alongside scalar inputs; terminal production resolves it to one canonical
 /// relevant Boolean field. Integer-comparison leaves separately admit scalar
 /// parameters and landed constants beneath at most one total binary,
-/// bitwise-not, integer-widening, proof-bearing exact-cast, or proof-bearing
-/// exact-add computation shell. Constants and Boolean equality against a
+/// bitwise-not, integer-widening, proof-bearing exact-cast, exact-add, or
+/// exact-subtract computation shell. Constants and Boolean equality against a
 /// constant add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
@@ -1495,7 +1495,8 @@ fn shared_integer_runtime_inputs_with_shells(
                 | CheckedIntegerBinaryKind::SaturatingSubtract
                 | CheckedIntegerBinaryKind::WrappingMultiply
                 | CheckedIntegerBinaryKind::SaturatingMultiply
-                | CheckedIntegerBinaryKind::ExactAdd,
+                | CheckedIntegerBinaryKind::ExactAdd
+                | CheckedIntegerBinaryKind::ExactSubtract,
             left,
             right,
             ..
