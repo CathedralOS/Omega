@@ -1406,9 +1406,10 @@ enum SharedBooleanRuntimeInput {
 /// exact-subtract, exact-multiply, exact shift, exact-divide, or exact-remainder
 /// computation shell. The single exact operation may be the additional
 /// innermost shell beneath up to two bitwise-not, integer-widening, or
-/// proof-free binary shells; for each binary shell, its other subtree must
-/// remain proof-free. Constants and Boolean equality against a constant add no
-/// new runtime input.
+/// proof-free binary shells. Distinct binary subtrees may each contain one
+/// independently proved exact leaf, but no proof-bearing result may feed
+/// another proof-bearing operation. Constants and Boolean equality against a
+/// constant add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1521,7 +1522,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 Some(inputs)
             };
             if proof_shell_allowed {
-                collect(true, false).or_else(|| collect(false, true))
+                collect(true, true)
             } else {
                 collect(false, false)
             }

@@ -249,9 +249,10 @@ Remaining:
   `MIN + 1 <= dividend` bounds.
   One proof-bearing exact operation may also appear as the innermost operation
   beneath up to two bitwise-not, integer-widening, or proof-free binary shells;
-  every other binary subtree remains proof-free. Multiple proof-bearing shells,
-  computed exact-cast and wider exact-arithmetic premise shapes, other unary
-  computation, and
+  distinct binary subtrees may each contain one independently proved exact
+  leaf. A proof-bearing result feeding another proof-bearing operation, computed
+  exact-cast and wider exact-arithmetic premise shapes, other unary computation,
+  and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
   then
   add complete slices for calls and effects, wider partial-value cleanup,

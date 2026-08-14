@@ -448,6 +448,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && (((small - 3u8) as u16) < 255u16)
             && ((15u8 & (small * 2u8)) < 16u8)
             && ((~((small + 3u8) as u16)) < 65535u16)
+            && (((small + 1u8) & (small * 2u8)) < 255u8)
             && ((127u8 - small) < 125u8)
             && ((small - divisor) < 4u8)
             && ((small * 2u8) < 10u8)
@@ -4110,6 +4111,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small - 3 < 255
                     && (15 & (small * 2)) < 16
                     && (!(small + 3) & u128::from(u16::MAX)) < 65535
+                    && ((small + 1) & (small * 2)) < 255
                     && 127 - small < 125
                     && small - divisor < 4
                     && small * 2 < 10
