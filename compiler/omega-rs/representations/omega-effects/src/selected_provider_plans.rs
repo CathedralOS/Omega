@@ -639,6 +639,50 @@ mod tests {
         assert!(manifest.known_entries.iter().all(|entry| {
             entry.origin == crate::ExecutableEntryOrigin::StaticSelection
                 && entry.execution_scope == crate::ExecutionScope::CallerAddressSpace
+                && entry.selected_requirement.is_some()
         }));
+    }
+
+    #[test]
+    fn executable_manifest_keeps_same_named_overload_rows_distinct() {
+        let mut overloaded = candidate("Convert", "convert");
+        let first_identity = "named-callable:path=ConvertService::convert;result=Ordinary";
+        let second_identity = "named-callable:path=ConvertService::convert;result=Saturating";
+        let mut second_method = overloaded.schema.methods[0].clone();
+        overloaded.schema.methods[0].requirement_identity = first_identity.into();
+        second_method.requirement_identity = second_identity.into();
+        overloaded.schema.methods.push(second_method);
+        overloaded.rows[0].requirement_identity = first_identity.into();
+        overloaded.rows.push(ProviderPlanRow {
+            method: "convert".into(),
+            requirement_identity: second_identity.into(),
+            binding: ProviderBinding::CheckedAdapter {
+                machine: "ConvertProvider::convert".into(),
+            },
+        });
+
+        let selected =
+            SelectedProviderPlanFacts::from_selection(&[overloaded], &["Convert".into()])
+                .expect("same-named exact overload rows cover distinct requirements");
+        let manifest = selected.executable_tcb_manifest();
+        assert_eq!(
+            manifest.known_entries.len(),
+            2,
+            "one shared executable must not collapse distinct selected requirement rows"
+        );
+        let mut identities = manifest
+            .known_entries
+            .iter()
+            .map(|entry| {
+                let requirement = entry
+                    .selected_requirement
+                    .as_ref()
+                    .expect("static selected row identity");
+                assert_eq!(requirement.method, "convert");
+                requirement.requirement_identity.as_str()
+            })
+            .collect::<Vec<_>>();
+        identities.sort_unstable();
+        assert_eq!(identities, [first_identity, second_identity]);
     }
 }

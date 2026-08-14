@@ -1,7 +1,7 @@
 use crate::{
     ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry,
     ExecutableTcbManifest, ExecutionScope, ImplementationEvidence, IncompleteCause,
-    ProviderIdentity, ScopeCompleteness,
+    ProviderIdentity, ScopeCompleteness, SelectedProviderRequirement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,13 +12,15 @@ pub enum IncompleteScopePolicy {
 
 /// One exact non-local entry allowed by an artifact profile.
 ///
-/// Provider, plan, executable, implementation evidence, origin, and scope all
-/// participate. Required containment names axes, while the manifest entry
-/// retains the independently admitted evidence identity for each axis.
+/// Provider, plan, selected requirement (when row-backed), executable,
+/// implementation evidence, origin, and scope all participate. Required
+/// containment names axes, while the manifest entry retains the independently
+/// admitted evidence identity for each axis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExactExecutableTcbAllowance {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_identity: u64,
+    pub selected_requirement: Option<SelectedProviderRequirement>,
     pub executable_identity: ExecutableIdentity,
     pub implementation_evidence: ImplementationEvidence,
     pub origin: ExecutableEntryOrigin,
@@ -124,6 +126,7 @@ pub fn evaluate_executable_tcb_profile(
         let Some(allowance) = profile.exact_allowances.iter().find(|allowance| {
             allowance.provider_identity == entry.provider_identity
                 && allowance.provider_plan_identity == entry.provider_plan_identity
+                && allowance.selected_requirement == entry.selected_requirement
                 && allowance.executable_identity == entry.executable_identity
                 && allowance.implementation_evidence == entry.implementation_evidence
                 && allowance.origin == entry.origin
@@ -204,6 +207,7 @@ fn same_allowance_subject(
 ) -> bool {
     left.provider_identity == right.provider_identity
         && left.provider_plan_identity == right.provider_plan_identity
+        && left.selected_requirement == right.selected_requirement
         && left.executable_identity == right.executable_identity
         && left.implementation_evidence == right.implementation_evidence
         && left.origin == right.origin
@@ -243,6 +247,7 @@ mod tests {
         ExecutableTcbEntry {
             provider_identity: ProviderIdentity::NominalType("PlatformProvider".into()),
             provider_plan_identity: 7,
+            selected_requirement: None,
             executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
                 "platform-baseline:window-v1".into(),
             ),
@@ -262,6 +267,7 @@ mod tests {
         ExactExecutableTcbAllowance {
             provider_identity: entry.provider_identity.clone(),
             provider_plan_identity: entry.provider_plan_identity,
+            selected_requirement: entry.selected_requirement.clone(),
             executable_identity: entry.executable_identity.clone(),
             implementation_evidence: entry.implementation_evidence.clone(),
             origin: entry.origin,
@@ -330,6 +336,35 @@ mod tests {
     }
 
     #[test]
+    fn exact_allowance_rejects_selected_requirement_identity_drift() {
+        let mut entry = opaque_entry();
+        entry.selected_requirement = Some(SelectedProviderRequirement {
+            method: "convert".into(),
+            requirement_identity: "named-callable:path=Convert::convert;result=Ordinary".into(),
+        });
+        let mut drifted = profile(&entry);
+        drifted.exact_allowances[0]
+            .selected_requirement
+            .as_mut()
+            .expect("selected requirement allowance")
+            .method = "readable-label-drift".into();
+        evaluate_executable_tcb_profile(&complete_manifest(entry.clone()), &drifted)
+            .expect("readable method is not the selected overload identity");
+        drifted.exact_allowances[0]
+            .selected_requirement
+            .as_mut()
+            .expect("selected requirement allowance")
+            .requirement_identity = "named-callable:path=Convert::convert;result=Saturating".into();
+
+        let rejected = evaluate_executable_tcb_profile(&complete_manifest(entry), &drifted)
+            .expect_err("same readable method cannot authorize another overload identity");
+        assert!(matches!(
+            rejected.violations.as_slice(),
+            [ExecutableTcbProfileViolation::EntryNotAllowed { .. }]
+        ));
+    }
+
+    #[test]
     fn static_allowance_cannot_launder_a_runtime_admission_origin() {
         let mut entry = opaque_entry();
         entry.origin = ExecutableEntryOrigin::OmegaRuntimeAdmission;
@@ -388,6 +423,10 @@ mod tests {
         let checked = ExecutableTcbEntry {
             provider_identity: ProviderIdentity::NominalType("CheckedProvider".into()),
             provider_plan_identity: 11,
+            selected_requirement: Some(SelectedProviderRequirement {
+                method: "run".into(),
+                requirement_identity: "named-callable(path:CheckedService::run)".into(),
+            }),
             executable_identity: ExecutableIdentity::CurrentArtifactMachine(
                 "CheckedProvider::run".into(),
             ),

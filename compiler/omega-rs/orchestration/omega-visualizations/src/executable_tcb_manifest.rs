@@ -210,6 +210,16 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
     push_provider_identity_json(json, &entry.provider_identity);
     json.push_str(",\n      \"provider_plan_identity\": ");
     push_json_string(json, &format!("0x{:016x}", entry.provider_plan_identity));
+    json.push_str(",\n      \"selected_requirement\": ");
+    if let Some(requirement) = &entry.selected_requirement {
+        json.push_str("{\"method\": ");
+        push_json_string(json, &requirement.method);
+        json.push_str(", \"identity\": ");
+        push_json_string(json, &requirement.requirement_identity);
+        json.push('}');
+    } else {
+        json.push_str("null");
+    }
     json.push_str(",\n      \"executable\": ");
     match &entry.executable_identity {
         ExecutableIdentity::CurrentArtifactMachine(machine) => {
@@ -464,6 +474,9 @@ mod tests {
 
         let json = executable_tcb_manifest_json(&selected);
         assert!(json.contains("\"kind\": \"pinned_opaque_artifact\""));
+        assert!(json.contains(
+            "\"selected_requirement\": {\"method\": \"read\", \"identity\": \"Storage::read\"}"
+        ));
         assert!(json.contains("\"identity\": \"platform-baseline:read-v1\""));
         assert!(json.contains("\"class\": \"admitted_opaque\""));
         assert!(json.contains("\"guarantee\": \"bounded_resources\""));
@@ -495,6 +508,7 @@ mod tests {
 
         let json = executable_tcb_manifest_value_json(&manifest);
         assert!(json.contains("\"origin\": \"omega_runtime_admission\""));
+        assert!(json.contains("\"selected_requirement\": null"));
         assert!(json.contains("\"identity\": \"sha256:runtime-plugin-v1\""));
         assert!(json.contains("\"kind\": \"omega_runtime_executable_closure\""));
         assert!(json.contains("\"admission_receipt_identity\": \"receipt:omega-loader-v1\""));

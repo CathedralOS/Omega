@@ -35,7 +35,7 @@ pub use executable_tcb_manifest::{
     IncompleteCause, OmegaRuntimeExecutableAdmissionCandidate, OmegaRuntimeExecutableLedger,
     OpaqueClosureEvidence, OpaqueExecutableAdmissionCandidate, OpaqueInProcessBinding,
     ProviderIdentity, RuntimeExecutableClosureEvidence, ScopeCompleteness,
-    ValidatedOpaqueExecutableAdmission,
+    SelectedProviderRequirement, ValidatedOpaqueExecutableAdmission,
 };
 pub use executable_tcb_profile::{
     ExactExecutableTcbAllowance, ExecutableTcbProfile, ExecutableTcbProfileAcceptance,
