@@ -407,6 +407,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         signed_divisor: i8,
         negative_divisor: i8,
         bounded_negative_divisor: i8,
+        add_left: u8,
+        add_right: u8,
         enabled: bool
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
@@ -415,7 +417,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
         0i8 <= signed_arithmetic, 1i8 <= signed_divisor,
-        negative_divisor <= -2i8, bounded_negative_divisor <= -1i8
+        negative_divisor <= -2i8, bounded_negative_divisor <= -1i8,
+        add_left <= 255u8 - add_right
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (((input + 1u64) + 1u64) < 5u64)
@@ -449,6 +452,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic % negative_divisor) <= signed_arithmetic)
             && ((signed_arithmetic / bounded_negative_divisor) < 4i8)
             && ((signed_arithmetic % bounded_negative_divisor) <= signed_arithmetic)
+            && ((add_left + add_right) <= 255u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1747,6 +1751,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::value(entry.parameters[7].id, entry.parameters[7].scalar_type);
     let bounded_negative_divisor_term =
         ScalarTerm::value(entry.parameters[8].id, entry.parameters[8].scalar_type);
+    let add_left_term = ScalarTerm::value(entry.parameters[9].id, entry.parameters[9].scalar_type);
+    let add_right_term =
+        ScalarTerm::value(entry.parameters[10].id, entry.parameters[10].scalar_type);
     let input_upper_requirement =
         Proposition::LessOrEqual(input_term.clone(), unsigned_term(64, 255));
     let shift_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 7));
@@ -1799,6 +1806,16 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         bounded_negative_divisor_term,
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(-1)).unwrap(),
     );
+    let add_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let runtime_add_requirement = Proposition::LessOrEqual(
+        add_left_term,
+        ScalarTerm::exact_integer_subtract(
+            add_type,
+            ScalarTerm::integer(add_type, IntegerValue::Unsigned(255)).unwrap(),
+            add_right_term,
+        )
+        .unwrap(),
+    );
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
@@ -1818,6 +1835,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &signed_divisor_lower_requirement,
         &negative_divisor_upper_requirement,
         &bounded_negative_divisor_upper_requirement,
+        &runtime_add_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -2214,6 +2232,28 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let runtime_exact_add_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation,
+            } if left == entry.parameters[9].id && right == entry.parameters[10].id => {
+                Some(obligation)
+            }
+            _ => None,
+        })
+        .expect("shared convergence retains the computed-bound runtime addition");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == runtime_exact_add_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let exact_shift_obligation = entry
         .blocks
         .iter()
@@ -2813,6 +2853,52 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if runtime_bounded_negative_signed_division_obligations.contains(&obligation)
     ));
+    let mut missing_runtime_add_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_runtime_add_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != runtime_exact_add_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_runtime_add_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == runtime_exact_add_obligation
+    ));
+    let mut changed_runtime_add_bound = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_runtime_add_bound.entry;
+    let entry_contract = &mut changed_runtime_add_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let runtime_add_requirement_position = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &runtime_add_requirement)
+        .expect("shared convergence retains the computed runtime-add bound");
+    entry_contract.requires[runtime_add_requirement_position] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[9].id, entry.parameters[9].scalar_type),
+        ScalarTerm::exact_integer_subtract(
+            add_type,
+            ScalarTerm::integer(add_type, IntegerValue::Unsigned(254)).unwrap(),
+            ScalarTerm::value(entry.parameters[10].id, entry.parameters[10].scalar_type),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_runtime_add_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == runtime_exact_add_obligation
+    ));
     let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode shared proof");
     missing_shift_proof
         .evidence
@@ -2936,15 +3022,18 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         signed_divisor,
         negative_divisor,
         bounded_negative_divisor,
+        add_left,
+        add_right,
         enabled,
     ) in [
         (
-            3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, 2_i128, -2_i128, -1_i128, false,
+            3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, 2_i128, -2_i128, -1_i128, 200_u128,
+            55_u128, false,
         ),
-        (3, 4, 2, 1, -1, 2, 1, -3, -2, true),
-        (3, 5, 3, 2, 3, 3, 2, -4, -1, true),
-        (4, 4, 2, 2, 4, 2, 3, -2, -3, true),
-        (10, 4, 4, 1, -2, 0, 4, -5, -1, true),
+        (3, 4, 2, 1, -1, 2, 1, -3, -2, 100, 100, true),
+        (3, 5, 3, 2, 3, 3, 2, -4, -1, 254, 1, true),
+        (4, 4, 2, 2, 4, 2, 3, -2, -3, 0, 255, true),
+        (10, 4, 4, 1, -2, 0, 4, -5, -1, 42, 7, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -2992,6 +3081,14 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
                     value: IntegerValue::Signed(bounded_negative_divisor),
                 },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    value: IntegerValue::Unsigned(add_left),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    value: IntegerValue::Unsigned(add_right),
+                },
                 TerminalScalarValue::Boolean(enabled),
             ],
             &structural_arguments,
@@ -3033,6 +3130,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && signed_arithmetic % negative_divisor <= signed_arithmetic
                     && signed_arithmetic / bounded_negative_divisor < 4
                     && signed_arithmetic % bounded_negative_divisor <= signed_arithmetic
+                    && add_left + add_right <= 255
                     && input == 3
                     && enabled
             ))
