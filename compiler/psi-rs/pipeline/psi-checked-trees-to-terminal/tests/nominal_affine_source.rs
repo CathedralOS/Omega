@@ -410,7 +410,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         small <= 7u8, 1u8 <= divisor, divisor <= small, count <= 2u8,
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
-        -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8
+        -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
+        0i8 <= signed_arithmetic
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (((input + 1u64) + 1u64) < 5u64)
@@ -428,6 +429,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small << 1u8) < 11u8)
             && ((small << count) < 29u8)
             && ((signed as i8) < 4i8)
+            && ((small as i8) < 4i8)
+            && ((signed_arithmetic as u8) < 4u8)
             && ((signed_arithmetic + 1i8) < 4i8)
             && ((signed_arithmetic + -1i8) < 4i8)
             && ((signed_arithmetic - 1i8) < 4i8)
@@ -1762,6 +1765,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
         ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(42)).unwrap(),
     );
+    let signed_nonnegative_requirement = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed_arithmetic_type, IntegerValue::Signed(0)).unwrap(),
+        ScalarTerm::value(entry.parameters[5].id, entry.parameters[5].scalar_type),
+    );
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
@@ -1777,6 +1784,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         &signed_arithmetic_upper_requirement,
         &signed_multiply_lower_requirement,
         &signed_multiply_upper_requirement,
+        &signed_nonnegative_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -1840,6 +1848,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let cross_sign_cast_obligations = [entry.parameters[1].id, entry.parameters[5].id]
+        .into_iter()
+        .map(|parameter| {
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match operation.kind {
+                    OperationKind::IntegerExactCast {
+                        operand,
+                        obligation,
+                    } if operand == parameter => Some(obligation),
+                    _ => None,
+                })
+                .expect("shared convergence retains each cross-sign guarded exact cast")
+        })
+        .collect::<Vec<_>>();
+    for obligation in &cross_sign_cast_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == *obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let signed_arithmetic_parameter = entry.parameters[5].id;
     let signed_add_sites = entry
         .blocks
@@ -2250,6 +2284,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == *signed_add_obligation
         ));
     }
+    for cross_sign_cast_obligation in &cross_sign_cast_obligations {
+        let mut missing_cross_sign_cast_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_cross_sign_cast_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *cross_sign_cast_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_cross_sign_cast_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == *cross_sign_cast_obligation
+        ));
+    }
     for (signed_subtract_obligation, _) in &signed_subtract_sites {
         let mut missing_signed_subtract_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -2626,7 +2676,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         (3, 4, 2, 1, -1, 2, true),
         (3, 5, 3, 2, 3, 3, true),
         (4, 4, 2, 2, 4, 2, true),
-        (10, 4, 4, 1, -2, -3, true),
+        (10, 4, 4, 1, -2, 0, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -2687,6 +2737,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && (small << 1) < 11
                     && (small << count) < 29
                     && signed < 4
+                    && small < 4
+                    && signed_arithmetic < 4
                     && signed_arithmetic + 1 < 4
                     && signed_arithmetic - 1 < 4
                     && signed_arithmetic - 1 < 4
