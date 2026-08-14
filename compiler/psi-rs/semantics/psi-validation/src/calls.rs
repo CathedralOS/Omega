@@ -2638,6 +2638,7 @@ fn statement_call_preserves_transparent_result(
 /// types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
+const TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH: usize = 2;
 
 fn value_expression_assignment_preserves_transparent_result(
     program: &TypedTrees,
@@ -2736,6 +2737,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
+                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
                     )
                 }
                 ExpressionNode::Cast(cast)
@@ -2754,6 +2756,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
+                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
                     )
                 }
                 ExpressionNode::Unary(_)
@@ -2767,6 +2770,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
+                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
                     )
                 }
                 _ => false,
@@ -2783,7 +2787,11 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_computed_depth: usize,
 ) -> bool {
+    if remaining_computed_depth == 0 {
+        return false;
+    }
     let operands = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => [Some(binary.left), Some(binary.right)],
         ExpressionNode::Cast(cast)
@@ -2798,18 +2806,32 @@ fn primitive_computed_aggregate_field_preserves_transparent_result(
         if !expression_is_effectful_for_transparent_result(program, operand) {
             return true;
         }
-        matches!(
-            program.expression_table.expression(operand),
-            ExpressionNode::Call(_)
-        ) && value_call_assignment_preserves_transparent_result(
-            program,
-            current_machine,
-            operand,
-            symbols,
-            active_states,
-            parameters,
-            aliases,
-        )
+        match program.expression_table.expression(operand) {
+            ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
+                program,
+                current_machine,
+                operand,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+            ),
+            ExpressionNode::Binary(_) | ExpressionNode::Cast(_) | ExpressionNode::Unary(_)
+                if remaining_computed_depth > 1 =>
+            {
+                primitive_computed_aggregate_field_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    operand,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                    remaining_computed_depth - 1,
+                )
+            }
+            _ => false,
+        }
     })
 }
 

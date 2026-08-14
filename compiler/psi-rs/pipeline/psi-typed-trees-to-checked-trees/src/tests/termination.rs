@@ -7312,6 +7312,30 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_nested_computed_record_field<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: (compute(value) as u64) + 1,
+            second: 0
+        };
+        cells
+    }
+
+    machine return_after_three_computed_record_field<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: (~compute(value) as u64) + 1,
+            second: 0
+        };
+        cells
+    }
+
     machine return_after_case_value_calls<'cells, 'choice, 'first, 'second>(
         cells: &'cells mut [u64; 2],
         choice: &'choice mut PairChoice,
@@ -7584,6 +7608,24 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::nested_computed_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nested_computed_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::three_computed_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_three_computed_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::case_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_case_value_calls(
             &mut self.cells,
@@ -7750,6 +7792,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             vec!["self.cells", "self.pair", "self.value"],
         ),
         (
+            "Main::nested_computed_record_field_assignment_result",
+            vec!["self.cells", "self.pair", "self.value"],
+        ),
+        (
             "Main::case_value_call_assignment_result",
             vec!["self.cells", "self.choice", "self.other", "self.value"],
         ),
@@ -7814,6 +7860,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::recursive_value_call_assignment_result",
         "Main::generic_record_value_call_assignment_result",
         "Main::deep_computed_record_field_assignment_result",
+        "Main::three_computed_record_field_assignment_result",
         "Main::generic_case_value_call_assignment_result",
         "Main::deep_record_value_call_assignment_result",
         "Main::generic_nested_case_value_call_assignment_result",
