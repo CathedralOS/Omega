@@ -531,7 +531,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         data Plain { observed: bool; }
         data Root {}
         machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
-            let staged: bool = (input && true) || false;
+            let staged: bool = !((input && true) || false);
             staged
         }
     "#;
@@ -550,6 +550,12 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("terminal shared convergence entry");
     assert!(terminal_entry.blocks.len() > 4);
+    assert!(terminal_entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::BooleanNot { .. }))
+    }));
     assert_eq!(
         terminal_entry
             .blocks

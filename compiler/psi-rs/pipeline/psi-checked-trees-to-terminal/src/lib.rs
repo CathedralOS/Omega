@@ -10493,13 +10493,15 @@ fn shared_boolean_runtime_parameter_count(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Some(0),
         LoweredBooleanReturnExpression::Parameter { .. } => Some(1),
+        LoweredBooleanReturnExpression::Not { operand } => {
+            shared_boolean_runtime_parameter_count(operand)
+        }
         LoweredBooleanReturnExpression::And { left, right }
         | LoweredBooleanReturnExpression::Or { left, right } => {
             shared_boolean_runtime_parameter_count(left)?
                 .checked_add(shared_boolean_runtime_parameter_count(right)?)
         }
         LoweredBooleanReturnExpression::Local { .. }
-        | LoweredBooleanReturnExpression::Not { .. }
         | LoweredBooleanReturnExpression::Equal { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => None,
     }

@@ -1581,7 +1581,8 @@ fn shared_boolean_cleanup_convergence_return_edge(
                     return None;
                 }
             }
-            TerminalAbstractOperation::BooleanConstant { .. } => {}
+            TerminalAbstractOperation::BooleanConstant { .. }
+            | TerminalAbstractOperation::BooleanNot { .. } => {}
             _ => return None,
         }
     }

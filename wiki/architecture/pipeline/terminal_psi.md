@@ -387,15 +387,15 @@ leaf and validates the result and return-link lifetime independently on every
 native path. Terminal production decides every short-circuit local once per
 stage, substitutes each resulting value leaf into the continuation, and
 source-distributes branch-free work and later decision stages without a
-convergence block. One bounded exception accepts a finite `&&`/`||` tree with
+convergence block. One bounded exception accepts a finite `!`/`&&`/`||` tree with
 exactly one runtime Boolean input and otherwise constant leaves. Every typed
 value leaf jumps to one terminal-Psi Boolean parameter and one shared cleanup
 return. Omega folds the constant-only decisions and retains one physical
 two-arm join, one unconditional join branch, and one cleanup tail on every
 target; object construction decodes the branch and replays the shared tail
-before image and installation custody. Multiple or computed runtime leaves,
-calls, effects, nested nominal ownership, projections, and wider cleanup shapes
-still fail closed.
+before image and installation custody. Multiple inputs, comparison/member
+leaves, calls, effects, nested nominal ownership, projections, and wider cleanup
+shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

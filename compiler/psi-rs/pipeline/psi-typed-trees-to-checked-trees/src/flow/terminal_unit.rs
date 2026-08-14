@@ -1348,8 +1348,8 @@ fn checked_shared_boolean_convergence(
 }
 
 /// Count the runtime Boolean inputs in the bounded shared-join form. Constants
-/// and `&&`/`||` nesting add control shape but no second native input;
-/// negation, comparisons, fields, and locals remain source-distributed.
+/// `!`/`&&`/`||` nesting adds control shape but no second native input;
+/// comparisons, fields, and locals remain source-distributed.
 fn shared_boolean_runtime_parameter_count(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1361,6 +1361,9 @@ fn shared_boolean_runtime_parameter_count(
         {
             Some(1)
         }
+        psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
+            shared_boolean_runtime_parameter_count(operand, scalar_parameter_count)
+        }
         psi_checked_trees::CheckedBooleanExpression::And { left, right }
         | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
             shared_boolean_runtime_parameter_count(left, scalar_parameter_count)?.checked_add(
@@ -1368,7 +1371,6 @@ fn shared_boolean_runtime_parameter_count(
             )
         }
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
-        | psi_checked_trees::CheckedBooleanExpression::Not(_)
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | psi_checked_trees::CheckedBooleanExpression::Equal { .. }
