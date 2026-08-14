@@ -3287,6 +3287,42 @@ fn validate_boolean_field_terms(
             })
         }
 
+        fn safe_policy_divisor(
+            integer_type: IntegerType,
+            divisor: &ScalarTerm,
+            requirements: &[Proposition],
+        ) -> bool {
+            match divisor {
+                ScalarTerm::Integer {
+                    scalar_type,
+                    value: IntegerValue::Unsigned(value),
+                } => return *scalar_type == integer_type && *value != 0,
+                ScalarTerm::Integer {
+                    scalar_type,
+                    value: IntegerValue::Signed(value),
+                } => return *scalar_type == integer_type && *value != 0,
+                _ => {}
+            }
+            let one = match integer_type.sign() {
+                IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+                IntegerSign::Signed => IntegerValue::Signed(1),
+            };
+            if ScalarTerm::integer(integer_type, one).is_ok_and(|one| {
+                requirements.contains(&Proposition::LessOrEqual(one, divisor.clone()))
+            }) {
+                return true;
+            }
+            if integer_type.sign() != IntegerSign::Signed {
+                return false;
+            }
+            [IntegerValue::Signed(-1), IntegerValue::Signed(-2)]
+                .into_iter()
+                .filter_map(|bound| ScalarTerm::integer(integer_type, bound).ok())
+                .any(|bound| {
+                    requirements.contains(&Proposition::LessOrEqual(divisor.clone(), bound))
+                })
+        }
+
         match term {
             ScalarTerm::BooleanField { root, path } => {
                 let mut structural_type = machine
@@ -3456,16 +3492,41 @@ fn validate_boolean_field_terms(
             | ScalarTerm::ExactIntegerAdd { left, right, .. }
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
             | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
             | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
             | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
             | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                validate_term(module, machine, left, runtime_requirements)?;
+                validate_term(module, machine, right, runtime_requirements)?;
+            }
+            ScalarTerm::WrappingIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::WrappingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::SaturatingIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::SaturatingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } => {
+                if !safe_policy_divisor(*scalar_type, right, runtime_requirements) {
+                    return Err(ModuleError::UnsafeStructuralCrashPolicyDivisor {
+                        machine: machine.id,
+                        scalar_type: *scalar_type,
+                    });
+                }
                 validate_term(module, machine, left, runtime_requirements)?;
                 validate_term(module, machine, right, runtime_requirements)?;
             }
@@ -6309,6 +6370,10 @@ pub enum ModuleError {
         scalar_type: psi_core::IntegerType,
     },
     UnsafeStructuralCrashExactDivisor {
+        machine: MachineId,
+        scalar_type: psi_core::IntegerType,
+    },
+    UnsafeStructuralCrashPolicyDivisor {
         machine: MachineId,
         scalar_type: psi_core::IntegerType,
     },

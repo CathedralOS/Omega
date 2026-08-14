@@ -759,18 +759,34 @@ impl CrashPlan {
                 crate::CheckedScalarExpression::IntegerBinary {
                     kind, left, right, ..
                 } => {
+                    let exact = matches!(
+                        kind,
+                        crate::CheckedIntegerBinaryKind::ExactDivide
+                            | crate::CheckedIntegerBinaryKind::ExactRemainder
+                    );
+                    let policy = matches!(
+                        kind,
+                        crate::CheckedIntegerBinaryKind::WrappingDivide
+                            | crate::CheckedIntegerBinaryKind::WrappingRemainder
+                            | crate::CheckedIntegerBinaryKind::SaturatingDivide
+                            | crate::CheckedIntegerBinaryKind::SaturatingRemainder
+                    );
                     let current = matches!(
                         kind,
                         crate::CheckedIntegerBinaryKind::ExactDivide
                             | crate::CheckedIntegerBinaryKind::ExactRemainder
+                            | crate::CheckedIntegerBinaryKind::WrappingDivide
+                            | crate::CheckedIntegerBinaryKind::WrappingRemainder
+                            | crate::CheckedIntegerBinaryKind::SaturatingDivide
+                            | crate::CheckedIntegerBinaryKind::SaturatingRemainder
                     ) && !matches!(
                         right.as_ref(),
                         crate::CheckedScalarExpression::IntegerLiteral { literal }
                             if literal.landing().is_some_and(|landing| {
                                 if landing.landed_type.is_signed() {
-                                    literal
-                                        .value_i64()
-                                        .is_some_and(|value| value != 0 && value != -1)
+                                    literal.value_i64().is_some_and(|value| {
+                                        value != 0 && (policy || (exact && value != -1))
+                                    })
                                 } else {
                                     literal.value_u64().is_some_and(|value| value != 0)
                                 }

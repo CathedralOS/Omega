@@ -317,6 +317,65 @@ const PROJECTED_INTEGER_MEMBER_POLICY_ARITHMETIC_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_POLICY_DIVISION_SOURCE: &str = r#"
+    data PolicyValues {
+        wrapping_dividend: u8 in Wrapping;
+        wrapping_divisor: u8 in Wrapping;
+        wrapping_quotient: u8 in Wrapping;
+        wrapping_remainder: u8 in Wrapping;
+        saturating_dividend: i8 in Saturating;
+        saturating_divisor: i8 in Saturating;
+        saturating_quotient: i8 in Saturating;
+        saturating_remainder: i8 in Saturating;
+    }
+    data Envelope { values: PolicyValues; spare: PolicyValues; }
+    data Helper {}
+    machine Helper::inspect(values: PolicyValues)
+    requires
+        1 <= values.wrapping_divisor,
+        values.saturating_divisor <= -1
+    crashes Abort
+        values.wrapping_dividend / values.wrapping_divisor == values.wrapping_quotient
+            && values.wrapping_dividend % values.wrapping_divisor == values.wrapping_remainder
+            && values.saturating_dividend / values.saturating_divisor
+                == values.saturating_quotient
+            && values.saturating_dividend % values.saturating_divisor
+                == values.saturating_remainder
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    requires
+        1 <= envelope.values.wrapping_divisor,
+        envelope.values.saturating_divisor <= -1
+    crashes Abort
+        envelope.values.wrapping_dividend / envelope.values.wrapping_divisor
+                == envelope.values.wrapping_quotient
+            && envelope.values.wrapping_dividend % envelope.values.wrapping_divisor
+                == envelope.values.wrapping_remainder
+            && envelope.values.saturating_dividend / envelope.values.saturating_divisor
+                == envelope.values.saturating_quotient
+            && envelope.values.saturating_dividend % envelope.values.saturating_divisor
+                == envelope.values.saturating_remainder
+    {
+        Helper::inspect(envelope.values);
+    }
+"#;
+
+const POLICY_NEGATIVE_ONE_LITERAL_DIVISION_SOURCE: &str = r#"
+    data Values {
+        dividend: i8 in Wrapping;
+        quotient: i8 in Wrapping;
+        remainder: i8 in Wrapping;
+    }
+    data Root {}
+    machine Root::enter(values: Values)
+    crashes Abort
+        values.dividend / -1i8 == values.quotient
+            && values.dividend % -1i8 == values.remainder
+    {}
+"#;
+
 const RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
     data Metrics { current: u64; divisor: u64; limit: u64; }
     data Root {}
@@ -2614,6 +2673,193 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
     assert!(matches!(
         psi_terminal_verifier::validate_module(&redirected),
         Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
+fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_POLICY_DIVISION_SOURCE)
+        .tokenize()
+        .expect("policy division tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("policy division parse");
+    let resolved = lower_syntax_trees(&syntax).expect("policy division resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("policy division type");
+    let checked = lower_typed_trees(typed).expect("policy division check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected policy division retains exact nonzero requirements");
+    let root = &lowered.semantic_module.machines[0];
+    assert_eq!(root.contract.requires.len(), 2);
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one policy division route")
+    };
+    let Proposition::Conjunction(conjuncts) = root_route.proposition() else {
+        panic!("policy division route is one conjunction")
+    };
+    let mut counts = [0; 4];
+    for conjunct in conjuncts {
+        let Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::IntegerEqual { left, .. }) =
+            conjunct
+        else {
+            panic!("each policy division clause remains an integer equality")
+        };
+        match left.as_ref() {
+            ScalarTerm::WrappingIntegerDivide { .. } => counts[0] += 1,
+            ScalarTerm::WrappingIntegerRemainder { .. } => counts[1] += 1,
+            ScalarTerm::SaturatingIntegerDivide { .. } => counts[2] += 1,
+            ScalarTerm::SaturatingIntegerRemainder { .. } => counts[3] += 1,
+            _ => panic!("unexpected policy division term"),
+        }
+    }
+    assert_eq!(counts, [1; 4]);
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        requirement_obligations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected policy division call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [StructuralPathSegment::Field(identity)] if identity == "values"
+    ));
+    assert_eq!(requirement_obligations.len(), 2);
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call carries one policy division continuation")
+    };
+    assert_eq!(continuation, root_route);
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("verifier reconstructs projected policy divisor requirements");
+    assert_eq!(reconstructed.len(), 2);
+    assert!(reconstructed.iter().all(|item| {
+        root.contract
+            .requires
+            .contains(&item.obligation.proposition)
+    }));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts both independently safe policy divisors");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("policy division route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("policy division fixed fuel recomputes");
+    let semantics = encode_module(&lowered.semantic_module).expect("policy division encodes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("policy proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 71,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("policy division predicates remain verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut missing_requirement = lowered.semantic_module.clone();
+    missing_requirement.machines[0].contract.requires.clear();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&missing_requirement),
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashPolicyDivisor { .. })
+    ));
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("spare".to_owned())];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
+fn wrapping_negative_one_literal_divisor_is_self_proving() {
+    let tokens = Lexer::new(POLICY_NEGATIVE_ONE_LITERAL_DIVISION_SOURCE)
+        .tokenize()
+        .expect("negative-one policy division tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("negative-one policy division parse");
+    let resolved = lower_syntax_trees(&syntax).expect("negative-one policy division resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("negative-one policy division type");
+    let checked = lower_typed_trees(typed).expect("negative-one policy division check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("Wrapping defines signed MIN divided or remaindered by negative one");
+    assert!(
+        lowered.semantic_module.machines[0]
+            .contract
+            .requires
+            .is_empty()
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("negative one is independently nonzero under Wrapping");
+
+    let mut zero = lowered.semantic_module.clone();
+    let CrashRouteGuard::Predicate(predicate) =
+        &mut zero.machines[0].contract.crash_routes[0].alternatives[0]
+    else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Conjunction(conjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(ScalarTerm::WrappingIntegerDivide {
+        scalar_type, right, ..
+    }) = conjuncts.iter_mut().find_map(|conjunct| {
+        let Proposition::Equal(_, ScalarTerm::IntegerEqual { left, .. }) = conjunct else {
+            return None;
+        };
+        matches!(left.as_ref(), ScalarTerm::WrappingIntegerDivide { .. }).then_some(left.as_mut())
+    })
+    else {
+        unreachable!()
+    };
+    *right =
+        Box::new(ScalarTerm::integer(*scalar_type, psi_core::IntegerValue::Signed(0)).unwrap());
+    *predicate = CrashPredicateTerm::new(proposition);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&zero),
+        Err(psi_terminal_verifier::ModuleError::UnsafeStructuralCrashPolicyDivisor { .. })
     ));
 }
 
