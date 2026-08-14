@@ -274,10 +274,12 @@ identities over the exact proposition application and a structured carrierless
 interface; the application and term interface must agree, and forwarding
 contributes one row. Canonical positional rows for the selected terminal
 machine's named `requires` and `ensures` lanes now refer to that exact ID, and a
-forwarded pair shares one ID. Generated output fields do not yet refer to it, so
-stable package projection remains unfinished. A selected producer remains
-fenced from terminal emission until its conformance and normalized rows have a
-separate proof-bundle provenance identity.
+forwarded pair shares one ID. A selected producer instead carries a separate
+canonical proof-bundle provenance identity keyed to its fresh ensured term and
+retaining its exact conformance, evidence trait, and normalized rows. That
+provenance changes proof identity, not semantic identity or runtime behavior.
+Generated output fields do not yet refer to the term ID, so stable package
+projection remains unfinished.
 
 ## Explicit relevance
 

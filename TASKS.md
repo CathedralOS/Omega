@@ -509,13 +509,15 @@ Remaining N6/N8 work:
   terminal machine now carries canonical positional `requires`/`ensures` lane
   rows that reference those exact IDs; a forwarded output uses the same ID as
   its input. Verification requires known machine/term IDs, dense positions per
-  lane kind, exact term/application interfaces, no orphan terms, and every
-  `ensures` ID to occur in the same machine's `requires` lanes while producer
-  provenance is absent. Generated package fields do not yet reference
-  `EvidenceTermId`. Selected-producer lowering remains fail-closed until
-  conformance/row provenance has a separate proof-bundle identity; do not fold
-  that provenance into the term or recover the interface from its display
-  spelling. Continue with generated package references and the provenance row.
+  lane kind, exact term/application interfaces, and no orphan terms. A selected
+  producer now emits a separate canonical proof-bundle provenance identity
+  keyed to its ensured term, with exact conformance, evidence-trait, and
+  complete normalized realization rows. An ensures-only term verifies only
+  through one matching row; missing, unused, malformed, reordered, or
+  interface-mismatched rows reject. Provenance changes the proof fingerprint,
+  not terminal semantic identity, runtime, or fuel. Generated package fields do
+  not yet reference `EvidenceTermId`; continue there without folding provenance
+  into the term or treating display spelling as an identity oracle.
   `value` is the runtime result;
   evidence erases, destructuring is complete or explicitly `_`, and guarded
   fields exist only in the matching refinement. Keep proposition,

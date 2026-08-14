@@ -1,19 +1,23 @@
 use psi_core::{
     CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
-    Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
+    ContentStructuralPlace, ContentTerm, EvidenceIdentity, IntegerCarrier, IntegerSign,
+    IntegerType, IntegerValue, Proposition, PropositionError, PropositionId, PsiSemanticId,
+    ScalarTerm, ScalarType,
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
     PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle, VerifiedTerminalModule};
+use psi_terminal_verifier::{
+    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
+    ObligationEvidence, ProofBundle, VerifiedTerminalModule,
+};
 use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 5;
+const FORMAT_MARKER: u16 = 6;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -64,10 +68,18 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
     for _ in 0..evidence_count {
         evidence.push(decode_evidence(&mut reader, format_marker)?);
     }
+    let producer_count = reader.count()?;
+    let mut evidence_producers = Vec::new();
+    for _ in 0..producer_count {
+        evidence_producers.push(decode_evidence_producer(&mut reader)?);
+    }
     if reader.remaining() != 0 {
         return Err(ProofCodecError::TrailingBytes(reader.remaining()));
     }
-    let bundle = ProofBundle { evidence };
+    let bundle = ProofBundle {
+        evidence,
+        evidence_producers,
+    };
     validate_bundle(&bundle)?;
     if encode_raw(&bundle, format_marker)? != bytes {
         return Err(ProofCodecError::NonCanonicalEncoding);
@@ -160,6 +172,29 @@ pub fn render_verified_proof_synopsis(
             }
         }
     }
+    for producer in &verified.proof_bundle().evidence_producers {
+        writeln!(
+            &mut output,
+            "evidence-producer {} term {} conformance {} trait {}",
+            producer.id,
+            producer.term,
+            producer.conformance_identity,
+            producer.evidence_trait_identity,
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        for row in &producer.rows {
+            writeln!(
+                &mut output,
+                "  row {} {} -> {} {} {:?}",
+                row.declaring_trait_identity,
+                row.requirement_identity,
+                row.realization_machine_identity,
+                row.realization_state_identity,
+                row.source,
+            )
+            .expect("writing a synopsis to a String cannot fail");
+        }
+    }
     Ok(output)
 }
 
@@ -172,6 +207,40 @@ fn validate_bundle(bundle: &ProofBundle) -> Result<(), ProofCodecError> {
         previous = Some(evidence.obligation);
         if let EvidenceRoute::CertificateDerived(certificate) = &evidence.route {
             validate_proof_node(&certificate.proof, 0)?;
+        }
+    }
+    let mut previous_term = None;
+    for (index, producer) in bundle.evidence_producers.iter().enumerate() {
+        let expected = EvidenceIdentity::new(
+            u64::try_from(index)
+                .expect("producer provenance count fits u64")
+                .checked_add(1)
+                .expect("one-based producer provenance identity fits u64"),
+        )
+        .expect("one-based producer provenance identity is nonzero");
+        if producer.id != expected {
+            return Err(ProofCodecError::NonCanonicalEvidenceProducerOrder);
+        }
+        if previous_term.is_some_and(|previous| previous >= producer.term) {
+            return Err(ProofCodecError::NonCanonicalEvidenceProducerOrder);
+        }
+        previous_term = Some(producer.term);
+        if producer.conformance_identity.is_empty() || producer.evidence_trait_identity.is_empty() {
+            return Err(ProofCodecError::InvalidEvidenceProducer);
+        }
+        let mut previous_row = None;
+        for row in &producer.rows {
+            if row.declaring_trait_identity.is_empty()
+                || row.requirement_identity.is_empty()
+                || row.realization_machine_identity.is_empty()
+                || row.realization_state_identity.is_empty()
+            {
+                return Err(ProofCodecError::InvalidEvidenceProducer);
+            }
+            if previous_row.is_some_and(|previous: &EvidenceProducerRealization| previous >= row) {
+                return Err(ProofCodecError::NonCanonicalEvidenceProducerRows);
+            }
+            previous_row = Some(row);
         }
     }
     Ok(())
@@ -319,7 +388,80 @@ fn encode_raw(bundle: &ProofBundle, format_marker: u16) -> Result<Vec<u8>, Proof
     for evidence in &bundle.evidence {
         encode_evidence(&mut writer, evidence, format_marker)?;
     }
+    writer.len("evidence producers", bundle.evidence_producers.len())?;
+    for producer in &bundle.evidence_producers {
+        encode_evidence_producer(&mut writer, producer)?;
+    }
     Ok(writer.finish())
+}
+
+fn encode_evidence_producer(
+    writer: &mut Writer,
+    producer: &EvidenceProducerProvenance,
+) -> Result<(), ProofCodecError> {
+    writer.id(producer.id);
+    writer.id(producer.term);
+    writer.string(
+        "evidence producer conformance",
+        &producer.conformance_identity,
+    )?;
+    writer.string("evidence producer trait", &producer.evidence_trait_identity)?;
+    writer.len("evidence producer rows", producer.rows.len())?;
+    for row in &producer.rows {
+        writer.string(
+            "evidence producer declaring trait",
+            &row.declaring_trait_identity,
+        )?;
+        writer.string("evidence producer requirement", &row.requirement_identity)?;
+        writer.string(
+            "evidence producer machine",
+            &row.realization_machine_identity,
+        )?;
+        writer.string("evidence producer state", &row.realization_state_identity)?;
+        writer.u8(match row.source {
+            EvidenceProducerRowSource::Inline => 1,
+            EvidenceProducerRowSource::Reference => 2,
+            EvidenceProducerRowSource::TraitDefault => 3,
+        });
+    }
+    Ok(())
+}
+
+fn decode_evidence_producer(
+    reader: &mut Reader<'_>,
+) -> Result<EvidenceProducerProvenance, ProofCodecError> {
+    let id = reader.id("EvidenceIdentity")?;
+    let term = reader.id("EvidenceTermId")?;
+    let conformance_identity = reader.string("evidence producer conformance")?;
+    let evidence_trait_identity = reader.string("evidence producer trait")?;
+    let row_count = reader.count()?;
+    let mut rows = Vec::new();
+    for _ in 0..row_count {
+        rows.push(EvidenceProducerRealization {
+            declaring_trait_identity: reader.string("evidence producer declaring trait")?,
+            requirement_identity: reader.string("evidence producer requirement")?,
+            realization_machine_identity: reader.string("evidence producer machine")?,
+            realization_state_identity: reader.string("evidence producer state")?,
+            source: match reader.u8()? {
+                1 => EvidenceProducerRowSource::Inline,
+                2 => EvidenceProducerRowSource::Reference,
+                3 => EvidenceProducerRowSource::TraitDefault,
+                tag => {
+                    return Err(ProofCodecError::InvalidTag(
+                        "EvidenceProducerRowSource",
+                        tag,
+                    ));
+                }
+            },
+        });
+    }
+    Ok(EvidenceProducerProvenance {
+        id,
+        term,
+        conformance_identity,
+        evidence_trait_identity,
+        rows,
+    })
 }
 
 fn encode_evidence(
@@ -1593,6 +1735,9 @@ pub enum ProofCodecError {
     IndexTooLarge(&'static str),
     IndexOutsideHost,
     NonCanonicalEvidenceOrder,
+    NonCanonicalEvidenceProducerOrder,
+    NonCanonicalEvidenceProducerRows,
+    InvalidEvidenceProducer,
     NonCanonicalEncoding,
     PropositionNestingTooDeep,
     ScalarTermNestingTooDeep,

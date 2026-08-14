@@ -228,6 +228,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -311,6 +312,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -444,6 +446,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -580,6 +583,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -738,6 +742,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             }],
         };
         let bundle = ProofBundle {
+            evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -885,6 +890,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             }],
         };
         let bundle = ProofBundle {
+            evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -1005,6 +1011,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         }],
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -1111,6 +1118,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         }],
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -2223,6 +2231,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             }],
         };
         let bundle = ProofBundle {
+            evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -2281,6 +2290,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
 fn content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -2303,6 +2313,7 @@ fn content_conservation_accepts_a_replaceable_certificate() {
 fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
     let (module, goal, obligation) = identity_reshuffle_module();
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -2629,6 +2640,7 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
         .expect("one projection yields one proposition");
     module.machines[0].contract.ensures[0].proposition = goal.clone();
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -2651,6 +2663,7 @@ fn partition_composition_replay_is_not_semantic_authority() {
     let (module, goal, obligation) = partition_composition_module();
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -2689,6 +2702,7 @@ fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
     machine.content_identity_reshuffles.clear();
     machine.content_partition_compositions[0].input_claims = vec![claim];
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -3383,6 +3397,7 @@ fn wrapping_add_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -3445,6 +3460,7 @@ fn saturating_add_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -3507,6 +3523,7 @@ fn wrapping_subtract_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -3569,6 +3586,7 @@ fn saturating_subtract_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -3631,6 +3649,7 @@ fn wrapping_multiply_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -3693,6 +3712,7 @@ fn saturating_multiply_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -4464,6 +4484,7 @@ impl Fixture {
             },
         };
         ProofBundle {
+            evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation: self.obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {

@@ -613,6 +613,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         ],
     };
     let proof = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {

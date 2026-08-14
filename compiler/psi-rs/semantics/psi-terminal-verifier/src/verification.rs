@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
     CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
-    IntegerSign, IntegerValue, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType, ValueId,
+    EvidenceIdentity, EvidenceTermId, IntegerSign, IntegerValue, ObligationId, PlaceId,
+    Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
@@ -18,9 +19,37 @@ pub struct ObligationEvidence {
     pub route: EvidenceRoute,
 }
 
+/// Checked provenance for one freshly introduced carrierless evidence term.
+/// This belongs to the proof artifact, not terminal-Psi semantic identity.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceProducerProvenance {
+    pub id: EvidenceIdentity,
+    pub term: EvidenceTermId,
+    pub conformance_identity: String,
+    pub evidence_trait_identity: String,
+    pub rows: Vec<EvidenceProducerRealization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceProducerRealization {
+    pub declaring_trait_identity: String,
+    pub requirement_identity: String,
+    pub realization_machine_identity: String,
+    pub realization_state_identity: String,
+    pub source: EvidenceProducerRowSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EvidenceProducerRowSource {
+    Inline,
+    Reference,
+    TraitDefault,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProofBundle {
     pub evidence: Vec<ObligationEvidence>,
+    pub evidence_producers: Vec<EvidenceProducerProvenance>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +94,7 @@ pub fn verify_module<'module>(
     profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModule<'module>, VerificationError> {
     let validated = validate_module(module).map_err(VerificationError::Module)?;
+    validate_evidence_producer_provenance(module, proof_bundle)?;
     let mut evidence = BTreeMap::new();
     for entry in &proof_bundle.evidence {
         if evidence
@@ -131,6 +161,110 @@ pub fn verify_module<'module>(
         proof_bundle: proof_bundle.clone(),
         accepted_facts,
     })
+}
+
+fn validate_evidence_producer_provenance(
+    module: &TerminalModule,
+    proof_bundle: &ProofBundle,
+) -> Result<(), VerificationError> {
+    use psi_terminal::EvidenceContractLaneKind;
+
+    let terms = module
+        .evidence_terms
+        .iter()
+        .map(|term| (term.id, term))
+        .collect::<BTreeMap<_, _>>();
+    let required = module
+        .evidence_contract_lanes
+        .iter()
+        .filter(|lane| lane.kind == EvidenceContractLaneKind::Requires)
+        .map(|lane| (lane.machine, lane.term))
+        .collect::<BTreeSet<_>>();
+    let mut unmatched_ensures = BTreeMap::<_, usize>::new();
+    for lane in &module.evidence_contract_lanes {
+        if lane.kind == EvidenceContractLaneKind::Ensures
+            && !required.contains(&(lane.machine, lane.term))
+        {
+            *unmatched_ensures.entry(lane.term).or_default() += 1;
+        }
+    }
+
+    let mut previous_id = None;
+    let mut previous_term = None;
+    let mut produced_terms = BTreeSet::new();
+    for (index, provenance) in proof_bundle.evidence_producers.iter().enumerate() {
+        let expected = EvidenceIdentity::new(
+            u64::try_from(index)
+                .expect("producer provenance count fits u64")
+                .checked_add(1)
+                .expect("one-based producer provenance identity fits u64"),
+        )
+        .expect("one-based producer provenance identity is nonzero");
+        if provenance.id != expected {
+            return Err(VerificationError::NonDenseEvidenceProducer {
+                expected,
+                actual: provenance.id,
+            });
+        }
+        if previous_id.is_some_and(|previous| previous >= provenance.id) {
+            return Err(VerificationError::NonCanonicalEvidenceProducerOrder);
+        }
+        previous_id = Some(provenance.id);
+        if previous_term.is_some_and(|previous| previous >= provenance.term) {
+            return Err(VerificationError::NonCanonicalEvidenceProducerOrder);
+        }
+        previous_term = Some(provenance.term);
+        if !produced_terms.insert(provenance.term) {
+            return Err(VerificationError::DuplicateEvidenceProducerTerm(
+                provenance.term,
+            ));
+        }
+        let term =
+            terms
+                .get(&provenance.term)
+                .ok_or(VerificationError::UnknownEvidenceProducerTerm(
+                    provenance.term,
+                ))?;
+        if unmatched_ensures.get(&provenance.term).copied() != Some(1) {
+            return Err(VerificationError::UnusedEvidenceProducerTerm(
+                provenance.term,
+            ));
+        }
+        if provenance.conformance_identity.is_empty()
+            || provenance.evidence_trait_identity.is_empty()
+        {
+            return Err(VerificationError::InvalidEvidenceProducer(provenance.id));
+        }
+        if provenance.evidence_trait_identity != term.interface.trait_identity {
+            return Err(VerificationError::EvidenceProducerInterfaceMismatch(
+                provenance.term,
+            ));
+        }
+        let mut previous_row = None;
+        for row in &provenance.rows {
+            if row.declaring_trait_identity.is_empty()
+                || row.requirement_identity.is_empty()
+                || row.realization_machine_identity.is_empty()
+                || row.realization_state_identity.is_empty()
+            {
+                return Err(VerificationError::InvalidEvidenceProducer(provenance.id));
+            }
+            if previous_row.is_some_and(|previous: &EvidenceProducerRealization| previous >= row) {
+                return Err(VerificationError::NonCanonicalEvidenceProducerRows(
+                    provenance.id,
+                ));
+            }
+            previous_row = Some(row);
+        }
+    }
+    if let Some(term) = unmatched_ensures
+        .keys()
+        .find(|term| !produced_terms.contains(term))
+        .copied()
+    {
+        return Err(VerificationError::MissingEvidenceProducer(term));
+    }
+    Ok(())
 }
 
 /// Reconstruct proof obligations owned by executable operation sites. This is
@@ -2889,6 +3023,18 @@ fn substitute_scalar_term_values(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationError {
     Module(ModuleError),
+    NonDenseEvidenceProducer {
+        expected: EvidenceIdentity,
+        actual: EvidenceIdentity,
+    },
+    NonCanonicalEvidenceProducerOrder,
+    DuplicateEvidenceProducerTerm(EvidenceTermId),
+    UnknownEvidenceProducerTerm(EvidenceTermId),
+    UnusedEvidenceProducerTerm(EvidenceTermId),
+    MissingEvidenceProducer(EvidenceTermId),
+    InvalidEvidenceProducer(EvidenceIdentity),
+    EvidenceProducerInterfaceMismatch(EvidenceTermId),
+    NonCanonicalEvidenceProducerRows(EvidenceIdentity),
     DuplicateEvidence(ObligationId),
     MissingEvidence(ObligationId),
     UnknownEvidence(ObligationId),

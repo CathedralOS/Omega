@@ -3,7 +3,10 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{EvidenceContractLaneKind, EvidenceTermDeclaration};
-use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle, semantic_fingerprint};
+use psi_terminal_codec::{
+    decode_module, decode_proof_bundle, encode_module, encode_proof_bundle,
+    proof_bundle_fingerprint, render_verified_proof_synopsis, semantic_fingerprint,
+};
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
@@ -48,6 +51,21 @@ const PRODUCED_SOURCE: &str = r#"
     machine Root::produce(first: Token, second: Token)
     ensures
         outgoing: ready<i32>()
+    {
+        outgoing = ConcreteEvidence;
+    }
+"#;
+
+const EMPTY_PRODUCER_SOURCE: &str = r#"
+    trait Evidence<T> {}
+
+    proposition ready<T>() evidence Evidence<T>;
+
+    ConcreteEvidence: satisfies Evidence<i32> {}
+
+    data Root {}
+    machine Root::produce()
+    ensures outgoing: ready<i32>()
     {
         outgoing = ConcreteEvidence;
     }
@@ -203,9 +221,16 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
         interface: unforwarded.evidence_terms[0].interface.clone(),
     });
     unforwarded.evidence_contract_lanes[2].term = third;
+    psi_terminal_verifier::validate_module_representation(&unforwarded)
+        .expect("proof provenance, not semantic validation, owns fresh evidence");
     assert!(matches!(
-        psi_terminal_verifier::validate_module_representation(&unforwarded),
-        Err(psi_terminal_verifier::ModuleError::UnforwardedEvidenceEnsures { .. })
+        psi_terminal_verifier::verify_module(
+            &unforwarded,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidenceProducer(term))
+            if term == third
     ));
 
     let mut orphan = lowered.semantic_module.clone();
@@ -298,19 +323,201 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
 }
 
 #[test]
-fn source_producer_provenance_remains_fail_closed_at_terminal_boundary() {
+fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     let checked = check(PRODUCED_SOURCE);
-    let error = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::produce")
-        .expect_err("producer provenance has no terminal proof-bundle row yet");
-    assert!(
-        matches!(
-            error,
-            psi_checked_trees_to_terminal::LoweringError::Unsupported(
-                "terminal evidence producer provenance is not yet serialized separately"
-            )
-        ),
-        "unexpected terminal fence: {error:?}"
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::produce")
+        .expect("selected producer provenance should cross terminal Psi");
+    assert_eq!(lowered.semantic_module.evidence_terms.len(), 1);
+    assert_eq!(lowered.semantic_module.evidence_contract_lanes.len(), 1);
+    assert_eq!(
+        lowered.semantic_module.evidence_contract_lanes[0].kind,
+        EvidenceContractLaneKind::Ensures
     );
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
+    let producer = &lowered.proof_bundle.evidence_producers[0];
+    assert_eq!(producer.id.get(), 1);
+    assert_eq!(
+        producer.term,
+        lowered.semantic_module.evidence_contract_lanes[0].term
+    );
+    assert_eq!(producer.conformance_identity, "ConcreteEvidence");
+    assert_eq!(producer.evidence_trait_identity, "Evidence");
+    assert_eq!(producer.rows.len(), 1);
+    assert!(!producer.rows[0].requirement_identity.is_empty());
+
+    let semantic = semantic_fingerprint(&lowered.semantic_module).expect("terminal identity");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("producer proof encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let proof_fingerprint =
+        proof_bundle_fingerprint(&lowered.proof_bundle).expect("proof identity");
+    let mut changed_proof = lowered.proof_bundle.clone();
+    changed_proof.evidence_producers[0].conformance_identity = "OtherEvidence".to_owned();
+    assert_ne!(
+        proof_bundle_fingerprint(&changed_proof).expect("changed proof remains canonical"),
+        proof_fingerprint
+    );
+    assert_eq!(
+        semantic_fingerprint(&lowered.semantic_module).expect("semantic identity is independent"),
+        semantic
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("exact selected producer provenance verifies");
+
+    let mut missing = lowered.proof_bundle.clone();
+    missing.evidence_producers.clear();
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidenceProducer(_))
+    ));
+
+    let mut wrong_trait = lowered.proof_bundle.clone();
+    wrong_trait.evidence_producers[0].evidence_trait_identity = "OtherEvidence".to_owned();
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &wrong_trait,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::EvidenceProducerInterfaceMismatch(_))
+    ));
+
+    let mut non_dense = lowered.proof_bundle.clone();
+    non_dense.evidence_producers[0].id =
+        psi_core::EvidenceIdentity::new(2).expect("test proof identity");
+    assert_eq!(
+        encode_proof_bundle(&non_dense),
+        Err(psi_terminal_codec::ProofCodecError::NonCanonicalEvidenceProducerOrder)
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &non_dense,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::NonDenseEvidenceProducer { .. })
+    ));
+
+    let mut malformed_row = lowered.proof_bundle.clone();
+    malformed_row.evidence_producers[0].rows[0]
+        .requirement_identity
+        .clear();
+    assert_eq!(
+        encode_proof_bundle(&malformed_row),
+        Err(psi_terminal_codec::ProofCodecError::InvalidEvidenceProducer)
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &malformed_row,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::InvalidEvidenceProducer(_))
+    ));
+
+    let mut duplicate_row = lowered.proof_bundle.clone();
+    let row = duplicate_row.evidence_producers[0].rows[0].clone();
+    duplicate_row.evidence_producers[0].rows.push(row);
+    assert_eq!(
+        encode_proof_bundle(&duplicate_row),
+        Err(psi_terminal_codec::ProofCodecError::NonCanonicalEvidenceProducerRows)
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &duplicate_row,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::NonCanonicalEvidenceProducerRows(_))
+    ));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("producer proof verifies for fuel derivation");
+    let synopsis = render_verified_proof_synopsis(&verified).expect("producer audit synopsis");
+    assert!(
+        synopsis.contains("evidence-producer 1 term 1 conformance ConcreteEvidence trait Evidence")
+    );
+    assert!(synopsis.contains("  row Evidence "));
+    let fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("producer provenance does not prevent fixed fuel");
+    let mut stripped_module = lowered.semantic_module.clone();
+    stripped_module.evidence_terms.clear();
+    stripped_module.evidence_contract_lanes.clear();
+    let stripped_bundle = psi_terminal_verifier::ProofBundle::default();
+    let stripped = psi_terminal_verifier::verify_module(
+        &stripped_module,
+        &stripped_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("erased evidence does not change execution");
+    assert_eq!(
+        derive_fixed_entry_fuel(&stripped, stripped_module.entry)
+            .expect("stripped machine has fixed fuel")
+            .ceiling_units(),
+        fuel.ceiling_units()
+    );
+
+    let bytes = encode_module(&lowered.semantic_module).expect("producer module encodes");
+    let machine = &lowered.semantic_module.machines[0];
+    let arguments = machine
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| TerminalStructuralValue {
+            opaque_identity: 0xe720 + index as u64,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+    )
+    .expect("producer evidence remains erased at runtime");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).expect("execute producer"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+}
+
+#[test]
+fn empty_complete_evidence_conformance_remains_valid_provenance() {
+    let checked = check(EMPTY_PRODUCER_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::produce")
+        .expect("an empty closed conformance is still complete");
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
+    assert!(lowered.proof_bundle.evidence_producers[0].rows.is_empty());
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("empty row set is canonical");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the exact empty conformance verifies");
 }
 
 fn check(source: &str) -> psi_checked_trees::CheckedTrees {

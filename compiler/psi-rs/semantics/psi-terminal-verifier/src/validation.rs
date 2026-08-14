@@ -165,7 +165,6 @@ fn validate_evidence_contract_lanes(
         .map(|term| (term.id, term))
         .collect::<BTreeMap<_, _>>();
     let mut next_positions = BTreeMap::new();
-    let mut required_terms = BTreeSet::new();
     let mut used_terms = BTreeSet::new();
     for lane in &module.evidence_contract_lanes {
         if !machines.contains_key(&lane.machine) {
@@ -183,9 +182,6 @@ fn validate_evidence_contract_lanes(
             return Err(ModuleError::EvidenceContractTermMismatch(lane.term));
         }
         used_terms.insert(lane.term);
-        if lane.kind == EvidenceContractLaneKind::Requires {
-            required_terms.insert((lane.machine, lane.term));
-        }
         let expected = next_positions
             .entry((lane.machine, lane.kind))
             .or_insert(0_u32);
@@ -203,16 +199,6 @@ fn validate_evidence_contract_lanes(
                 machine: lane.machine,
                 kind: lane.kind,
             })?;
-    }
-    for lane in &module.evidence_contract_lanes {
-        if lane.kind == EvidenceContractLaneKind::Ensures
-            && !required_terms.contains(&(lane.machine, lane.term))
-        {
-            return Err(ModuleError::UnforwardedEvidenceEnsures {
-                machine: lane.machine,
-                term: lane.term,
-            });
-        }
     }
     if let Some(term) = terms
         .keys()
@@ -6432,10 +6418,6 @@ pub enum ModuleError {
     EvidenceContractLaneOverflow {
         machine: MachineId,
         kind: EvidenceContractLaneKind,
-    },
-    UnforwardedEvidenceEnsures {
-        machine: MachineId,
-        term: EvidenceTermId,
     },
     OrphanEvidenceTerm(EvidenceTermId),
     EmptyPropositionIdentity,

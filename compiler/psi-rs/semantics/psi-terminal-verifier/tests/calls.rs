@@ -27,6 +27,7 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
     );
 
     let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![
             semantic_axiom_evidence(
                 obligation_id(1),

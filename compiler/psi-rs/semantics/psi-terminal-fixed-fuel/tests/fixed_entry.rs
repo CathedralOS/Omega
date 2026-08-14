@@ -455,7 +455,10 @@ fn contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel() {
         })
         .collect::<Vec<_>>();
     evidence.sort_by_key(|evidence| evidence.obligation);
-    let proof = ProofBundle { evidence };
+    let proof = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence,
+    };
     let verified = verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("contextual scalar cleanup verifies");
     let contextual = derive_fixed_entry_fuel(&verified, machine_id(900))
@@ -2048,6 +2051,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         }],
     };
     let proof = ProofBundle {
+        evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
             route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
