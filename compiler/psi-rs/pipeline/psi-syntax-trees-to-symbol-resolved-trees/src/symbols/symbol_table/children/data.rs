@@ -37,24 +37,6 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
                             Some(symbol_seed(SymbolKind::Variant, &variant.name, has_sources))
                         }
                     }),
-            )
-            .chain(
-                program
-                    .conformances
-                    .iter()
-                    .filter(|conformance| {
-                        matches!(
-                            &conformance.subject,
-                            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(type_name)
-                                if *type_name == data_definition.name
-                        )
-                    })
-                    .filter_map(|conformance| {
-                        conformance
-                            .alias
-                            .as_ref()
-                            .map(|alias| symbol_seed(SymbolKind::Conformance, alias, has_sources))
-                    }),
             ),
     );
 

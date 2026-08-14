@@ -70,3 +70,60 @@ fn insert_machine_parameter_signature_children(
         }
     }
 }
+
+pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
+    conformance_symbol: SymbolHandle,
+    conformance: &psi_symbol_resolved_trees::trait_definition::Conformance,
+    has_sources: bool,
+) {
+    let children = builder.insert_children(
+        conformance_symbol,
+        program
+            .data_type_parameters(conformance.type_parameters)
+            .iter()
+            .map(|parameter| {
+                let kind = match parameter.kind {
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                        SymbolKind::MachineParameter
+                    }
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                        SymbolKind::PropositionParameter
+                    }
+                    _ => SymbolKind::TypeParameter,
+                };
+                symbol_seed(kind, &parameter.name, has_sources)
+            }),
+    );
+
+    let mut children = SymbolTableBuilder::child_handles(children);
+    for parameter in program.data_type_parameters(conformance.type_parameters) {
+        let Some(parameter_symbol) = children.next() else {
+            break;
+        };
+        match &parameter.kind {
+            psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
+                insert_machine_parameter_signature_children(
+                    builder,
+                    program,
+                    parameter_symbol,
+                    contract,
+                    has_sources,
+                );
+            }
+            psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } => {
+                builder.insert_children(
+                    parameter_symbol,
+                    program
+                        .state_parameters(contract.parameters)
+                        .iter()
+                        .map(|parameter| {
+                            symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
+                        }),
+                );
+            }
+            _ => {}
+        }
+    }
+}

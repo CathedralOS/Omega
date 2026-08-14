@@ -181,12 +181,22 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     });
 
     program.roots.conformances.for_each_mut(|conformance| {
+        let local_type_parameters = data_type_parameters
+            .span_or_empty(conformance.type_parameters)
+            .to_vec();
+        assign_type_parameter_constraint_symbols(
+            symbols,
+            child_type_references,
+            type_constraints,
+            &local_type_parameters,
+            data_type_parameters.span_mut_or_empty(conformance.type_parameters),
+        );
         assign_type_reference_argument_symbols_with_constraints(
             symbols,
             child_type_references,
             type_constraints,
-            &[],
-            SymbolHandle::invalid(),
+            &local_type_parameters,
+            conformance.symbol,
             conformance.arguments,
         );
         if let Some((_, proposition_slots)) = trait_proposition_slots
@@ -196,7 +206,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             assign_proposition_family_argument_symbols(
                 symbols,
                 child_type_references,
-                &[],
+                &local_type_parameters,
                 conformance.arguments,
                 proposition_slots,
             );
@@ -383,12 +393,15 @@ fn assign_type_reference_symbol_with_context(
                     SymbolKind::Data,
                     data_name.as_str(),
                 );
-                let selected = crate::symbols::lookup::child_symbol_by_kinds(
-                    symbols,
-                    carrier,
-                    &[SymbolKind::Conformance],
-                    conformance_name.as_str(),
-                );
+                let selected = if carrier.is_valid() {
+                    crate::symbols::lookup::top_level_symbol(
+                        symbols,
+                        SymbolKind::Conformance,
+                        conformance_name.as_str(),
+                    )
+                } else {
+                    SymbolHandle::invalid()
+                };
                 *conformance = selected.is_valid().then_some(selected);
             }
         }

@@ -1389,7 +1389,26 @@ fn validate_candidate_conformance_bounds(
             continue;
         };
 
-        if bound.conformance.is_some() {
+        if let Some(conformance_symbol) = bound.conformance {
+            let selected_carrier = program
+                .conformances()
+                .iter()
+                .find(|conformance| conformance.symbol == conformance_symbol)
+                .and_then(|conformance| conformance.carrier_name())
+                .map(|carrier| carrier.as_str());
+            if selected_carrier != Some(bound.carrier_name.as_str()) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "generic machine `{}` names conformance `{}::{}`, but that declaration belongs to `{}`",
+                    candidate.template_name,
+                    bound.carrier_name,
+                    bound
+                        .conformance_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                    selected_carrier.unwrap_or("a carrierless evidence package"),
+                )));
+                continue;
+            }
             if type_name != bound.carrier_name.as_str() {
                 diagnostics.push(Diagnostic::error(format!(
                     "generic machine `{}` binds `{}` to `{type_name}`, but named conformance `{}::{}` belongs to `{}`",

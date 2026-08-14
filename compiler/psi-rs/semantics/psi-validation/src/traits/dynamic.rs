@@ -28,7 +28,7 @@ pub struct DynamicConformanceSelection {
     pub source_path: Vec<Identifier>,
     pub source_data: psi_symbols::SymbolHandle,
     pub target_trait: psi_symbols::SymbolHandle,
-    /// Stable child symbol for the explicitly named conformance.
+    /// Stable package symbol for the explicitly named conformance.
     pub conformance: Option<psi_symbols::SymbolHandle>,
 }
 

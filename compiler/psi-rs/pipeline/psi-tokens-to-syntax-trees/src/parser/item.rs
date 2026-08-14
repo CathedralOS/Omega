@@ -2,6 +2,7 @@ use crate::parser::capability::parse_capability_definition;
 use crate::parser::const_item::parse_const_definition;
 use crate::parser::data::{
     parse_boundary_data_definition, parse_data_definition, parse_field_relevance_brackets,
+    parse_machine_type_parameters,
 };
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
@@ -289,12 +290,13 @@ pub(super) fn parse_item<'tokens, 'source>(
     // The settled whole-conformance declaration names its evidence identity
     // first: `Primary: Circle satisfies Shape { ... }`, or
     // `ConcreteEvidence: satisfies Evidence { ... }` for carrierless proof
-    // evidence. This concrete slice deliberately does not infer a generic
-    // telescope from the subject or trait arguments; name-owned telescopes are
-    // parsed only once their representation is retained end to end.
+    // evidence. The telescope is owned by that declared name and is never
+    // inferred from the subject or trait arguments.
     if let Ok((alias, rest)) = input.take_identifier()
-        && rest.at_punctuation(PunctuationKind::Colon)
+        && (rest.at_punctuation(PunctuationKind::Colon)
+            || rest.at_punctuation(PunctuationKind::Less))
     {
+        let (generic_parameters, rest) = parse_machine_type_parameters(syntax_trees, rest)?;
         let mut rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
         let subject = if rest.at_contextual("satisfies") {
             psi_syntax_trees::item::ConformanceSubject::Subjectless
@@ -306,6 +308,11 @@ pub(super) fn parse_item<'tokens, 'source>(
         rest = rest.take_contextual("satisfies")?;
         let ((trait_name, trait_arguments), rest) =
             parse_conformance_trait_application(syntax_trees, rest)?;
+        let ((), rest) = crate::parser::machine::parse_machine_parameter_contracts(
+            syntax_trees,
+            generic_parameters.type_parameters,
+            rest,
+        )?;
         let (body, rest) = if rest.at_punctuation(PunctuationKind::LeftBrace) {
             parse_conformance_body(syntax_trees, rest)?
         } else if matches!(
@@ -323,6 +330,8 @@ pub(super) fn parse_item<'tokens, 'source>(
         };
         return Ok((
             Item::Conformance(psi_syntax_trees::item::ConformanceItem {
+                lifetime_parameters: generic_parameters.lifetime_parameters,
+                type_parameters: generic_parameters.type_parameters,
                 subject,
                 trait_name,
                 trait_arguments,

@@ -11,9 +11,10 @@ use psi_symbols::{
 };
 
 use crate::symbols::symbol_table::children::{
-    insert_builtin_type_symbol_children, insert_data_symbol_children,
-    insert_domain_symbol_children, insert_machine_symbol_children, insert_operator_symbol_children,
-    insert_proposition_symbol_children, insert_trait_symbol_children,
+    insert_builtin_type_symbol_children, insert_conformance_symbol_children,
+    insert_data_symbol_children, insert_domain_symbol_children, insert_machine_symbol_children,
+    insert_operator_symbol_children, insert_proposition_symbol_children,
+    insert_trait_symbol_children,
 };
 use crate::symbols::symbol_table::names::{operator_symbol_name, symbol_seed};
 
@@ -51,12 +52,6 @@ pub(super) fn build_symbol_table(
                         .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
                 )
                 .chain(program.conformances.iter().filter_map(|conformance| {
-                    if !matches!(
-                        conformance.subject,
-                        psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-                    ) {
-                        return None;
-                    }
                     conformance
                         .alias
                         .as_ref()
@@ -118,12 +113,16 @@ pub(super) fn build_symbol_table(
         }
     }
     for conformance in &program.conformances {
-        if matches!(
-            conformance.subject,
-            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-        ) && conformance.alias.is_some()
-        {
-            let _ = root_children.next();
+        if conformance.alias.is_some() {
+            if let Some(conformance_symbol) = root_children.next() {
+                insert_conformance_symbol_children(
+                    &mut builder,
+                    program,
+                    conformance_symbol,
+                    conformance,
+                    has_sources,
+                );
+            }
         }
     }
     for machine in &program.machines {

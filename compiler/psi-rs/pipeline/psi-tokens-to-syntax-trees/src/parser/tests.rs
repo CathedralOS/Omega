@@ -661,6 +661,53 @@ fn parses_generic_standalone_conformance_arguments() {
 }
 
 #[test]
+fn parses_name_owned_generic_conformance_telescope() {
+    let source = r#"
+        trait Converter<Source, Target> {}
+
+        GenericConversion<'scope, Source, const Width: u64, machine Convert>:
+            Source satisfies Converter<Source, u64>
+        where machine Convert(value: Source) -> u64;
+        {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("generic conformance should parse");
+    let conformance = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        })
+        .expect("conformance root item");
+
+    assert_eq!(conformance.lifetime_parameters.len(), 1);
+    assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
+    let parameters = parsed.items.type_parameters(conformance.type_parameters);
+    assert_eq!(parameters.len(), 3);
+    assert_eq!(parameters[0].name.as_str(), "Source");
+    assert!(matches!(
+        parameters[0].kind,
+        psi_syntax_trees::item::TypeParameterKind::Type
+    ));
+    assert_eq!(parameters[1].name.as_str(), "Width");
+    assert!(matches!(
+        parameters[1].kind,
+        psi_syntax_trees::item::TypeParameterKind::Const { .. }
+    ));
+    let psi_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(contract),
+    } = &parameters[2].kind
+    else {
+        panic!("Convert should retain its authored machine contract");
+    };
+    assert_eq!(contract.name.as_str(), "Convert");
+    assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
+}
+
+#[test]
 fn parses_named_concrete_subjectless_conformance_block() {
     let source = r#"
         trait Evidence {

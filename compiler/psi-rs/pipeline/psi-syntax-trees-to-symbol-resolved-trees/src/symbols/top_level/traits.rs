@@ -1,7 +1,7 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::lookup::{child_symbol_by_kinds, top_level_symbol};
+use crate::symbols::lookup::top_level_symbol;
 use crate::symbols::top_level::{
     assign_machine_parameter_signature_symbols, assign_proposition_parameter_signature_symbols,
     next_child_of_kind,
@@ -104,12 +104,8 @@ pub(super) fn assign_trait_symbols(
             if let Some(conformance_name) = &bound.conformance_name {
                 bound.carrier =
                     top_level_symbol(symbols, SymbolKind::Data, bound.carrier_name.as_str());
-                let selected = child_symbol_by_kinds(
-                    symbols,
-                    bound.carrier,
-                    &[SymbolKind::Conformance],
-                    conformance_name.as_str(),
-                );
+                let selected =
+                    top_level_symbol(symbols, SymbolKind::Conformance, conformance_name.as_str());
                 bound.conformance = selected.is_valid().then_some(selected);
             } else {
                 bound.carrier =

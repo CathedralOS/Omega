@@ -7,6 +7,73 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
+    let source = r#"
+        trait Converter<Source, Target> {}
+
+        GenericConversion<'scope, Source, const Width: u64, machine Convert>:
+            Source satisfies Converter<Source, u64>
+        where machine Convert(value: Source) -> u64;
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+
+    assert_eq!(conformance.lifetime_parameters.len(), 1);
+    assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
+    assert_eq!(
+        program.symbols.get(conformance.symbol).parent,
+        program.symbols.root(),
+        "a conformance name is package-scoped even when its subject is a carrier"
+    );
+    let parameters = program.data_type_parameters(conformance.type_parameters);
+    assert_eq!(parameters.len(), 3);
+    assert!(
+        parameters
+            .iter()
+            .all(|parameter| parameter.symbol.is_valid())
+    );
+    assert!(
+        parameters
+            .iter()
+            .all(|parameter| program.symbols.get(parameter.symbol).parent == conformance.symbol)
+    );
+
+    let source_argument = program
+        .tables
+        .declarations
+        .child_type_references
+        .span_or_empty(conformance.arguments)
+        .first()
+        .expect("Source trait argument");
+    let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } = source_argument
+    else {
+        panic!("Source should remain a named reference");
+    };
+    assert_eq!(name.as_str(), "Source");
+    assert_eq!(*symbol, parameters[0].symbol);
+
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
+        &parameters[2].kind
+    else {
+        panic!("Convert should be a machine parameter");
+    };
+    let contract_parameter = program
+        .state_parameters(contract.parameters)
+        .first()
+        .expect("Convert value parameter");
+    let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
+        &contract_parameter.type_reference
+    else {
+        panic!("contract parameter should remain named");
+    };
+    assert_eq!(name.as_str(), "Source");
+    assert_eq!(*symbol, parameters[0].symbol);
+}
+
+#[test]
 fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let source = r#"
         trait Ranked {
