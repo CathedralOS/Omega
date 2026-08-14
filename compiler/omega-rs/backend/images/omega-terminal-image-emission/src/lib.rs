@@ -2392,7 +2392,8 @@ fn validate_scalar_stack(
         root,
         nested,
         nested_arm,
-    } = evidence.control_flow
+        branches,
+    } = &evidence.control_flow
     {
         if scalar_affine_cleanup.is_some() {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
@@ -2405,11 +2406,12 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
-            root,
-            nested,
-            nested_arm,
+            *root,
+            *nested,
+            *nested_arm,
             scalar_control_affine_cleanups,
             None,
+            branches,
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
@@ -2417,7 +2419,8 @@ fn validate_scalar_stack(
         nested,
         nested_arm,
         crash_leaves,
-    } = evidence.control_flow
+        branches,
+    } = &evidence.control_flow
     {
         if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
@@ -2430,18 +2433,20 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
-            root,
-            nested,
-            nested_arm,
+            *root,
+            *nested,
+            *nested_arm,
             scalar_control_affine_cleanups,
-            Some(crash_leaves),
+            Some(*crash_leaves),
+            branches,
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
         root,
         true_nested,
         false_nested,
-    } = evidence.control_flow
+        branches,
+    } = &evidence.control_flow
     {
         if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
@@ -2454,10 +2459,11 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
-            root,
-            true_nested,
-            false_nested,
+            *root,
+            *true_nested,
+            *false_nested,
             None,
+            branches,
         );
     }
     if let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourTerminal {
@@ -2465,7 +2471,8 @@ fn validate_scalar_stack(
         true_nested,
         false_nested,
         crash_leaves,
-    } = evidence.control_flow
+        branches,
+    } = &evidence.control_flow
     {
         if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
@@ -2478,10 +2485,11 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
-            root,
-            true_nested,
-            false_nested,
-            Some(crash_leaves),
+            *root,
+            *true_nested,
+            *false_nested,
+            Some(*crash_leaves),
+            branches,
         );
     }
     if let TerminalScalarControlFlowEvidence::LinearWithDivisionBranches { ref branches } =
@@ -3092,6 +3100,7 @@ fn validate_scalar_control_cleanup_evidence(
         root,
         nested,
         nested_arm,
+        ref branches,
     } = stack.control_flow
     else {
         return if records.is_empty() {
@@ -3106,6 +3115,9 @@ fn validate_scalar_control_cleanup_evidence(
         } else {
             Err(invalid())
         };
+    }
+    if !branches.is_empty() {
+        return Err(invalid());
     }
     let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
     if records.len() != leaf_regions.len() || stack.cleanup_preservation.is_some() {
@@ -3713,6 +3725,43 @@ fn validate_top_level_two_return_scalar_stack(
     ))
 }
 
+fn division_branches_in_region(
+    branches: &[TerminalScalarDivisionBranchEvidence],
+    start: usize,
+    end: usize,
+) -> &[TerminalScalarDivisionBranchEvidence] {
+    let first = branches.partition_point(|branch| branch.branch_offset < start);
+    let last = branches.partition_point(|branch| branch.branch_offset < end);
+    &branches[first..last]
+}
+
+fn validate_division_branch_regions(
+    machine: MachineId,
+    branches: &[TerminalScalarDivisionBranchEvidence],
+    regions: &[(usize, usize)],
+) -> Result<(), TerminalObjectError> {
+    for pair in branches.windows(2) {
+        if pair[0].branch_offset >= pair[1].branch_offset {
+            return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: pair[1].branch_offset,
+            });
+        }
+    }
+    if let Some(branch) = branches.iter().find(|branch| {
+        !regions
+            .iter()
+            .any(|(start, end)| *start <= branch.branch_offset && branch.branch_offset < *end)
+    }) {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: branch.branch_offset,
+        });
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn validate_top_level_two_decision_three_return_scalar_stack(
     architecture: Architecture,
     machine: MachineId,
@@ -3724,6 +3773,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
     nested_arm: TerminalScalarConditionalArm,
     cleanups: &[TerminalScalarControlAffineCleanupRecord],
     crash_leaves: Option<[bool; 3]>,
+    division_branches: &[TerminalScalarDivisionBranchEvidence],
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -3734,6 +3784,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
     let leaf_regions = scalar_control_leaf_regions(machine, bytes.len(), root, nested, nested_arm)?;
     if !cleanups.is_empty() && cleanups.len() != leaf_regions.len()
         || crash_leaves.is_some() && !cleanups.is_empty()
+        || !cleanups.is_empty() && !division_branches.is_empty()
         || evidence.cleanup_preservation.is_some()
         || evidence
             .mutations
@@ -3782,26 +3833,6 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
         call_sites.insert(call_start, *call);
     }
     let mut validated_calls = Vec::with_capacity(calls.len());
-    let mut peak = replay_scalar_conditional_region(
-        architecture,
-        machine,
-        bytes,
-        0,
-        root.branch_offset,
-        false,
-        &mut claimed,
-        &mut call_sites,
-        root.condition == TerminalScalarConditionalCondition::Expression,
-        evidence,
-        &mut validated_calls,
-        None,
-    )?;
-    if root.condition == TerminalScalarConditionalCondition::Parameter && peak != 0 {
-        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: root.branch_offset,
-        });
-    }
     let root_branch_end = root
         .branch_offset
         .checked_add(root.branch_byte_count)
@@ -3813,19 +3844,45 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
         TerminalScalarConditionalArm::True => root_branch_end,
         TerminalScalarConditionalArm::False => root.false_arm_offset,
     };
-    let nested_peak = replay_scalar_conditional_region(
+    let mut division_regions = vec![
+        (0, root.branch_offset),
+        (nested_arm_start, nested.branch_offset),
+    ];
+    division_regions.extend(leaf_regions);
+    validate_division_branch_regions(machine, division_branches, &division_regions)?;
+    let mut peak = replay_scalar_conditional_region_with_divisions(
+        architecture,
+        machine,
+        bytes,
+        0,
+        root.branch_offset,
+        false,
+        division_branches_in_region(division_branches, 0, root.branch_offset),
+        &mut claimed,
+        &mut call_sites,
+        root.condition == TerminalScalarConditionalCondition::Expression,
+        evidence,
+        &mut validated_calls,
+    )?;
+    if root.condition == TerminalScalarConditionalCondition::Parameter && peak != 0 {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: root.branch_offset,
+        });
+    }
+    let nested_peak = replay_scalar_conditional_region_with_divisions(
         architecture,
         machine,
         bytes,
         nested_arm_start,
         nested.branch_offset,
         false,
+        division_branches_in_region(division_branches, nested_arm_start, nested.branch_offset),
         &mut claimed,
         &mut call_sites,
         nested.condition == TerminalScalarConditionalCondition::Expression,
         evidence,
         &mut validated_calls,
-        None,
     )?;
     if nested.condition == TerminalScalarConditionalCondition::Parameter && nested_peak != 0 {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -3835,6 +3892,7 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
     }
     peak = peak.max(nested_peak);
     for (index, (start, end)) in leaf_regions.into_iter().enumerate() {
+        let leaf_divisions = division_branches_in_region(division_branches, start, end);
         let leaf_peak = if crash_leaves.is_some_and(|leaves| leaves[index]) {
             replay_scalar_conditional_terminal_region(
                 architecture,
@@ -3843,13 +3901,13 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
                 start,
                 end,
                 true,
-                &[],
+                leaf_divisions,
                 &mut claimed,
                 &mut call_sites,
                 evidence,
                 &mut validated_calls,
             )?
-        } else {
+        } else if let Some(cleanup) = cleanups.get(index) {
             replay_scalar_conditional_region(
                 architecture,
                 machine,
@@ -3862,7 +3920,21 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
                 true,
                 evidence,
                 &mut validated_calls,
-                cleanups.get(index).map(|cleanup| &cleanup.cleanup),
+                Some(&cleanup.cleanup),
+            )?
+        } else {
+            replay_scalar_conditional_terminal_region(
+                architecture,
+                machine,
+                bytes,
+                start,
+                end,
+                false,
+                leaf_divisions,
+                &mut claimed,
+                &mut call_sites,
+                evidence,
+                &mut validated_calls,
             )?
         };
         peak = peak.max(leaf_peak);
@@ -3897,6 +3969,7 @@ fn validate_top_level_three_decision_four_return_scalar_stack(
     true_nested: TerminalScalarConditionalBranchEvidence,
     false_nested: TerminalScalarConditionalBranchEvidence,
     crash_leaves: Option<[bool; 4]>,
+    division_branches: &[TerminalScalarDivisionBranchEvidence],
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -3948,23 +4021,38 @@ fn validate_top_level_three_decision_four_return_scalar_stack(
         call_sites.insert(call_start, *call);
     }
     let mut validated_calls = Vec::with_capacity(calls.len());
+    let root_true = root
+        .branch_offset
+        .checked_add(root.branch_byte_count)
+        .ok_or(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: root.branch_offset,
+        })?;
+    let prefix_regions = [
+        (0, root.branch_offset),
+        (root_true, true_nested.branch_offset),
+        (root.false_arm_offset, false_nested.branch_offset),
+    ];
+    let mut division_regions = prefix_regions.to_vec();
+    division_regions.extend(leaf_regions);
+    validate_division_branch_regions(machine, division_branches, &division_regions)?;
     let mut replay_prefix = |start,
                              end,
                              condition: TerminalScalarConditionalCondition|
      -> Result<u32, TerminalObjectError> {
-        let peak = replay_scalar_conditional_region(
+        let peak = replay_scalar_conditional_region_with_divisions(
             architecture,
             machine,
             bytes,
             start,
             end,
             false,
+            division_branches_in_region(division_branches, start, end),
             &mut claimed,
             &mut call_sites,
             condition == TerminalScalarConditionalCondition::Expression,
             evidence,
             &mut validated_calls,
-            None,
         )?;
         if condition == TerminalScalarConditionalCondition::Parameter && peak != 0 {
             return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -3974,13 +4062,6 @@ fn validate_top_level_three_decision_four_return_scalar_stack(
         }
         Ok(peak)
     };
-    let root_true = root
-        .branch_offset
-        .checked_add(root.branch_byte_count)
-        .ok_or(TerminalObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: root.branch_offset,
-        })?;
     let mut peak = replay_prefix(0, root.branch_offset, root.condition)?;
     peak = peak.max(replay_prefix(
         root_true,
@@ -3994,6 +4075,7 @@ fn validate_top_level_three_decision_four_return_scalar_stack(
     )?);
     drop(replay_prefix);
     for (index, (start, end)) in leaf_regions.into_iter().enumerate() {
+        let leaf_divisions = division_branches_in_region(division_branches, start, end);
         let leaf_peak = if crash_leaves.is_some_and(|leaves| leaves[index]) {
             replay_scalar_conditional_terminal_region(
                 architecture,
@@ -4002,26 +4084,25 @@ fn validate_top_level_three_decision_four_return_scalar_stack(
                 start,
                 end,
                 true,
-                &[],
+                leaf_divisions,
                 &mut claimed,
                 &mut call_sites,
                 evidence,
                 &mut validated_calls,
             )?
         } else {
-            replay_scalar_conditional_region(
+            replay_scalar_conditional_terminal_region(
                 architecture,
                 machine,
                 bytes,
                 start,
                 end,
-                true,
+                false,
+                leaf_divisions,
                 &mut claimed,
                 &mut call_sites,
-                true,
                 evidence,
                 &mut validated_calls,
-                None,
             )?
         };
         peak = peak.max(leaf_peak);

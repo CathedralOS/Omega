@@ -11,12 +11,14 @@ use omega_terminal_machine_code::{
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_target_operations::{
     MachineRegister, TerminalPsiProvenance, TerminalScalarParameterLocation,
-    TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
-    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetBooleanExpression, TerminalTargetConditionalIntegerArm, TerminalTargetFunction,
+    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+    TerminalTargetOperationPlan,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ProfileDecisionId, ValueId,
+    EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ProfileDecisionId,
+    ValueId,
 };
 use psi_terminal::{CrashCause, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -30,8 +32,9 @@ fn nested_conditional_stack_facts_survive_installation_and_reject_forgery() {
             let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
                 nested,
                 nested_arm,
+                branches,
                 ..
-            } = emitted.functions[0]
+            } = &emitted.functions[0]
                 .scalar_stack
                 .as_ref()
                 .expect("nested conditional stack evidence")
@@ -39,8 +42,9 @@ fn nested_conditional_stack_facts_survive_installation_and_reject_forgery() {
             else {
                 panic!("nested conditional must retain three-leaf evidence")
             };
+            assert!(branches.is_empty());
             assert_eq!(
-                nested_arm,
+                *nested_arm,
                 if nested_false_arm {
                     TerminalScalarConditionalArm::False
                 } else {
@@ -101,7 +105,8 @@ fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
             root,
             true_nested,
             false_nested,
-        } = emitted.functions[0]
+            branches,
+        } = &emitted.functions[0]
             .scalar_stack
             .as_ref()
             .expect("four-leaf conditional stack evidence")
@@ -109,6 +114,7 @@ fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
         else {
             panic!("four-leaf conditional must retain three branch records")
         };
+        assert!(branches.is_empty());
         assert!(root.branch_offset < true_nested.branch_offset);
         assert!(true_nested.false_arm_offset < root.false_arm_offset);
         assert!(root.false_arm_offset <= false_nested.branch_offset);
@@ -174,7 +180,7 @@ fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
             root,
             crash_leaves,
             ..
-        } = emitted.functions[0]
+        } = &emitted.functions[0]
             .scalar_stack
             .as_ref()
             .expect("nested crash conditional stack evidence")
@@ -182,7 +188,7 @@ fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
         else {
             panic!("nested crash conditional must retain terminal evidence")
         };
-        assert_eq!(crash_leaves, [false, true, false]);
+        assert_eq!(*crash_leaves, [false, true, false]);
 
         let mut forged = emitted.clone();
         forged.functions[0].bytes[root.false_arm_offset - 1] ^= 1;
@@ -235,7 +241,7 @@ fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
             false_nested,
             crash_leaves,
             ..
-        } = emitted.functions[0]
+        } = &emitted.functions[0]
             .scalar_stack
             .as_ref()
             .expect("four-leaf crash stack evidence")
@@ -243,7 +249,7 @@ fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
         else {
             panic!("four-leaf crash conditional must retain terminal evidence")
         };
-        assert_eq!(crash_leaves, [false, false, true, false]);
+        assert_eq!(*crash_leaves, [false, false, true, false]);
 
         let mut forged = emitted.clone();
         forged.functions[0].bytes[false_nested.false_arm_offset - 1] ^= 1;
@@ -267,6 +273,323 @@ fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
         let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
             .expect("recompose installed four-leaf crash demand");
         assert_eq!(installed, demand);
+    }
+}
+
+#[test]
+fn nested_division_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = nested_conditional_plan(target, false);
+        install_signed_division_in_nested_leaf(&mut plan, false, operation_id(1));
+        let assigned = assign_registers(&plan).expect("assign nested division conditional");
+        let emitted = emit_machine_code(&assigned).expect("emit nested division conditional");
+        let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn { branches, .. } =
+            &emitted.functions[0]
+                .scalar_stack
+                .as_ref()
+                .expect("nested division stack evidence")
+                .control_flow
+        else {
+            panic!("nested division must retain the three-leaf tree")
+        };
+        match target.architecture {
+            Architecture::X86_64 => assert_eq!(branches.len(), 1),
+            Architecture::Aarch64 => assert!(branches.is_empty()),
+        }
+        if target.architecture == Architecture::X86_64 {
+            let mut forged = emitted.clone();
+            let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                branches, ..
+            } = &mut forged.functions[0]
+                .scalar_stack
+                .as_mut()
+                .expect("forged nested division stack evidence")
+                .control_flow
+            else {
+                unreachable!()
+            };
+            branches[0].ordinary_arm_offset += 1;
+            assert!(build_terminal_object_artifact(&forged).is_err());
+        }
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays the nested division diamond");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive nested division stack demand");
+        let image = emit_terminal_executable_image(&artifact, 39)
+            .expect("emit nested division executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(5).expect("profile decision"),
+        )
+        .expect("build nested division installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode nested division installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode nested division installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed nested division demand");
+        assert_eq!(installed, demand);
+    }
+}
+
+#[test]
+fn nested_condition_division_stack_facts_survive_installation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = nested_conditional_plan(target, false);
+        install_signed_division_conditions(&mut plan);
+        let assigned = assign_registers(&plan).expect("assign nested division conditions");
+        let emitted = emit_machine_code(&assigned).expect("emit nested division conditions");
+        let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+            root,
+            nested,
+            branches,
+            ..
+        } = &emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("nested condition division stack evidence")
+            .control_flow
+        else {
+            panic!("nested condition divisions must retain the three-leaf tree")
+        };
+        assert_eq!(
+            root.condition,
+            omega_terminal_machine_code::TerminalScalarConditionalCondition::Expression
+        );
+        assert_eq!(
+            nested.condition,
+            omega_terminal_machine_code::TerminalScalarConditionalCondition::Expression
+        );
+        match target.architecture {
+            Architecture::X86_64 => {
+                assert_eq!(branches.len(), 2);
+                assert!(branches[0].branch_offset < root.branch_offset);
+                assert!(branches[1].branch_offset < nested.branch_offset);
+            }
+            Architecture::Aarch64 => assert!(branches.is_empty()),
+        }
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays both nested condition division diamonds");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive nested condition division stack demand");
+        let image = emit_terminal_executable_image(&artifact, 40)
+            .expect("emit nested condition division executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(7).expect("profile decision"),
+        )
+        .expect("build nested condition division installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode nested condition division installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode nested condition division installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed nested condition division demand");
+        assert_eq!(installed, demand);
+    }
+}
+
+#[test]
+fn four_leaf_division_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut plan = four_leaf_conditional_plan(target);
+        install_signed_division_in_nested_leaf(&mut plan, false, operation_id(1));
+        install_signed_division_in_nested_leaf(&mut plan, true, operation_id(2));
+        let assigned = assign_registers(&plan).expect("assign four-leaf division conditional");
+        let emitted = emit_machine_code(&assigned).expect("emit four-leaf division conditional");
+        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn { branches, .. } =
+            &emitted.functions[0]
+                .scalar_stack
+                .as_ref()
+                .expect("four-leaf division stack evidence")
+                .control_flow
+        else {
+            panic!("four-leaf division must retain all three decisions")
+        };
+        match target.architecture {
+            Architecture::X86_64 => assert_eq!(branches.len(), 2),
+            Architecture::Aarch64 => assert!(branches.is_empty()),
+        }
+
+        if target.architecture == Architecture::X86_64 {
+            let mut forged = emitted.clone();
+            let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+                root,
+                branches,
+                ..
+            } = &mut forged.functions[0]
+                .scalar_stack
+                .as_mut()
+                .expect("forged four-leaf division stack evidence")
+                .control_flow
+            else {
+                unreachable!()
+            };
+            branches[0].branch_offset = root.branch_offset;
+            assert!(build_terminal_object_artifact(&forged).is_err());
+        }
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays both four-leaf division diamonds");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive four-leaf division stack demand");
+        let image = emit_terminal_executable_image(&artifact, 41)
+            .expect("emit four-leaf division executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(6).expect("profile decision"),
+        )
+        .expect("build four-leaf division installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode four-leaf division installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode four-leaf division installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed four-leaf division demand");
+        assert_eq!(installed, demand);
+    }
+}
+
+fn install_signed_division_in_nested_leaf(
+    plan: &mut TerminalTargetOperationPlan,
+    outer_false_arm: bool,
+    operation: OperationId,
+) {
+    let signed = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
+        scalar_type,
+        when_true,
+        when_false,
+        ..
+    } = &mut plan.functions[0].operation
+    else {
+        unreachable!()
+    };
+    *scalar_type = signed;
+    signed_control_immediates(when_true.control.as_mut());
+    signed_control_immediates(when_false.control.as_mut());
+    let nested_arm = if outer_false_arm {
+        when_false
+    } else {
+        when_true
+    };
+    let TerminalTargetIntegerControl::Conditional { when_true, .. } = nested_arm.control.as_mut()
+    else {
+        unreachable!()
+    };
+    let TerminalTargetIntegerControl::Return {
+        source_value,
+        expression,
+        ..
+    } = when_true.control.as_mut()
+    else {
+        unreachable!()
+    };
+    *expression = TerminalTargetIntegerExpression::WrappingDivide {
+        psi_operation: operation,
+        left: Box::new(TerminalTargetIntegerExpression::Immediate {
+            source_value: *source_value,
+            value: IntegerValue::Signed(i64::MIN.into()),
+        }),
+        right: Box::new(TerminalTargetIntegerExpression::Immediate {
+            source_value: value_id(20 + operation.get()),
+            value: IntegerValue::Signed((-1_i64).into()),
+        }),
+    };
+    plan.functions[0].provenance.operations.push(operation);
+}
+
+fn install_signed_division_conditions(plan: &mut TerminalTargetOperationPlan) {
+    let signed = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let function = &mut plan.functions[0];
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
+        when_true,
+        when_false,
+        ..
+    } = &function.operation
+    else {
+        unreachable!()
+    };
+    let mut when_true = when_true.clone();
+    let mut when_false = when_false.clone();
+    signed_control_immediates(when_true.control.as_mut());
+    signed_control_immediates(when_false.control.as_mut());
+    let TerminalTargetIntegerControl::Conditional {
+        condition_source,
+        when_true: nested_true,
+        when_false: nested_false,
+        ..
+    } = when_true.control.as_ref()
+    else {
+        unreachable!()
+    };
+    when_true.control = Box::new(TerminalTargetIntegerControl::ConditionalExpression {
+        condition_source: *condition_source,
+        condition: signed_division_condition(operation_id(1), operation_id(2), 30),
+        when_true: nested_true.clone(),
+        when_false: nested_false.clone(),
+    });
+    function.operation = TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+        condition_source: value_id(1),
+        condition: signed_division_condition(operation_id(3), operation_id(4), 40),
+        scalar_type: signed,
+        when_true,
+        when_false,
+    };
+    function.provenance.operations = (1..=4).map(operation_id).collect();
+}
+
+fn signed_division_condition(
+    division_operation: OperationId,
+    equality_operation: OperationId,
+    source: u64,
+) -> TerminalTargetBooleanExpression {
+    TerminalTargetBooleanExpression::IntegerEqual {
+        psi_operation: equality_operation,
+        scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+        left: Box::new(TerminalTargetIntegerExpression::WrappingDivide {
+            psi_operation: division_operation,
+            left: Box::new(TerminalTargetIntegerExpression::Immediate {
+                source_value: value_id(source),
+                value: IntegerValue::Signed(i64::MIN.into()),
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Immediate {
+                source_value: value_id(source + 1),
+                value: IntegerValue::Signed((-1_i64).into()),
+            }),
+        }),
+        right: Box::new(TerminalTargetIntegerExpression::Immediate {
+            source_value: value_id(source + 2),
+            value: IntegerValue::Signed(i64::MIN.into()),
+        }),
+    }
+}
+
+fn signed_control_immediates(control: &mut TerminalTargetIntegerControl) {
+    match control {
+        TerminalTargetIntegerControl::Return { expression, .. } => {
+            if let TerminalTargetIntegerExpression::Immediate { value, .. } = expression {
+                if let IntegerValue::Unsigned(raw) = value {
+                    *value = IntegerValue::Signed((*raw as i64).into());
+                }
+            }
+        }
+        TerminalTargetIntegerControl::Conditional {
+            when_true,
+            when_false,
+            ..
+        }
+        | TerminalTargetIntegerControl::ConditionalExpression {
+            when_true,
+            when_false,
+            ..
+        } => {
+            signed_control_immediates(when_true.control.as_mut());
+            signed_control_immediates(when_false.control.as_mut());
+        }
+        TerminalTargetIntegerControl::Crash { .. } => {}
     }
 }
 
@@ -392,4 +715,8 @@ fn edge_id(raw: u64) -> EdgeId {
 
 fn value_id(raw: u64) -> ValueId {
     ValueId::new(raw).expect("value id")
+}
+
+fn operation_id(raw: u64) -> OperationId {
+    OperationId::new(raw).expect("operation id")
 }
