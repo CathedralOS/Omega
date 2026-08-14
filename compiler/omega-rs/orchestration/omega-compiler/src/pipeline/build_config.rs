@@ -30,6 +30,7 @@
 
 use psi_build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
+    PreparedBuildMachineProgram,
 };
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
@@ -504,15 +505,8 @@ pub(crate) fn compute_build_config(
     typed: &TypedTrees,
     build_file_machines: &[String],
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
-    // MP6: build.omg is interpreted before the ordinary checked-tree stage,
-    // but compile-time machine parameters are consumed by that stage's
-    // monomorphizer. Specialize a private clone first so a build helper such
-    // as `apply<chosen>(value)` executes the same direct call that runtime
-    // lowering sees. Keep the caller's tree untouched; it still needs the
-    // complete checked validation and specialization-contract artifacts.
-    let mut specialized = typed.clone();
-    psi_typed_trees_to_checked_trees::specialize_static_machine_calls(&mut specialized)?;
-    let typed = &specialized;
+    let prepared = PreparedBuildMachineProgram::prepare(typed)?;
+    let typed = prepared.typed();
 
     let mut build_machines = typed
         .machines()
@@ -630,7 +624,7 @@ pub(crate) fn compute_build_config(
         }
     };
     let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
-        typed,
+        &prepared,
         machine_name,
         vec![zero_build],
         execution_mode,

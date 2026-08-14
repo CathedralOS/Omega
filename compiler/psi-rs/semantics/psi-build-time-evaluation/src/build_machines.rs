@@ -25,10 +25,33 @@ pub enum BuildMachineExecutionMode {
     },
 }
 
+/// A private, target-neutral program prepared for build-machine evaluation.
+///
+/// Build machines run before ordinary checked lowering, but static machine
+/// parameters must observe the same complete specialization that checked
+/// runtime lowering uses. Psi owns that sequencing and keeps the caller's
+/// typed tree unchanged so later checking can retain template and
+/// specialization-contract evidence.
+pub struct PreparedBuildMachineProgram {
+    typed: TypedTrees,
+}
+
+impl PreparedBuildMachineProgram {
+    pub fn prepare(program: &TypedTrees) -> Result<Self, Vec<psi_diagnostics::Diagnostic>> {
+        let mut typed = program.clone();
+        psi_typed_trees_to_checked_trees::specialize_static_machine_calls(&mut typed)?;
+        Ok(Self { typed })
+    }
+
+    pub fn typed(&self) -> &TypedTrees {
+        &self.typed
+    }
+}
+
 /// Evaluate one augmenting build machine and return its final argument values
 /// together with deterministic evaluator usage.
 pub fn evaluate_build_machine_arguments_measured(
-    program: &TypedTrees,
+    program: &PreparedBuildMachineProgram,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     mode: BuildMachineExecutionMode,
@@ -36,14 +59,14 @@ pub fn evaluate_build_machine_arguments_measured(
     match mode {
         BuildMachineExecutionMode::Pure => {
             psi_checked_interpreter::evaluate_build_time_machine_arguments_measured(
-                program,
+                program.typed(),
                 machine_name,
                 arguments,
             )
         }
         BuildMachineExecutionMode::Granted { filesystem } => {
             psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(
-                program,
+                program.typed(),
                 machine_name,
                 arguments,
                 psi_checked_interpreter::InterpretOptions { filesystem },
