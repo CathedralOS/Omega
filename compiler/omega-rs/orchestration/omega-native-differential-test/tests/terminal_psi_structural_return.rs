@@ -531,7 +531,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         data Plain { observed: bool; }
         data Root {}
         machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
-            let staged: bool = !((input && true) || false);
+            let staged: bool = !(((input == false) && true) || false);
             staged
         }
     "#;
@@ -555,6 +555,12 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
             .operations
             .iter()
             .any(|operation| matches!(operation.kind, OperationKind::BooleanNot { .. }))
+    }));
+    assert!(terminal_entry.blocks.iter().all(|block| {
+        block
+            .operations
+            .iter()
+            .all(|operation| !matches!(operation.kind, OperationKind::BooleanEqual { .. }))
     }));
     assert_eq!(
         terminal_entry

@@ -4480,10 +4480,15 @@ fn lower_nominal_structural_scalar_return_machine(
         else {
             return unsupported("shared Boolean convergence decision is not Boolean");
         };
+        let decision = normalize_shared_boolean_comparison_leaves(&decision).ok_or(
+            LoweringError::Unsupported(
+                "shared Boolean convergence contains a non-normalizable comparison leaf",
+            ),
+        )?;
         if binding_index >= plan.bindings.len()
             || shared_boolean_runtime_parameter_count(&decision) != Some(1)
         {
-            return unsupported("shared Boolean convergence is not a one-input constant-leaf tree");
+            return unsupported("shared Boolean convergence is not a normalized one-input tree");
         }
         validate_boolean_parameter_types(&decision, &parameter_types)?;
     } else if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
@@ -4509,8 +4514,13 @@ fn lower_nominal_structural_scalar_return_machine(
         else {
             return unsupported("shared Boolean convergence decision is not Boolean");
         };
+        let decision = normalize_shared_boolean_comparison_leaves(&decision).ok_or(
+            LoweringError::Unsupported(
+                "shared Boolean convergence contains a non-normalizable comparison leaf",
+            ),
+        )?;
         if shared_boolean_runtime_parameter_count(&decision) != Some(1) {
-            return unsupported("shared Boolean convergence is not a one-input constant-leaf tree");
+            return unsupported("shared Boolean convergence is not a normalized one-input tree");
         }
         let decision = lower_boolean_value_decision(&decision);
         let decision_block_count = boolean_decision_block_count(&decision);
@@ -10507,6 +10517,57 @@ fn shared_boolean_runtime_parameter_count(
     }
 }
 
+/// Normalize the comparison leaves accepted by the checked shared-convergence
+/// plan into the existing identity/negation carrier. Equality is admitted only
+/// when at least one operand is constant, so this cannot merge two runtime
+/// inputs or admit member/integer comparisons through the shared-join path.
+fn normalize_shared_boolean_comparison_leaves(
+    expression: &LoweredBooleanReturnExpression,
+) -> Option<LoweredBooleanReturnExpression> {
+    Some(match expression {
+        LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. } => expression.clone(),
+        LoweredBooleanReturnExpression::Not { operand } => LoweredBooleanReturnExpression::Not {
+            operand: Box::new(normalize_shared_boolean_comparison_leaves(operand)?),
+        },
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            let left = normalize_shared_boolean_comparison_leaves(left)?;
+            let right = normalize_shared_boolean_comparison_leaves(right)?;
+            match (left, right) {
+                (
+                    LoweredBooleanReturnExpression::Constant { value: left },
+                    LoweredBooleanReturnExpression::Constant { value: right },
+                ) => LoweredBooleanReturnExpression::Constant {
+                    value: left == right,
+                },
+                (LoweredBooleanReturnExpression::Constant { value: true }, expression)
+                | (expression, LoweredBooleanReturnExpression::Constant { value: true }) => {
+                    expression
+                }
+                (LoweredBooleanReturnExpression::Constant { value: false }, expression)
+                | (expression, LoweredBooleanReturnExpression::Constant { value: false }) => {
+                    LoweredBooleanReturnExpression::Not {
+                        operand: Box::new(expression),
+                    }
+                }
+                _ => return None,
+            }
+        }
+        LoweredBooleanReturnExpression::And { left, right } => {
+            LoweredBooleanReturnExpression::And {
+                left: Box::new(normalize_shared_boolean_comparison_leaves(left)?),
+                right: Box::new(normalize_shared_boolean_comparison_leaves(right)?),
+            }
+        }
+        LoweredBooleanReturnExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
+            left: Box::new(normalize_shared_boolean_comparison_leaves(left)?),
+            right: Box::new(normalize_shared_boolean_comparison_leaves(right)?),
+        },
+        LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => return None,
+    })
+}
+
 fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression) -> bool {
     matches!(
         expression,
@@ -15187,6 +15248,21 @@ mod tests {
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
     use psi_typed_trees_to_checked_trees::lower_typed_trees;
+
+    #[test]
+    fn shared_boolean_comparison_normalization_rejects_two_runtime_sides() {
+        let comparison = LoweredBooleanReturnExpression::Equal {
+            left: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),
+            right: Box::new(LoweredBooleanReturnExpression::Parameter { position: 1 }),
+        };
+        assert!(normalize_shared_boolean_comparison_leaves(&comparison).is_none());
+
+        let local_comparison = LoweredBooleanReturnExpression::Equal {
+            left: Box::new(LoweredBooleanReturnExpression::Local { position: 1 }),
+            right: Box::new(LoweredBooleanReturnExpression::Constant { value: false }),
+        };
+        assert!(normalize_shared_boolean_comparison_leaves(&local_comparison).is_none());
+    }
 
     #[test]
     fn scalar_crash_disjunction_lowers_to_canonical_terminal_propositions() {

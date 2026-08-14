@@ -983,12 +983,32 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (!input && true) || false;
             staged
         }
+        machine Root::comparison_leaf_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = (input == false) && true;
+            staged
+        }
+        machine Root::reversed_comparison_leaf_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = (true == input) || false;
+            staged
+        }
         machine Root::multiple_input_convergence(
             token: Token,
             left: bool,
             right: bool
         ) -> bool {
             let staged: bool = left && right;
+            staged
+        }
+        machine Root::multiple_input_comparison_convergence(
+            token: Token,
+            left: bool,
+            right: bool
+        ) -> bool {
+            let staged: bool = (left == right) && true;
+            staged
+        }
+        machine Root::integer_comparison_convergence(token: Token, input: u64) -> bool {
+            let staged: bool = (input < 1u64) && true;
             staged
         }
         machine Root::short_circuit_return_expression(token: Token) -> bool {
@@ -1096,13 +1116,43 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .binding_ordinal,
         0
     );
-    let multiple_inputs = checked
+    for machine in [
+        "comparison_leaf_convergence",
+        "reversed_comparison_leaf_convergence",
+    ] {
+        let comparison_leaf = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect("one-input Boolean comparison leaf retains the scalar-return plan");
+        assert_eq!(
+            comparison_leaf
+                .shared_boolean_convergence
+                .expect("normalizable comparison leaf publishes shared convergence")
+                .binding_ordinal,
+            0
+        );
+    }
+    for machine in [
+        "multiple_input_convergence",
+        "multiple_input_comparison_convergence",
+    ] {
+        let multiple_inputs = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect("multiple-input Boolean tree retains the source-distributed fallback");
+        assert!(multiple_inputs.shared_boolean_convergence.is_none());
+    }
+    let integer_comparison = checked
         .facts
         .flow
         .terminal_structural_scalar_returns
-        .for_machine(machine_named(&checked, "multiple_input_convergence"))
-        .expect("multiple-input Boolean tree retains the source-distributed fallback");
-    assert!(multiple_inputs.shared_boolean_convergence.is_none());
+        .for_machine(machine_named(&checked, "integer_comparison_convergence"))
+        .expect("integer comparison retains the source-distributed scalar-return plan");
+    assert!(integer_comparison.shared_boolean_convergence.is_none());
     let return_expression = checked
         .facts
         .flow
