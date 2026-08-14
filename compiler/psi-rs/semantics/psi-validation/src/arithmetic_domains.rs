@@ -88,6 +88,11 @@ pub(crate) fn requires_value_env(
             {
                 env.mark_joint_add_upper_bound(left, right);
             }
+            if let Some((left, right)) =
+                joint_add_lower_guard(program, machine, Some(entry_state), &env, comparison)
+            {
+                env.mark_joint_add_lower_bound(left, right);
+            }
         }
     }
     env
