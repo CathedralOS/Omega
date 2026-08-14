@@ -362,6 +362,32 @@ const PROJECTED_INTEGER_MEMBER_POLICY_DIVISION_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_INTEGER_MEMBER_WRAPPING_SHIFT_SOURCE: &str = r#"
+    data ShiftValues {
+        value: u8 in Wrapping;
+        count: i16;
+        shifted_left: u8 in Wrapping;
+        shifted_right: u8 in Wrapping;
+    }
+    data Envelope { values: ShiftValues; spare: ShiftValues; }
+    data Helper {}
+    machine Helper::inspect(values: ShiftValues)
+    crashes Abort
+        values.value << values.count == values.shifted_left
+            && values.value >> values.count == values.shifted_right
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.values.value << envelope.values.count == envelope.values.shifted_left
+            && envelope.values.value >> envelope.values.count
+                == envelope.values.shifted_right
+    {
+        Helper::inspect(envelope.values);
+    }
+"#;
+
 const POLICY_NEGATIVE_ONE_LITERAL_DIVISION_SOURCE: &str = r#"
     data Values {
         dividend: i8 in Wrapping;
@@ -2660,6 +2686,212 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
     .expect("policy arithmetic predicates remain verified metadata at interpretation");
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("spare".to_owned())];
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
+fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn inspect_shift_terms(proposition: &Proposition) -> ([usize; 2], Vec<usize>) {
+        let Proposition::Conjunction(conjuncts) = proposition else {
+            panic!("wrapping shift route is one conjunction")
+        };
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let count_type = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+        let mut counts = [0; 2];
+        let mut path_lengths = Vec::new();
+        for conjunct in conjuncts {
+            let Proposition::Equal(
+                ScalarTerm::Boolean(true),
+                ScalarTerm::IntegerEqual { left, right, .. },
+            ) = conjunct
+            else {
+                panic!("each wrapping shift clause remains an integer equality")
+            };
+            let (index, value, count) = match left.as_ref() {
+                ScalarTerm::WrappingIntegerShiftLeft {
+                    value_type: actual_value,
+                    count_type: actual_count,
+                    value,
+                    count,
+                } => {
+                    assert_eq!((*actual_value, *actual_count), (value_type, count_type));
+                    (0, value, count)
+                }
+                ScalarTerm::WrappingIntegerShiftRight {
+                    value_type: actual_value,
+                    count_type: actual_count,
+                    value,
+                    count,
+                } => {
+                    assert_eq!((*actual_value, *actual_count), (value_type, count_type));
+                    (1, value, count)
+                }
+                _ => panic!("unexpected wrapping shift term"),
+            };
+            counts[index] += 1;
+            for term in [value.as_ref(), count.as_ref(), right.as_ref()] {
+                let ScalarTerm::IntegerField { path, .. } = term else {
+                    panic!("wrapping shift operand remains a typed member path")
+                };
+                path_lengths.push(path.len());
+            }
+        }
+        (counts, path_lengths)
+    }
+
+    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_WRAPPING_SHIFT_SOURCE)
+        .tokenize()
+        .expect("wrapping shifts tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("wrapping shifts parse");
+    let resolved = lower_syntax_trees(&syntax).expect("wrapping shifts resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("wrapping shifts type");
+    let checked = lower_typed_trees(typed).expect("wrapping shifts check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected wrapping shifts lower without count requirements");
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    assert!(root.contract.requires.is_empty());
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one wrapping shift route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one wrapping shift route")
+    };
+    let (root_counts, root_path_lengths) = inspect_shift_terms(root_route.proposition());
+    let (helper_counts, helper_path_lengths) = inspect_shift_terms(helper_route.proposition());
+    assert_eq!(root_counts, [1; 2]);
+    assert_eq!(helper_counts, root_counts);
+    assert!(root_path_lengths.iter().all(|length| *length == 2));
+    assert!(helper_path_lengths.iter().all(|length| *length == 1));
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one projected wrapping shift call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [StructuralPathSegment::Field(identity)] if identity == "values"
+    ));
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call carries one wrapping shift continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently rebases wrapping shift value and count paths");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("wrapping shift route has an acyclic fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("wrapping shift fixed fuel recomputes");
+    let semantics =
+        encode_module(&lowered.semantic_module).expect("wrapping shift semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping shift proof encodes");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 73,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("wrapping shifts remain verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut forged_exact =
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Helper::inspect")
+            .expect("standalone wrapping shift helper lowers")
+            .semantic_module;
+    let CrashRouteGuard::Predicate(predicate) =
+        &mut forged_exact.machines[0].contract.crash_routes[0].alternatives[0]
+    else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Conjunction(conjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(ScalarTerm::WrappingIntegerShiftLeft {
+        value_type,
+        count_type,
+        value,
+        count,
+    }) = conjuncts.iter_mut().find_map(|conjunct| {
+        let Proposition::Equal(_, ScalarTerm::IntegerEqual { left, .. }) = conjunct else {
+            return None;
+        };
+        matches!(left.as_ref(), ScalarTerm::WrappingIntegerShiftLeft { .. })
+            .then_some(left.as_mut())
+    })
+    else {
+        unreachable!()
+    };
+    let exact = ScalarTerm::ExactIntegerShiftLeft {
+        value_type: *value_type,
+        count_type: *count_type,
+        value: value.clone(),
+        count: count.clone(),
+    };
+    *conjuncts
+        .iter_mut()
+        .find_map(|conjunct| {
+            let Proposition::Equal(_, ScalarTerm::IntegerEqual { left, .. }) = conjunct else {
+                return None;
+            };
+            matches!(left.as_ref(), ScalarTerm::WrappingIntegerShiftLeft { .. }).then_some(left)
+        })
+        .expect("wrapping shift term") = Box::new(exact);
+    *predicate = CrashPredicateTerm::new(proposition);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&forged_exact),
+        Err(psi_terminal_verifier::ModuleError::UnprovenStructuralCrashExactShift { .. })
+    ));
 
     let mut redirected = lowered.semantic_module.clone();
     let OperationKind::CallUnit {

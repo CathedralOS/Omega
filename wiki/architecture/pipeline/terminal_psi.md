@@ -439,8 +439,15 @@ arithmetic-node type; both codecs preserve the nested term. Policy-selected
 fixed-integer members also accept the total Wrapping and Saturating forms of
 addition, subtraction, and multiplication. The terminal term retains the exact
 selected behavior, and projected calls, codecs, verification, fixed fuel, and
-interpretation preserve it without an overflow obligation. Trapping arithmetic,
-and shifts remain fail-closed here. Exact division and remainder accept a
+interpretation preserve it without an overflow obligation. Wrapping left and
+right shifts are likewise retained as total structural terms: the value's
+carrier and the independently typed integer count remain distinct, and the
+language-defined Euclidean count reduction survives projected calls, codecs,
+verification, fixed fuel, and interpretation without a count obligation. Exact
+shifts remain fail-closed until their count-range and left-shift overflow
+evidence can be reconstructed independently; the verifier rejects an Exact
+shift inserted into a structural crash term. Trapping arithmetic also remains
+fail-closed here. Exact division and remainder accept a
 same-carrier literal divisor only when it is nonzero and cannot trigger signed
 `MIN / -1` overflow. Wrapping and Saturating division and remainder accept any
 same-carrier nonzero literal, including signed `-1`: their selected policy

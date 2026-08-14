@@ -373,9 +373,13 @@ Remaining:
   reject missing evidence, a wrong assumption, or a weakened or redirected
   premise. Wrapping and Saturating division and remainder use the same package
   and projected-call path but require only the positive or negative nonzero
-  divisor bound, because their signed overflow case is policy-defined. Continue
-  with shifts, Trapping arithmetic, case-payload paths, and wider aggregate
-  equality involving text, floats, sums, or erased fields.
+  divisor bound, because their signed overflow case is policy-defined. Wrapping
+  left and right shifts now retain distinct value/count carriers and the
+  language-defined modulo-width count behavior through projected calls, codecs,
+  independent verification, fixed fuel, and interpretation; forged Exact shift
+  terms reject while their safety evidence is absent. Continue with Exact shifts,
+  Trapping arithmetic, case-payload paths, and wider aggregate equality involving
+  text, floats, sums, or erased fields.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
