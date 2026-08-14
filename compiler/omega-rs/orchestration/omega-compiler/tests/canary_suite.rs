@@ -45871,9 +45871,10 @@ fn compile_rooted_canary_for_target(
     })
 }
 
-// These runtime/layout fixtures are deployable on every hosted target. Their
-// authored build roots are part of the canary: the pass umbrella must exercise
-// production entry selection and may not substitute the legacy entry seam.
+// These runtime/layout/recast fixtures are deployable on every hosted target.
+// Their authored build roots are part of the canary: the pass umbrella must
+// exercise production entry selection and may not substitute the legacy entry
+// seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
@@ -45889,6 +45890,24 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_nested_record_mutable_write_exit",
     "layouts/runtime_plan_laid_record_array_mutable_write_exit",
     "layouts/runtime_plan_laid_record_mutable_write_exit",
+    "recast/constant_offset_record_view_after_write_exit",
+    "recast/runtime_bool_representation_recast_exit",
+    "recast/runtime_float_range_representation_recast_exit",
+    "recast/runtime_guarded_offset_recast_exit",
+    "recast/runtime_interior_byte_recast_exit",
+    "recast/runtime_multi_edge_offset_meet_exit",
+    "recast/runtime_mutable_equivalent_domain_recast_exit",
+    "recast/runtime_mutable_equivalent_range_recast_exit",
+    "recast/runtime_mutable_equivalent_record_recast_exit",
+    "recast/runtime_offset_byte_recast_exit",
+    "recast/runtime_offset_byte_recast_mutable_write_exit",
+    "recast/runtime_record_array_view_mutable_write_exit",
+    "recast/runtime_record_view_exit",
+    "recast/runtime_scalar_pun_mutable_write_exit",
+    "recast/runtime_scalar_pun_shared_let_exit",
+    "recast/runtime_shared_domain_weakening_recast_exit",
+    "recast/runtime_shared_record_float_range_weakening_exit",
+    "recast/runtime_symbolic_stride_footprint_exit",
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
