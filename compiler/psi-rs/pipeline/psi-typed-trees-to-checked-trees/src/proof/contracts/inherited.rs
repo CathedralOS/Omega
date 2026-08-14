@@ -122,6 +122,7 @@ fn append_trait_contract_facts_for_machine(
                         state_symbol: target_state_symbol,
                     },
                     fact,
+                    evidence_term: None,
                     qualification_authorization,
                 });
             }

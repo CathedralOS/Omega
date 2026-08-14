@@ -154,6 +154,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             state_symbol: callee_state_symbol,
         },
         fact: callee_fact,
+        evidence_term: None,
         qualification_authorization: None,
     };
 
@@ -314,6 +315,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             state_symbol: callee_state_symbol,
         },
         fact: callee_fact,
+        evidence_term: None,
         qualification_authorization: None,
     };
 
@@ -481,6 +483,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
             state_symbol: callee_state_symbol,
         },
         fact: callee_fact,
+        evidence_term: None,
         qualification_authorization: None,
     };
 

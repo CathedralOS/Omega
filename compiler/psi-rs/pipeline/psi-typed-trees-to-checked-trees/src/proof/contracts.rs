@@ -1,4 +1,5 @@
 use super::*;
+use psi_checked_trees::CheckedEvidenceTerm;
 mod calls;
 mod inherited;
 mod operators;
@@ -15,18 +16,65 @@ pub(crate) fn append_machine_contract_facts(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     contract_facts: &mut psi_arena::Arena<ContractProofFact>,
+    evidence_terms: &mut psi_arena::Arena<CheckedEvidenceTerm>,
 ) {
+    let mut requires_position = 0usize;
+    let mut ensures_position = 0usize;
     for contract in program.machine_contracts(machine) {
         let Some(kind) = super::contract_fact_kind(&contract.kind) else {
             continue;
         };
         for fact in super::fact_handles(contract.facts) {
+            let evidence_term = contract.binding.as_ref().map(|binding| {
+                let lane_position = match kind {
+                    ContractProofFactKind::Requires => {
+                        let position = requires_position;
+                        requires_position += 1;
+                        position
+                    }
+                    ContractProofFactKind::Ensures => {
+                        let position = ensures_position;
+                        ensures_position += 1;
+                        position
+                    }
+                    ContractProofFactKind::Boundary => {
+                        unreachable!("validated named contracts are requires or ensures")
+                    }
+                };
+                let psi_typed_trees::domain::ProofFact::Proposition(application) =
+                    program.proof_facts.get(fact)
+                else {
+                    unreachable!("validated named contract must bind a proposition")
+                };
+                let normalized = program
+                    .normalize_nominal_proposition_application(application)
+                    .expect("validated named contract must have a nominal proposition endpoint");
+                let evidence_type = match &normalized.classification {
+                    psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                        evidence,
+                    } => evidence.clone(),
+                    psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                        unreachable!("validated named contract must bind witness evidence")
+                    }
+                };
+                evidence_terms.append(CheckedEvidenceTerm {
+                    name: binding.as_str().to_owned(),
+                    owner: ContractProofFactOwner::Machine {
+                        machine_symbol: machine.symbol,
+                    },
+                    kind,
+                    lane_position,
+                    proposition: super::lower_checked_proposition_application(normalized),
+                    evidence_type,
+                })
+            });
             contract_facts.append(ContractProofFact {
                 kind,
                 owner: ContractProofFactOwner::Machine {
                     machine_symbol: machine.symbol,
                 },
                 fact,
+                evidence_term,
                 qualification_authorization: None,
             });
         }
@@ -51,6 +99,7 @@ pub(crate) fn append_state_contract_facts(
                     state_symbol: state.symbol,
                 },
                 fact,
+                evidence_term: None,
                 qualification_authorization: None,
             });
         }
@@ -84,6 +133,7 @@ pub(crate) fn append_state_signature_contract_facts(
                         state_symbol: signature.symbol,
                     },
                     fact,
+                    evidence_term: None,
                     qualification_authorization,
                 });
             }

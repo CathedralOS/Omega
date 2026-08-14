@@ -123,6 +123,7 @@ mod tests {
                 operator_symbol,
             },
             fact: Handle::from_arena_index(2),
+            evidence_term: None,
             qualification_authorization: None,
         };
 

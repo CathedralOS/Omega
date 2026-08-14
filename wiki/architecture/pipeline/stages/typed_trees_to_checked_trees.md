@@ -389,7 +389,14 @@ Current ownership is:
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
-  `ProofFacts` arena root and constructor.
+  `ProofFacts` arena root and constructor. A named machine `requires` or
+  `ensures` must normalize to one witness-bearing proposition. The checker
+  mints a distinct erased evidence-term arena identity for each binding and
+  retains its label, requires/ensures lane position, exact normalized
+  proposition application, and carrierless evidence interface. The term
+  identity is deliberately separate from proposition identity and from the
+  producer provenance that a later assignment/select-conformance slice adds;
+  Boolean, membership, fact-only, or non-nominal bindings reject.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query

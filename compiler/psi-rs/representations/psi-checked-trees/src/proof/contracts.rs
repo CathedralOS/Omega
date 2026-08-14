@@ -47,9 +47,44 @@ pub struct ContractProofFact {
     pub kind: ContractProofFactKind,
     pub owner: ContractProofFactOwner,
     pub fact: Handle<psi_typed_trees::domain::ProofFact>,
+    /// Exact erased evidence term declared by a named machine contract.
+    /// The arena handle is term identity; proposition identity and eventual
+    /// producer provenance remain separate records.
+    pub evidence_term: Option<Handle<CheckedEvidenceTerm>>,
     /// Present only for an exact `ensures result in Domain` fact published by
     /// a boundary requirement whose result carrier matches the domain target.
     pub qualification_authorization: Option<BoundaryQualificationAuthorization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedEvidenceTerm {
+    /// Public output-field name for `ensures`, local input alias for `requires`.
+    pub name: String,
+    pub owner: ContractProofFactOwner,
+    pub kind: ContractProofFactKind,
+    /// Position within the matching erased requires/ensures lane.
+    pub lane_position: usize,
+    /// Exact normalized proposition application inhabited by this term.
+    pub proposition: crate::CheckedPropositionApplication,
+    /// Canonical carrierless interface retained by the proposition endpoint.
+    pub evidence_type: String,
+}
+
+impl Default for CheckedEvidenceTerm {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            owner: ContractProofFactOwner::Unknown,
+            kind: ContractProofFactKind::Requires,
+            lane_position: 0,
+            proposition: crate::CheckedPropositionApplication {
+                declaration: SymbolHandle::invalid(),
+                binder_arguments: Vec::new(),
+                arguments: Vec::new(),
+            },
+            evidence_type: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
