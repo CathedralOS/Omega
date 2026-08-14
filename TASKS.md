@@ -421,7 +421,9 @@ compiler concept is introduced.
   element retains the same call and primitive-computation budgets. Within that
   same two-level aggregate budget, fixed arrays may contain concrete record or
   selected-case literals, and concrete record or selected-case fields may
-  contain literal fixed arrays.
+  contain literal fixed arrays. A primitive scalar assignment value may also
+  select one direct member from a concrete caller-isolated record or
+  selected-case literal whose effectful fields are bounded direct-call trees.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete

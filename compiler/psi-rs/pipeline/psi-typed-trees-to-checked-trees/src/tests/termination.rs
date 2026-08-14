@@ -8927,6 +8927,307 @@ fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
 }
 
 #[test]
+fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
+    let source = r#"
+    data Pair {
+        first: u64;
+        second: u64;
+    }
+
+    data NestedPair {
+        pair: Pair;
+        marker: u64;
+    }
+
+    data GenericPair<T> {
+        first: T;
+        second: u64;
+    }
+
+    data Choice {
+        tag: u64;
+        case Values(first: u64, second: u64);
+        case Empty;
+    }
+
+    data BorrowHolder<'source> {
+        value: &'source mut u64;
+        marker: u64;
+    }
+
+    data Main {
+        cells: [u64; 2];
+        target: u64;
+        first: u64;
+        second: u64;
+    }
+
+    data ReferenceMain<'storage> {
+        cells: [u64; 2];
+        target: u64;
+        source: &'storage mut u64;
+        other: u64;
+    }
+
+    machine compute(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine identity(value: u64) -> u64 {
+        value
+    }
+
+    machine recursive_value() -> u64 {
+        recursive_value()
+    }
+
+    machine return_reference<'value>(value: &'value mut u64) -> &'value mut u64 {
+        value
+    }
+
+    machine return_after_record_literal_member<'cells, 'target, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (Pair {
+            first: identity(identity(identity(compute(first)))),
+            second: compute(second)
+        }).first;
+        cells
+    }
+
+    machine return_after_case_literal_member<'cells, 'target, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (Choice::Values {
+            tag: identity(compute(first)),
+            first: compute(second),
+            second: 0
+        }).tag;
+        cells
+    }
+
+    machine return_after_wrapped_literal_member<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = ~(Pair { first: compute(value), second: 0 }).first;
+        cells
+    }
+
+    machine return_after_computed_literal_field<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (Pair { first: compute(value) + 1, second: 0 }).first;
+        cells
+    }
+
+    machine return_after_nested_literal_member<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (NestedPair {
+            pair: Pair { first: compute(value), second: 0 },
+            marker: 0
+        }).marker;
+        cells
+    }
+
+    machine return_after_generic_literal_member<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (GenericPair { first: compute(value), second: 0 }).second;
+        cells
+    }
+
+    machine return_after_reborrow_literal_member<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (Pair { first: compute(&mut value), second: 0 }).first;
+        cells
+    }
+
+    machine return_after_recursive_literal_member<'cells, 'target>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (Pair { first: recursive_value(), second: 0 }).first;
+        cells
+    }
+
+    machine return_after_reference_literal_member<'cells, 'target, 'source, 'other>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        source: &'source mut u64,
+        other: &'other mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (BorrowHolder {
+            value: return_reference(source),
+            marker: compute(other)
+        }).marker;
+        cells
+    }
+
+    machine Main::record_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_record_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::case_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_case_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::wrapped_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_wrapped_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::computed_literal_field_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_computed_literal_field(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::nested_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nested_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::generic_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_generic_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::reborrow_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_reborrow_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::recursive_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_recursive_literal_member(
+            &mut self.cells,
+            &mut self.target
+        );
+        alias[0] = 3;
+    }
+
+    machine ReferenceMain::reference_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_reference_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            self.source,
+            &mut self.other
+        );
+        alias[0] = 3;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for name in [
+        "Main::record_literal_member_result",
+        "Main::case_literal_member_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                ["self.cells", "self.first", "self.second", "self.target"]
+                    .map(str::to_owned)
+                    .as_slice()
+            ),
+            "{name} must retain the returned place and publish every literal-field call write"
+        );
+    }
+
+    for name in [
+        "Main::wrapped_literal_member_result",
+        "Main::computed_literal_field_result",
+        "Main::nested_literal_member_result",
+        "Main::generic_literal_member_result",
+        "Main::reborrow_literal_member_result",
+        "Main::recursive_literal_member_result",
+        "ReferenceMain::reference_literal_member_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the direct concrete-literal member cohort"
+        );
+    }
+}
+
+#[test]
 fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     let source = r#"
     data Main {
