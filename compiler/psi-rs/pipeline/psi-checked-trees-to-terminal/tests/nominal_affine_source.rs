@@ -408,6 +408,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         small <= 7u8, 1u8 <= divisor, count <= 2u8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
+            && (((input + 1u64) + 1u64) < 5u64)
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
             && ((small + 1u8) < 6u8)
@@ -2307,6 +2308,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
         let wrapped_add = (input + 1) & mask;
+        let nested_wrapped_add = (wrapped_add + 1) & mask;
         let mut handler = AcceptTerminalEffects;
         let measured = interpret_terminal_artifact_with_effect_handler_measured(
             &semantics,
@@ -2339,6 +2341,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             measured.value(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
                 ((wrapped_add < 4) || (bitwise_not < 1) || (input <= 9))
+                    && nested_wrapped_add < 5
                     && small < 5
                     && input < 5
                     && small + 1 < 6

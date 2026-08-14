@@ -10625,12 +10625,13 @@ fn shared_boolean_runtime_parameters(
 fn shared_integer_runtime_parameters(
     expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    shared_integer_runtime_parameters_with_shells(expression, 1)
+    shared_integer_runtime_parameters_with_shells(expression, 2, true)
 }
 
 fn shared_integer_runtime_parameters_with_shells(
     expression: &LoweredDirectExpression,
     remaining_shells: usize,
+    proof_shell_allowed: bool,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
@@ -10651,20 +10652,33 @@ fn shared_integer_runtime_parameters_with_shells(
                 | LoweredIntegerBinaryKind::WrappingSubtract
                 | LoweredIntegerBinaryKind::SaturatingSubtract
                 | LoweredIntegerBinaryKind::WrappingMultiply
-                | LoweredIntegerBinaryKind::SaturatingMultiply
-                | LoweredIntegerBinaryKind::ExactAdd
+                | LoweredIntegerBinaryKind::SaturatingMultiply,
+            left,
+            right,
+            ..
+        } if remaining_shells > 0 => {
+            let mut parameters =
+                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1, false)?;
+            parameters.extend(shared_integer_runtime_parameters_with_shells(
+                right,
+                remaining_shells - 1,
+                false,
+            )?);
+            Some(parameters)
+        }
+        LoweredDirectExpression::IntegerBinary {
+            kind:
+                LoweredIntegerBinaryKind::ExactAdd
                 | LoweredIntegerBinaryKind::ExactSubtract
                 | LoweredIntegerBinaryKind::ExactMultiply
                 | LoweredIntegerBinaryKind::ExactShiftRight,
             left,
             right,
             ..
-        } if remaining_shells > 0 => {
-            let mut parameters =
-                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
+        } if proof_shell_allowed && remaining_shells > 0 => {
+            let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right,
-                remaining_shells - 1,
+                right, 0, false,
             )?);
             Some(parameters)
         }
@@ -10673,12 +10687,13 @@ fn shared_integer_runtime_parameters_with_shells(
             scalar_type: ScalarType::Integer(integer_type),
             left,
             right,
-        } if remaining_shells > 0 && integer_type.sign() == IntegerSign::Unsigned => {
-            let mut parameters =
-                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
+        } if proof_shell_allowed
+            && remaining_shells > 0
+            && integer_type.sign() == IntegerSign::Unsigned =>
+        {
+            let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right,
-                remaining_shells - 1,
+                right, 0, false,
             )?);
             Some(parameters)
         }
@@ -10687,23 +10702,23 @@ fn shared_integer_runtime_parameters_with_shells(
             left,
             right,
             ..
-        } if remaining_shells > 0 => {
-            let mut parameters =
-                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
+        } if proof_shell_allowed && remaining_shells > 0 => {
+            let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right,
-                remaining_shells - 1,
+                right, 0, false,
             )?);
             Some(parameters)
         }
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. } if remaining_shells > 0 => {
-            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
+            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1, false)
         }
         LoweredDirectExpression::IntegerWiden { operand, .. } if remaining_shells > 0 => {
-            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
+            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1, false)
         }
-        LoweredDirectExpression::IntegerExactCast { operand, .. } if remaining_shells > 0 => {
-            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
+        LoweredDirectExpression::IntegerExactCast { operand, .. }
+            if proof_shell_allowed && remaining_shells > 0 =>
+        {
+            shared_integer_runtime_parameters_with_shells(operand, 0, false)
         }
         LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::IntegerBinary { .. }

@@ -746,6 +746,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             small <= 7u8, 1u8 <= divisor, count <= 2u8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
+                && (((input + 1u64) + 1u64) < 5u64)
                 && ((small as u16) < 5u16)
                 && ((input as u8) < 5u8)
                 && ((small + 1u8) < 6u8)
