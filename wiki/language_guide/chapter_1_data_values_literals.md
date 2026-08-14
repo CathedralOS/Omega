@@ -244,33 +244,9 @@ is written -- a deliberate re-affirmation after equality's meaning changed.
 Guard-level equality never silently degrades to a tag compare; the tag test
 is what `in` lowers to.
 
-Transitional note: case members with named payloads now parse, validate, and
-lower natively (construction, payload reads, tag dispatch with payload
-binding in transition arms), and the implicit case-domains at use sites now
-lower for `in` (`cmd in Command::Move`, unions included, value position and
-guard subjects; transition case arms desugar to membership, and the bare
-payload-bearing case name in `==` errors everywhere with a suggestion to use
-`in`). Equatable synthesis is implemented: a named Equatable synthesis block on
-a record or payload-bearing sum makes `==`/`!=` legal, expanded inline into
-field-by-field compares (tag-guarded per case for sums; constructed case
-literals compare structurally). Without the conformance, `==` on a
-structural type is a compile error suggesting the one-line conformance.
-The operator-facing Equatable route is sealed and owner-unique per structural
-type; `==` never selects among visible named conformances.
-Exhaustiveness counting over case domains is LIVE: a dispatch over a
-case-bearing subject must cover every case through decidable arms (case arms
-and pure case-union domain arms) or close with `_`; counted gaps name the
-missing cases, and uncountable arms (predicate domains, `if`-guarded
-patterns, value compares) make the error suggest `_`. The case-subset
-  semantics are live, and the target spelling is
-  `domain Command::Interactive requires self in Command::Move |
-  Command::Say;`; the predicate participates in executable membership, so a
-  subset domain works as a runtime arm. Source migration to the `requires`
-  spelling is tracked with the domain-establishment work.
-Mixed shapes are live (see the rules above). Still pending:
-`match`-statement arms and recursive Equatable types (both rejected loudly at
-the conformance block). Bounded byte carriers participate in synthesized
-equality through their live length and bytes.[^case-members]
+Still pending: `match`-statement arms and recursive Equatable types. Both reject
+loudly at the conformance block. Bounded byte carriers participate in
+synthesized equality through their live length and bytes.[^case-members]
 
 [^case-members]: Payload binding in `transition` arms uses the ordinary
 data-pattern machinery (`Case { field, fixed: value }`); a future `match`

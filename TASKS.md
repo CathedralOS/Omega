@@ -622,50 +622,28 @@ can produce installed code; validation binds exact final bytes and placement.
 
 ## Blocked index
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** blocked on owner Q11's ruling for the
-  external-entry stack domain and arrival composition rule.
+These are pointers to the owning question or open design item, not duplicate
+specifications:
 
-These entries are pointers, not duplicate specifications.
-
-- **FIXED-OPERATOR-SURFACE-BINDING:** blocked on the source form in owner Q1;
-  named operator identities and operand-directed semantics remain settled. The
-  parser, core/std sources, and canaries still carry temporary `spelling`
-  clauses solely to bootstrap those semantics; they are not a compatibility
-  surface and must migrate with the Q1 decision.
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** the Q2 portion of
-  `ENTRY-CONTENT-ROOTS` is blocked on how platform-private handoff values
-  compose with the portable semantic root requirement.
-- **SEALED-LOCAL-CAPACITY-SOURCE-FORM:** the source-facing remainder of
-  `ROOT-INTRODUCTION-AND-BACKING` is blocked on owner Q3.
-- **WRITE-ONLY-MEMORY-VIEW:** the Q4 portion of `ENT2c` is blocked on its core
-  representation, source form, and transition to readable initialized content.
-- **CALLBACK-PARAMETER-REQUIREMENT:** the Q5 portion of `ENT4` is blocked on the
-  source form and checked identity for one exact static callback requirement.
-- **SUM-MATERIALIZATION:** blocked on the tagged-case placement vocabulary in
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q11.
+- **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
+- **SEALED-LOCAL-CAPACITY-SOURCE-FORM:** owner Q3.
+- **WRITE-ONLY-MEMORY-VIEW:** owner Q4.
+- **CALLBACK-PARAMETER-REQUIREMENT:** owner Q5.
+- **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
   `wiki/language_guide/appendix_open_questions.md`.
-- **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
-  refinement choices in `wiki/language_guide/appendix_open_questions.md`.
-- **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
-  arithmetic earns a distinct public carrier beyond exact-by-default
-  obligations and existing policy families.
-- **TRAPPING-CONTRACT-ARITHMETIC:** blocked on owner Q10's definition of a
-  potentially trapping arithmetic subterm inside a specification predicate.
-- **IMPORTED-CRASH-CAPSULES:** blocked on the separately compiled realization
-  artifact, import/export identity, and certificate-binding model in
+- **ATOMIC-EVENT-MODEL:** portable atomic axioms and target refinement choices
+  in `wiki/language_guide/appendix_open_questions.md`.
+- **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
+  checked arithmetic.
+- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q10.
+- **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NATIVE-LOGICAL-FUEL-METERING:** blocked on the sponsor-owned counter,
-  exhaustion transfer, and unpaid-site continuation ABI in owner Q6. Attribution
-  provenance and installation binding are implemented and do not settle that
-  runtime contract.
-- **PCC-VERIFIER-CLOSURE:** blocked on choosing the deployment-authoritative
-  obligation-reconstruction assurance route in owner Q7. The Rust verifier and
-  proof kernel remain usable, but kernel acceptance alone does not close trust
-  in the reconstructed obligation set.
-- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** blocked on the source contract and
-  checked representation in owner Q8.
-- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** blocked on selecting how the
-  semantic pending-to-completed transition publishes the exact PIC or
-  LAPIC/x2APIC realization effect in owner Q9.
+- **NATIVE-LOGICAL-FUEL-METERING:** owner Q6.
+- **PCC-VERIFIER-CLOSURE:** owner Q7.
+- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q8.
+- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q9.
 
 ## Platform-gated verification
 
