@@ -6618,7 +6618,7 @@ fn lower_attached_unit_closure_including(
             let Some(contract) = checked.facts.contract_plans.for_machine(*machine_symbol) else {
                 return Ok((*machine_symbol, Vec::new()));
             };
-            let requirements = if checked_crash_plan_has_runtime_divisor(&contract.crash) {
+            let requirements = if contract.crash.has_structural_runtime_divisor() {
                 let checked_requirements = contract.crash.structural_runtime_requirements().ok_or(
                     LoweringError::Unsupported(
                         "runtime structural divisor lacks a complete checked requirement package",
@@ -6787,15 +6787,6 @@ fn lower_attached_unit_closure_including(
                             (*symbol == *target_machine).then_some(requirements)
                         })
                         .expect("every closure target has lowered runtime requirements");
-                    if !target_runtime_requirements.is_empty()
-                        && terminal_arguments
-                            .iter()
-                            .any(|argument| !argument.path.is_empty())
-                    {
-                        return unsupported(
-                            "runtime structural requirements do not yet cross projected Unit calls",
-                        );
-                    }
                     let requirement_obligations = target_runtime_requirements
                         .iter()
                         .map(|requirement| {
@@ -10370,62 +10361,6 @@ fn safe_exact_structural_divisor(
             minimum_plus_one,
             dividend.clone(),
         ))
-    })
-}
-
-fn checked_crash_plan_has_runtime_divisor(plan: &psi_checked_trees::CrashPlan) -> bool {
-    fn scalar_has_runtime_divisor(expression: &CheckedScalarExpression) -> bool {
-        match expression {
-            CheckedScalarExpression::IntegerBinary {
-                kind, left, right, ..
-            } => {
-                let current = matches!(
-                    kind,
-                    CheckedIntegerBinaryKind::ExactDivide
-                        | CheckedIntegerBinaryKind::ExactRemainder
-                ) && !matches!(
-                    right.as_ref(),
-                    CheckedScalarExpression::IntegerLiteral { literal }
-                        if literal.landing().is_some_and(|landing| {
-                            if landing.landed_type.is_signed() {
-                                literal.value_i64().is_some_and(|value| value != 0 && value != -1)
-                            } else {
-                                literal.value_u64().is_some_and(|value| value != 0)
-                            }
-                        })
-                );
-                current || scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
-            }
-            CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
-            | CheckedScalarExpression::IntegerWiden { operand, .. }
-            | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
-                scalar_has_runtime_divisor(operand)
-            }
-            CheckedScalarExpression::Boolean(expression) => boolean_has_runtime_divisor(expression),
-            _ => false,
-        }
-    }
-
-    fn boolean_has_runtime_divisor(expression: &CheckedBooleanExpression) -> bool {
-        match expression {
-            CheckedBooleanExpression::Not(operand) => boolean_has_runtime_divisor(operand),
-            CheckedBooleanExpression::Equal { left, right }
-            | CheckedBooleanExpression::And { left, right }
-            | CheckedBooleanExpression::Or { left, right } => {
-                boolean_has_runtime_divisor(left) || boolean_has_runtime_divisor(right)
-            }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
-                scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
-            }
-            _ => false,
-        }
-    }
-
-    plan.published().iter().any(|bucket| {
-        bucket.alternative_guards().iter().any(|guard| {
-            matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
-                if predicate.scalar_expression().is_some_and(boolean_has_runtime_divisor))
-        })
     })
 }
 

@@ -296,7 +296,18 @@ fn reconstruct_machine_semantics(
                         .structural_parameters
                         .iter()
                         .zip(&structural_arguments)
-                        .map(|(parameter, argument)| (parameter.place, argument.place))
+                        .map(|(parameter, argument)| {
+                            (
+                                parameter.place,
+                                (
+                                    argument.place,
+                                    crate::validation::structural_argument_canonical_prefix(
+                                        module, machine, argument,
+                                    )
+                                    .expect("validated structural argument has a canonical path"),
+                                ),
+                            )
+                        })
                         .collect::<BTreeMap<_, _>>();
                     for (required, obligation) in
                         callee.contract.requires.iter().zip(requirement_obligations)
@@ -304,7 +315,7 @@ fn reconstruct_machine_semantics(
                         operation_obligations.push(ReconstructedOperationObligation {
                             obligation: Obligation {
                                 id: obligation,
-                                proposition: substitute_proposition_places(
+                                proposition: substitute_proposition_structural_places(
                                     required,
                                     &substitutions,
                                 ),
@@ -316,7 +327,10 @@ fn reconstruct_machine_semantics(
                     for guarantee in &callee.contract.ensures {
                         push_unique(
                             &mut axioms,
-                            substitute_proposition_places(&guarantee.proposition, &substitutions),
+                            substitute_proposition_structural_places(
+                                &guarantee.proposition,
+                                &substitutions,
+                            ),
                         );
                     }
                 }

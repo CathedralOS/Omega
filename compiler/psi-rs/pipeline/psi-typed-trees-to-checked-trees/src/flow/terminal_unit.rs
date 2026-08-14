@@ -2611,12 +2611,21 @@ fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
+    let contract = facts.contract_plans.for_machine(machine.symbol)?;
+    let exact_runtime_requires_are_terminal = contract.crash.has_structural_runtime_divisor()
+        && contract.crash.structural_runtime_requirements().is_some();
     if !is_unit(program, state.return_type)
         || program
             .machine_contracts(machine)
             .iter()
             .chain(program.state_contracts(state))
-            .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+            .any(|contract| match contract.kind {
+                SignatureContractKind::Crashes { .. } => false,
+                SignatureContractKind::Requires if exact_runtime_requires_are_terminal => false,
+                SignatureContractKind::Requires
+                | SignatureContractKind::Ensures
+                | SignatureContractKind::Boundary => true,
+            })
     {
         return None;
     }
@@ -2772,7 +2781,6 @@ fn build_partial_affine_unit_cleanup_machine(
     if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
         return None;
     }
-    let contract = facts.contract_plans.for_machine(machine.symbol)?;
     if contract.closed_scalar_values.has_other_clauses()
         || !service_reach_plan_is_empty(facts, contract.service_reach)
     {
@@ -3401,10 +3409,23 @@ fn target_contract_mentions_projected_parameter(
     parameter: &StateParameter,
 ) -> bool {
     let expected_root = parameter_root_symbol(target_machine.symbol, parameter);
+    let exact_runtime_requires_are_terminal = facts
+        .contract_plans
+        .for_machine(target_machine.symbol)
+        .is_some_and(|contract| {
+            contract.crash.has_structural_runtime_divisor()
+                && contract.crash.structural_runtime_requirements().is_some()
+        });
     let authored_contract_mentions_parameter = program
         .state_contracts(target_state)
         .iter()
-        .filter(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+        .filter(|contract| match contract.kind {
+            SignatureContractKind::Crashes { .. } => false,
+            SignatureContractKind::Requires if exact_runtime_requires_are_terminal => false,
+            SignatureContractKind::Requires
+            | SignatureContractKind::Ensures
+            | SignatureContractKind::Boundary => true,
+        })
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .any(|fact| {
             let ProofFact::Membership(membership) = fact else {

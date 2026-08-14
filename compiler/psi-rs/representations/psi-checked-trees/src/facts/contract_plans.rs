@@ -750,6 +750,71 @@ impl CrashPlan {
         self.structural_runtime_requirements.as_deref()
     }
 
+    /// Whether a published structural crash predicate performs Exact division
+    /// or remainder with a divisor whose safety must come from the retained
+    /// runtime requirement package rather than a self-proving literal.
+    pub fn has_structural_runtime_divisor(&self) -> bool {
+        fn scalar_has_runtime_divisor(expression: &crate::CheckedScalarExpression) -> bool {
+            match expression {
+                crate::CheckedScalarExpression::IntegerBinary {
+                    kind, left, right, ..
+                } => {
+                    let current = matches!(
+                        kind,
+                        crate::CheckedIntegerBinaryKind::ExactDivide
+                            | crate::CheckedIntegerBinaryKind::ExactRemainder
+                    ) && !matches!(
+                        right.as_ref(),
+                        crate::CheckedScalarExpression::IntegerLiteral { literal }
+                            if literal.landing().is_some_and(|landing| {
+                                if landing.landed_type.is_signed() {
+                                    literal
+                                        .value_i64()
+                                        .is_some_and(|value| value != 0 && value != -1)
+                                } else {
+                                    literal.value_u64().is_some_and(|value| value != 0)
+                                }
+                            })
+                    );
+                    current || scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
+                }
+                crate::CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+                | crate::CheckedScalarExpression::IntegerWiden { operand, .. }
+                | crate::CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+                    scalar_has_runtime_divisor(operand)
+                }
+                crate::CheckedScalarExpression::Boolean(expression) => {
+                    boolean_has_runtime_divisor(expression)
+                }
+                _ => false,
+            }
+        }
+
+        fn boolean_has_runtime_divisor(expression: &crate::CheckedBooleanExpression) -> bool {
+            match expression {
+                crate::CheckedBooleanExpression::Not(operand) => {
+                    boolean_has_runtime_divisor(operand)
+                }
+                crate::CheckedBooleanExpression::Equal { left, right }
+                | crate::CheckedBooleanExpression::And { left, right }
+                | crate::CheckedBooleanExpression::Or { left, right } => {
+                    boolean_has_runtime_divisor(left) || boolean_has_runtime_divisor(right)
+                }
+                crate::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+                    scalar_has_runtime_divisor(left) || scalar_has_runtime_divisor(right)
+                }
+                _ => false,
+            }
+        }
+
+        self.published.iter().any(|bucket| {
+            bucket.alternative_guards().iter().any(|guard| {
+                matches!(guard, CrashRouteGuard::Predicate(predicate)
+                    if predicate.scalar_expression().is_some_and(boolean_has_runtime_divisor))
+            })
+        })
+    }
+
     pub fn with_checked_sites(mut self, mut checked_sites: Vec<CheckedCrashSite>) -> Option<Self> {
         checked_sites.sort_by_key(|site| {
             (
