@@ -10285,10 +10285,14 @@ fn lower_structural_crash_route_buckets(
         if let CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } = expression
         {
-            let propositions = vec![
-                lower_proposition(left, parameters, structural_types)?,
-                lower_proposition(right, parameters, structural_types)?,
-            ];
+            let conjunction = matches!(expression, CheckedBooleanExpression::And { .. });
+            let mut leaves = Vec::new();
+            flatten_checked_boolean_connective(left, conjunction, &mut leaves);
+            flatten_checked_boolean_connective(right, conjunction, &mut leaves);
+            let propositions = leaves
+                .into_iter()
+                .map(|leaf| lower_proposition(leaf, parameters, structural_types))
+                .collect::<Result<Vec<_>, _>>()?;
             let mut keyed = propositions
                 .into_iter()
                 .map(|proposition| {
@@ -10303,22 +10307,20 @@ fn lower_structural_crash_route_buckets(
                 .collect::<Result<Vec<_>, _>>()?;
             keyed.sort_by(|left, right| left.0.cmp(&right.0));
             keyed.dedup_by(|left, right| left.0 == right.0);
-            if keyed.len() != 2 {
+            if keyed.len() < 2 {
                 return unsupported(
-                    "structural crash connective must retain two distinct predicates",
+                    "structural crash connective must retain at least two distinct predicates",
                 );
             }
             let propositions = keyed
                 .into_iter()
                 .map(|(_, proposition)| proposition)
                 .collect();
-            return Ok(
-                if matches!(expression, CheckedBooleanExpression::And { .. }) {
-                    Proposition::Conjunction(propositions)
-                } else {
-                    Proposition::Disjunction(propositions)
-                },
-            );
+            return Ok(if conjunction {
+                Proposition::Conjunction(propositions)
+            } else {
+                Proposition::Disjunction(propositions)
+            });
         }
         Ok(Proposition::Equal(
             ScalarTerm::boolean(true),
@@ -10519,6 +10521,24 @@ fn lower_checked_crash_predicates(
     Ok(predicates)
 }
 
+fn flatten_checked_boolean_connective<'expression>(
+    expression: &'expression CheckedBooleanExpression,
+    conjunction: bool,
+    output: &mut Vec<&'expression CheckedBooleanExpression>,
+) {
+    match expression {
+        CheckedBooleanExpression::And { left, right } if conjunction => {
+            flatten_checked_boolean_connective(left, conjunction, output);
+            flatten_checked_boolean_connective(right, conjunction, output);
+        }
+        CheckedBooleanExpression::Or { left, right } if !conjunction => {
+            flatten_checked_boolean_connective(left, conjunction, output);
+            flatten_checked_boolean_connective(right, conjunction, output);
+        }
+        expression => output.push(expression),
+    }
+}
+
 fn checked_boolean_proposition(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
@@ -10529,37 +10549,41 @@ fn checked_boolean_proposition(
         }
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
-            let mut propositions = [
-                checked_boolean_proposition(left, values)?,
-                checked_boolean_proposition(right, values)?,
-            ]
-            .into_iter()
-            .map(|proposition| {
-                psi_terminal_codec::canonical_proposition_order_key(&proposition)
-                    .map(|key| (key, proposition))
-                    .map_err(|_| {
-                        LoweringError::Unsupported(
-                            "scalar crash connective is not canonically encodable",
-                        )
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+            let conjunction = matches!(expression, CheckedBooleanExpression::And { .. });
+            let mut leaves = Vec::new();
+            flatten_checked_boolean_connective(left, conjunction, &mut leaves);
+            flatten_checked_boolean_connective(right, conjunction, &mut leaves);
+            let mut propositions = leaves
+                .into_iter()
+                .map(|leaf| checked_boolean_proposition(leaf, values))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|proposition| {
+                    psi_terminal_codec::canonical_proposition_order_key(&proposition)
+                        .map(|key| (key, proposition))
+                        .map_err(|_| {
+                            LoweringError::Unsupported(
+                                "scalar crash connective is not canonically encodable",
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             propositions.sort_by(|left, right| left.0.cmp(&right.0));
             propositions.dedup_by(|left, right| left.0 == right.0);
-            if propositions.len() != 2 {
-                return unsupported("scalar crash connective must retain two distinct predicates");
+            if propositions.len() < 2 {
+                return unsupported(
+                    "scalar crash connective must retain at least two distinct predicates",
+                );
             }
             let propositions = propositions
                 .into_iter()
                 .map(|(_, proposition)| proposition)
                 .collect();
-            Ok(
-                if matches!(expression, CheckedBooleanExpression::And { .. }) {
-                    Proposition::Conjunction(propositions)
-                } else {
-                    Proposition::Disjunction(propositions)
-                },
-            )
+            Ok(if conjunction {
+                Proposition::Conjunction(propositions)
+            } else {
+                Proposition::Disjunction(propositions)
+            })
         }
         expression => {
             let mut left = checked_boolean_scalar_term(expression, values)?;
