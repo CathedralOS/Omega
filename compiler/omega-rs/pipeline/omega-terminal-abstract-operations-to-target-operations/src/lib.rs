@@ -5303,6 +5303,7 @@ mod tests {
                 },
             ],
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![
                 TerminalAbstractFunction {
                     machine: caller,
@@ -5596,6 +5597,7 @@ mod tests {
                 },
             ],
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![
                 TerminalAbstractFunction {
                     structural_parameters: caller_parameters,
@@ -5712,6 +5714,7 @@ mod tests {
             entry: machine,
             structural_types: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
                 attachment: None,
@@ -5813,6 +5816,7 @@ mod tests {
             entry: root,
             structural_types,
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![
                 unit_function(
                     root,
@@ -6064,6 +6068,7 @@ mod tests {
                 requires: Vec::new(),
                 published_service_ceiling: vec![service],
             }],
+            provider_candidates: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
                 attachment: None,
@@ -6710,6 +6715,7 @@ mod tests {
             entry: machine,
             structural_types: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
                 attachment: None,
@@ -6816,6 +6822,7 @@ mod tests {
             entry: machine,
             structural_types: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
                 attachment: None,
@@ -6864,6 +6871,7 @@ mod tests {
             entry: caller,
             structural_types: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             functions: vec![
                 TerminalAbstractFunction {
                     machine: caller,

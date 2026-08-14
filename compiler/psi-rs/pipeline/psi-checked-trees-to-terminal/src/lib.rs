@@ -58,13 +58,15 @@ use psi_terminal::{
     EvidenceTermDeclaration, MachineContract, NominalAffineCleanup, Operation, OperationKind,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
+    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
+    ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -2163,6 +2165,7 @@ fn lower_structural_return_machine(
             structural_domains,
             services: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
@@ -2896,6 +2899,7 @@ fn lower_structural_scalar_return_machine(
             structural_domains: Vec::new(),
             services: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
@@ -4873,6 +4877,7 @@ fn lower_structural_unit_control_machine(
             structural_domains: Vec::new(),
             services: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
@@ -6874,7 +6879,20 @@ fn lower_attached_unit_closure_including(
     additional_roots: &[psi_symbols::SymbolHandle],
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let closure = checked_unit_call_closure_including(checked, entry, additional_roots)?;
+    let mut retained_roots = additional_roots.to_vec();
+    let (closure, provider_candidate_plans) = loop {
+        let closure = checked_unit_call_closure_including(checked, entry, &retained_roots)?;
+        let candidates = checked_unit_provider_candidates(checked, &closure)?;
+        let new_roots = candidates
+            .iter()
+            .map(|candidate| candidate.candidate)
+            .filter(|candidate| !retained_roots.contains(candidate) && *candidate != entry)
+            .collect::<Vec<_>>();
+        if new_roots.is_empty() {
+            break (closure, candidates);
+        }
+        retained_roots.extend(new_roots);
+    };
     reject_recursive_unit_closure(plans, &closure)?;
 
     let mut boundaries = Vec::<(&CheckedUnitBoundaryMachinePlan, String)>::new();
@@ -6936,7 +6954,7 @@ fn lower_attached_unit_closure_including(
                     {
                         boundaries.push((
                             target,
-                            checked_terminal_machine_name(checked, target.machine)?.to_owned(),
+                            checked_unit_boundary_identity(checked, target.machine)?,
                         ));
                     }
                 }
@@ -6954,7 +6972,8 @@ fn lower_attached_unit_closure_including(
     let (structural_types, type_ids) = lower_unit_structural_types(checked, &closure, &boundaries)?;
     let (structural_domains, domain_ids) =
         lower_unit_structural_domains(checked, &closure, &boundaries, &type_ids)?;
-    let (services, service_ids) = lower_unit_services(checked, &closure, &boundaries)?;
+    let (services, service_ids) =
+        lower_unit_services(checked, &closure, &boundaries, &provider_candidate_plans)?;
 
     let mut next_place = 1_u64;
     let mut lowered_boundary_parameters = Vec::with_capacity(boundaries.len());
@@ -7000,7 +7019,11 @@ fn lower_attached_unit_closure_including(
         boundary_machines.push(BoundaryMachineDeclaration {
             id,
             identity: identity.clone(),
-            attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+            attachment: plan
+                .attachment_type_identity
+                .as_ref()
+                .map(|identity| lookup_type_id(&type_ids, identity))
+                .transpose()?,
             structural_parameters: parameters.clone(),
             requires,
             published_service_ceiling,
@@ -7492,12 +7515,25 @@ fn lower_attached_unit_closure_including(
                 .chain(local_places.iter().cloned())
                 .collect(),
             entry_claims: entry_claims.clone(),
-            published_service_ceiling: lower_published_service_ceiling(
-                &checked.facts.service_reaches.rows,
-                plan.contract_service_reach,
-                plan.service_reach,
-                &service_ids,
-            )?,
+            published_service_ceiling: if let Some(provider) = provider_candidate_plans
+                .iter()
+                .find(|candidate| candidate.candidate == plan.machine)
+            {
+                lower_provider_candidate_service_ceiling(
+                    checked,
+                    plans,
+                    provider,
+                    plan,
+                    &service_ids,
+                )?
+            } else {
+                lower_published_service_ceiling(
+                    &checked.facts.service_reaches.rows,
+                    plan.contract_service_reach,
+                    plan.service_reach,
+                    &service_ids,
+                )?
+            },
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
@@ -7520,6 +7556,76 @@ fn lower_attached_unit_closure_including(
         });
     }
 
+    let mut provider_candidates = provider_candidate_plans
+        .iter()
+        .map(|candidate| {
+            let (_, boundary, parameters) = lowered_boundary_parameters
+                .iter()
+                .find(|(symbol, _, _)| *symbol == candidate.boundary)
+                .ok_or(LoweringError::Unsupported(
+                    "provider candidate references an unlowered Unit boundary requirement",
+                ))?;
+            let terminal_candidate = lookup_machine_id(&machine_ids, candidate.candidate)?;
+            let realized = machines
+                .iter()
+                .find(|machine| machine.id == terminal_candidate)
+                .expect("provider candidate root was lowered as an ordinary terminal machine");
+            Ok(ProviderCandidateConformance {
+                boundary: *boundary,
+                requirement_identity: candidate.requirement_identity.clone(),
+                provider_identity: candidate.provider_identity.clone(),
+                candidate_identity: candidate.candidate_identity.clone(),
+                candidate: terminal_candidate,
+                signature: ProviderUnitSignature {
+                    parameters: parameters
+                        .iter()
+                        .map(|parameter| ProviderSignatureParameter {
+                            position: parameter.position,
+                            is_self: parameter.is_self,
+                            structural_type: parameter.structural_type,
+                            multiplicity: parameter.multiplicity,
+                            qualifications: parameter.qualifications.clone(),
+                        })
+                        .collect(),
+                },
+                refinement: ProviderUnitRefinement {
+                    positional_parameters: (0..parameters.len())
+                        .map(|index| {
+                            let index = u32::try_from(index).map_err(|_| {
+                                LoweringError::Unsupported("provider signature arity exceeds u32")
+                            })?;
+                            Ok(ProviderParameterRefinement {
+                                boundary_index: index,
+                                candidate_index: index,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?,
+                    required_domains: boundary_machines
+                        .iter()
+                        .find(|declaration| declaration.id == *boundary)
+                        .expect("lowered provider boundary declaration exists")
+                        .requires
+                        .clone(),
+                    realized_service_ceiling: realized.published_service_ceiling.clone(),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    provider_candidates.sort_by(|left, right| {
+        (
+            left.boundary,
+            &left.provider_identity,
+            &left.candidate_identity,
+            left.candidate,
+        )
+            .cmp(&(
+                right.boundary,
+                &right.provider_identity,
+                &right.candidate_identity,
+                right.candidate,
+            ))
+    });
+
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
@@ -7528,6 +7634,7 @@ fn lower_attached_unit_closure_including(
             structural_domains,
             services,
             boundary_machines,
+            provider_candidates,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
@@ -7539,6 +7646,144 @@ fn lower_attached_unit_closure_including(
         },
         debug_map: None,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedUnitProviderCandidate {
+    boundary: psi_symbols::SymbolHandle,
+    candidate: psi_symbols::SymbolHandle,
+    requirement_identity: String,
+    provider_identity: String,
+    candidate_identity: String,
+}
+
+fn checked_unit_provider_candidates(
+    checked: &CheckedTrees,
+    closure: &[psi_symbols::SymbolHandle],
+) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut boundary_symbols = closure
+        .iter()
+        .flat_map(|symbol| {
+            plans
+                .for_machine(*symbol)
+                .into_iter()
+                .flat_map(|plan| &plan.operations)
+        })
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::BoundaryCallUnit { target_machine, .. } => {
+                Some(*target_machine)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    boundary_symbols.dedup();
+    let mut output = Vec::new();
+    for boundary_symbol in boundary_symbols {
+        let boundary_plan =
+            plans
+                .boundary_for_machine(boundary_symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit provider catalog references an unknown checked boundary plan",
+                ))?;
+        let exact_requirements = checked
+            .typed
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary)
+            .flat_map(|definition| {
+                checked
+                    .typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .filter(move |signature| signature.symbol == boundary_symbol)
+                    .map(move |signature| (definition, signature))
+            })
+            .collect::<Vec<_>>();
+        let (definition, signature) = match exact_requirements.as_slice() {
+            [] => continue,
+            [(definition, signature)] => (*definition, *signature),
+            _ => {
+                return unsupported(
+                    "Unit boundary provider catalog requires one exact trait/signature symbol coordinate",
+                );
+            }
+        };
+        if !boundary_plan.structural_parameters.is_empty()
+            || !boundary_plan.domain_requirements.is_empty()
+        {
+            return unsupported(
+                "checked provider dispatch currently admits only zero-argument Unit boundary requirements",
+            );
+        }
+        let requirement_identity = checked
+            .typed
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity();
+        if requirement_identity.is_empty() {
+            return unsupported("Unit boundary requirement has an empty overload identity");
+        }
+        for machine in checked.typed.machines().iter().filter(|machine| {
+            machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+                && machine.attached_data.is_some()
+                && checked
+                    .typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .any(|conformance| {
+                        conformance.via.is_none()
+                            && conformance.symbol == definition.symbol
+                            && conformance
+                                .requirement
+                                .as_ref()
+                                .is_some_and(|name| name == &signature.name)
+                    })
+        }) {
+            plans
+                .for_machine(machine.symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "checked Unit provider candidate has no complete terminal body plan",
+                ))?;
+            output.push(CheckedUnitProviderCandidate {
+                boundary: boundary_symbol,
+                candidate: machine.symbol,
+                requirement_identity: requirement_identity.clone(),
+                provider_identity: machine
+                    .attached_data
+                    .as_ref()
+                    .expect("candidate filter requires an attached provider type")
+                    .as_str()
+                    .to_owned(),
+                candidate_identity: checked_terminal_machine_name(checked, machine.symbol)?
+                    .to_owned(),
+            });
+        }
+    }
+    output.sort_by(|left, right| {
+        (
+            left.boundary.arena_index(),
+            left.boundary.generation(),
+            &left.provider_identity,
+            left.candidate.arena_index(),
+            left.candidate.generation(),
+        )
+            .cmp(&(
+                right.boundary.arena_index(),
+                right.boundary.generation(),
+                &right.provider_identity,
+                right.candidate.arena_index(),
+                right.candidate.generation(),
+            ))
+    });
+    if output.windows(2).any(|pair| {
+        pair[0].boundary == pair[1].boundary
+            && pair[0].provider_identity == pair[1].provider_identity
+            && pair[0].candidate == pair[1].candidate
+    }) {
+        return unsupported("Unit provider catalog contains a duplicate exact candidate");
+    }
+    Ok(output)
 }
 
 fn checked_unit_call_closure_including(
@@ -7629,6 +7874,36 @@ fn checked_terminal_machine_name(
         return unsupported("attached Unit member has an invalid checked terminal selection");
     }
     Ok(&selection.name)
+}
+
+fn checked_unit_boundary_identity(
+    checked: &CheckedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let requirements = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            checked
+                .typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == symbol)
+                .map(move |signature| (definition, signature))
+        })
+        .collect::<Vec<_>>();
+    if let [(definition, signature)] = requirements.as_slice() {
+        let identity = checked
+            .typed
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity();
+        if !identity.is_empty() {
+            return Ok(identity);
+        }
+    }
+    checked_terminal_machine_name(checked, symbol).map(str::to_owned)
 }
 
 fn validate_unit_operation_sequence(
@@ -7788,12 +8063,9 @@ fn lower_unit_structural_types(
         }
     }
     for (boundary, _) in boundaries {
-        collect(
-            plans,
-            &boundary.attachment_type_identity,
-            &mut active,
-            &mut selected,
-        )?;
+        if let Some(identity) = &boundary.attachment_type_identity {
+            collect(plans, identity, &mut active, &mut selected)?;
+        }
         for parameter in &boundary.structural_parameters {
             collect(plans, &parameter.type_identity, &mut active, &mut selected)?;
         }
@@ -7956,18 +8228,32 @@ fn lower_unit_services(
     checked: &CheckedTrees,
     closure: &[psi_symbols::SymbolHandle],
     boundaries: &[(&CheckedUnitBoundaryMachinePlan, String)],
+    provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     let facts = &checked.facts.service_reaches;
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = Vec::<ServiceReachId>::new();
     for symbol in closure {
         let machine = unique_unit_machine(plans, *symbol)?;
-        collect_contract_services(
-            &facts.rows,
-            machine.contract_service_reach,
-            machine.service_reach,
-            &mut selected,
-        )?;
+        if let Some(provider) = provider_candidates
+            .iter()
+            .find(|candidate| candidate.candidate == *symbol)
+        {
+            collect_provider_candidate_services(
+                &facts.rows,
+                plans,
+                provider,
+                machine,
+                &mut selected,
+            )?;
+        } else {
+            collect_contract_services(
+                &facts.rows,
+                machine.contract_service_reach,
+                machine.service_reach,
+                &mut selected,
+            )?;
+        }
         for operation in &machine.operations {
             match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
@@ -8086,6 +8372,59 @@ fn collect_contract_services(
         }
     }
     Ok(())
+}
+
+fn collect_provider_candidate_services(
+    rows: &psi_language_semantics::ServiceReachRowTable,
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    provider: &CheckedUnitProviderCandidate,
+    candidate: &CheckedUnitEffectMachinePlan,
+    selected: &mut Vec<ServiceReachId>,
+) -> Result<(), LoweringError> {
+    collect_service_summary(rows, candidate.service_reach, selected)?;
+    if candidate.contract_service_reach.checked_inferred != candidate.service_reach.transitive {
+        return unsupported(
+            "checked provider adapter contract reach does not match its transitive reach",
+        );
+    }
+    let boundary = unique_unit_boundary(plans, provider.boundary)?;
+    let ceiling = match boundary.contract_service_reach.interface {
+        ServiceReachInterface::PublishedCeiling(row) => row,
+        ServiceReachInterface::InternalInferred => {
+            return unsupported("checked provider boundary has no published service ceiling");
+        }
+    };
+    if rows
+        .services(candidate.service_reach.transitive)
+        .iter()
+        .any(|service| !rows.services(ceiling).contains(service))
+    {
+        return unsupported("checked provider adapter reach exceeds its boundary requirement");
+    }
+    Ok(())
+}
+
+fn lower_provider_candidate_service_ceiling(
+    checked: &CheckedTrees,
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    provider: &CheckedUnitProviderCandidate,
+    candidate: &CheckedUnitEffectMachinePlan,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    let rows = &checked.facts.service_reaches.rows;
+    let mut selected = Vec::new();
+    collect_provider_candidate_services(rows, plans, provider, candidate, &mut selected)?;
+    let source = rows.services(candidate.service_reach.transitive);
+    let mut lowered = source
+        .iter()
+        .map(|service| lookup_service_id(service_ids, *service))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    lowered.sort();
+    lowered.dedup();
+    if lowered.len() != source.len() {
+        return unsupported("checked provider adapter reach contains duplicates");
+    }
+    Ok(lowered)
 }
 
 fn checked_unit_target_reach_matches(
@@ -8501,6 +8840,7 @@ fn lower_scalar_call_closure(
             structural_domains: Vec::new(),
             services: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
@@ -13254,6 +13594,7 @@ fn build_scalar_graph_module(
             structural_domains: Vec::new(),
             services: Vec::new(),
             boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
@@ -15059,7 +15400,7 @@ mod tests {
             boundary_machines: vec![CheckedUnitBoundaryMachinePlan {
                 machine: boundary,
                 state: boundary_state,
-                attachment_type_identity: "example::Acknowledgement".to_owned(),
+                attachment_type_identity: Some("example::Acknowledgement".to_owned()),
                 structural_parameters: vec![
                     psi_checked_trees::CheckedUnitStructuralParameterPlan {
                         is_self: true,

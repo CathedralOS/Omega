@@ -706,7 +706,9 @@ pub struct CheckedUnitEffectMachinePlan {
 pub struct CheckedUnitBoundaryMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// Present for a bodyless attached boundary declaration; absent for a
+    /// static boundary-trait requirement, which has no runtime provider value.
+    pub attachment_type_identity: Option<String>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.

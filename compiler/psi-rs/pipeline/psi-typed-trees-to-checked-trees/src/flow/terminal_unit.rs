@@ -48,12 +48,13 @@ pub(crate) fn build_checked_unit_effect_plans(
     facts: &CheckFacts,
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
-    let boundary_machines = program
+    let mut boundary_machines = program
         .machines()
         .iter()
         .filter(|machine| machine.supply_mode.is_boundary_declaration())
         .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
         .collect::<Vec<_>>();
+    boundary_machines.extend(build_static_boundary_requirements(program, facts));
     let boundary_symbols = boundary_machines
         .iter()
         .map(|plan| plan.machine)
@@ -91,11 +92,14 @@ pub(crate) fn build_checked_unit_effect_plans(
     let retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
-            std::iter::once(plan.attachment_type_identity.as_str()).chain(
-                plan.structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
+            plan.attachment_type_identity
+                .iter()
+                .map(String::as_str)
+                .chain(
+                    plan.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
         })
         .chain(candidates.iter().flat_map(|plan| {
             std::iter::once(plan.attachment_type_identity.as_str())
@@ -1961,13 +1965,86 @@ fn build_boundary_machine(
     Some(CheckedUnitBoundaryMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
-        attachment_type_identity,
+        attachment_type_identity: Some(attachment_type_identity),
         structural_parameters,
         domain_requirements,
         contract_fingerprint: contract.fingerprint,
         contract_service_reach: contract.service_reach.clone(),
         service_reach: state_flow.service_reach.clone(),
     })
+}
+
+/// Project the narrow static boundary-trait surface used by checked-adapter
+/// dispatch. A trait requirement is not an attached machine and therefore
+/// contributes no provider value or structural attachment.
+fn build_static_boundary_requirements(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> Vec<CheckedUnitBoundaryMachinePlan> {
+    let mut plans = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .filter(|definition| program.trait_type_parameters(definition).is_empty())
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(|signature| {
+                    program
+                        .state_signature_type_parameters(signature)
+                        .is_empty()
+                        && program.state_signature_parameters(signature).is_empty()
+                        && is_unit(program, signature.return_type)
+                        && program.state_signature_contracts(signature).is_empty()
+                        && !signature.suspends
+                        && !signature.blocks
+                })
+                .filter_map(|signature| {
+                    let capsule = facts
+                        .contract_plans
+                        .crash_capsule(definition.symbol, signature.symbol)?;
+                    let call_reaches = facts
+                        .flow
+                        .control
+                        .calls
+                        .iter()
+                        .map(|(_, call)| call)
+                        .filter(|call| call.target_symbol == signature.symbol)
+                        .map(|call| call.service_reach.transitive)
+                        .collect::<Vec<_>>();
+                    let [published_reach, rest @ ..] = call_reaches.as_slice() else {
+                        return None;
+                    };
+                    if rest.iter().any(|reach| reach != published_reach) {
+                        return None;
+                    }
+                    let service_reach = psi_language_semantics::ServiceReachSummary {
+                        direct: *published_reach,
+                        transitive: *published_reach,
+                    };
+                    Some(CheckedUnitBoundaryMachinePlan {
+                        machine: signature.symbol,
+                        state: signature.symbol,
+                        attachment_type_identity: None,
+                        structural_parameters: Vec::new(),
+                        domain_requirements: Vec::new(),
+                        contract_fingerprint: capsule.target_contract_fingerprint(),
+                        contract_service_reach: psi_language_semantics::ServiceReachPlan {
+                            interface:
+                                psi_language_semantics::ServiceReachInterface::PublishedCeiling(
+                                    *published_reach,
+                                ),
+                            checked_inferred: *published_reach,
+                        },
+                        service_reach,
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
+    plans.sort_by_key(|plan| (plan.machine.arena_index(), plan.machine.generation()));
+    plans.dedup_by_key(|plan| plan.machine);
+    plans
 }
 
 fn build_checked_machine(
@@ -3231,6 +3308,52 @@ fn build_call_operation(
             .ok()?,
             service_reach: call.service_reach.clone(),
         });
+    }
+
+    let static_boundaries = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == call.target_symbol)
+                .map(move |signature| (definition, signature))
+        })
+        .collect::<Vec<_>>();
+    if let [(definition, signature)] = static_boundaries.as_slice() {
+        let arguments = crate::call_site_argument_expressions(program, &call_site);
+        if !program.trait_type_parameters(definition).is_empty()
+            || !program
+                .state_signature_type_parameters(signature)
+                .is_empty()
+            || !program.state_signature_parameters(signature).is_empty()
+            || !arguments.is_empty()
+            || !call.has_receiver
+            || call.receiver_symbol != definition.symbol
+            || !is_unit(program, signature.return_type)
+            || !program.state_signature_contracts(signature).is_empty()
+            || signature.suspends
+            || signature.blocks
+        {
+            return None;
+        }
+        let capsule = facts
+            .contract_plans
+            .crash_capsule(definition.symbol, signature.symbol)?;
+        return Some(CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+            coordinate,
+            target_machine: signature.symbol,
+            target_state: signature.symbol,
+            target_contract_fingerprint: capsule.target_contract_fingerprint(),
+            service_reach: call.service_reach,
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        });
+    }
+    if !static_boundaries.is_empty() {
+        return None;
     }
 
     let target_state = crate::find_state(program, call.target_symbol)?;

@@ -40,13 +40,15 @@ use psi_terminal::{
     EvidenceInterfaceIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
     Operation, OperationKind, OperationResult, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
+    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
@@ -175,6 +177,18 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
                 "boundary published service ceiling by ServiceId",
             ));
         }
+    }
+    if !strictly_increasing(module.provider_candidates.iter().map(|candidate| {
+        (
+            candidate.boundary,
+            candidate.provider_identity.as_str(),
+            candidate.candidate_identity.as_str(),
+            candidate.candidate,
+        )
+    })) {
+        return Err(CodecError::NonCanonicalOrder(
+            "provider candidates by exact conformance identity",
+        ));
     }
     if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
         |mut declaration| {
@@ -558,6 +572,39 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             }
         }
         require_known_services(module, &boundary.published_service_ceiling)?;
+    }
+    for candidate in &module.provider_candidates {
+        if candidate.requirement_identity.is_empty()
+            || candidate.provider_identity.is_empty()
+            || candidate.candidate_identity.is_empty()
+        {
+            return malformed("provider candidate identities must be nonempty");
+        }
+        if !module
+            .boundary_machines
+            .iter()
+            .any(|boundary| boundary.id == candidate.boundary)
+            || !module
+                .machines
+                .iter()
+                .any(|machine| machine.id == candidate.candidate)
+        {
+            return malformed("provider candidate references an unknown terminal ID");
+        }
+        for parameter in &candidate.signature.parameters {
+            if !has_structural_type(module, parameter.structural_type) {
+                return malformed("provider signature references an unknown structural type");
+            }
+            if parameter.qualifications.iter().any(|domain| {
+                !module
+                    .structural_domains
+                    .iter()
+                    .any(|row| row.id == *domain)
+            }) {
+                return malformed("provider signature references an unknown structural domain");
+            }
+        }
+        require_known_services(module, &candidate.refinement.realized_service_ceiling)?;
     }
 
     for machine in &module.machines {
@@ -1323,6 +1370,10 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     for declaration in &module.boundary_machines {
         encode_boundary_machine(&mut writer, declaration)?;
     }
+    writer.len("provider candidates", module.provider_candidates.len())?;
+    for candidate in &module.provider_candidates {
+        encode_provider_candidate(&mut writer, candidate)?;
+    }
     writer.len(
         "proposition declarations",
         module.proposition_declarations.len(),
@@ -1422,6 +1473,58 @@ fn encode_boundary_machine(
         writer.id(requirement.domain);
     }
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
+}
+
+fn encode_provider_candidate(
+    writer: &mut Writer,
+    candidate: &ProviderCandidateConformance,
+) -> Result<(), CodecError> {
+    writer.id(candidate.boundary);
+    writer.string(
+        "provider requirement identity",
+        &candidate.requirement_identity,
+    )?;
+    writer.string("provider identity", &candidate.provider_identity)?;
+    writer.string("provider candidate identity", &candidate.candidate_identity)?;
+    writer.id(candidate.candidate);
+    writer.len(
+        "provider signature parameters",
+        candidate.signature.parameters.len(),
+    )?;
+    for parameter in &candidate.signature.parameters {
+        writer.u32(parameter.position);
+        writer.u8(u8::from(parameter.is_self));
+        writer.id(parameter.structural_type);
+        writer.u8(match parameter.multiplicity {
+            StructuralMultiplicity::Unrestricted => 1,
+            StructuralMultiplicity::Affine => 2,
+            StructuralMultiplicity::Linear => 3,
+        });
+        writer.len(
+            "provider signature qualifications",
+            parameter.qualifications.len(),
+        )?;
+        for qualification in &parameter.qualifications {
+            writer.id(*qualification);
+        }
+    }
+    writer.len(
+        "provider positional refinements",
+        candidate.refinement.positional_parameters.len(),
+    )?;
+    for parameter in &candidate.refinement.positional_parameters {
+        writer.u32(parameter.boundary_index);
+        writer.u32(parameter.candidate_index);
+    }
+    writer.len(
+        "provider required domains",
+        candidate.refinement.required_domains.len(),
+    )?;
+    for requirement in &candidate.refinement.required_domains {
+        writer.u32(requirement.argument_index);
+        writer.id(requirement.domain);
+    }
+    encode_service_ceiling(writer, &candidate.refinement.realized_service_ceiling)
 }
 
 fn encode_structural_parameters(
@@ -2842,6 +2945,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         })
     })?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
+    let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let count = reader.count()?;
     let mut proposition_declarations = Vec::with_capacity(count as usize);
     for _ in 0..count {
@@ -2885,11 +2989,65 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         structural_domains,
         services,
         boundary_machines,
+        provider_candidates,
         proposition_declarations,
         proposition_applications,
         evidence_terms,
         evidence_contract_lanes,
         machines,
+    })
+}
+
+fn decode_provider_candidate(
+    reader: &mut Reader<'_>,
+) -> Result<ProviderCandidateConformance, CodecError> {
+    let boundary = reader.id("BoundaryMachineId")?;
+    let requirement_identity = reader.string("provider requirement identity")?;
+    let provider_identity = reader.string("provider identity")?;
+    let candidate_identity = reader.string("provider candidate identity")?;
+    let candidate = reader.id("MachineId")?;
+    let parameters = decode_counted(reader, |reader| {
+        let position = reader.u32()?;
+        let is_self = reader.boolean()?;
+        let structural_type = reader.id("StructuralTypeId")?;
+        let multiplicity = match reader.u8()? {
+            1 => StructuralMultiplicity::Unrestricted,
+            2 => StructuralMultiplicity::Affine,
+            3 => StructuralMultiplicity::Linear,
+            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
+        };
+        Ok(ProviderSignatureParameter {
+            position,
+            is_self,
+            structural_type,
+            multiplicity,
+            qualifications: decode_ids(reader, "StructuralDomainId")?,
+        })
+    })?;
+    let positional_parameters = decode_counted(reader, |reader| {
+        Ok(ProviderParameterRefinement {
+            boundary_index: reader.u32()?,
+            candidate_index: reader.u32()?,
+        })
+    })?;
+    let required_domains = decode_counted(reader, |reader| {
+        Ok(StructuralDomainRequirement {
+            argument_index: reader.u32()?,
+            domain: reader.id("StructuralDomainId")?,
+        })
+    })?;
+    Ok(ProviderCandidateConformance {
+        boundary,
+        requirement_identity,
+        provider_identity,
+        candidate_identity,
+        candidate,
+        signature: ProviderUnitSignature { parameters },
+        refinement: ProviderUnitRefinement {
+            positional_parameters,
+            required_domains,
+            realized_service_ceiling: decode_ids(reader, "ServiceId")?,
+        },
     })
 }
 

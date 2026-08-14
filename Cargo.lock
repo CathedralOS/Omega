@@ -1230,11 +1230,14 @@ dependencies = [
 name = "omega-terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-effects",
  "omega-terminal-abstract-operations",
  "psi-core",
  "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-fuel",
+ "psi-terminal-interpreter",
  "psi-terminal-verifier",
 ]
 

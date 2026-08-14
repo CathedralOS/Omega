@@ -356,6 +356,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             requires: Vec::new(),
             published_service_ceiling: vec![service],
         }],
+        provider_candidates: Vec::new(),
         functions: vec![TerminalAbstractFunction {
             machine,
             attachment: None,
