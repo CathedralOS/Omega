@@ -24,6 +24,9 @@
 //!  * `algorithm_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated algorithms cohort has the same exact selection and direct-
 //!    lowering guarantees, with no legacy staging adapter.
+//!  * `arithmetic_samples_compile_from_authored_program_entry_bindings` — the
+//!    deployable arithmetic cohort has the same exact hosted-root guarantees,
+//!    while four float-lowering fixtures remain checked-only.
 //!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated interpreter cohort likewise lowers directly for every hosted
 //!    target without legacy staging.
@@ -94,6 +97,31 @@ const EXPLICIT_ENTRY_ALGORITHM_SAMPLES: &[&str] = &[
     "longest_run",
     "maze_flood",
     "sort_visualizer",
+];
+const EXPLICIT_ENTRY_ARITHMETIC_SAMPLES: &[&str] = &[
+    "bit_shift",
+    "collatz_sequence",
+    "digital_root",
+    "dot_product",
+    "euclid_gcd",
+    "factorial_loop",
+    "fibonacci_golden",
+    "led_mixer",
+    "modular_exponentiation",
+    "popcount",
+    "prime_counter",
+    "prime_sieve",
+    "recursive_sum",
+    "reverse_sum",
+    "smallest_prime_factor",
+    "utf8_byte_class",
+    "xorshift_prng",
+];
+const CHECKED_ONLY_ARITHMETIC_SAMPLES: &[&str] = &[
+    "dual_float",
+    "sensor_min_max",
+    "stats_compute",
+    "vector_distance",
 ];
 const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
     "calculator",
@@ -619,6 +647,26 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
 #[test]
 fn algorithm_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("algorithms", EXPLICIT_ENTRY_ALGORITHM_SAMPLES);
+}
+
+#[test]
+fn arithmetic_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_cohort("arithmetic", EXPLICIT_ENTRY_ARITHMETIC_SAMPLES);
+
+    for sample in CHECKED_ONLY_ARITHMETIC_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/arithmetic")
+            .join(sample)
+            .join("main.omg");
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!("checked-only arithmetic sample {sample} should compile: {diagnostics:#?}")
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            None,
+            "checked-only arithmetic sample {sample} must not select a storage root"
+        );
+    }
 }
 
 #[test]
