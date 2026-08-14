@@ -3,12 +3,14 @@ use omega_calling_conventions::{
     Preemption, ValueShape,
 };
 use omega_compiler::{
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageInstallationHandoffError,
-    ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
+    ProgramStorageInstallationHandoffError, ProgramStorageRootInput,
+    SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_program_storage_entry_plan, compile_to_checked, evaluate_calling_policy_plan,
-    install_program_storage_entry_roots, program_storage_installation_record_json,
-    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
+    install_and_activate_program_storage_entry_receiver,
+    install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
+    program_storage_installation_record_json, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -595,11 +597,16 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         .parent()
         .expect("temporary policy directory")
         .join("completed-installation");
-    let failed = install_program_storage_entry_roots(
+    let (image_input, provider_issuance) =
+        root_input_for_provider_invocation(91, 0x1000, 0x800, 90, 901);
+    let (storage_input, _) = root_input_for_provider_invocation(92, u64::MAX, 2, 90, 901);
+    let failed = install_program_storage_entry_provider_invocation(
         &artifact_directory,
         binding,
-        root_input(91, 0x1000, 0x800),
-        root_input(92, u64::MAX, 2),
+        &selected_provider,
+        provider_issuance,
+        image_input,
+        storage_input,
     )
     .expect_err("both no-wrap predicates must precede either fact import");
     let ProgramStorageInstallationHandoffError::Rejected(failed) = failed else {
@@ -607,9 +614,11 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     };
     assert!(failed.diagnostic().0.contains("initial-storage"));
     let (binding, image, storage_input) = failed.into_parts();
-    let recorded = install_program_storage_entry_roots(
+    let recorded = install_program_storage_entry_provider_invocation(
         &artifact_directory,
         binding,
+        &selected_provider,
+        provider_issuance,
         image,
         storage_input.with_geometry(0x8000, 0x2000),
     )
@@ -665,7 +674,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         .expect("program storage is provider issued");
     assert_eq!(image_issuance.issuance().normalized_identity(), 91 * 16 + 1);
     assert_eq!(image_issuance.backing().normalized_identity(), 91 * 16 + 2);
-    assert_eq!(image_issuance.provider().normalized_identity(), 91 * 16 + 3);
+    assert_eq!(image_issuance.provider().normalized_identity(), 1090);
     assert_eq!(
         image_issuance.live_issuance_premise().normalized_identity(),
         91 * 16 + 4
@@ -687,11 +696,8 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         91 * 16 + 8
     );
     let invocation = image_issuance.invocation();
-    assert_eq!(
-        invocation.provider_plan().normalized_identity(),
-        91 * 16 + 9
-    );
-    assert_eq!(invocation.invocation().normalized_identity(), 91 * 16 + 10);
+    assert_eq!(invocation.provider_plan().normalized_identity(), 90);
+    assert_eq!(invocation.invocation().normalized_identity(), 901);
     assert_eq!(
         invocation.establishment_route().normalized_identity(),
         91 * 16 + 11
@@ -719,7 +725,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     assert!(provider_json.contains("\"role\": \"image\", \"parameter_index\": 0"));
     assert!(provider_json.contains("\"base\": \"0x0000000000001000\""));
     assert!(provider_json.contains("\"kind\": \"provider_issued\""));
-    assert!(provider_json.contains("\"provider_plan\": \"0x00000000000005b9\""));
+    assert!(provider_json.contains("\"provider_plan\": \"0x000000000000005a\""));
     assert!(provider_json.contains("\"qualification\": \"0x00000000000005bd\""));
 
     let emitted =
@@ -882,6 +888,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .map(|extent| (extent.base(), extent.length())),
         Some((0x8010, 0x13))
     );
+    let physical_binding = receiver_roots.binding().clone();
     let reserved_partition = receiver_roots
         .partition_initial_storage(0, 1)
         .expect_err("a receiver reservation must hide the original whole root");
@@ -890,6 +897,160 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .diagnostic()
             .0
             .contains("already reserves")
+    );
+
+    let physical_artifact_directory = main_path
+        .parent()
+        .expect("temporary policy directory")
+        .join("physical-provider-installation");
+    let (unselected_image, unselected_issuance) =
+        root_input_for_provider_invocation(507, 0x5000, 0x400, 90, 903);
+    let (unselected_storage, _) = root_input_for_provider_invocation(508, 0x9003, 0x20, 90, 903);
+    let unselected_provider = SelectedExternalRootProviderPlan {
+        identity: omega_external_roots::ProviderPlanId::from_normalized_identity(91)
+            .expect("different selected provider identity"),
+        schema: selected_provider.schema.clone(),
+    };
+    let unselected = install_program_storage_entry_provider_invocation(
+        &physical_artifact_directory,
+        physical_binding.clone(),
+        &unselected_provider,
+        unselected_issuance,
+        unselected_image,
+        unselected_storage,
+    )
+    .expect_err("an issuance from an unselected provider plan must reject");
+    let ProgramStorageInstallationHandoffError::Rejected(unselected) = unselected else {
+        panic!("selected-provider mismatch must reject before record emission")
+    };
+    assert!(
+        unselected
+            .diagnostic()
+            .0
+            .contains("compiler-selected provider plan")
+    );
+
+    let mut drifted_schema = selected_provider.schema.clone();
+    let drifted_method = drifted_schema
+        .methods
+        .iter_mut()
+        .find(|method| method.requirement_identity == physical_binding.requirement_identity())
+        .expect("selected provider implements the program-storage arrival requirement");
+    drifted_method.calling_plan_fingerprint = Some(
+        physical_binding
+            .boundary_contract_fingerprint()
+            .wrapping_add(1),
+    );
+    let drifted_provider = SelectedExternalRootProviderPlan {
+        identity: selected_provider.identity,
+        schema: drifted_schema,
+    };
+    let (drifted_image, drifted_issuance) =
+        root_input_for_provider_invocation(509, 0x5000, 0x400, 90, 904);
+    let (drifted_storage, _) = root_input_for_provider_invocation(510, 0x9003, 0x20, 90, 904);
+    let drifted = install_program_storage_entry_provider_invocation(
+        &physical_artifact_directory,
+        physical_binding.clone(),
+        &drifted_provider,
+        drifted_issuance,
+        drifted_image,
+        drifted_storage,
+    )
+    .expect_err("calling-plan drift must reject the generated bridge binding");
+    let ProgramStorageInstallationHandoffError::Rejected(drifted) = drifted else {
+        panic!("calling-plan drift must reject before record emission")
+    };
+    assert!(
+        drifted
+            .diagnostic()
+            .0
+            .contains("calling plan does not match")
+    );
+
+    let (wrong_image, provider_issuance) =
+        root_input_for_provider_invocation(501, 0x5000, 0x400, 90, 901);
+    let (wrong_storage, _) = root_input_for_provider_invocation(502, 0x9003, 0x20, 90, 902);
+    let local_roots = install_program_storage_entry_provider_invocation(
+        &physical_artifact_directory,
+        physical_binding.clone(),
+        &selected_provider,
+        provider_issuance,
+        compiler_root_input(505, 0x5000, 0x400),
+        compiler_root_input(506, 0x9003, 0x20),
+    )
+    .expect_err("the physical bridge cannot consume compiler-provisioned roots");
+    let ProgramStorageInstallationHandoffError::Rejected(local_roots) = local_roots else {
+        panic!("local provisioning must reject before record emission")
+    };
+    assert!(
+        local_roots
+            .diagnostic()
+            .0
+            .contains("not issued by the selected physical entry provider invocation")
+    );
+    let wrong_invocation = install_program_storage_entry_provider_invocation(
+        &physical_artifact_directory,
+        physical_binding.clone(),
+        &selected_provider,
+        provider_issuance,
+        wrong_image,
+        wrong_storage,
+    )
+    .expect_err("both roots must belong to the same selected provider invocation");
+    let ProgramStorageInstallationHandoffError::Rejected(wrong_invocation) = wrong_invocation
+    else {
+        panic!("provider invocation mismatch must reject before record emission")
+    };
+    assert!(
+        wrong_invocation
+            .diagnostic()
+            .0
+            .contains("selected physical entry provider, plan, and invocation")
+    );
+
+    let (physical_image, provider_issuance) =
+        root_input_for_provider_invocation(503, 0x5000, 0x400, 90, 901);
+    let (physical_storage, _) = root_input_for_provider_invocation(504, 0x9003, 0x20, 90, 901);
+    let mut physical_receiver = [0xa5; 8];
+    let mut physical_activation = install_and_activate_program_storage_entry_receiver(
+        &physical_artifact_directory,
+        physical_binding,
+        &selected_provider,
+        provider_issuance,
+        physical_image,
+        physical_storage,
+        0x9008,
+        &mut physical_receiver,
+    )
+    .unwrap_or_else(|error| match error {
+        ProgramStorageEntryBridgeError::Installation(error) => {
+            panic!("physical provider installation should succeed: {error}")
+        }
+        ProgramStorageEntryBridgeError::Activation(error) => {
+            panic!("physical receiver activation should succeed: {error}")
+        }
+    });
+    let retained_invocation = physical_activation
+        .provider_invocation()
+        .expect("physical activation retains selected provider occurrence");
+    assert_eq!(retained_invocation.provider().normalized_identity(), 1090);
+    assert_eq!(
+        retained_invocation.provider_plan().normalized_identity(),
+        90
+    );
+    assert_eq!(retained_invocation.invocation().normalized_identity(), 901);
+    assert_eq!(physical_activation.receiver(), &[0; 8]);
+    let physical_record =
+        fs::read_to_string(physical_artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
+            .expect("read physical-provider installation record");
+    assert!(physical_record.contains("\"physical_provider_invocation\": {"));
+    assert!(physical_record.contains("\"provider\": \"0x0000000000000442\""));
+    assert!(physical_record.contains("\"provider_plan\": \"0x000000000000005a\""));
+    assert!(physical_record.contains("\"invocation\": \"0x0000000000000385\""));
+    let physical_roots = physical_activation.finish();
+    assert_eq!(
+        physical_roots.provider_invocation(),
+        Some(retained_invocation)
     );
 
     let static_view = installed
@@ -949,7 +1110,13 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
 
-fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
+fn root_input_for_provider_invocation(
+    lineage: u64,
+    base: u64,
+    length: u64,
+    provider_plan: u64,
+    invocation: u64,
+) -> (ProgramStorageRootInput, psi_extents::ExtentProviderIssuance) {
     fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
         constructor(identity).expect("normalized extent identity")
     }
@@ -958,31 +1125,33 @@ fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
     let provider_issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
         issuance_base + 1,
         issuance_base + 2,
-        issuance_base + 3,
+        provider_plan + 1000,
         issuance_base + 4,
         issuance_base + 5,
         issuance_base + 6,
         issuance_base + 7,
         issuance_base + 8,
-        issuance_base + 9,
-        issuance_base + 10,
+        provider_plan,
+        invocation,
         issuance_base + 11,
         issuance_base + 12,
         issuance_base + 13,
     ])
-    .expect("normalized provider issuance");
-
-    ProgramStorageRootInput::new(
-        ExtentRootGrant::from_admitted_provider(
-            provider_issuance,
-            extent_id(lineage, ExtentLineageId::from_normalized_identity),
-            extent_id(100, AddressSpaceId::from_normalized_identity),
-            ExtentRights::none(),
-            extent_id(101, ExtentProvenanceId::from_normalized_identity),
-            extent_id(102, MappingEraId::from_normalized_identity),
+    .expect("normalized physical-provider issuance");
+    (
+        ProgramStorageRootInput::new(
+            ExtentRootGrant::from_admitted_provider(
+                provider_issuance,
+                extent_id(lineage, ExtentLineageId::from_normalized_identity),
+                extent_id(100, AddressSpaceId::from_normalized_identity),
+                ExtentRights::none(),
+                extent_id(101, ExtentProvenanceId::from_normalized_identity),
+                extent_id(102, MappingEraId::from_normalized_identity),
+            ),
+            base,
+            length,
         ),
-        base,
-        length,
+        provider_issuance,
     )
 }
 
