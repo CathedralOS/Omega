@@ -747,7 +747,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
             small <= 7u8, 1u8 <= divisor, count <= 2u8,
             -128i64 <= signed, signed <= 127i64,
-            -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8
+            -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
+            -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && (((input + 1u64) + 1u64) < 5u64)
@@ -768,6 +769,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic + -1i8) < 4i8)
                 && ((signed_arithmetic - 1i8) < 4i8)
                 && ((signed_arithmetic - -1i8) < 4i8)
+                && ((signed_arithmetic * 3i8) < 4i8)
+                && ((signed_arithmetic * -3i8) < 4i8)
                 && enabled;
             staged
         }
@@ -929,6 +932,50 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             .any(|(_, subtrahend)| *subtrahend == IntegerValue::Signed(-1))
     );
     for (obligation, _) in signed_subtract_sites {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let signed_multiply_sites = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply {
+                left,
+                right,
+                obligation,
+            } if left == signed_arithmetic_parameter => terminal_entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value } => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .map(|factor| (obligation, factor)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        signed_multiply_sites
+            .iter()
+            .any(|(_, factor)| *factor == IntegerValue::Signed(3))
+    );
+    assert!(
+        signed_multiply_sites
+            .iter()
+            .any(|(_, factor)| *factor == IntegerValue::Signed(-3))
+    );
+    for (obligation, _) in signed_multiply_sites {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(

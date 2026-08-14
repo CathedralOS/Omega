@@ -1136,6 +1136,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input - -1i8) < 4i8) && enabled;
             staged
         }
+        machine Root::signed_positive_exact_multiply_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -42i8 <= input, input <= 42i8
+        {
+            let staged: bool = ((input * 3i8) < 4i8) && enabled;
+            staged
+        }
+        machine Root::signed_negative_exact_multiply_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -42i8 <= input, input <= 42i8
+        {
+            let staged: bool = ((input * -3i8) < 4i8) && enabled;
+            staged
+        }
         machine Root::exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1556,6 +1576,8 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "signed_negative_exact_add_integer_comparison_convergence",
         "signed_positive_exact_subtract_integer_comparison_convergence",
         "signed_negative_exact_subtract_integer_comparison_convergence",
+        "signed_positive_exact_multiply_integer_comparison_convergence",
+        "signed_negative_exact_multiply_integer_comparison_convergence",
     ] {
         let signed_exact_add_integer_comparison = checked
             .facts

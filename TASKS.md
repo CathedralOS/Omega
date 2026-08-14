@@ -225,11 +225,11 @@ Remaining:
   up to two total bitwise-not, binary bitwise, wrapping shift/arithmetic,
   saturating arithmetic, or integer-widening shells, or one proof-bearing exact
   fixed-width narrowing under retained direct parameter range `requires`, or
-  exact fixed-width addition with a landed operand or subtraction with a landed
-  subtrahend under a retained matching direct parameter bound, or exact unsigned
-  subtraction with a landed minuend or multiplication under retained direct
-  parameter upper bounds, one exact right shift under a direct unsigned count
-  upper bound, one exact left shift by a landed count
+  exact fixed-width addition with a landed operand, subtraction with a landed
+  subtrahend, or multiplication with a landed factor under retained matching
+  direct parameter bounds, or exact unsigned subtraction with a landed minuend
+  under a retained direct parameter upper bound, one exact right shift under a
+  direct unsigned count upper bound, one exact left shift by a landed count
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
   landed nonzero unsigned constant or runtime unsigned divisor under a retained
