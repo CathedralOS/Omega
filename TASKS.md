@@ -79,7 +79,9 @@ Remaining:
   systems samples likewise author all four hosted roots; `file_journal` remains
   checked-only pending cross-target metadata/domain lowering, `note_vault`
   pending per-instance contained-machine dispatch, and `wire_protocol` pending
-  its native round-trip mismatch. The
+  its native round-trip mismatch. Eleven executable CLI regression probes now
+  name all four hosted roots explicitly; the deliberate trapping fixture
+  remains checked-only. The
   fourteen deployable plan-laid runtime canaries likewise author all four
   hosted roots, and the active pass umbrella exercises them through production
   entry selection rather than its explicit legacy fixture seam. Their direct
