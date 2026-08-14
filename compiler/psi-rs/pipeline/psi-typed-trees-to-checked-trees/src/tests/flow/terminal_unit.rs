@@ -1157,6 +1157,17 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((input << 1u8) < 4u8) && enabled;
             staged
         }
+        machine Root::runtime_exact_shift_left_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            count: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 3u8, count <= 6u8
+        {
+            let staged: bool = ((input << count) < 4u8) && enabled;
+            staged
+        }
         machine Root::nested_exact_add_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -1564,6 +1575,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one bounded exact-left-shift shell retains the scalar-return plan");
     assert!(
         exact_shift_left_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let runtime_exact_shift_left_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "runtime_exact_shift_left_integer_comparison_convergence",
+        ))
+        .expect("one proven runtime exact-left-shift shell retains the scalar-return plan");
+    assert!(
+        runtime_exact_shift_left_integer_comparison
             .shared_boolean_convergence
             .is_some()
     );

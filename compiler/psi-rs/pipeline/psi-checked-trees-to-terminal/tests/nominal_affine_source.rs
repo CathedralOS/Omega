@@ -401,10 +401,11 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         input: u64 in Wrapping,
         small: u8,
         divisor: u8,
+        count: u8,
         enabled: bool
     ) -> bool
-    requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8,
-        1u8 <= divisor
+    requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
+        small <= 7u8, 1u8 <= divisor, count <= 2u8
     {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && ((small as u16) < 5u16))
@@ -418,6 +419,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
             && ((small << 1u8) < 11u8)
+            && ((small << count) < 29u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1704,19 +1706,25 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let input_term = ScalarTerm::value(entry.parameters[0].id, entry.parameters[0].scalar_type);
     let small_term = ScalarTerm::value(entry.parameters[1].id, entry.parameters[1].scalar_type);
     let divisor_term = ScalarTerm::value(entry.parameters[2].id, entry.parameters[2].scalar_type);
+    let count_term = ScalarTerm::value(entry.parameters[3].id, entry.parameters[3].scalar_type);
     let input_upper_requirement =
         Proposition::LessOrEqual(input_term.clone(), unsigned_term(64, 255));
     let shift_upper_requirement = Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 7));
     let exact_upper_requirement =
         Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 127));
+    let left_shift_value_requirement =
+        Proposition::LessOrEqual(small_term.clone(), unsigned_term(8, 63));
     let add_upper_requirement = Proposition::LessOrEqual(small_term, unsigned_term(8, 254));
     let divisor_lower_requirement = Proposition::LessOrEqual(unsigned_term(8, 1), divisor_term);
+    let left_shift_count_requirement = Proposition::LessOrEqual(count_term, unsigned_term(8, 2));
     for requirement in [
         &input_upper_requirement,
         &shift_upper_requirement,
         &exact_upper_requirement,
+        &left_shift_value_requirement,
         &add_upper_requirement,
         &divisor_lower_requirement,
+        &left_shift_count_requirement,
     ] {
         assert!(entry.contract.requires.contains(requirement));
     }
@@ -1854,6 +1862,25 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .expect("shared convergence retains the bounded exact left shift");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
         evidence.obligation == exact_shift_left_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+    let count_parameter = entry.parameters[3].id;
+    let runtime_exact_shift_left_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft {
+                count, obligation, ..
+            } if count == count_parameter => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the proven runtime exact left shift");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == runtime_exact_shift_left_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
@@ -2215,6 +2242,52 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == exact_shift_left_obligation
     ));
+    let mut missing_runtime_shift_left_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_runtime_shift_left_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != runtime_exact_shift_left_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_runtime_shift_left_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == runtime_exact_shift_left_obligation
+    ));
+    let mut changed_left_shift_count = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_left_shift_count.entry;
+    let entry_contract = &mut changed_left_shift_count
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let left_shift_count = entry_contract
+        .requires
+        .iter()
+        .position(|requirement| requirement == &left_shift_count_requirement)
+        .expect("shared convergence retains the runtime-left-shift count premise");
+    entry_contract.requires[left_shift_count] = Proposition::LessOrEqual(
+        ScalarTerm::value(entry.parameters[3].id, entry.parameters[3].scalar_type),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerValue::Unsigned(1),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_left_shift_count,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == runtime_exact_shift_left_obligation
+    ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -2224,12 +2297,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         qualifications: Vec::new(),
         path: Vec::new(),
     }];
-    for (input, small, divisor, enabled) in [
-        (3_u128, 4_u128, 2_u128, false),
-        (3, 4, 2, true),
-        (3, 5, 3, true),
-        (4, 4, 2, true),
-        (10, 4, 4, true),
+    for (input, small, divisor, count, enabled) in [
+        (3_u128, 4_u128, 2_u128, 1_u128, false),
+        (3, 4, 2, 1, true),
+        (3, 5, 3, 2, true),
+        (4, 4, 2, 2, true),
+        (10, 4, 4, 1, true),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -2252,6 +2325,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
                     value: IntegerValue::Unsigned(divisor),
                 },
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    value: IntegerValue::Unsigned(count),
+                },
                 TerminalScalarValue::Boolean(enabled),
             ],
             &structural_arguments,
@@ -2273,6 +2350,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small % divisor <= small
                     && (small >> small) < 1
                     && (small << 1) < 11
+                    && (small << count) < 29
                     && input == 3
                     && enabled
             ))

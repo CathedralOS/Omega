@@ -227,12 +227,12 @@ Remaining:
   unsigned narrowing, addition, subtraction, or multiplication under retained
   direct parameter upper-bound `requires`, one exact right shift under a direct
   unsigned count upper bound, one exact left shift by a landed count under a
-  direct unsigned value upper bound, or exact division/remainder by a landed
+  direct unsigned value upper bound or by an unsigned runtime count under
+  direct count and value upper bounds, or exact division/remainder by a landed
   nonzero unsigned constant or runtime unsigned divisor under a retained direct
   lower bound. Nested shells, wider exact-cast and exact-arithmetic premise
-  shapes, runtime left-shift counts, other unary computation, and
-  member/comparison mixtures remain fenced. Extend those integer comparisons,
-  then
+  shapes, other unary computation, and member/comparison mixtures remain
+  fenced. Extend those integer comparisons, then
   add complete slices for calls and effects, wider partial-value cleanup,
   nested nominal ownership,
   returned transfer, loops, suspension, scoped ordering, and ranked tail

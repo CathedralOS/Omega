@@ -415,9 +415,10 @@ arithmetic shell, one integer-widening shell, or one exact unsigned narrowing
 or exact addition, subtraction, or multiplication under retained direct
 parameter upper-bound `requires`, one exact right shift under a direct unsigned
 count upper bound, one exact left shift by a landed count under a direct unsigned
-value upper bound, or exact division/remainder by a landed nonzero unsigned
-constant or runtime unsigned divisor under a direct lower bound, may form
-decision leaves. Psi
+value upper bound or by an unsigned runtime count under direct count and value
+upper bounds, or exact division/remainder by a landed nonzero unsigned constant
+or runtime unsigned divisor under a direct lower bound, may form decision
+leaves. Psi
 retains every exact operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested

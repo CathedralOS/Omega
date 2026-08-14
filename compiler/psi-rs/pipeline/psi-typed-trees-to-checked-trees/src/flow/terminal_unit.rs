@@ -1540,12 +1540,7 @@ fn shared_integer_runtime_inputs_with_shells(
             left,
             right,
             ..
-        } if remaining_shells > 0
-            && matches!(
-                right.as_ref(),
-                CheckedScalarExpression::IntegerLiteral { .. }
-            ) =>
-        {
+        } if remaining_shells > 0 => {
             let mut inputs = shared_integer_runtime_inputs_with_shells(
                 left,
                 scalar_parameter_count,
