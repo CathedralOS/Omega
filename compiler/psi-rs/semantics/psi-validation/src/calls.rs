@@ -2856,9 +2856,10 @@ fn array_value_assignment_preserves_transparent_result(
 /// isolated value, so generic/reference carriers remain fenced while concrete
 /// records and fixed arrays returned by calls can feed member/index shells. A
 /// direct member projection may additionally select from one concrete literal
-/// whose effectful fields are bounded direct-call trees. Keeping that literal
-/// leaf to one projection shell prevents aggregate and computation budgets from
-/// resetting each other. A third computation shell fails closed.
+/// whose effectful fields are bounded direct-call trees, and may itself sit
+/// below one further computation shell. The literal member consumes one of the
+/// established two shells rather than resetting that budget. A third
+/// computation shell fails closed.
 #[allow(clippy::too_many_arguments)]
 fn primitive_computed_assignment_value_preserves_transparent_result(
     program: &TypedTrees,
@@ -3071,7 +3072,6 @@ fn primitive_computed_value_preserves_transparent_result(
         return false;
     }
     let direct_concrete_literal_member = require_caller_isolated_call_result
-        && remaining_computed_depth == TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH
         && matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Member(_)
@@ -3149,8 +3149,9 @@ fn primitive_computed_value_preserves_transparent_result(
 }
 
 /// Admit one named concrete literal directly below a primitive member
-/// projection. The literal's type makes the aggregate shape explicit, unlike
-/// a projected array literal whose contextual fixed-array type is unavailable
+/// projection, including when that projection sits below one outer computation
+/// shell. The literal's type makes the aggregate shape explicit, unlike a
+/// projected array literal whose contextual fixed-array type is unavailable
 /// after the scalar projection. Effectful fields remain direct bounded call
 /// trees; nested aggregates or computed field shells stay outside this narrow
 /// cohort so neither established depth budget can be reset.

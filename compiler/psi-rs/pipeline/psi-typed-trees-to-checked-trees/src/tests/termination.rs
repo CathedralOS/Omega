@@ -9022,6 +9022,15 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         cells
     }
 
+    machine return_after_third_shell_literal_member<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = ~(~(Pair { first: compute(value), second: 0 }).first);
+        cells
+    }
+
     machine return_after_computed_literal_field<'cells, 'target, 'value>(
         cells: &'cells mut [u64; 2],
         target: &'target mut u64,
@@ -9120,6 +9129,15 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         alias[0] = 3;
     }
 
+    machine Main::third_shell_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_third_shell_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
     machine Main::nested_literal_member_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_nested_literal_member(
             &mut self.cells,
@@ -9200,9 +9218,30 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         );
     }
 
+    let wrapped = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::wrapped_literal_member_result")
+        .expect("wrapped literal member machine");
+    let wrapped_entry = typed
+        .machine_states(wrapped)
+        .first()
+        .expect("wrapped literal member entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(wrapped, wrapped_entry)
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.first", "self.target"]
+                .map(str::to_owned)
+                .as_slice()
+        ),
+        "one outer computation shell must retain the returned place and literal-field call write"
+    );
+
     for name in [
-        "Main::wrapped_literal_member_result",
         "Main::computed_literal_field_result",
+        "Main::third_shell_literal_member_result",
         "Main::nested_literal_member_result",
         "Main::generic_literal_member_result",
         "Main::reborrow_literal_member_result",
