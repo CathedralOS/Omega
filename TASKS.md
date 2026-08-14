@@ -650,10 +650,12 @@ reach or trust, and private proof improvements do not change public identity.
   arm retain the same composite path proof. One nested language decision in
   either outer arm now retains exact two-branch/three-return evidence without
   requiring affine cleanup records; object construction replays all three
-  leaves. Extend accounting to deeper/four-leaf and reconvergent conditionals
-  and the external entry adapter before calling it a complete root `StackPlan`;
-  zero-byte internal closures remain inadmissible until that adapter demand
-  exists.
+  leaves. The symmetric shape with one nested decision in both outer arms now
+  retains three exact branches and four independently replayed return leaves.
+  Extend accounting to deeper trees, division/crash terminals within nested
+  trees, genuinely reconvergent conditionals, and the external entry adapter
+  before calling it a complete root `StackPlan`; zero-byte internal closures
+  remain inadmissible until that adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

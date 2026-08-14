@@ -91,6 +91,96 @@ fn nested_conditional_stack_facts_survive_installation_and_reject_forgery() {
     }
 }
 
+#[test]
+fn four_leaf_conditional_stack_facts_survive_installation_and_reject_forgery() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assign_registers(&four_leaf_conditional_plan(target))
+            .expect("assign four-leaf conditional");
+        let emitted = emit_machine_code(&assigned).expect("emit four-leaf conditional");
+        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+            root,
+            true_nested,
+            false_nested,
+        } = emitted.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("four-leaf conditional stack evidence")
+            .control_flow
+        else {
+            panic!("four-leaf conditional must retain three branch records")
+        };
+        assert!(root.branch_offset < true_nested.branch_offset);
+        assert!(true_nested.false_arm_offset < root.false_arm_offset);
+        assert!(root.false_arm_offset <= false_nested.branch_offset);
+
+        let mut forged = emitted.clone();
+        let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+            false_nested, ..
+        } = &mut forged.functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("forged four-leaf stack evidence")
+            .control_flow
+        else {
+            unreachable!()
+        };
+        false_nested.false_arm_offset += 1;
+        assert!(build_terminal_object_artifact(&forged).is_err());
+
+        let artifact = build_terminal_object_artifact(&emitted)
+            .expect("object boundary replays all four leaves");
+        let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("derive four-leaf conditional stack demand");
+        let image = emit_terminal_executable_image(&artifact, 33)
+            .expect("emit four-leaf conditional executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(2).expect("profile decision"),
+        )
+        .expect("build four-leaf conditional installation record");
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("encode four-leaf conditional installation record");
+        let decoded = decode_terminal_installation_record(&encoded)
+            .expect("decode four-leaf conditional installation record");
+        let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+            .expect("recompose installed four-leaf conditional stack demand");
+        assert_eq!(installed, demand);
+    }
+}
+
+fn four_leaf_conditional_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
+    let mut plan = nested_conditional_plan(target, false);
+    let condition_register = match target.architecture {
+        Architecture::X86_64 => MachineRegister::X86Rdx,
+        Architecture::Aarch64 => MachineRegister::Aarch64X(2),
+    };
+    let returned = |edge, return_edge, source, value| TerminalTargetConditionalIntegerArm {
+        psi_edge: edge_id(edge),
+        control: Box::new(TerminalTargetIntegerControl::Return {
+            psi_return_edge: edge_id(return_edge),
+            source_value: value_id(source),
+            expression: TerminalTargetIntegerExpression::Immediate {
+                source_value: value_id(source),
+                value: IntegerValue::Unsigned(value),
+            },
+        }),
+    };
+    let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
+        &mut plan.functions[0].operation
+    else {
+        unreachable!()
+    };
+    when_false.control = Box::new(TerminalTargetIntegerControl::Conditional {
+        condition_source: value_id(6),
+        condition_parameter_index: 2,
+        condition_location: TerminalScalarParameterLocation::Register(condition_register),
+        when_true: returned(9, 11, 7, 13),
+        when_false: returned(10, 12, 8, 15),
+    });
+    plan.functions[0].provenance.edges = (1..=12).map(edge_id).collect();
+    plan
+}
+
 fn nested_conditional_plan(
     target: NativeTarget,
     nested_false_arm: bool,

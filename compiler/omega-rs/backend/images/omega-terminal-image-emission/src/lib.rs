@@ -2411,6 +2411,28 @@ fn validate_scalar_stack(
             scalar_control_affine_cleanups,
         );
     }
+    if let TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+        root,
+        true_nested,
+        false_nested,
+    } = evidence.control_flow
+    {
+        if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                machine,
+            ));
+        }
+        return validate_top_level_three_decision_four_return_scalar_stack(
+            architecture,
+            machine,
+            bytes,
+            calls,
+            evidence,
+            root,
+            true_nested,
+            false_nested,
+        );
+    }
     if let TerminalScalarControlFlowEvidence::LinearWithDivisionBranches { ref branches } =
         evidence.control_flow
     {
@@ -3792,6 +3814,187 @@ fn validate_top_level_two_decision_three_return_scalar_stack(
         },
         validated_calls,
     ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_top_level_three_decision_four_return_scalar_stack(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
+    evidence: &TerminalScalarStackEvidence,
+    root: TerminalScalarConditionalBranchEvidence,
+    true_nested: TerminalScalarConditionalBranchEvidence,
+    false_nested: TerminalScalarConditionalBranchEvidence,
+) -> Result<
+    (
+        TerminalObjectScalarStack,
+        Vec<TerminalObjectScalarCallStack>,
+    ),
+    TerminalObjectError,
+> {
+    let leaf_regions =
+        scalar_four_leaf_regions(machine, bytes.len(), root, true_nested, false_nested)?;
+    if evidence.cleanup_preservation.is_some()
+        || evidence
+            .mutations
+            .windows(2)
+            .any(|pair| pair[0].offset >= pair[1].offset)
+    {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: root.branch_offset,
+        });
+    }
+    for branch in [root, true_nested, false_nested] {
+        validate_scalar_conditional_branch(
+            architecture,
+            branch.condition,
+            machine,
+            bytes,
+            branch.branch_offset,
+            branch.branch_byte_count,
+            branch.false_arm_offset,
+        )?;
+    }
+    let mut claimed = evidence
+        .mutations
+        .iter()
+        .map(|mutation| (mutation.offset, *mutation))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if claimed.len() != evidence.mutations.len() {
+        return Err(TerminalObjectError::NonCanonicalScalarStackMutationOrder(
+            machine,
+        ));
+    }
+    let mut call_sites = std::collections::BTreeMap::new();
+    for call in calls {
+        validate_internal_call_site(architecture, machine, bytes, *call)?;
+        let call_start = match architecture {
+            Architecture::X86_64 => call.offset - 1,
+            Architecture::Aarch64 => call.offset,
+        };
+        call_sites.insert(call_start, *call);
+    }
+    let mut validated_calls = Vec::with_capacity(calls.len());
+    let mut replay_prefix = |start,
+                             end,
+                             condition: TerminalScalarConditionalCondition|
+     -> Result<u32, TerminalObjectError> {
+        let peak = replay_scalar_conditional_region(
+            architecture,
+            machine,
+            bytes,
+            start,
+            end,
+            false,
+            &mut claimed,
+            &mut call_sites,
+            condition == TerminalScalarConditionalCondition::Expression,
+            evidence,
+            &mut validated_calls,
+            None,
+        )?;
+        if condition == TerminalScalarConditionalCondition::Parameter && peak != 0 {
+            return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: end,
+            });
+        }
+        Ok(peak)
+    };
+    let root_true = root
+        .branch_offset
+        .checked_add(root.branch_byte_count)
+        .ok_or(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: root.branch_offset,
+        })?;
+    let mut peak = replay_prefix(0, root.branch_offset, root.condition)?;
+    peak = peak.max(replay_prefix(
+        root_true,
+        true_nested.branch_offset,
+        true_nested.condition,
+    )?);
+    peak = peak.max(replay_prefix(
+        root.false_arm_offset,
+        false_nested.branch_offset,
+        false_nested.condition,
+    )?);
+    drop(replay_prefix);
+    for (start, end) in leaf_regions {
+        peak = peak.max(replay_scalar_conditional_region(
+            architecture,
+            machine,
+            bytes,
+            start,
+            end,
+            true,
+            &mut claimed,
+            &mut call_sites,
+            true,
+            evidence,
+            &mut validated_calls,
+            None,
+        )?);
+    }
+    if let Some((&offset, _)) = claimed.first_key_value() {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    if let Some((&offset, call)) = call_sites.first_key_value() {
+        return Err(TerminalObjectError::InvalidInternalCallSite {
+            caller: machine,
+            owner: call.owner,
+            offset,
+        });
+    }
+    Ok((
+        TerminalObjectScalarStack {
+            local_peak_bytes: peak,
+            stack_alignment: evidence.stack_alignment,
+        },
+        validated_calls,
+    ))
+}
+
+fn scalar_four_leaf_regions(
+    machine: MachineId,
+    byte_count: usize,
+    root: TerminalScalarConditionalBranchEvidence,
+    true_nested: TerminalScalarConditionalBranchEvidence,
+    false_nested: TerminalScalarConditionalBranchEvidence,
+) -> Result<[(usize, usize); 4], TerminalObjectError> {
+    let invalid =
+        |offset| TerminalObjectError::InvalidScalarConditionalEvidence { machine, offset };
+    let root_true = root
+        .branch_offset
+        .checked_add(root.branch_byte_count)
+        .ok_or_else(|| invalid(root.branch_offset))?;
+    let true_leaf = true_nested
+        .branch_offset
+        .checked_add(true_nested.branch_byte_count)
+        .ok_or_else(|| invalid(true_nested.branch_offset))?;
+    let false_leaf = false_nested
+        .branch_offset
+        .checked_add(false_nested.branch_byte_count)
+        .ok_or_else(|| invalid(false_nested.branch_offset))?;
+    if root_true >= root.false_arm_offset
+        || root.false_arm_offset >= byte_count
+        || true_nested.branch_offset < root_true
+        || true_leaf >= true_nested.false_arm_offset
+        || true_nested.false_arm_offset >= root.false_arm_offset
+        || false_nested.branch_offset < root.false_arm_offset
+        || false_leaf >= false_nested.false_arm_offset
+        || false_nested.false_arm_offset >= byte_count
+    {
+        return Err(invalid(root.branch_offset));
+    }
+    Ok([
+        (true_leaf, true_nested.false_arm_offset),
+        (true_nested.false_arm_offset, root.false_arm_offset),
+        (false_leaf, false_nested.false_arm_offset),
+        (false_nested.false_arm_offset, byte_count),
+    ])
 }
 
 fn scalar_control_leaf_regions(

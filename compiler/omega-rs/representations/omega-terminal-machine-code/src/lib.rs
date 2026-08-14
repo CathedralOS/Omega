@@ -428,6 +428,13 @@ pub enum TerminalScalarControlFlowEvidence {
         nested: TerminalScalarConditionalBranchEvidence,
         nested_arm: TerminalScalarConditionalArm,
     },
+    /// Exactly three Boolean decisions and four independently returning leaves:
+    /// each physical arm of `root` contains one further decision.
+    TopLevelThreeDecisionFourReturn {
+        root: TerminalScalarConditionalBranchEvidence,
+        true_nested: TerminalScalarConditionalBranchEvidence,
+        false_nested: TerminalScalarConditionalBranchEvidence,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
