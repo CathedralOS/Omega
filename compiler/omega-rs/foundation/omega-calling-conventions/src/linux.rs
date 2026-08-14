@@ -28,6 +28,7 @@ struct LinuxSyscallNumbers {
     readlinkat: u32,
     fchown: u32,
     fstat: u32,
+    newfstatat: u32,
     openat: u32,
     exit_group: u32,
     clock_gettime: u32,
@@ -331,6 +332,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             &policy,
             plan.target.architecture,
         ),
+        linux_value_syscall(
+            "Filesystem",
+            "stat",
+            "newfstatat",
+            syscall_numbers.newfstatat,
+            4,
+            &policy,
+            plan.target.architecture,
+        ),
     ]);
 
     insert_platform_lowering(
@@ -476,6 +486,18 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             PlatformCallData::None,
         );
     }
+    for (method, trailing_flags) in [("read_metadata", 0), ("read_symlink_metadata", 256)] {
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            method,
+            [host_operation("Filesystem", "stat")],
+            PlatformCallData::ConstantArguments {
+                leading: -100,
+                trailing: trailing_flags,
+            },
+        );
+    }
     insert_platform_lowering(
         plan,
         "FilesystemHost",
@@ -587,6 +609,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             readlinkat: 78,
             fchown: 55,
             fstat: 80,
+            newfstatat: 79,
             openat: 56,
             exit_group: 94,
             clock_gettime: 113,
@@ -614,6 +637,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             readlinkat: 267,
             fchown: 93,
             fstat: 5,
+            newfstatat: 262,
             openat: 257,
             exit_group: 231,
             clock_gettime: 228,

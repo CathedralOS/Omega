@@ -5173,8 +5173,9 @@ fn validate_value_call_argument_classes_with_receiver(
         // with a `&Foo` parameter is silently accepted -- the same wrong-data-type
         // hole the statement/transition path has.
         let slot_context = format!(
-            "argument `{}` for state `{}`",
+            "argument `{}` for state `{}::{}`",
             parameter.name,
+            callee_machine.name,
             callee_state.name.as_str()
         );
         if quotient_lift.is_none() {

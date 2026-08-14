@@ -169,9 +169,9 @@ windows_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -
     }
     state rds_ok(&mut self, path: &[u8] in Path) -> DirStatsResult {
         DirStatsResult::Ok { stats: DirStats {
-            entries: self.w_scan_count,
-            subdirs: self.w_scan_dirs,
-            files: self.w_scan_files,
+            entries: self.w_scan_count as u64,
+            subdirs: self.w_scan_dirs as u64,
+            files: self.w_scan_files as u64,
         } }
     }
     state rds_nf(&mut self, path: &[u8] in Path) -> DirStatsResult {
@@ -608,9 +608,9 @@ windows_x64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
 // base pointer is a valid C string because the seal NUL-terminated the
 // pattern. Result rides `w_find` (-1 on out-of-bounds, matching
 // INVALID_HANDLE_VALUE).
-windows_x64 machine Filesystem::w_find_open(&mut self, k: u64) {
+windows_x64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping) {
     transition k < 512 { true -> wfo_go(k) _ -> wfo_bad() }
-    state wfo_go(&mut self, k: u64) {
+    state wfo_go(&mut self, k: u64 in Wrapping) {
         self.w_find = self.host.find_first(self.w_path[0..k], &mut self.find_buf);
     }
     state wfo_bad(&mut self) { self.w_find = 0 - 1; }
@@ -618,9 +618,9 @@ windows_x64 machine Filesystem::w_find_open(&mut self, k: u64) {
 
 // Guarded remove of the FILE at w_path[0..k] (the joined child path;
 // NUL-terminated at k). Result rides `rda_rc`.
-windows_x64 machine Filesystem::w_remove_file_at(&mut self, k: u64) {
+windows_x64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping) {
     transition k < 512 { true -> wrf_go(k) _ -> wrf_bad() }
-    state wrf_go(&mut self, k: u64) {
+    state wrf_go(&mut self, k: u64 in Wrapping) {
         self.rda_rc = self.host.remove_name(self.w_path[0..k]);
     }
     state wrf_bad(&mut self) { self.rda_rc = 0 - 1; }
@@ -628,9 +628,9 @@ windows_x64 machine Filesystem::w_remove_file_at(&mut self, k: u64) {
 
 // Guarded remove of the empty DIRECTORY at w_path[0..k]. Result rides
 // `rda_rc`.
-windows_x64 machine Filesystem::w_remove_dir_at(&mut self, k: u64) {
+windows_x64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping) {
     transition k < 512 { true -> wrd_go(k) _ -> wrd_bad() }
-    state wrd_go(&mut self, k: u64) {
+    state wrd_go(&mut self, k: u64 in Wrapping) {
         self.rda_rc = self.host.remove_dir_name(self.w_path[0..k]);
     }
     state wrd_bad(&mut self) { self.rda_rc = 0 - 1; }
@@ -896,22 +896,24 @@ windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, 
     let modified_epoch: u64 in Wrapping =
         (narrow_i64_to_u64_wrapping(modified) as u64 in Wrapping) + 11644473600;
     let modified_ticks: u64 in Wrapping = modified_epoch * 10000000;
-    self.access_filetime[0] = narrow_u64_to_u8_wrapping(accessed_ticks);
-    self.access_filetime[1] = narrow_u64_to_u8_wrapping(accessed_ticks >> 8);
-    self.access_filetime[2] = narrow_u64_to_u8_wrapping(accessed_ticks >> 16);
-    self.access_filetime[3] = narrow_u64_to_u8_wrapping(accessed_ticks >> 24);
-    self.access_filetime[4] = narrow_u64_to_u8_wrapping(accessed_ticks >> 32);
-    self.access_filetime[5] = narrow_u64_to_u8_wrapping(accessed_ticks >> 40);
-    self.access_filetime[6] = narrow_u64_to_u8_wrapping(accessed_ticks >> 48);
-    self.access_filetime[7] = narrow_u64_to_u8_wrapping(accessed_ticks >> 56);
-    self.modified_filetime[0] = narrow_u64_to_u8_wrapping(modified_ticks);
-    self.modified_filetime[1] = narrow_u64_to_u8_wrapping(modified_ticks >> 8);
-    self.modified_filetime[2] = narrow_u64_to_u8_wrapping(modified_ticks >> 16);
-    self.modified_filetime[3] = narrow_u64_to_u8_wrapping(modified_ticks >> 24);
-    self.modified_filetime[4] = narrow_u64_to_u8_wrapping(modified_ticks >> 32);
-    self.modified_filetime[5] = narrow_u64_to_u8_wrapping(modified_ticks >> 40);
-    self.modified_filetime[6] = narrow_u64_to_u8_wrapping(modified_ticks >> 48);
-    self.modified_filetime[7] = narrow_u64_to_u8_wrapping(modified_ticks >> 56);
+    let accessed_bits: u64 = accessed_ticks as u64;
+    let modified_bits: u64 = modified_ticks as u64;
+    self.access_filetime[0] = narrow_u64_to_u8_wrapping(accessed_bits);
+    self.access_filetime[1] = narrow_u64_to_u8_wrapping(accessed_bits >> 8);
+    self.access_filetime[2] = narrow_u64_to_u8_wrapping(accessed_bits >> 16);
+    self.access_filetime[3] = narrow_u64_to_u8_wrapping(accessed_bits >> 24);
+    self.access_filetime[4] = narrow_u64_to_u8_wrapping(accessed_bits >> 32);
+    self.access_filetime[5] = narrow_u64_to_u8_wrapping(accessed_bits >> 40);
+    self.access_filetime[6] = narrow_u64_to_u8_wrapping(accessed_bits >> 48);
+    self.access_filetime[7] = narrow_u64_to_u8_wrapping(accessed_bits >> 56);
+    self.modified_filetime[0] = narrow_u64_to_u8_wrapping(modified_bits);
+    self.modified_filetime[1] = narrow_u64_to_u8_wrapping(modified_bits >> 8);
+    self.modified_filetime[2] = narrow_u64_to_u8_wrapping(modified_bits >> 16);
+    self.modified_filetime[3] = narrow_u64_to_u8_wrapping(modified_bits >> 24);
+    self.modified_filetime[4] = narrow_u64_to_u8_wrapping(modified_bits >> 32);
+    self.modified_filetime[5] = narrow_u64_to_u8_wrapping(modified_bits >> 40);
+    self.modified_filetime[6] = narrow_u64_to_u8_wrapping(modified_bits >> 48);
+    self.modified_filetime[7] = narrow_u64_to_u8_wrapping(modified_bits >> 56);
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.set_file_time(handle, 0, &self.access_filetime, &self.modified_filetime);

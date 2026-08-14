@@ -2335,6 +2335,7 @@ mod binding_plan_tests {
             expected_openat,
             expected_close,
             expected_fstat,
+            expected_stat,
             expected_mkdirat,
             expected_fchmodat,
             expected_unlinkat,
@@ -2350,6 +2351,7 @@ mod binding_plan_tests {
                 257,
                 3,
                 5,
+                262,
                 258,
                 268,
                 263,
@@ -2365,6 +2367,7 @@ mod binding_plan_tests {
                 56,
                 57,
                 80,
+                79,
                 34,
                 53,
                 35,
@@ -2382,6 +2385,7 @@ mod binding_plan_tests {
                 (HostOperation::OpenCreate, "openat", expected_openat, 4),
                 (HostOperation::Close, "close", expected_close, 1),
                 (HostOperation::FStat, "fstat", expected_fstat, 2),
+                (HostOperation::Stat, "newfstatat", expected_stat, 4),
                 (HostOperation::MakeDir, "mkdirat", expected_mkdirat, 3),
                 (HostOperation::Chmod, "fchmodat", expected_fchmodat, 3),
                 (HostOperation::UnlinkAt, "unlinkat", expected_unlinkat, 3),
@@ -2452,6 +2456,22 @@ mod binding_plan_tests {
                 .map(|(_, row)| row)
                 .expect("Linux getdents64 lowering");
             assert_eq!(read_dir.data, PlatformCallData::OmitTrailingArgument);
+
+            for (method, trailing) in [("read_metadata", 0), ("read_symlink_metadata", 256)] {
+                let lowering = plan
+                    .platform_call_lowerings
+                    .iter()
+                    .find(|(_, row)| row.state.as_ref() == method)
+                    .map(|(_, row)| row)
+                    .expect("Linux path-metadata lowering");
+                assert_eq!(
+                    lowering.data,
+                    PlatformCallData::ConstantArguments {
+                        leading: -100,
+                        trailing,
+                    }
+                );
+            }
 
             for (method, trailing) in [
                 ("remove", 0),
