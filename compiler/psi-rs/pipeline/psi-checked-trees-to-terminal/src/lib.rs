@@ -10580,6 +10580,13 @@ fn shared_boolean_runtime_parameters(
 fn shared_integer_runtime_parameters(
     expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    shared_integer_runtime_parameters_with_shells(expression, 1)
+}
+
+fn shared_integer_runtime_parameters_with_shells(
+    expression: &LoweredDirectExpression,
+    remaining_shells: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
         LoweredDirectExpression::Parameter {
@@ -10587,6 +10594,31 @@ fn shared_integer_runtime_parameters(
             scalar_type,
         } => matches!(scalar_type, ScalarType::Integer(_))
             .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])),
+        LoweredDirectExpression::IntegerBinary {
+            kind:
+                LoweredIntegerBinaryKind::BitwiseAnd
+                | LoweredIntegerBinaryKind::BitwiseOr
+                | LoweredIntegerBinaryKind::BitwiseXor
+                | LoweredIntegerBinaryKind::WrappingShiftLeft
+                | LoweredIntegerBinaryKind::WrappingShiftRight
+                | LoweredIntegerBinaryKind::WrappingAdd
+                | LoweredIntegerBinaryKind::SaturatingAdd
+                | LoweredIntegerBinaryKind::WrappingSubtract
+                | LoweredIntegerBinaryKind::SaturatingSubtract
+                | LoweredIntegerBinaryKind::WrappingMultiply
+                | LoweredIntegerBinaryKind::SaturatingMultiply,
+            left,
+            right,
+            ..
+        } if remaining_shells > 0 => {
+            let mut parameters =
+                shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
+            parameters.extend(shared_integer_runtime_parameters_with_shells(
+                right,
+                remaining_shells - 1,
+            )?);
+            Some(parameters)
+        }
         LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::IntegerBinary { .. }
         | LoweredDirectExpression::IntegerBitwiseNot { .. }
@@ -10722,9 +10754,10 @@ fn resolve_shared_boolean_member_fields(
 
 /// Normalize the comparison leaves accepted by the checked shared-convergence
 /// plan into the existing identity/negation carrier. Boolean equality is
-/// admitted only when at least one operand is constant. Checked direct integer
-/// comparisons retain their exact operation. The one already-resolved
-/// structural-field leaf is preserved unchanged.
+/// admitted only when at least one operand is constant. Checked integer
+/// comparisons retain their exact operation and bounded total-computation
+/// operands. The one already-resolved structural-field leaf is preserved
+/// unchanged.
 fn normalize_shared_boolean_comparison_leaves(
     expression: &LoweredBooleanReturnExpression,
 ) -> Option<LoweredBooleanReturnExpression> {
