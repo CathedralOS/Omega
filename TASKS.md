@@ -233,9 +233,10 @@ Remaining:
   unsigned count upper bound, one exact left shift by a landed count
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
-  landed nonzero unsigned constant or runtime unsigned divisor under a retained
-  direct lower bound. Nested proof-bearing shells, computed exact-cast and wider
-  exact-arithmetic premise shapes, other unary computation, and
+  landed nonzero unsigned constant, a landed signed constant other than `0` or
+  `-1`, or a runtime unsigned divisor under a retained direct lower bound.
+  Nested proof-bearing shells, computed exact-cast and wider exact-arithmetic
+  premise shapes, other unary computation, and
   member/comparison mixtures remain fenced. Extend those integer comparisons,
   then
   add complete slices for calls and effects, wider partial-value cleanup,

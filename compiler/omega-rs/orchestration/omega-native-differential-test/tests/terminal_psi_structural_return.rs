@@ -775,6 +775,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((signed_arithmetic - -1i8) < 4i8)
                 && ((signed_arithmetic * 3i8) < 4i8)
                 && ((signed_arithmetic * -3i8) < 4i8)
+                && ((signed_arithmetic / 2i8) < 4i8)
+                && ((signed_arithmetic % -2i8) <= 1i8)
                 && enabled;
             staged
         }
@@ -1008,6 +1010,45 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             .any(|(_, factor)| *factor == IntegerValue::Signed(-3))
     );
     for (obligation, _) in signed_multiply_sites {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let signed_division_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                left, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
+                left, obligation, ..
+            } if left == signed_arithmetic_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        terminal_entry
+            .blocks
+            .iter()
+            .any(|block| block.operations.iter().any(
+                |operation| matches!(operation.kind, OperationKind::ExactIntegerDivide { left, .. }
+            if left == signed_arithmetic_parameter)
+            ))
+    );
+    assert!(terminal_entry.blocks.iter().any(|block| {
+        block.operations.iter().any(|operation| {
+            matches!(operation.kind, OperationKind::ExactIntegerRemainder { left, .. }
+            if left == signed_arithmetic_parameter)
+        })
+    }));
+    assert!(signed_division_obligations.len() >= 2);
+    for obligation in signed_division_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
