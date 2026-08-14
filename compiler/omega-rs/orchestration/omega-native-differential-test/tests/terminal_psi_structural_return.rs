@@ -738,9 +738,11 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             token: Token,
             input: u64 in Wrapping,
             small: u8,
+            divisor: u8,
             enabled: bool
         ) -> bool
-        requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8
+        requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8,
+            1u8 <= divisor
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && ((small as u16) < 5u16)
@@ -750,6 +752,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small * 2u8) < 10u8)
                 && ((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
+                && ((small / divisor) < 6u8)
+                && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
                 && ((small << 1u8) < 11u8)
                 && enabled;
@@ -831,6 +835,31 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         })
         .expect("shared convergence retains exact remainder by a nonzero constant");
     for obligation in [exact_divide_obligation, exact_remainder_obligation] {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let divisor_parameter = terminal_entry.parameters[2].id;
+    let runtime_divisor_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
+                right, obligation, ..
+            } if right == divisor_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(runtime_divisor_obligations.len() >= 2);
+    for obligation in runtime_divisor_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(

@@ -9,14 +9,14 @@ use psi_checked_trees::{
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerUpperBoundRequirementPlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerBoundKind,
+    CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
@@ -1522,13 +1522,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64,
             left,
             right,
-        } if remaining_shells > 0
-            && matches!(
-                right.as_ref(),
-                CheckedScalarExpression::IntegerLiteral { literal }
-                    if literal.value_i64().is_some_and(|value| value > 0)
-            ) =>
-        {
+        } if remaining_shells > 0 => {
             let mut inputs = shared_integer_runtime_inputs_with_shells(
                 left,
                 scalar_parameter_count,
@@ -2954,11 +2948,11 @@ fn nominal_scalar_caller_requirements(
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> Option<(
     Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
-    Vec<CheckedStructuralScalarIntegerUpperBoundRequirementPlan>,
+    Vec<CheckedStructuralScalarIntegerBoundRequirementPlan>,
 )> {
     // Both accepted callers preserve checked entry requirements unchanged. The
     // Unit lane admits only direct Boolean root facts; the scalar lane also
-    // retains one direct unsigned parameter upper bound for exact narrowing.
+    // retains direct unsigned parameter bounds for exact arithmetic.
     // Wider bodies must instead consult path-specific exit contexts.
     let caller_requires =
         checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
@@ -2986,7 +2980,7 @@ fn nominal_scalar_caller_requirements(
             structural_requirements.push(requirement);
             continue;
         }
-        scalar_requirements.push(direct_unsigned_integer_upper_bound_requirement(
+        scalar_requirements.push(direct_unsigned_integer_bound_requirement(
             program,
             caller_machine.symbol,
             caller_state,
@@ -3023,30 +3017,41 @@ fn nominal_cleanup_caller_boolean_requirements(
     scalar.is_empty().then_some(structural)
 }
 
-fn direct_unsigned_integer_upper_bound_requirement(
+fn direct_unsigned_integer_bound_requirement(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: &psi_typed_trees::state::State,
     source_parameters: &[StateParameter],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     expression: psi_typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedStructuralScalarIntegerUpperBoundRequirementPlan> {
+) -> Option<CheckedStructuralScalarIntegerBoundRequirementPlan> {
     use psi_typed_trees::expression::{BinaryOperator, ExpressionNode};
 
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
-    if binary.operator != BinaryOperator::LessOrEqual {
-        return None;
-    }
-    let ExpressionNode::Integer(maximum) = program.expression_table.expression(binary.right) else {
-        return None;
+    let (parameter_expression, bound, kind) = match (
+        binary.operator,
+        program.expression_table.expression(binary.left),
+        program.expression_table.expression(binary.right),
+    ) {
+        (BinaryOperator::LessOrEqual, _, ExpressionNode::Integer(bound)) => (
+            binary.left,
+            bound,
+            CheckedStructuralScalarIntegerBoundKind::Upper,
+        ),
+        (BinaryOperator::LessOrEqual, ExpressionNode::Integer(bound), _) => (
+            binary.right,
+            bound,
+            CheckedStructuralScalarIntegerBoundKind::Lower,
+        ),
+        _ => return None,
     };
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         0,
-        binary.left,
+        parameter_expression,
     )?;
     if !place.segments.is_empty() {
         return None;
@@ -3067,10 +3072,11 @@ fn direct_unsigned_integer_upper_bound_requirement(
     ) {
         return None;
     }
-    Some(CheckedStructuralScalarIntegerUpperBoundRequirementPlan {
+    Some(CheckedStructuralScalarIntegerBoundRequirementPlan {
         parameter_position: u32::try_from(parameter_position).ok()?,
         primitive_type,
-        maximum: maximum.clone(),
+        kind,
+        bound: bound.clone(),
     })
 }
 

@@ -7116,21 +7116,7 @@ fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> 
         TerminalAssignedIntegerExpression::Call { arguments, .. } => arguments
             .iter()
             .all(|argument| linear_scalar_expression(&argument.expression)),
-        TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
-        | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. }
-            if matches!(
-                right.as_ref(),
-                TerminalAssignedIntegerExpression::Immediate {
-                    value: IntegerValue::Unsigned(value),
-                    ..
-                } if *value > 0
-            ) =>
-        {
-            linear_integer_expression(left)
-        }
-        TerminalAssignedIntegerExpression::ExactDivide { .. }
-        | TerminalAssignedIntegerExpression::ExactRemainder { .. }
-        | TerminalAssignedIntegerExpression::WrappingDivide { .. }
+        TerminalAssignedIntegerExpression::WrappingDivide { .. }
         | TerminalAssignedIntegerExpression::WrappingRemainder { .. }
         | TerminalAssignedIntegerExpression::SaturatingDivide { .. }
         | TerminalAssignedIntegerExpression::SaturatingRemainder { .. } => false,
@@ -7169,7 +7155,9 @@ fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> 
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
-        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. } => {
             linear_integer_expression(left) && linear_integer_expression(right)
         }
     }
