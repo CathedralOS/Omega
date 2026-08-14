@@ -77,6 +77,7 @@ pub(super) use binary_table_writes::{
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
     select_runtime_storage_binary_write_in_table,
     select_runtime_storage_binary_write_in_table_with_call_ordinal,
+    select_runtime_storage_binary_write_in_table_with_evidence_source_key,
 };
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,

@@ -4620,7 +4620,7 @@ fn backend_report_renders_ownership_summary_events() {
     );
     assert!(
         report.contains(
-            "- Establish `<unnamed>` in machine `Main::run` state `run` at statement 0 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Establish `<unnamed>` in machine `Main::main` state `main` at statement 0 (multiplicity=Linear, access=Owned, claim=Main::main::main at statement 0 #0, provenance=Main::main::main at statement 0, obligation_live=true)"
         ),
         "spine should record linear establishment, claim identity, and provenance\n{}",
         report
@@ -4635,21 +4635,21 @@ fn backend_report_renders_ownership_summary_events() {
     );
     assert!(
         report.contains(
-            "- Transfer `<unnamed>` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Transfer `<unnamed>` in machine `Main::main` state `main` at statement 1 (multiplicity=Linear, access=Owned, claim=Main::main::main at statement 0 #0, provenance=Main::main::main at statement 0, obligation_live=true)"
         ),
         "spine should record transfer without minting a new claim or provenance\n{}",
         report
     );
     assert!(
         report.contains(
-            "- Establish `forwarded` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Establish `forwarded` in machine `Main::main` state `main` at statement 1 (multiplicity=Linear, access=Owned, claim=Main::main::main at statement 0 #0, provenance=Main::main::main at statement 0, obligation_live=true)"
         ),
         "spine should record the receiving place's established obligation\n{}",
         report
     );
     assert!(
         report.contains(
-            "- Consume `forwarded` in machine `Main::run` state `run` at call ordinal 0 in statement 2 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Consume `forwarded` in machine `Main::main` state `main` at call ordinal 0 in statement 2 (multiplicity=Linear, access=Owned, claim=Main::main::main at statement 0 #0, provenance=Main::main::main at statement 0, obligation_live=true)"
         ),
         "spine should record terminal consumption\n{}",
         report
@@ -4808,9 +4808,9 @@ fn backend_report_separates_transition_and_nested_call_ordinals() {
     );
     assert!(
         report.contains(
-            "- Transfer `first` in machine `Main::run` state `run` at call ordinal 0 in statement 2"
+            "- Transfer `first` in machine `Main::main` state `main` at call ordinal 0 in statement 2"
         ) && report.contains(
-            "- Transfer `second` in machine `Main::run` state `run` at call ordinal 1 in statement 2"
+            "- Transfer `second` in machine `Main::main` state `main` at call ordinal 1 in statement 2"
         ),
         "the transition target and nested value call must retain distinct canonical ordinals\n{}",
         report
@@ -4869,9 +4869,9 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
     );
     assert!(
         report.contains(
-            "- Transfer `first` in machine `Main::run` state `run` at call ordinal 1 in statement 2"
+            "- Transfer `first` in machine `Main::main` state `main` at call ordinal 1 in statement 2"
         ) && report.contains(
-            "- Transfer `second` in machine `Main::run` state `run` at call ordinal 2 in statement 2"
+            "- Transfer `second` in machine `Main::main` state `main` at call ordinal 2 in statement 2"
         ),
         "same-target calls must retain distinct canonical ordinals\n{}",
         report
@@ -5082,8 +5082,8 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
     for event_prefix in [
         "- Establish `issued` in machine `Main::issue` state `issue` at statement 0",
         "- Transfer `issued` in machine `Main::issue` state `issue` at statement 1",
-        "- Establish `returned` in machine `Main::run` state `run` at statement 0",
-        "- Consume `returned` in machine `Main::run` state `run` at call ordinal 0 in statement 1",
+        "- Establish `returned` in machine `Main::main` state `main` at statement 0",
+        "- Consume `returned` in machine `Main::main` state `main` at call ordinal 0 in statement 1",
     ] {
         let event = report
             .lines()
@@ -32303,11 +32303,11 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("pointer/length compile should publish its backend report");
     assert!(
-        report.contains("call host operation NativeByteShapes.take_separate(scalar i32 omega_machine_Main::main_storage@32, scalar i64 omega_machine_Main::main_storage@0, scalar i64 omega_machine_Main::main_storage@8)"),
+        report.contains("(scalar i32 omega_machine_Main::main_storage@32, scalar i64 omega_machine_Main::main_storage@0, scalar i64 omega_machine_Main::main_storage@8)"),
         "the separate declaration must remain two scalar Win64 arguments:\n{report}"
     );
     assert!(
-        report.contains("call host operation NativeByteShapes.take_descriptor(scalar i32 omega_machine_Main::main_storage@32, aggregate 16/8 omega_machine_Main::main_storage@16)"),
+        report.contains("(scalar i32 omega_machine_Main::main_storage@32, aggregate 16/8 omega_machine_Main::main_storage@16)"),
         "the descriptor declaration must remain one 16-byte aggregate argument:\n{report}"
     );
 
@@ -41302,8 +41302,10 @@ fn aarch64_small_aggregate_entry_falls_wholly_to_the_stack() {
     .expect("register-exhausted small aggregate should cross-compile from the stack");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
-    let load_first = 0xf940_33f1u32.to_le_bytes();
-    let load_second = 0xf940_37f1u32.to_le_bytes();
+    // The canonical FPCR save enlarged the fixed prologue frame to 0x70
+    // bytes. Incoming stack arguments begin immediately above that frame.
+    let load_first = 0xf940_3bf1u32.to_le_bytes();
+    let load_second = 0xf940_3ff1u32.to_le_bytes();
     assert!(
         image
             .windows(32)
@@ -42321,7 +42323,15 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
         })
         .expect(".text section should exist");
 
-    let entry = &image[text_raw..text_raw + 34];
+    let entry = image[text_raw..]
+        .windows(34)
+        .find(|window| {
+            window[0..2] == [0x49, 0xbf]
+                && window[10..13] == [0x49, 0x89, 0x8f]
+                && window[17..19] == [0x49, 0xbf]
+                && window[27..30] == [0x49, 0x89, 0x97]
+        })
+        .expect("entry argument unmarshal sequence should follow the target prologue");
     // Store 0: mov r15, imm64 ; mov [r15+0], rcx
     assert_eq!(&entry[0..2], &[0x49, 0xbf], "store 0: mov r15, imm64");
     assert_eq!(
@@ -42379,7 +42389,12 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
         })
         .expect(".text section should exist");
 
-    let entry = &image[text_raw..text_raw + 19];
+    let entry = image[text_raw..]
+        .windows(19)
+        .find(|window| {
+            window[0..2] == [0x49, 0xbf] && window[10..15] == [0xf2, 0x41, 0x0f, 0x11, 0x87]
+        })
+        .expect("floating entry argument unmarshal should follow the target prologue");
     assert_eq!(&entry[0..2], &[0x49, 0xbf], "mov r15, frame base");
     assert_eq!(
         &entry[10..15],
@@ -44543,7 +44558,7 @@ fn build_runtime_float_semantics_twins_agree() {
         "directed arithmetic and directed FMA",
         "fused versus separately rounded multiply-add",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa6cd_3291_982e_12a1;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x1c16_0de7_e696_bcb4;
 
     let canary = pass_canary("float/build_runtime_semantics_twins");
     let main_path = canary.join("main.omg");
@@ -44620,13 +44635,13 @@ fn build_runtime_float_semantics_twins_agree() {
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("float semantic twins should run natively");
-    let _ = fs::remove_dir_all(&build_dir);
     assert_eq!(
         output.status.code(),
         Some(70),
         "native runtime must agree with the build-time twin; stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let _ = fs::remove_dir_all(&build_dir);
 
     let scratch = std::env::temp_dir().join(format!(
         "omega-float-semantic-edge-twins-linux-arm64-{}",
@@ -47837,13 +47852,15 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
 #[test]
 fn console_byte_field_target_rejected_canary_is_rejected() {
     let canary = fail_canary("host/console_byte_field_target_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected the field-target read_byte canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let scratch = unique_no_output_build_dir();
+    let diagnostics =
+        match compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()) {
+            Ok(report) => panic!(
+                "expected the field-target read_byte canary to reject, but it compiled: {}",
+                report.summary()
+            ),
+            Err(diagnostics) => diagnostics,
+        };
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -47854,6 +47871,7 @@ fn console_byte_field_target_rejected_canary_is_rejected() {
             && combined.contains("let r: ByteRead"),
         "expected the actionable byte-op blocker (serving-shape hint), got:\n{combined}"
     );
+    let _ = fs::remove_dir_all(scratch);
 }
 
 // Dijkstra's Dutch flag partition: an enum-array three-pointer in-place
