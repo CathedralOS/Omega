@@ -109,6 +109,7 @@ pub struct ContractEvidenceArgument {
 pub struct EvidenceForwardingFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
     pub output: Handle<CheckedEvidenceTerm>,
     pub source: Handle<CheckedEvidenceTerm>,
 }

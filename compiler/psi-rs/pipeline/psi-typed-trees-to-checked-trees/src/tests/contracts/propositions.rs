@@ -240,6 +240,7 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
     let [forwarding] = forwardings.as_slice() else {
         panic!("one checked forwarding expected");
     };
+    assert_eq!(forwarding.statement_index, 0);
     assert_eq!(
         checked
             .facts
@@ -402,6 +403,90 @@ fn named_ensures_need_not_be_assigned_on_crash_only_exit() {
     "#;
     lower_typed_trees(parse_typed_trees(source))
         .expect("a crash-only path is not an ordinary evidence-package return");
+}
+
+#[test]
+fn named_ensures_are_definitely_assigned_on_every_named_outcome() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32, choose_left: bool)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+            transition choose_left {
+                true -> left()
+                false -> right()
+            }
+
+            state left() {
+                outgoing = incoming;
+            }
+
+            state right() {
+                outgoing = incoming;
+            }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("each named ordinary outcome assigns the output exactly once");
+}
+
+#[test]
+fn named_ensures_rejects_one_unassigned_named_outcome() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32, choose_left: bool)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+            transition choose_left {
+                true -> left()
+                false -> right()
+            }
+
+            state left() {
+                outgoing = incoming;
+            }
+
+            state right() {
+            }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the unassigned named outcome must reject");
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+        "named ensures evidence `outgoing` is not definitely assigned on the ordinary exit through forward::right"
+    )));
+}
+
+#[test]
+fn named_ensures_assignment_after_terminal_dispatch_does_not_reach_its_arms() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+        machine forward(value: i32, choose_left: bool)
+        requires incoming: carries(value)
+        ensures outgoing: carries(value)
+        {
+            transition choose_left {
+                true -> left()
+                false -> right()
+            }
+            outgoing = incoming;
+
+            state left() {}
+            state right() {}
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an erased assignment after terminal dispatch cannot backdate itself");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("named ensures evidence `outgoing` is not definitely assigned")
+    }));
 }
 
 #[test]
