@@ -8256,6 +8256,279 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
 }
 
 #[test]
+fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
+    let source = r#"
+    data Pair {
+        first: u64;
+        second: u64;
+    }
+
+    data BorrowCell<'source> {
+        value: &'source mut u64;
+    }
+
+    data Main {
+        cells: [u64; 2];
+        values: [u64; 2];
+        matrix: [[u64; 2]; 2];
+        cube: [[[u64; 1]; 1]; 1];
+        first: u64;
+        second: u64;
+    }
+
+    data ReferenceMain<'storage> {
+        cells: [u64; 2];
+        target: [BorrowCell<'storage>; 1];
+        source: &'storage mut u64;
+    }
+
+    machine compute(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine identity(value: u64) -> u64 {
+        value
+    }
+
+    machine recursive_value() -> u64 {
+        recursive_value()
+    }
+
+    machine return_reference<'value>(value: &'value mut u64) -> &'value mut u64 {
+        value
+    }
+
+    machine make_pair(value: &mut u64) -> Pair {
+        value = 2;
+        Pair { first: 0, second: 1 }
+    }
+
+    machine return_after_array_values<'cells, 'target, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [u64; 2],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [
+            identity(identity(identity(compute(first)))),
+            compute(second)
+        ];
+        cells
+    }
+
+    machine return_after_nested_array_values<'cells, 'target, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [[u64; 2]; 2],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [
+            [~(compute(first) + 1), 0],
+            [make_pair(second).first, 1]
+        ];
+        cells
+    }
+
+    machine return_after_three_array_levels<'cells, 'target, 'first>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [[[u64; 1]; 1]; 1],
+        first: &'first mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [[[compute(first)]]];
+        cells
+    }
+
+    machine return_after_three_array_computations<'cells, 'target, 'first>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [u64; 2],
+        first: &'first mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [(~compute(first) as u64) + 1, 0];
+        cells
+    }
+
+    machine return_after_five_array_calls<'cells, 'target, 'first>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [u64; 2],
+        first: &'first mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [
+            identity(identity(identity(identity(compute(first))))),
+            0
+        ];
+        cells
+    }
+
+    machine return_after_array_binding_reborrow<'cells, 'target, 'first>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [u64; 2],
+        first: &'first mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [compute(&mut first), 0];
+        cells
+    }
+
+    machine return_after_recursive_array_value<'cells, 'target>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [u64; 2]
+    ) -> &'cells mut [u64; 2] {
+        target = [recursive_value(), 0];
+        cells
+    }
+
+    machine return_after_reference_array<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [BorrowCell<'value>; 1],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [BorrowCell { value: return_reference(value) }];
+        cells
+    }
+
+    machine Main::array_value_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_values(
+            &mut self.cells,
+            &mut self.values,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::nested_array_value_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nested_array_values(
+            &mut self.cells,
+            &mut self.matrix,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::three_array_levels_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_three_array_levels(
+            &mut self.cells,
+            &mut self.cube,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::three_array_computations_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_three_array_computations(
+            &mut self.cells,
+            &mut self.values,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::five_array_calls_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_five_array_calls(
+            &mut self.cells,
+            &mut self.values,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::array_binding_reborrow_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_binding_reborrow(
+            &mut self.cells,
+            &mut self.values,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::recursive_array_value_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_recursive_array_value(
+            &mut self.cells,
+            &mut self.values
+        );
+        alias[0] = 3;
+    }
+
+    machine ReferenceMain::reference_array_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_reference_array(
+            &mut self.cells,
+            &mut self.target,
+            self.source
+        );
+        alias[0] = 3;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for (name, expected_paths) in [
+        (
+            "Main::array_value_result",
+            vec!["self.cells", "self.first", "self.second", "self.values"],
+        ),
+        (
+            "Main::nested_array_value_result",
+            vec!["self.cells", "self.first", "self.matrix", "self.second"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must publish each bounded fixed-array element call write"
+        );
+    }
+
+    for name in [
+        "Main::three_array_levels_result",
+        "Main::three_array_computations_result",
+        "Main::five_array_calls_result",
+        "Main::array_binding_reborrow_result",
+        "Main::recursive_array_value_result",
+        "ReferenceMain::reference_array_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded fixed-array rung"
+        );
+    }
+}
+
+#[test]
 fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     let source = r#"
     data Main {

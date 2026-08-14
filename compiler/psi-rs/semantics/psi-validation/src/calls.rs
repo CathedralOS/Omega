@@ -2388,7 +2388,7 @@ fn transparent_callee_result_origin(
                         program,
                         callee_machine,
                         assignment.value,
-                        assignment_target_is_primitive(
+                        assignment_target_type(
                             program,
                             callee_machine,
                             callee_state,
@@ -2639,10 +2639,11 @@ fn statement_call_preserves_transparent_result(
 /// non-reference. A direct primitive scalar value may wrap complete
 /// caller-isolated call producers in up to two unary, binary, primitive-cast,
 /// member-projection, or indexing shells. One
-/// primitive-only record or selected-case literal may independently contain
-/// such a tree in each field, and one nested record or selected-case literal
-/// may do the same. Reference-bearing or generic literals, wider aggregate or
-/// scalar-computation depth, and unknown return types fail closed.
+/// primitive-only record, selected-case, or fixed-array literal may
+/// independently contain such a tree in each direct field/element, and one
+/// nested aggregate of the same kind may do the same. Reference-bearing or
+/// generic literals, wider aggregate or scalar-computation depth, and unknown
+/// return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
 const TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH: usize = 2;
@@ -2651,7 +2652,7 @@ fn value_expression_assignment_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
-    assignment_target_is_primitive: bool,
+    assignment_target_type: Option<TypeReferenceHandle>,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
@@ -2679,11 +2680,26 @@ fn value_expression_assignment_preserves_transparent_result(
                 TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
             )
         }
+        ExpressionNode::ArrayLiteral(_) => assignment_target_type.is_some_and(|target_type| {
+            array_value_assignment_preserves_transparent_result(
+                program,
+                current_machine,
+                expression,
+                target_type,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+                TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+            )
+        }),
         ExpressionNode::Binary(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Unary(_)
-            if assignment_target_is_primitive =>
+            if assignment_target_type.is_some_and(|target_type| {
+                program.primitive_type_reference(target_type).is_some()
+            }) =>
         {
             primitive_computed_assignment_value_preserves_transparent_result(
                 program,
@@ -2697,8 +2713,9 @@ fn value_expression_assignment_preserves_transparent_result(
             )
         }
         ExpressionNode::Cast(cast)
-            if assignment_target_is_primitive
-                && program.primitive_type_reference(cast.target_type).is_some() =>
+            if assignment_target_type.is_some_and(|target_type| {
+                program.primitive_type_reference(target_type).is_some()
+            }) && program.primitive_type_reference(cast.target_type).is_some() =>
         {
             primitive_computed_assignment_value_preserves_transparent_result(
                 program,
@@ -2715,17 +2732,108 @@ fn value_expression_assignment_preserves_transparent_result(
     }
 }
 
-fn assignment_target_is_primitive(
+fn assignment_target_type(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    crate::places::declared_place_type(program, machine, Some(state), target).or_else(|| {
+        crate::places::declared_indexed_projection_type(program, machine, Some(state), target)
+    })
+}
+
+/// Apply the concrete aggregate-value rail to one fixed-array literal. The
+/// assignment target supplies the exact contextual element type that an array
+/// literal does not carry itself. Only literal-length, caller-isolated arrays
+/// participate; every effectful element independently obeys the ordinary
+/// depth-four call budget, primitive elements may use the depth-two scalar
+/// computation rail, and one nested fixed-array literal consumes the second
+/// aggregate level.
+#[allow(clippy::too_many_arguments)]
+fn array_value_assignment_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_aggregate_depth: usize,
 ) -> bool {
-    crate::places::declared_place_type(program, machine, Some(state), target)
-        .or_else(|| {
-            crate::places::declared_indexed_projection_type(program, machine, Some(state), target)
-        })
-        .is_some_and(|target_type| program.primitive_type_reference(target_type).is_some())
+    if remaining_aggregate_depth == 0 || !type_is_caller_isolated_local(program, expected_type) {
+        return false;
+    }
+    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    let Some(expected_type) = crate::places::unwrapped_type_reference(program, expected_type)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(expected_type)
+    else {
+        return false;
+    };
+    let elements = program.expression_table.expression_handles(*elements);
+    if *length != elements.len() {
+        return false;
+    }
+    let Some(element_type) = crate::places::unwrapped_type_reference(program, *element_type) else {
+        return false;
+    };
+    elements.iter().all(|element| {
+        if !expression_is_effectful_for_transparent_result(program, *element) {
+            return true;
+        }
+        match program.expression_table.expression(*element) {
+            ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
+                program,
+                current_machine,
+                *element,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+            ),
+            ExpressionNode::ArrayLiteral(_) => array_value_assignment_preserves_transparent_result(
+                program,
+                current_machine,
+                *element,
+                element_type,
+                symbols,
+                active_states,
+                parameters,
+                aliases,
+                remaining_aggregate_depth - 1,
+            ),
+            ExpressionNode::Binary(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Unary(_)
+                if program.primitive_type_reference(element_type).is_some() =>
+            {
+                primitive_computed_value_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    *element,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                    TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                    false,
+                )
+            }
+            _ => false,
+        }
+    })
 }
 
 /// Apply the settled primitive aggregate-field computation algebra directly to
