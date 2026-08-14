@@ -305,7 +305,8 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// equality with a constant is normalized to identity/negation. One direct
     /// relevant Boolean field identity on one nominal-cleanup root is also
     /// admitted. Integer-comparison leaves separately accept scalar parameters
-    /// and landed constants beneath at most one total binary computation shell.
+    /// and landed constants beneath at most one total binary or bitwise-not
+    /// computation shell.
     /// Nested or multiple field identities, member/comparison mixtures, wider
     /// integer computations, and richer leaves retain the source-distributed
     /// fallback and publish `None`.

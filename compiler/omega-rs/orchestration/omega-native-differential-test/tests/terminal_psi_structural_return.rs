@@ -735,7 +735,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         machine Token::drop(&mut self) { Helper::touch(); }
         data Root {}
         machine Root::measure(token: Token, input: u64 in Wrapping, enabled: bool) -> bool {
-            let staged: bool = ((input + 1u64) < 7u64) && enabled;
+            let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64)) && enabled;
             staged
         }
     "#;
@@ -766,6 +766,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             .operations
             .iter()
             .any(|operation| matches!(operation.kind, OperationKind::WrappingIntegerAdd { .. }))
+    }));
+    assert!(terminal_entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::IntegerBitwiseNot { .. }))
     }));
     assert_eq!(
         terminal_entry

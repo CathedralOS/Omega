@@ -397,7 +397,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     machine Token::drop(&mut self) { Helper::touch(); }
     data Root {}
     machine Root::measure(token: Token, input: u64 in Wrapping, enabled: bool) -> bool {
-        let staged: bool = (((input + 1u64) < 4u64) || (input <= 9u64))
+        let staged: bool = (((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && (input == 3u64)
             && enabled;
         staged
@@ -1690,6 +1690,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         block
             .operations
             .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::IntegerBitwiseNot { .. }))
+    }));
+    assert!(entry.blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
             .any(|operation| matches!(operation.kind, OperationKind::IntegerLessOrEqual { .. }))
     }));
     assert!(entry.blocks.iter().any(|block| {
@@ -1743,6 +1749,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         path: Vec::new(),
     }];
     for (input, enabled) in [(3, false), (3, true), (4, true), (9, false), (10, true)] {
+        let bitwise_not = (!input) & u128::from(u64::MAX);
         let mut handler = AcceptTerminalEffects;
         let measured = interpret_terminal_artifact_with_effect_handler_measured(
             &semantics,
@@ -1762,7 +1769,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         assert_eq!(
             measured.value(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
-                ((input.wrapping_add(1) < 4) || (input <= 9)) && input == 3 && enabled
+                ((input.wrapping_add(1) < 4) || (bitwise_not < 1) || (input <= 9))
+                    && input == 3
+                    && enabled
             ))
         );
     }

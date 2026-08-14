@@ -1397,9 +1397,9 @@ enum SharedBooleanRuntimeInput {
 /// direct authored member identity on the nominal cleanup root is admitted
 /// alongside scalar inputs; terminal production resolves it to one canonical
 /// relevant Boolean field. Integer-comparison leaves separately admit scalar
-/// parameters and landed constants beneath at most one total binary computation
-/// shell. Constants and Boolean equality against a constant add no new runtime
-/// input.
+/// parameters and landed constants beneath at most one total binary or
+/// bitwise-not computation shell. Constants and Boolean equality against a
+/// constant add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1506,6 +1506,13 @@ fn shared_integer_runtime_inputs_with_shells(
                 remaining_shells - 1,
             )?);
             Some(inputs)
+        }
+        CheckedScalarExpression::IntegerBitwiseNot { operand, .. } if remaining_shells > 0 => {
+            shared_integer_runtime_inputs_with_shells(
+                operand,
+                scalar_parameter_count,
+                remaining_shells - 1,
+            )
         }
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }

@@ -1041,6 +1041,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (((input + 1u64) + 1u64) < 4u64) && true;
             staged
         }
+        machine Root::bitwise_not_integer_comparison_convergence(
+            token: Token,
+            input: u64
+        ) -> bool {
+            let staged: bool = ((~input) < 4u64) && true;
+            staged
+        }
+        machine Root::nested_bitwise_not_integer_comparison_convergence(
+            token: Token,
+            input: u64
+        ) -> bool {
+            let staged: bool = ((~(~input)) < 4u64) && true;
+            staged
+        }
         machine Root::member_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -1246,6 +1260,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("nested integer shells retain the source-distributed fallback");
     assert!(
         nested_computed_integer_comparison
+            .shared_boolean_convergence
+            .is_none()
+    );
+    let bitwise_not_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "bitwise_not_integer_comparison_convergence",
+        ))
+        .expect("one bitwise-not shell retains the scalar-return plan");
+    assert!(
+        bitwise_not_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let nested_bitwise_not_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nested_bitwise_not_integer_comparison_convergence",
+        ))
+        .expect("nested bitwise-not shells retain the source-distributed fallback");
+    assert!(
+        nested_bitwise_not_integer_comparison
             .shared_boolean_convergence
             .is_none()
     );
