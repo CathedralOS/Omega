@@ -194,8 +194,8 @@ Current ownership is:
   tree in each direct common or payload field. A direct field may instead be
   one nested concrete primitive-only record or selected-case literal whose
   direct common or payload fields obey the same rule. A declared primitive
-  field at either aggregate level may also contain one binary operator or
-  primitive value cast whose effectful operands are independently bounded
+  field at either aggregate level may also contain one unary or binary operator
+  or primitive value cast whose effectful operands are independently bounded
   non-reference call trees. This aggregate depth-two rail and scalar computed
   shell do not change the depth-four call budget. A third aggregate level,
   generic, recursive, or reference-bearing carriers, nested computed shells,
