@@ -1332,26 +1332,8 @@ fn checked_shared_boolean_convergence(
     let CheckedScalarExpression::Boolean(expression) = expression else {
         return None;
     };
-    let single_decision = match expression.as_ref() {
-        psi_checked_trees::CheckedBooleanExpression::And { left, right }
-            if matches!(
-                right.as_ref(),
-                psi_checked_trees::CheckedBooleanExpression::Constant(true)
-            ) =>
-        {
-            is_branch_free_structural_boolean_expression(left, scalar_parameter_count, 0)
-        }
-        psi_checked_trees::CheckedBooleanExpression::Or { left, right }
-            if matches!(
-                right.as_ref(),
-                psi_checked_trees::CheckedBooleanExpression::Constant(false)
-            ) =>
-        {
-            is_branch_free_structural_boolean_expression(left, scalar_parameter_count, 0)
-        }
-        _ => false,
-    };
-    if !single_decision
+    if !checked_boolean_contains_short_circuit(expression)
+        || shared_boolean_runtime_parameter_count(expression, scalar_parameter_count) != Some(1)
         || !matches!(
             return_expression,
             CheckedScalarExpression::Boolean(expression)
@@ -1363,6 +1345,35 @@ fn checked_shared_boolean_convergence(
         return None;
     }
     Some(psi_checked_trees::CheckedStructuralBooleanConvergencePlan { binding_ordinal: 0 })
+}
+
+/// Count the runtime Boolean inputs in the bounded shared-join form. Constants
+/// and `&&`/`||` nesting add control shape but no second native input;
+/// negation, comparisons, fields, and locals remain source-distributed.
+fn shared_boolean_runtime_parameter_count(
+    expression: &psi_checked_trees::CheckedBooleanExpression,
+    scalar_parameter_count: usize,
+) -> Option<usize> {
+    match expression {
+        psi_checked_trees::CheckedBooleanExpression::Constant(_) => Some(0),
+        psi_checked_trees::CheckedBooleanExpression::Parameter { position }
+            if *position < scalar_parameter_count =>
+        {
+            Some(1)
+        }
+        psi_checked_trees::CheckedBooleanExpression::And { left, right }
+        | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
+            shared_boolean_runtime_parameter_count(left, scalar_parameter_count)?.checked_add(
+                shared_boolean_runtime_parameter_count(right, scalar_parameter_count)?,
+            )
+        }
+        psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | psi_checked_trees::CheckedBooleanExpression::Not(_)
+        | psi_checked_trees::CheckedBooleanExpression::Local { .. }
+        | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
+        | psi_checked_trees::CheckedBooleanExpression::Equal { .. }
+        | psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. } => None,
+    }
 }
 
 fn is_bounded_scalar_nominal_cleanup_target(

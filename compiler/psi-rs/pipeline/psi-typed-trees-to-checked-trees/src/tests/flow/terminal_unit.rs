@@ -975,6 +975,22 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = input && true;
             staged
         }
+        machine Root::nested_shared_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = (input && true) || false;
+            staged
+        }
+        machine Root::computed_leaf_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = (!input && true) || false;
+            staged
+        }
+        machine Root::multiple_input_convergence(
+            token: Token,
+            left: bool,
+            right: bool
+        ) -> bool {
+            let staged: bool = left && right;
+            staged
+        }
         machine Root::short_circuit_return_expression(token: Token) -> bool {
             let staged: bool = true && false;
             !staged
@@ -1054,6 +1070,33 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .binding_ordinal,
         0
     );
+    let nested_shared_convergence = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "nested_shared_convergence"))
+        .expect("one-input nested Boolean tree should retain a shared convergence plan");
+    assert_eq!(
+        nested_shared_convergence
+            .shared_boolean_convergence
+            .expect("nested shared convergence marker")
+            .binding_ordinal,
+        0
+    );
+    let computed_leaf = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "computed_leaf_convergence"))
+        .expect("computed Boolean leaves retain the source-distributed fallback");
+    assert!(computed_leaf.shared_boolean_convergence.is_none());
+    let multiple_inputs = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "multiple_input_convergence"))
+        .expect("multiple-input Boolean tree retains the source-distributed fallback");
+    assert!(multiple_inputs.shared_boolean_convergence.is_none());
     let return_expression = checked
         .facts
         .flow

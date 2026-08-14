@@ -1554,7 +1554,7 @@ fn lower_function(
 fn shared_boolean_cleanup_convergence_return_edge(
     function: &TerminalAbstractFunction,
 ) -> Option<EdgeId> {
-    let mut conditional_count = 0;
+    let mut conditional_count = 0_usize;
     let mut jump_target = None;
     let mut jump_bindings = Vec::new();
     let mut return_edge = None;
@@ -1587,8 +1587,8 @@ fn shared_boolean_cleanup_convergence_return_edge(
     }
     let target = jump_target?;
     let (edge, returned_value) = return_edge?;
-    if conditional_count != 2
-        || jump_bindings.len() != 3
+    if conditional_count == 0
+        || Some(jump_bindings.len()) != conditional_count.checked_add(1)
         || jump_bindings.iter().any(|binding| {
             binding.parameter != returned_value || binding.scalar_type != ScalarType::Boolean
         })

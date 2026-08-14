@@ -4481,9 +4481,9 @@ fn lower_nominal_structural_scalar_return_machine(
             return unsupported("shared Boolean convergence decision is not Boolean");
         };
         if binding_index >= plan.bindings.len()
-            || boolean_decision_test_count(&lower_boolean_value_decision(&decision)) != 2
+            || shared_boolean_runtime_parameter_count(&decision) != Some(1)
         {
-            return unsupported("shared Boolean convergence is not one exact short-circuit");
+            return unsupported("shared Boolean convergence is not a one-input constant-leaf tree");
         }
         validate_boolean_parameter_types(&decision, &parameter_types)?;
     } else if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
@@ -4509,10 +4509,10 @@ fn lower_nominal_structural_scalar_return_machine(
         else {
             return unsupported("shared Boolean convergence decision is not Boolean");
         };
-        let decision = lower_boolean_value_decision(&decision);
-        if boolean_decision_test_count(&decision) != 2 {
-            return unsupported("shared Boolean convergence is not one exact short-circuit");
+        if shared_boolean_runtime_parameter_count(&decision) != Some(1) {
+            return unsupported("shared Boolean convergence is not a one-input constant-leaf tree");
         }
+        let decision = lower_boolean_value_decision(&decision);
         let decision_block_count = boolean_decision_block_count(&decision);
         let continuation_block = block_id(
             first_unused_block
@@ -10484,6 +10484,24 @@ fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
         LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
             true
         }
+    }
+}
+
+fn shared_boolean_runtime_parameter_count(
+    expression: &LoweredBooleanReturnExpression,
+) -> Option<usize> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. } => Some(0),
+        LoweredBooleanReturnExpression::Parameter { .. } => Some(1),
+        LoweredBooleanReturnExpression::And { left, right }
+        | LoweredBooleanReturnExpression::Or { left, right } => {
+            shared_boolean_runtime_parameter_count(left)?
+                .checked_add(shared_boolean_runtime_parameter_count(right)?)
+        }
+        LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::Not { .. }
+        | LoweredBooleanReturnExpression::Equal { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => None,
     }
 }
 

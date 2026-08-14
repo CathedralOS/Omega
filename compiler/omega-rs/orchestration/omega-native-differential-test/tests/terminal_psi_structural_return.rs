@@ -531,7 +531,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         data Plain { observed: bool; }
         data Root {}
         machine Root::measure(token: Token, input: bool, plain: Plain) -> bool {
-            let staged: bool = input && true;
+            let staged: bool = (input && true) || false;
             staged
         }
     "#;
@@ -543,6 +543,21 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type shared convergence");
     let checked = lower_typed_trees(typed).expect("check shared convergence");
     let lowered = lower_machine(&checked, "Root::measure").expect("lower shared convergence");
+    let terminal_entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("terminal shared convergence entry");
+    assert!(terminal_entry.blocks.len() > 4);
+    assert_eq!(
+        terminal_entry
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+            .count(),
+        1
+    );
     let semantics = encode_module(&lowered.semantic_module).expect("shared semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("shared proof");
     let entry_machine = lowered.semantic_module.entry;
