@@ -760,6 +760,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
+            -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
             0i8 <= signed_arithmetic, 0i8 <= signed_divisor,
             1i8 <= signed_divisor, signed_divisor <= 7i8,
             -128i8 / signed_divisor <= signed_arithmetic,
@@ -792,6 +793,9 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
                 && ((small << signed_count) < 255u8)
+                && ((signed_arithmetic << 2u8) < 127i8)
+                && ((signed_arithmetic << count) < 127i8)
+                && ((signed_arithmetic << signed_count) < 127i8)
                 && ((signed as i8) < 4i8)
                 && ((small as i8) < 4i8)
                 && ((signed_arithmetic as u8) < 4u8)
@@ -1401,6 +1405,27 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let signed_value_shift_left_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft {
+                value, obligation, ..
+            } if value == terminal_entry.parameters[5].id => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(signed_value_shift_left_obligations.len() >= 3);
+    for obligation in signed_value_shift_left_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_multiply_obligation = terminal_entry
         .blocks
         .iter()
