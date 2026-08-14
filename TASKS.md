@@ -654,11 +654,16 @@ reach or trust, and private proof improvements do not change public identity.
   retains three exact branches and four independently replayed return leaves.
   The three-leaf shape may bind any nested return leaf as a canonical crash and
   validates its exact terminal independently; the four-leaf shape retains the
-  same physical DFS crash bitmap. Extend accounting to nested division, deeper
-  trees, genuinely reconvergent conditionals, and provider-sized external
-  adapter/arrival state before calling it a complete root `StackPlan`;
-  zero-byte internal closures remain inadmissible until that adapter demand
-  exists.
+  same physical DFS crash bitmap. Division/remainder is now accountable across
+  both bounded nested shapes: one ordered x86 diamond ledger is partitioned
+  across outer and nested expression-condition prefixes and every returning
+  leaf, while AArch64 retains the corresponding branch-free evidence. Object
+  construction independently replays each region, rejects cross-region or
+  forged diamonds, and preserves the result through image installation. Extend
+  accounting to deeper trees, genuinely reconvergent conditionals, and
+  provider-sized external adapter/arrival state before calling it a complete
+  root `StackPlan`; zero-byte internal closures remain inadmissible until that
+  adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

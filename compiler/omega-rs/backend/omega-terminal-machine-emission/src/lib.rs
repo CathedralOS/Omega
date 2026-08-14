@@ -380,18 +380,8 @@ fn emit_function(
                 )?,
             };
             let terminal_shape = direct_conditional_integer_shape(when_true, when_false);
-            scalar_stack_eligible = terminal_shape.is_some_and(|shape| match shape {
-                DirectConditionalIntegerShape::TwoDecisionThreeReturn
-                | DirectConditionalIntegerShape::TwoDecisionThreeTerminal(_)
-                | DirectConditionalIntegerShape::ThreeDecisionFourReturn
-                | DirectConditionalIntegerShape::ThreeDecisionFourTerminal(_) => {
-                    linear_boolean_expression(condition)
-                }
-                DirectConditionalIntegerShape::TwoReturn
-                | DirectConditionalIntegerShape::WithCrash(_) => {
-                    accountable_conditional_boolean_expression(condition)
-                }
-            });
+            scalar_stack_eligible =
+                terminal_shape.is_some() && accountable_conditional_boolean_expression(condition);
             if let Some(terminal_shape) = terminal_shape.filter(|_| scalar_stack_eligible) {
                 let conditional = fragment
                     .conditional
@@ -907,6 +897,7 @@ fn emit_boolean_control_with_cleanup(
         root: emitted.branches[0],
         nested: emitted.branches[1],
         nested_arm,
+        branches: Vec::new(),
     };
     let scalar_stack = Some(collect_scalar_stack_evidence(
         target.architecture,
@@ -3159,17 +3150,20 @@ fn top_level_integer_conditional_evidence(
                 root,
                 true_nested,
                 false_nested,
+                branches: Vec::new(),
             }
         }
         (Some(nested), None) => TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
             root,
             nested,
             nested_arm: TerminalScalarConditionalArm::True,
+            branches: Vec::new(),
         },
         (None, Some(nested)) => TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
             root,
             nested,
             nested_arm: TerminalScalarConditionalArm::False,
+            branches: Vec::new(),
         },
         (None, None) => TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
             condition,
@@ -6614,23 +6608,22 @@ fn conditional_with_terminal_shape(
     terminal_shape: DirectConditionalIntegerShape,
     branches: Vec<TerminalScalarDivisionBranchEvidence>,
 ) -> Result<TerminalScalarControlFlowEvidence, EmissionError> {
-    if !branches.is_empty() {
-        if matches!(
-            terminal_shape,
-            DirectConditionalIntegerShape::TwoDecisionThreeReturn
-                | DirectConditionalIntegerShape::TwoDecisionThreeTerminal(_)
-                | DirectConditionalIntegerShape::ThreeDecisionFourReturn
-                | DirectConditionalIntegerShape::ThreeDecisionFourTerminal(_)
-        ) {
-            return Err(EmissionError::ConditionalBranchEncodingInvalid);
-        }
-    }
     match terminal_shape {
         DirectConditionalIntegerShape::TwoDecisionThreeReturn => {
             return match conditional {
-                evidence @ TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                    root,
+                    nested,
+                    nested_arm,
                     ..
-                } => Ok(evidence),
+                } => Ok(
+                    TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                        root,
+                        nested,
+                        nested_arm,
+                        branches,
+                    },
+                ),
                 _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
             };
         }
@@ -6640,12 +6633,14 @@ fn conditional_with_terminal_shape(
                     root,
                     nested,
                     nested_arm,
+                    ..
                 } => Ok(
                     TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeTerminal {
                         root,
                         nested,
                         nested_arm,
                         crash_leaves,
+                        branches,
                     },
                 ),
                 _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
@@ -6653,9 +6648,19 @@ fn conditional_with_terminal_shape(
         }
         DirectConditionalIntegerShape::ThreeDecisionFourReturn => {
             return match conditional {
-                evidence @ TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+                TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+                    root,
+                    true_nested,
+                    false_nested,
                     ..
-                } => Ok(evidence),
+                } => Ok(
+                    TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourReturn {
+                        root,
+                        true_nested,
+                        false_nested,
+                        branches,
+                    },
+                ),
                 _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
             };
         }
@@ -6665,12 +6670,14 @@ fn conditional_with_terminal_shape(
                     root,
                     true_nested,
                     false_nested,
+                    ..
                 } => Ok(
                     TerminalScalarControlFlowEvidence::TopLevelThreeDecisionFourTerminal {
                         root,
                         true_nested,
                         false_nested,
                         crash_leaves,
+                        branches,
                     },
                 ),
                 _ => Err(EmissionError::ConditionalBranchEncodingInvalid),
@@ -6760,36 +6767,41 @@ fn direct_conditional_integer_shape(
             )),
         };
     }
-    let linear_terminal = |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
-        TerminalAssignedIntegerControl::Return { expression, .. }
-            if linear_integer_expression(expression) =>
-        {
-            Some(false)
-        }
-        TerminalAssignedIntegerControl::Crash { .. } => Some(true),
-        _ => None,
-    };
-    let one_linear_decision =
+    let accountable_terminal =
+        |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
+            TerminalAssignedIntegerControl::Return { expression, .. }
+                if accountable_conditional_arm_integer_expression(expression) =>
+            {
+                Some(false)
+            }
+            TerminalAssignedIntegerControl::Crash { .. } => Some(true),
+            _ => None,
+        };
+    let one_accountable_decision =
         |arm: &TerminalAssignedConditionalIntegerArm| match arm.control.as_ref() {
             TerminalAssignedIntegerControl::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => Some([linear_terminal(when_true)?, linear_terminal(when_false)?]),
+            } => Some([
+                accountable_terminal(when_true)?,
+                accountable_terminal(when_false)?,
+            ]),
             TerminalAssignedIntegerControl::ConditionalExpression {
                 condition,
                 when_true,
                 when_false,
                 ..
-            } if linear_boolean_expression(condition) => {
-                Some([linear_terminal(when_true)?, linear_terminal(when_false)?])
-            }
+            } if accountable_conditional_boolean_expression(condition) => Some([
+                accountable_terminal(when_true)?,
+                accountable_terminal(when_false)?,
+            ]),
             _ => None,
         };
-    let true_decision = one_linear_decision(when_true);
-    let false_decision = one_linear_decision(when_false);
-    let true_leaf = linear_terminal(when_true);
-    let false_leaf = linear_terminal(when_false);
+    let true_decision = one_accountable_decision(when_true);
+    let false_decision = one_accountable_decision(when_false);
+    let true_leaf = accountable_terminal(when_true);
+    let false_leaf = accountable_terminal(when_false);
     match (true_decision, false_decision, true_leaf, false_leaf) {
         (Some(true_nested), Some(false_nested), _, _) => {
             let crash_leaves = [
@@ -6831,9 +6843,8 @@ fn direct_conditional_integer_shape(
 }
 
 /// Expression-condition WCSU evidence admits division and remainder in the
-/// Boolean comparison operands and typed call arguments. The enclosing
-/// conditional gate separately rejects x86 streams containing a
-/// compiler-generated division diamond.
+/// Boolean comparison operands and typed call arguments. Exact x86 division
+/// diamonds are retained in the enclosing conditional evidence.
 fn accountable_conditional_boolean_expression(
     expression: &TerminalAssignedBooleanExpression,
 ) -> bool {
@@ -6872,10 +6883,9 @@ fn accountable_conditional_call_argument_expression(
     }
 }
 
-/// The bounded conditional-division slice permits division in the direct arm
-/// expression and typed call arguments. The enclosing conditional gate
-/// separately rejects x86 streams containing a compiler-generated division
-/// diamond before nested conditional evidence exists.
+/// The bounded conditional-division slice permits division in arm expressions
+/// and typed call arguments. Exact x86 division diamonds are retained in the
+/// enclosing direct or nested conditional evidence.
 fn accountable_conditional_arm_integer_expression(
     expression: &TerminalAssignedIntegerExpression,
 ) -> bool {
@@ -7619,11 +7629,13 @@ mod tests {
                 root: root_branch,
                 nested,
                 nested_arm,
-            } = stack.control_flow
+                branches,
+            } = &stack.control_flow
             else {
                 panic!("exact two-decision/three-return evidence is retained")
             };
-            assert_eq!(nested_arm, TerminalScalarConditionalArm::True);
+            assert!(branches.is_empty());
+            assert_eq!(*nested_arm, TerminalScalarConditionalArm::True);
             assert!(root_branch.branch_offset < nested.branch_offset);
             assert!(nested.false_arm_offset < root_branch.false_arm_offset);
             assert_eq!(
@@ -9660,7 +9672,8 @@ mod tests {
                     root,
                     nested,
                     nested_arm,
-                } = emitted.functions[0]
+                    branches,
+                } = &emitted.functions[0]
                     .scalar_stack
                     .as_ref()
                     .expect("nested conditional stack evidence")
@@ -9668,9 +9681,10 @@ mod tests {
                 else {
                     panic!("one nested decision must retain three-leaf evidence")
                 };
+                assert!(branches.is_empty());
                 assert!(root.branch_offset < nested.branch_offset);
                 assert_eq!(
-                    nested_arm,
+                    *nested_arm,
                     if nested_false_arm {
                         TerminalScalarConditionalArm::False
                     } else {
@@ -9713,7 +9727,8 @@ mod tests {
                 root,
                 true_nested,
                 false_nested,
-            } = emitted.functions[0]
+                branches,
+            } = &emitted.functions[0]
                 .scalar_stack
                 .as_ref()
                 .expect("four-leaf conditional stack evidence")
@@ -9721,6 +9736,7 @@ mod tests {
             else {
                 panic!("two nested decisions must retain four-leaf evidence")
             };
+            assert!(branches.is_empty());
             assert!(root.branch_offset < true_nested.branch_offset);
             assert!(true_nested.false_arm_offset < root.false_arm_offset);
             assert!(root.false_arm_offset <= false_nested.branch_offset);

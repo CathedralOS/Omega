@@ -2279,6 +2279,7 @@ fn scalar_three_leaf_cleanup_plan() -> TerminalMachineCodePlan {
                 false_arm_offset: 40,
             },
             nested_arm: TerminalScalarConditionalArm::True,
+            branches: Vec::new(),
         },
         stack_alignment: 16,
         cleanup_preservation: None,
