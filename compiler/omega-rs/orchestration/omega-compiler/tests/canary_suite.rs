@@ -6709,9 +6709,10 @@ fn runtime_scoped_const_exit_canary_runs() {
     // literal initializers at symbol resolution; 60 + 10 == 70, exit 70.
     let canary = pass_canary("constants/runtime_scoped_const_exit");
     let scratch = std::env::temp_dir().join(format!("omega-const-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("scoped-const canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("scoped-const canary should run");
     assert_eq!(
