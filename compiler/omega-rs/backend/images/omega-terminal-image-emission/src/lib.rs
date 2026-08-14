@@ -17,6 +17,9 @@ mod installation;
 
 pub use installation::*;
 
+use omega_calling_conventions::{
+    IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
+};
 use omega_image::{
     CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
     FinalImageInput, emitted_direct_executable_output, validate_final_text_relocation_envelope,
@@ -40,7 +43,7 @@ use omega_terminal_machine_code::{
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalPsiProvenance,
 };
-use psi_core::MachineId;
+use psi_core::{MachineId, ScalarType};
 use psi_diagnostics::Diagnostic;
 use psi_terminal::StructuralPathSegment;
 use psi_terminal::TerminalPsiIdentity;
@@ -415,6 +418,7 @@ pub fn build_terminal_object_artifact(
                     stack,
                     function.scalar_affine_cleanup.as_ref(),
                     &function.scalar_control_affine_cleanups,
+                    &function.scalar_structural_parameter_homes,
                 )?,
             );
         }
@@ -2339,6 +2343,395 @@ fn validate_unit_function_stack(
     })
 }
 
+fn checked_align_up(value: u32, alignment: u32) -> Option<u32> {
+    value
+        .checked_add(alignment.checked_sub(1)?)
+        .map(|value| value / alignment * alignment)
+}
+
+fn replay_structural_shape(
+    structural_type: psi_core::StructuralTypeId,
+    declarations: &std::collections::BTreeMap<
+        psi_core::StructuralTypeId,
+        &psi_terminal::StructuralTypeDeclaration,
+    >,
+    cache: &mut std::collections::BTreeMap<psi_core::StructuralTypeId, ValueShape>,
+    active: &mut std::collections::BTreeSet<psi_core::StructuralTypeId>,
+) -> Option<ValueShape> {
+    if let Some(shape) = cache.get(&structural_type) {
+        return Some(*shape);
+    }
+    if !active.insert(structural_type) {
+        return None;
+    }
+    let declaration = declarations.get(&structural_type)?;
+    let shape = match &declaration.shape {
+        psi_terminal::StructuralTypeShape::Record { fields } => {
+            let mut byte_size = 0_u32;
+            let mut alignment = 1_u16;
+            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                let field_shape =
+                    replay_structural_field_shape(&field.field_type, declarations, cache, active)?;
+                alignment = alignment.max(field_shape.alignment);
+                byte_size = checked_align_up(byte_size, u32::from(field_shape.alignment))?
+                    .checked_add(u32::from(field_shape.byte_size))?;
+            }
+            byte_size = checked_align_up(byte_size, u32::from(alignment))?;
+            ValueShape::integer(u16::try_from(byte_size).ok()?, alignment)
+        }
+        psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
+            if *length == 0 {
+                return None;
+            }
+            let element = replay_structural_shape(*element, declarations, cache, active)?;
+            let stride =
+                checked_align_up(u32::from(element.byte_size), u32::from(element.alignment))?;
+            let byte_size = u64::from(stride)
+                .checked_mul(*length)
+                .and_then(|size| u16::try_from(size).ok())?;
+            ValueShape::integer(byte_size, element.alignment)
+        }
+    };
+    active.remove(&structural_type);
+    cache.insert(structural_type, shape);
+    Some(shape)
+}
+
+fn replay_structural_field_shape(
+    field_type: &psi_terminal::StructuralFieldType,
+    declarations: &std::collections::BTreeMap<
+        psi_core::StructuralTypeId,
+        &psi_terminal::StructuralTypeDeclaration,
+    >,
+    cache: &mut std::collections::BTreeMap<psi_core::StructuralTypeId, ValueShape>,
+    active: &mut std::collections::BTreeSet<psi_core::StructuralTypeId>,
+) -> Option<ValueShape> {
+    match field_type {
+        psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean) => {
+            Some(ValueShape::integer(1, 1))
+        }
+        psi_terminal::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+            let size = integer.bits().div_ceil(8);
+            Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
+        }
+        psi_terminal::StructuralFieldType::Structural(nested) => {
+            replay_structural_shape(*nested, declarations, cache, active)
+        }
+        psi_terminal::StructuralFieldType::Erased { .. } => None,
+    }
+}
+
+fn replay_boolean_field_offset(
+    structural_type: psi_core::StructuralTypeId,
+    field: psi_core::StructuralFieldId,
+    declarations: &std::collections::BTreeMap<
+        psi_core::StructuralTypeId,
+        &psi_terminal::StructuralTypeDeclaration,
+    >,
+) -> Option<(u32, ValueShape)> {
+    let declaration = declarations.get(&structural_type)?;
+    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    let mut cache = std::collections::BTreeMap::new();
+    let mut active = std::collections::BTreeSet::new();
+    let mut offset = 0_u32;
+    for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        let shape = replay_structural_field_shape(
+            &candidate.field_type,
+            declarations,
+            &mut cache,
+            &mut active,
+        )?;
+        offset = checked_align_up(offset, u32::from(shape.alignment))?;
+        if candidate.id == field {
+            return matches!(
+                candidate.field_type,
+                psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean)
+            )
+            .then_some((
+                offset,
+                replay_structural_shape(structural_type, declarations, &mut cache, &mut active)?,
+            ));
+        }
+        offset = offset.checked_add(u32::from(shape.byte_size))?;
+    }
+    None
+}
+
+fn condition_stack_depth_before(
+    evidence: &TerminalScalarStackEvidence,
+    condition_start: usize,
+    read_start: usize,
+) -> Option<u32> {
+    let mut depth = 0_u32;
+    for mutation in evidence
+        .mutations
+        .iter()
+        .filter(|mutation| mutation.offset >= condition_start && mutation.offset < read_start)
+    {
+        if mutation.offset.checked_add(mutation.byte_count)? > read_start {
+            return None;
+        }
+        match mutation.kind {
+            TerminalScalarStackMutationKind::Allocate { byte_size } => {
+                depth = depth.checked_add(byte_size)?;
+            }
+            TerminalScalarStackMutationKind::Release { byte_size }
+            | TerminalScalarStackMutationKind::X86ReleasePreservingFlags { byte_size } => {
+                depth = depth.checked_sub(byte_size)?;
+            }
+            TerminalScalarStackMutationKind::X86Push => depth = depth.checked_add(8)?,
+            TerminalScalarStackMutationKind::X86Pop => depth = depth.checked_sub(8)?,
+        }
+    }
+    Some(depth)
+}
+
+fn x86_replay_register(register: MachineRegister) -> Option<u8> {
+    Some(match register {
+        MachineRegister::X86Rax => 0,
+        MachineRegister::X86Rcx => 1,
+        MachineRegister::X86Rdx => 2,
+        MachineRegister::X86Rbx => 3,
+        MachineRegister::X86Rsp => 4,
+        MachineRegister::X86Rbp => 5,
+        MachineRegister::X86Rsi => 6,
+        MachineRegister::X86Rdi => 7,
+        MachineRegister::X86R8 => 8,
+        MachineRegister::X86R9 => 9,
+        MachineRegister::X86R10 => 10,
+        MachineRegister::X86R11 => 11,
+        MachineRegister::X86R12 => 12,
+        MachineRegister::X86R13 => 13,
+        MachineRegister::X86R14 => 14,
+        MachineRegister::X86R15 => 15,
+        _ => return None,
+    })
+}
+
+fn x86_replay_rsp_load(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    byte_offset: u32,
+    byte_size: u16,
+) -> Option<()> {
+    match byte_size {
+        1 => {
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
+            bytes.extend_from_slice(&[0x0f, 0xb6]);
+        }
+        8 => {
+            bytes.push(0x48 | (((register >> 3) & 1) << 2));
+            bytes.push(0x8b);
+        }
+        _ => return None,
+    }
+    if byte_offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+    }
+    Some(())
+}
+
+fn x86_replay_memory_load(bytes: &mut Vec<u8>, destination: u8, base: u8, byte_offset: u32) {
+    bytes.push(0x40 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
+    bytes.extend_from_slice(&[0x0f, 0xb6]);
+    if byte_offset == 0 && (base & 7) != 5 {
+        bytes.push(((destination & 7) << 3) | (base & 7));
+    } else if byte_offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[
+            0x40 | ((destination & 7) << 3) | (base & 7),
+            byte_offset as u8,
+        ]);
+    } else {
+        bytes.push(0x80 | ((destination & 7) << 3) | (base & 7));
+        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+    }
+}
+
+fn replay_x86_boolean_structural_read(
+    placement: &ValuePlacement,
+    field_byte_offset: u32,
+    stack_depth: u32,
+) -> Option<Vec<u8>> {
+    if field_byte_offset >= u32::from(placement.shape.byte_size) {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
+        let base = match *pointer {
+            IndirectPointerLocation::Register(register) => {
+                let base = x86_replay_register(register)?;
+                (base != 0).then_some(base)?
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                let incoming = stack_byte_offset.checked_add(8)?.checked_add(stack_depth)?;
+                x86_replay_rsp_load(&mut bytes, 11, incoming, 8)?;
+                11
+            }
+        };
+        x86_replay_memory_load(&mut bytes, 0, base, field_byte_offset);
+    } else {
+        let location = placement.locations.iter().find(|location| match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => {
+                let start = u32::from(*value_byte_offset);
+                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+            }
+            ValueLocation::Indirect { .. } => false,
+        })?;
+        match *location {
+            ValueLocation::Register {
+                register,
+                value_byte_offset,
+                ..
+            } => {
+                let register = x86_replay_register(register)?;
+                if register == 0 {
+                    return None;
+                }
+                bytes.extend_from_slice(&[
+                    0x48 | (((register >> 3) & 1) << 2),
+                    0x89,
+                    0xc0 | ((register & 7) << 3),
+                ]);
+                let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
+                if shift != 0 {
+                    bytes.extend_from_slice(&[0x48, 0xc1, 0xe8, shift as u8]);
+                }
+            }
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset,
+                ..
+            } => {
+                let incoming = stack_byte_offset
+                    .checked_add(field_byte_offset - u32::from(value_byte_offset))?
+                    .checked_add(8)?
+                    .checked_add(stack_depth)?;
+                x86_replay_rsp_load(&mut bytes, 0, incoming, 1)?;
+            }
+            ValueLocation::Indirect { .. } => return None,
+        }
+    }
+    bytes.extend_from_slice(&[0x83, 0xe0, 0x01]);
+    Some(bytes)
+}
+
+fn aarch64_replay_register(register: MachineRegister) -> Option<u8> {
+    match register {
+        MachineRegister::Aarch64X(register) if register < 31 => Some(register),
+        _ => None,
+    }
+}
+
+fn aarch64_replay_stack_load(register: u8, byte_offset: u32, byte_size: u16) -> Option<u32> {
+    let scale = u32::from(byte_size);
+    let base = match byte_size {
+        1 => 0x3940_0000,
+        2 => 0x7940_0000,
+        4 => 0xb940_0000,
+        8 => 0xf940_0000,
+        _ => return None,
+    };
+    (scale != 0 && byte_offset.is_multiple_of(scale) && byte_offset / scale <= 0xfff)
+        .then_some(base | ((byte_offset / scale) << 10) | (31 << 5) | u32::from(register))
+}
+
+fn aarch64_replay_memory_load(register: u8, base: u8, byte_offset: u32) -> Option<u32> {
+    (byte_offset <= 0xfff)
+        .then_some(0x3940_0000 | (byte_offset << 10) | (u32::from(base) << 5) | u32::from(register))
+}
+
+fn replay_aarch64_boolean_structural_read(
+    placement: &ValuePlacement,
+    field_byte_offset: u32,
+    stack_depth: u32,
+) -> Option<Vec<u8>> {
+    if field_byte_offset >= u32::from(placement.shape.byte_size) {
+        return None;
+    }
+    let mut instructions = Vec::new();
+    if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
+        let base = match *pointer {
+            IndirectPointerLocation::Register(register) => {
+                let base = aarch64_replay_register(register)?;
+                (base != 0).then_some(base)?
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                let incoming = stack_depth.checked_add(stack_byte_offset)?;
+                instructions.push(aarch64_replay_stack_load(9, incoming, 8)?);
+                9
+            }
+        };
+        instructions.push(aarch64_replay_memory_load(0, base, field_byte_offset)?);
+    } else {
+        let location = placement.locations.iter().find(|location| match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => {
+                let start = u32::from(*value_byte_offset);
+                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+            }
+            ValueLocation::Indirect { .. } => false,
+        })?;
+        match *location {
+            ValueLocation::Register {
+                register,
+                value_byte_offset,
+                ..
+            } => {
+                let register = aarch64_replay_register(register)?;
+                if register == 0 {
+                    return None;
+                }
+                let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
+                instructions.push(0xd340_fc00 | (shift << 16) | (u32::from(register) << 5));
+            }
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset,
+                ..
+            } => {
+                let incoming = stack_depth
+                    .checked_add(stack_byte_offset)?
+                    .checked_add(field_byte_offset - u32::from(value_byte_offset))?;
+                instructions.push(aarch64_replay_stack_load(0, incoming, 1)?);
+            }
+            ValueLocation::Indirect { .. } => return None,
+        }
+    }
+    instructions.push(0x1200_0000);
+    Some(
+        instructions
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect(),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_boolean_shared_convergence_stack(
     architecture: Architecture,
@@ -2351,6 +2744,7 @@ fn validate_boolean_shared_convergence_stack(
     structural_conditions: &[omega_terminal_machine_code::TerminalBooleanStructuralConditionEvidence],
     merge_offset: usize,
     cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -2378,6 +2772,21 @@ fn validate_boolean_shared_convergence_stack(
             .mutations
             .windows(2)
             .any(|pair| pair[0].offset >= pair[1].offset)
+    {
+        return Err(invalid());
+    }
+    let shared_cleanup = cleanup.ok_or_else(invalid)?;
+    let mut structural_types = std::collections::BTreeMap::new();
+    if shared_cleanup.structural_types.is_empty()
+        || shared_cleanup
+            .structural_types
+            .windows(2)
+            .any(|pair| pair[0].id >= pair[1].id)
+        || shared_cleanup.structural_types.iter().any(|declaration| {
+            structural_types
+                .insert(declaration.id, declaration)
+                .is_some()
+        })
     {
         return Err(invalid());
     }
@@ -2420,10 +2829,60 @@ fn validate_boolean_shared_convergence_stack(
             return Err(invalid());
         }
         previous_end = Some(end);
+        let mut previous_read_end = None;
         for read in &condition.reads {
+            let read_end = read
+                .code_offset
+                .checked_add(read.byte_count)
+                .ok_or_else(invalid)?;
             let identity = (read.source, read.field, read.field_byte_offset);
             if structural_identity.is_some_and(|expected| expected != identity)
                 || !operations.insert(read.psi_operation)
+                || read.byte_count == 0
+                || read.code_offset < condition.code_offset
+                || read_end > end
+                || previous_read_end.is_some_and(|previous| previous > read.code_offset)
+            {
+                return Err(invalid());
+            }
+            previous_read_end = Some(read_end);
+            let mut homes = parameter_homes
+                .iter()
+                .filter(|home| home.place == read.source);
+            let home = homes.next().ok_or_else(invalid)?;
+            if homes.next().is_some()
+                || home.byte_offset != 0
+                || home.shape != home.source.shape
+                || home.indirect
+                    != matches!(
+                        home.source.locations.as_slice(),
+                        [ValueLocation::Indirect { .. }]
+                    )
+            {
+                return Err(invalid());
+            }
+            let (canonical_offset, canonical_shape) =
+                replay_boolean_field_offset(home.structural_type, read.field, &structural_types)
+                    .ok_or_else(invalid)?;
+            if read.field_byte_offset != canonical_offset || home.shape != canonical_shape {
+                return Err(invalid());
+            }
+            let stack_depth =
+                condition_stack_depth_before(evidence, condition.code_offset, read.code_offset)
+                    .ok_or_else(invalid)?;
+            let expected = match architecture {
+                Architecture::X86_64 => {
+                    replay_x86_boolean_structural_read(&home.source, canonical_offset, stack_depth)
+                }
+                Architecture::Aarch64 => replay_aarch64_boolean_structural_read(
+                    &home.source,
+                    canonical_offset,
+                    stack_depth,
+                ),
+            }
+            .ok_or_else(invalid)?;
+            if expected.len() != read.byte_count
+                || bytes.get(read.code_offset..read_end) != Some(expected.as_slice())
             {
                 return Err(invalid());
             }
@@ -2579,6 +3038,7 @@ fn validate_scalar_stack(
     evidence: &TerminalScalarStackEvidence,
     scalar_affine_cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
     scalar_control_affine_cleanups: &[TerminalScalarControlAffineCleanupRecord],
+    scalar_structural_parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
 ) -> Result<
     (
         TerminalObjectScalarStack,
@@ -2615,6 +3075,7 @@ fn validate_scalar_stack(
             structural_conditions,
             *merge_offset,
             scalar_affine_cleanup,
+            scalar_structural_parameter_homes,
         );
     }
     if let TerminalScalarControlFlowEvidence::ConditionalTree {

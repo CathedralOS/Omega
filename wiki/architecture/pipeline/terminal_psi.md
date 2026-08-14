@@ -407,7 +407,10 @@ structural source. Terminal Psi names the exact source place and field ID;
 verification reconstructs that field from the entry type, and interpretation/
 native lowering read the exact structural ABI field without treating opaque
 identity as layout. Machine-code evidence binds every such read to its exact
-field-bearing condition bytes, which object replay validates before image and
+native interval. Object replay independently resolves the claimed source home,
+reconstructs the canonical Boolean field and ABI offset from the retained
+structural type closure, replays the live stack depth, and requires the
+architecture-specific load and normalization bytes before image and
 installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath up to
 two total bitwise-not, binary bitwise, wrapping shift/arithmetic, saturating
