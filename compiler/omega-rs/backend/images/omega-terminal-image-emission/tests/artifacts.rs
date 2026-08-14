@@ -1155,6 +1155,48 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
         0
     );
 
+    let mut x86_division = scalar_two_return_conditional_plan(NativeTarget::linux_x64());
+    x86_division.functions[0].bytes = vec![
+        0x89, 0xf8, // mov eax, edi
+        0x85, 0xc0, // test eax, eax
+        0x0f, 0x84, 15, 0, 0, 0, // jz false arm
+        0xb8, 8, 0, 0, 0, // true: mov eax, 8
+        0x31, 0xd2, // xor edx, edx
+        0xb9, 2, 0, 0, 0, // mov ecx, 2
+        0xf7, 0xf1, // div ecx
+        0xc3, // ret
+        0xb8, 3, 0, 0, 0,    // false: mov eax, 3
+        0xc3, // ret
+    ];
+    x86_division.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .control_flow = TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        condition: TerminalScalarConditionalCondition::Parameter,
+        branch_offset: 4,
+        branch_byte_count: 6,
+        false_arm_offset: 25,
+    };
+    let artifact = build_terminal_object_artifact(&x86_division)
+        .expect("branch-free x86 division replays inside one conditional arm");
+    assert_eq!(
+        artifact.functions()[0]
+            .scalar_stack
+            .expect("division scalar stack")
+            .local_peak_bytes,
+        0
+    );
+    let mut forged_inner_branch = x86_division;
+    forged_inner_branch.functions[0].bytes[22] = 0x75; // jne rel8, not div
+    assert_eq!(
+        build_terminal_object_artifact(&forged_inner_branch),
+        Err(TerminalObjectError::NonLinearScalarControlFlow {
+            machine: machine_id(1),
+            offset: 22,
+        })
+    );
+
     let aarch64 = scalar_two_return_conditional_plan(NativeTarget::linux_arm64());
     let artifact =
         build_terminal_object_artifact(&aarch64).expect("AArch64 conditional stack artifact");

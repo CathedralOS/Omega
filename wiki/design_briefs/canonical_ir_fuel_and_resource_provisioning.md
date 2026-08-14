@@ -208,8 +208,12 @@ expression `B.EQ` on AArch64), and recognizes the exact x86 flag-preserving
 `LEA` used to release an expression frame after comparison. It replays the
 balanced expression prefix and each arm independently, then takes their
 maximum peak. Typed scalar calls in the prefix or either arm reuse exact
-outbound/link validation and closure composition. Nesting, crashes in arms,
-division/remainder expressions, and reconvergence remain excluded.
+outbound/link validation and closure composition. Direct branch-free division
+and remainder in either return arm reuse the same replay and maximum: all
+AArch64 forms qualify, while x86 qualifies only when emission contains no
+compiler-generated division diamond. Division in the condition or an arm's
+call arguments, signed x86 policy diamonds, nesting, crashes in arms, and
+reconvergence remain excluded.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 
