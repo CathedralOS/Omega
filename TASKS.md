@@ -371,7 +371,7 @@ compiler concept is introduced.
   selected-case literal whose direct fields obey the same rule; this aggregate
   depth-two rail does not widen the depth-four call budget. A declared
   primitive field at either level may wrap independently bounded call operands
-  in one binary operator without widening that budget.
+  in one binary operator or primitive value cast without widening that budget.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
@@ -381,8 +381,8 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, third aggregate shells, calls beneath nested aggregate-field
-  operators or other computed field shapes, and out-of-isolated-root shapes
-  remain conservative fences. Do not restore authored `stores` clauses or treat
+  computed shells or other computed field shapes, and out-of-isolated-root
+  shapes remain conservative fences. Do not restore authored `stores` clauses or treat
   lifetime elision as evidence; Git carries individual evidence cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
