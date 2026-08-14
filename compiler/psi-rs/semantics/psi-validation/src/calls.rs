@@ -2728,7 +2728,25 @@ fn aggregate_value_assignment_preserves_transparent_result(
                 ExpressionNode::Binary(_)
                     if struct_literal_field_is_primitive(program, literal, field.name.as_str()) =>
                 {
-                    primitive_binary_aggregate_field_preserves_transparent_result(
+                    primitive_computed_aggregate_field_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        field.value,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                    )
+                }
+                ExpressionNode::Cast(cast)
+                    if program.primitive_type_reference(cast.target_type).is_some()
+                        && struct_literal_field_is_primitive(
+                            program,
+                            literal,
+                            field.name.as_str(),
+                        ) =>
+                {
+                    primitive_computed_aggregate_field_preserves_transparent_result(
                         program,
                         current_machine,
                         field.value,
@@ -2744,7 +2762,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn primitive_binary_aggregate_field_preserves_transparent_result(
+fn primitive_computed_aggregate_field_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
@@ -2753,10 +2771,16 @@ fn primitive_binary_aggregate_field_preserves_transparent_result(
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return false;
+    let operands = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => [Some(binary.left), Some(binary.right)],
+        ExpressionNode::Cast(cast)
+            if program.primitive_type_reference(cast.target_type).is_some() =>
+        {
+            [Some(cast.value), None]
+        }
+        _ => return false,
     };
-    [binary.left, binary.right].into_iter().all(|operand| {
+    operands.into_iter().flatten().all(|operand| {
         if !expression_is_effectful_for_transparent_result(program, operand) {
             return true;
         }

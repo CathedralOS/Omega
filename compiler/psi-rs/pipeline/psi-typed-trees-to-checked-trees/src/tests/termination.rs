@@ -7288,6 +7288,18 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_cast_record_field<'cells, 'pair, 'value>(
+        cells: &'cells mut [u64; 2],
+        pair: &'pair mut Pair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        pair = Pair {
+            first: compute(value) as u64,
+            second: 0
+        };
+        cells
+    }
+
     machine return_after_case_value_calls<'cells, 'choice, 'first, 'second>(
         cells: &'cells mut [u64; 2],
         choice: &'choice mut PairChoice,
@@ -7542,6 +7554,15 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::cast_record_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_cast_record_field(
+            &mut self.cells,
+            &mut self.pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::case_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_case_value_calls(
             &mut self.cells,
@@ -7697,6 +7718,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         ),
         (
             "Main::computed_record_field_assignment_result",
+            vec!["self.cells", "self.pair", "self.value"],
+        ),
+        (
+            "Main::cast_record_field_assignment_result",
             vec!["self.cells", "self.pair", "self.value"],
         ),
         (
