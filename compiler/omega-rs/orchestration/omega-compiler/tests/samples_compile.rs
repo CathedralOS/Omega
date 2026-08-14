@@ -35,6 +35,9 @@
 //!    fixture remains checked-only.
 //!  * `stdin_samples_compile_from_authored_program_entry_bindings` — all stdin
 //!    samples lower from exact authored roots on every hosted target.
+//!  * `gui_samples_compile_from_authored_program_entry_bindings` — all GUI
+//!    samples retain GUI subsystem policy while selecting exact Windows and
+//!    macOS roots; Linux remains checked-only pending native GUI lowering.
 //!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated interpreter cohort likewise lowers directly for every hosted
 //!    target without legacy staging.
@@ -70,6 +73,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 const SAMPLE_ENTRY: &str = "omega_sample_entry";
 const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
+const GUI_SAMPLE_TARGETS: &[&str] = &["windows_x64", "macos_arm64"];
 const EXPLICIT_ENTRY_BASIC_SAMPLES: &[&str] = &[
     "brightness_control",
     "cli_mvp",
@@ -160,6 +164,12 @@ const EXPLICIT_ENTRY_PROBE_SAMPLES: &[&str] = &[
     "width_mixer",
 ];
 const EXPLICIT_ENTRY_STDIN_SAMPLES: &[&str] = &["stdin_checksum", "stdin_rot1", "stdin_upper"];
+const EXPLICIT_ENTRY_GUI_SAMPLES: &[&str] = &[
+    "image_viewer",
+    "window_app",
+    "window_demo",
+    "windowed_calculator",
+];
 const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
     "calculator",
     "calculator_rpn",
@@ -551,14 +561,26 @@ fn host_target_name() -> &'static str {
 }
 
 fn assert_authored_entry_cohort(category: &str, samples: &[&str]) {
+    assert_authored_entry_samples(
+        &repo_root().join("samples/cli").join(category),
+        category,
+        samples,
+        HOSTED_SAMPLE_TARGETS,
+        true,
+    );
+}
+
+fn assert_authored_entry_samples(
+    base: &Path,
+    cohort: &str,
+    samples: &[&str],
+    targets: &[&str],
+    check_entry_agnostic: bool,
+) {
     let mut failures = Vec::new();
     for sample in samples {
-        let main_path = repo_root()
-            .join("samples/cli")
-            .join(category)
-            .join(sample)
-            .join("main.omg");
-        for target in HOSTED_SAMPLE_TARGETS {
+        let main_path = base.join(sample).join("main.omg");
+        for target in targets {
             let checked = match compile_to_checked(&main_path, Some(target)) {
                 Ok(checked) => checked,
                 Err(diagnostics) => {
@@ -577,7 +599,7 @@ fn assert_authored_entry_cohort(category: &str, samples: &[&str]) {
             }
 
             let build_dir = std::env::temp_dir().join(format!(
-                "omega-authored-{category}-entry-{sample}-{target}-{}",
+                "omega-authored-{cohort}-entry-{sample}-{target}-{}",
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&build_dir);
@@ -593,20 +615,22 @@ fn assert_authored_entry_cohort(category: &str, samples: &[&str]) {
             }
             let _ = fs::remove_dir_all(build_dir);
         }
-        match compile_to_checked(&main_path, None) {
-            Ok(checked) if checked.selected_program_entry_machine().is_none() => {}
-            Ok(checked) => failures.push(format!(
-                "{sample}/checked-only: unexpectedly selected {:?}",
-                checked.selected_program_entry_machine()
-            )),
-            Err(diagnostics) => failures.push(format!(
-                "{sample}/checked-only: compilation failed: {diagnostics:#?}"
-            )),
+        if check_entry_agnostic {
+            match compile_to_checked(&main_path, None) {
+                Ok(checked) if checked.selected_program_entry_machine().is_none() => {}
+                Ok(checked) => failures.push(format!(
+                    "{sample}/checked-only: unexpectedly selected {:?}",
+                    checked.selected_program_entry_machine()
+                )),
+                Err(diagnostics) => failures.push(format!(
+                    "{sample}/checked-only: compilation failed: {diagnostics:#?}"
+                )),
+            }
         }
     }
     assert!(
         failures.is_empty(),
-        "{} {category} authored-entry checks failed:\n{}",
+        "{} {cohort} authored-entry checks failed:\n{}",
         failures.len(),
         failures.join("\n")
     );
@@ -742,47 +766,25 @@ fn probe_samples_compile_from_authored_program_entry_bindings() {
 
 #[test]
 fn stdin_samples_compile_from_authored_program_entry_bindings() {
-    let mut failures = Vec::new();
-    for sample in EXPLICIT_ENTRY_STDIN_SAMPLES {
-        let main_path = repo_root().join("samples").join(sample).join("main.omg");
-        for target in HOSTED_SAMPLE_TARGETS {
-            match compile_to_checked(&main_path, Some(target)) {
-                Ok(checked) if checked.selected_program_entry_machine() == Some("Main::main") => {}
-                Ok(checked) => failures.push(format!(
-                    "{sample}/{target}: selected {:?}, expected Main::main",
-                    checked.selected_program_entry_machine()
-                )),
-                Err(diagnostics) => failures.push(format!(
-                    "{sample}/{target}: authored-entry selection failed: {diagnostics:#?}"
-                )),
-            }
-            let build_dir = std::env::temp_dir().join(format!(
-                "omega-authored-stdin-entry-{sample}-{target}-{}",
-                std::process::id()
-            ));
-            let _ = fs::remove_dir_all(&build_dir);
-            if let Err(diagnostics) = compile_program(CompileOptions {
-                root_path: main_path.clone(),
-                build_dir: Some(build_dir.clone()),
-                target_name: Some((*target).to_owned()),
-                write_output: false,
-            }) {
-                failures.push(format!(
-                    "{sample}/{target}: direct authored-entry lowering failed: {diagnostics:#?}"
-                ));
-            }
-            let _ = fs::remove_dir_all(build_dir);
-        }
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!("checked-only stdin sample {sample} should compile: {diagnostics:#?}")
-        });
-        assert_eq!(checked.selected_program_entry_machine(), None);
-    }
-    assert!(
-        failures.is_empty(),
-        "{} stdin authored-entry checks failed:\n{}",
-        failures.len(),
-        failures.join("\n")
+    assert_authored_entry_samples(
+        &repo_root().join("samples"),
+        "stdin",
+        EXPLICIT_ENTRY_STDIN_SAMPLES,
+        HOSTED_SAMPLE_TARGETS,
+        true,
+    );
+}
+
+#[test]
+fn gui_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_samples(
+        &repo_root().join("samples/gui"),
+        "gui",
+        EXPLICIT_ENTRY_GUI_SAMPLES,
+        GUI_SAMPLE_TARGETS,
+        // Targetless GUI checking is already covered by `all_samples_reach_checked_trees`;
+        // repeating it here retains every unfiltered provider candidate and is needlessly slow.
+        false,
     );
 }
 
