@@ -27,6 +27,9 @@
 //!  * `arithmetic_samples_compile_from_authored_program_entry_bindings` — the
 //!    deployable arithmetic cohort has the same exact hosted-root guarantees,
 //!    while four float-lowering fixtures remain checked-only.
+//!  * `system_samples_compile_from_authored_program_entry_bindings` — the
+//!    deployable systems cohort lowers from exact authored roots, while two
+//!    known runtime-engineering probes remain checked-only.
 //!  * `interpreter_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated interpreter cohort likewise lowers directly for every hosted
 //!    target without legacy staging.
@@ -123,6 +126,21 @@ const CHECKED_ONLY_ARITHMETIC_SAMPLES: &[&str] = &[
     "stats_compute",
     "vector_distance",
 ];
+const EXPLICIT_ENTRY_SYSTEM_SAMPLES: &[&str] = &[
+    "account_ledger",
+    "atomics_cross",
+    "bank_ledger",
+    "descriptor_walk",
+    "elapsed_timer",
+    "event_log",
+    "file_permissions",
+    "framed_payload",
+    "logger",
+    "status_report",
+    "task_runner",
+    "vending_machine",
+];
+const CHECKED_ONLY_SYSTEM_SAMPLES: &[&str] = &["file_journal", "note_vault", "wire_protocol"];
 const EXPLICIT_ENTRY_INTERPRETER_SAMPLES: &[&str] = &[
     "calculator",
     "calculator_rpn",
@@ -665,6 +683,26 @@ fn arithmetic_samples_compile_from_authored_program_entry_bindings() {
             checked.selected_program_entry_machine(),
             None,
             "checked-only arithmetic sample {sample} must not select a storage root"
+        );
+    }
+}
+
+#[test]
+fn system_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_cohort("systems", EXPLICIT_ENTRY_SYSTEM_SAMPLES);
+
+    for sample in CHECKED_ONLY_SYSTEM_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/systems")
+            .join(sample)
+            .join("main.omg");
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!("checked-only systems sample {sample} should compile: {diagnostics:#?}")
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            None,
+            "checked-only systems sample {sample} must not select a storage root"
         );
     }
 }
