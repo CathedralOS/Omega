@@ -5961,9 +5961,10 @@ fn runtime_i64_min_literal_exit_canary_runs() {
     // sign textually. Guard proves the stored value is strictly below -(i64::MAX); exit 70.
     let canary = pass_canary("arithmetic/runtime_i64_min_literal_exit");
     let scratch = std::env::temp_dir().join(format!("omega-i64min-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("i64::MIN literal canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("i64::MIN literal canary should run");
     assert_eq!(
@@ -25666,13 +25667,8 @@ fn runtime_i64_to_u64_exact_guard_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-i64-u64-exact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded dynamic i64-to-u64 exact conversion should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("guarded dynamic i64-to-u64 exact conversion should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45912,6 +45908,8 @@ fn compile_rooted_canary_for_target(
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/bare_name_scopes",
     "arithmetic/const_fold_overflow_compiles",
+    "arithmetic/runtime_i64_min_literal_exit",
+    "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "constants/runtime_scoped_const_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
