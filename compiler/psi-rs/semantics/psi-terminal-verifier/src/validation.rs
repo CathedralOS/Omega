@@ -5,8 +5,8 @@ use psi_core::{
     ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     ContractId, EdgeId, EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
-    StructuralTypeId, ValueId, content_conservation_fingerprint,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId, content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -1773,6 +1773,20 @@ fn validate_machine(
                         ));
                     }
                 }
+                OperationKind::BooleanStructuralField { source, field } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanStructuralFieldRequiresBooleanResult(
+                            operation.id,
+                        ));
+                    }
+                    validate_boolean_structural_field(
+                        module,
+                        machine,
+                        operation.id,
+                        source,
+                        field,
+                    )?;
+                }
                 OperationKind::BooleanNot { .. } => {
                     if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanNotRequiresBooleanResult(operation.id));
@@ -2761,6 +2775,101 @@ fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
                 StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => false,
             }
     })
+}
+
+fn validate_boolean_structural_field(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: OperationId,
+    source: PlaceId,
+    field: StructuralFieldId,
+) -> Result<(), ModuleError> {
+    let invalid = || ModuleError::InvalidBooleanStructuralField {
+        operation,
+        source,
+        field,
+    };
+    if machine.id != module.entry {
+        return Err(invalid());
+    }
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        .filter(|parameter| {
+            parameter.multiplicity == StructuralMultiplicity::Affine
+                && parameter.qualifications.is_empty()
+        })
+        .ok_or_else(invalid)?;
+    if machine
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == source)
+        || !machine.content_entry_claims.is_empty()
+        || !machine
+            .parameters
+            .iter()
+            .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
+        || !every_scalar_return_nominally_cleans(machine, source)
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|candidate| {
+                matches!(candidate.kind,
+                OperationKind::BooleanStructuralField {
+                    source: other_source,
+                    field: other_field,
+                } if (other_source, other_field) != (source, field))
+            })
+    {
+        return Err(invalid());
+    }
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .ok_or_else(invalid)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(invalid());
+    };
+    if !fields.iter().any(|candidate| {
+        candidate.id == field
+            && !candidate.relevance.is_erased()
+            && candidate.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+    }) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn every_scalar_return_nominally_cleans(machine: &TerminalMachine, source: PlaceId) -> bool {
+    let mut saw_return = false;
+    for block in &machine.blocks {
+        match &block.terminator {
+            Terminator::Return {
+                cleanup_actions, ..
+            } => {
+                saw_return = true;
+                if !cleanup_actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                            if cleanup.place == source
+                    )
+                }) {
+                    return false;
+                }
+            }
+            Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
+            | Terminator::ReturnStructural { .. } => return false,
+            Terminator::Jump { .. } | Terminator::Conditional { .. } | Terminator::Crash { .. } => {
+            }
+        }
+    }
+    saw_return
 }
 
 fn valid_nominal_cleanup_requirements(
@@ -4879,6 +4988,15 @@ fn validate_structural_frontier(
             .expect("topological order contains known blocks");
         let mut frontier = frontier;
         for operation in &block.operations {
+            if let OperationKind::BooleanStructuralField { source, .. } = operation.kind
+                && (!frontier.owned_places.contains_key(&source)
+                    || frontier.moved_field_paths.contains_key(&source))
+            {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: source,
+                });
+            }
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind {
                 if frontier
                     .owned_places
@@ -6139,6 +6257,7 @@ fn validate_operation_operands(
         }
         OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
+        | OperationKind::BooleanStructuralField { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }
@@ -7050,6 +7169,12 @@ pub enum ModuleError {
     IntegerConstantRequiresIntegerResult(OperationId),
     IntegerConstantOutsideResultType(OperationId),
     BooleanConstantRequiresBooleanResult(OperationId),
+    BooleanStructuralFieldRequiresBooleanResult(OperationId),
+    InvalidBooleanStructuralField {
+        operation: OperationId,
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
     BooleanNotRequiresBooleanResult(OperationId),
     BooleanNotOperandTypeMismatch {
         operation: OperationId,

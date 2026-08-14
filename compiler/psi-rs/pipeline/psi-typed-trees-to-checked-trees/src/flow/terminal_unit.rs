@@ -1293,6 +1293,7 @@ fn build_structural_scalar_return_machine(
                 &bindings,
                 return_expression,
                 scalar_parameters.len(),
+                &cleanup_actions,
             )
         })
         .flatten();
@@ -1317,6 +1318,7 @@ fn checked_shared_boolean_convergence(
     bindings: &[CheckedScalarBinding],
     return_expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
+    cleanup_actions: &[CheckedStructuralScalarReturnCleanupAction],
 ) -> Option<psi_checked_trees::CheckedStructuralBooleanConvergencePlan> {
     let [binding] = bindings else {
         return None;
@@ -1332,9 +1334,36 @@ fn checked_shared_boolean_convergence(
     let CheckedScalarExpression::Boolean(expression) = expression else {
         return None;
     };
-    let runtime_parameters = shared_boolean_runtime_parameters(expression, scalar_parameter_count)?;
+    let runtime_inputs = shared_boolean_runtime_inputs(expression, scalar_parameter_count)?;
+    let structural_fields = runtime_inputs
+        .iter()
+        .filter_map(|input| match input {
+            SharedBooleanRuntimeInput::StructuralField {
+                parameter_position,
+                field,
+            } => Some((*parameter_position, field)),
+            SharedBooleanRuntimeInput::Scalar(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let has_scalar_input = runtime_inputs
+        .iter()
+        .any(|input| matches!(input, SharedBooleanRuntimeInput::Scalar(_)));
+    if structural_fields.len() > 1
+        || (!structural_fields.is_empty() && !has_scalar_input)
+        || structural_fields.first().is_some_and(|(position, _)| {
+            !cleanup_actions.iter().any(|action| {
+                matches!(
+                    action,
+                    CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
+                        if cleanup.source_parameter_index == *position
+                )
+            })
+        })
+    {
+        return None;
+    }
     if !checked_boolean_contains_short_circuit(expression)
-        || runtime_parameters.is_empty()
+        || runtime_inputs.is_empty()
         || !matches!(
             return_expression,
             CheckedScalarExpression::Boolean(expression)
@@ -1348,44 +1377,63 @@ fn checked_shared_boolean_convergence(
     Some(psi_checked_trees::CheckedStructuralBooleanConvergencePlan { binding_ordinal: 0 })
 }
 
-/// Collect the distinct runtime Boolean inputs in the shared-join form. Constants
-/// `!`/`&&`/`||` nesting adds control shape but no native input. Boolean
-/// equality against a constant is also admissible because terminal production
-/// can normalize it to identity or negation without adding an input.
-/// Two-runtime-side equality, fields, integer comparisons, and locals remain
-/// source-distributed.
-fn shared_boolean_runtime_parameters(
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum SharedBooleanRuntimeInput {
+    Scalar(usize),
+    StructuralField {
+        parameter_position: u32,
+        field: String,
+    },
+}
+
+/// Collect the distinct runtime Boolean inputs in the shared-join form. One
+/// direct authored member identity on the nominal cleanup root is admitted
+/// alongside scalar inputs; terminal production resolves it to one canonical
+/// relevant Boolean field.
+/// Constants and equality against a constant add no new runtime input.
+fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
-) -> Option<BTreeSet<usize>> {
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         psi_checked_trees::CheckedBooleanExpression::Constant(_) => Some(BTreeSet::new()),
         psi_checked_trees::CheckedBooleanExpression::Parameter { position }
             if *position < scalar_parameter_count =>
         {
-            Some(BTreeSet::from([*position]))
+            Some(BTreeSet::from([SharedBooleanRuntimeInput::Scalar(
+                *position,
+            )]))
         }
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
-            shared_boolean_runtime_parameters(operand, scalar_parameter_count)
+            shared_boolean_runtime_inputs(operand, scalar_parameter_count)
         }
         psi_checked_trees::CheckedBooleanExpression::Equal { left, right } => {
             match (left.as_ref(), right.as_ref()) {
                 (psi_checked_trees::CheckedBooleanExpression::Constant(_), expression)
                 | (expression, psi_checked_trees::CheckedBooleanExpression::Constant(_)) => {
-                    shared_boolean_runtime_parameters(expression, scalar_parameter_count)
+                    shared_boolean_runtime_inputs(expression, scalar_parameter_count)
                 }
                 _ => None,
             }
         }
         psi_checked_trees::CheckedBooleanExpression::And { left, right }
         | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
-            let mut parameters = shared_boolean_runtime_parameters(left, scalar_parameter_count)?;
-            parameters.extend(shared_boolean_runtime_parameters(
+            let mut parameters = shared_boolean_runtime_inputs(left, scalar_parameter_count)?;
+            parameters.extend(shared_boolean_runtime_inputs(
                 right,
                 scalar_parameter_count,
             )?);
             Some(parameters)
         }
+        psi_checked_trees::CheckedBooleanExpression::StructuralParameterField {
+            parameter_position,
+            path,
+        } if path.len() == 1 => Some(BTreeSet::from([
+            SharedBooleanRuntimeInput::StructuralField {
+                parameter_position: *parameter_position,
+                field: path[0].clone(),
+            },
+        ])),
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
@@ -1599,7 +1647,9 @@ fn is_structural_boolean_return_expression(
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
         }
-        psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => false,
+        psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { path, .. } => {
+            path.len() == 1
+        }
     }
 }
 

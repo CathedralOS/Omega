@@ -43,6 +43,7 @@ impl TerminalFuelSchedule {
             | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }
             | OperationKind::BooleanConstant { .. }
+            | OperationKind::BooleanStructuralField { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }
             | OperationKind::IntegerEqual { .. }

@@ -7,7 +7,7 @@ use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralTypeId, ValueId,
+    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
@@ -414,6 +414,14 @@ pub enum TerminalTargetBooleanExpression {
         source_value: ValueId,
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
+    },
+    StructuralField {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        field: StructuralFieldId,
+        source_placement: ValuePlacement,
+        field_byte_offset: u32,
     },
     Not {
         psi_operation: OperationId,

@@ -142,6 +142,12 @@ pub enum TerminalAbstractOperation {
         result: ValueId,
         value: bool,
     },
+    BooleanStructuralField {
+        psi_operation: OperationId,
+        result: ValueId,
+        source: PlaceId,
+        field: psi_core::StructuralFieldId,
+    },
     BooleanNot {
         psi_operation: OperationId,
         result: ValueId,

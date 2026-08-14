@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "f3d3c439db683c65ceb917ae41664825585706ba7ad33ac628087fb14a6ddec5"
+        "11c703656d9ba778473383b5b84aac0b0555c856608bfe8ef057321a17a15d78"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -52,7 +52,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
     assert_eq!(&bytes[8..10], 11_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 16_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -62,7 +62,7 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
     assert_eq!(&bytes[8..10], 11_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 16_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -666,7 +666,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 15_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 16_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 

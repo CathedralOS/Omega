@@ -92,7 +92,27 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &locals,
                                 primitive_type,
                                 exact_integer_casts,
-                            ) {
+                            )
+                            .or_else(|| {
+                                (primitive_type == PrimitiveType::Bool
+                                    && locals.is_empty()
+                                    && program
+                                        .machine_states(machine)
+                                        .first()
+                                        .is_some_and(|entry| entry.symbol == state.symbol))
+                                .then(|| {
+                                    lower_machine_parameter_boolean_expression(
+                                        program,
+                                        operators,
+                                        machine,
+                                        local.initial_value,
+                                        exact_integer_casts,
+                                    )
+                                    .map(Box::new)
+                                    .map(CheckedScalarExpression::Boolean)
+                                })
+                                .flatten()
+                            }) {
                                 expressions.push(CheckedLocatedScalarExpression {
                                     state: state.symbol,
                                     statement_ordinal,
@@ -791,6 +811,37 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
+            ExpressionNode::Name(name) => {
+                let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
+                    program
+                        .expression_table
+                        .name_path_member_symbols(name.member_symbols)
+                        .iter()
+                        .copied()
+                        .find(|symbol| symbol.is_valid())
+                });
+                let name_text = program
+                    .expression_table
+                    .name_path_members(name.members)
+                    .last();
+                let source_position = parameters.iter().position(|parameter| {
+                    name_symbol.is_some_and(|symbol| parameter.symbol == symbol)
+                        || name_text.is_some_and(|text| parameter.name == *text)
+                })?;
+                let parameter = parameters.get(source_position)?;
+                (program.primitive_type_reference(parameter.type_reference)
+                    == Some(PrimitiveType::Bool))
+                .then(|| CheckedBooleanExpression::Parameter {
+                    position: parameters[..source_position]
+                        .iter()
+                        .filter(|parameter| {
+                            program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
+                        })
+                        .count(),
+                })
+            }
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot
                     && operator_is_builtin(operators, expression) =>

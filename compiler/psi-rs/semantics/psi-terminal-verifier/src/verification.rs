@@ -551,6 +551,12 @@ fn reconstruct_machine_semantics(
                         ScalarTerm::boolean(value),
                     ));
                 }
+                OperationKind::BooleanStructuralField { source, field } => {
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        ScalarTerm::boolean_field(source, field),
+                    ));
+                }
                 OperationKind::BooleanNot { operand } => {
                     let negated = ScalarTerm::boolean_not(value_term(operand))
                         .expect("validator requires a Boolean logical-not operand");

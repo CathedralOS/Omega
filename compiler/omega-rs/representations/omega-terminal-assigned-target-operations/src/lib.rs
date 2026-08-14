@@ -11,7 +11,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ServiceId, StructuralTypeId, ValueId,
+    ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
@@ -231,6 +231,14 @@ pub enum TerminalAssignedBooleanExpression {
         source_value: ValueId,
         parameter_index: usize,
         location: TerminalAssignedScalarLocation,
+    },
+    StructuralField {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        field: StructuralFieldId,
+        source_placement: ValuePlacement,
+        field_byte_offset: u32,
     },
     Not {
         psi_operation: OperationId,

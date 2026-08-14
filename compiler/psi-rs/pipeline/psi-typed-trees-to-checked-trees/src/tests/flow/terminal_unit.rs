@@ -960,7 +960,7 @@ fn nominal_scalar_cleanup_retains_contextual_short_circuit_return() {
 fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     let checked = checked(
         r#"
-        data Token {}
+        data Token { observed: bool; other: bool; }
         machine Token::drop(&mut self) {}
         data Helper {}
         machine Helper::value() -> u64 { 1u64 }
@@ -1005,6 +1005,22 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             right: bool
         ) -> bool {
             let staged: bool = (left == right) && true;
+            staged
+        }
+        machine Root::member_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = token.observed && input;
+            staged
+        }
+        machine Root::repeated_member_convergence(token: Token, input: bool) -> bool {
+            let staged: bool = token.observed && (input || token.observed);
+            staged
+        }
+        machine Root::member_only_convergence(token: Token) -> bool {
+            let staged: bool = token.observed && true;
+            staged
+        }
+        machine Root::multiple_member_convergence(token: Token) -> bool {
+            let staged: bool = token.observed && token.other;
             staged
         }
         machine Root::integer_comparison_convergence(token: Token, input: u64) -> bool {
@@ -1168,6 +1184,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .for_machine(machine_named(&checked, "integer_comparison_convergence"))
         .expect("integer comparison retains the source-distributed scalar-return plan");
     assert!(integer_comparison.shared_boolean_convergence.is_none());
+    let member = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "member_convergence"))
+        .expect("one direct Boolean member retains the scalar-return plan");
+    assert!(member.shared_boolean_convergence.is_some());
+    let repeated_member = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "repeated_member_convergence"))
+        .expect("one direct Boolean member may be reused with a scalar input");
+    assert!(repeated_member.shared_boolean_convergence.is_some());
+    let member_only = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "member_only_convergence"))
+        .expect("a field-only expression retains the source-distributed plan");
+    assert!(member_only.shared_boolean_convergence.is_none());
+    let multiple_members = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "multiple_member_convergence"))
+        .expect("multiple direct Boolean members retain only the source-distributed plan");
+    assert!(multiple_members.shared_boolean_convergence.is_none());
     let return_expression = checked
         .facts
         .flow

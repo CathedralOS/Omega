@@ -395,9 +395,19 @@ cleanup return. Omega retains the source-ordered decisions, an unconditional
 join branch from every non-final leaf, and final-leaf fallthrough into one
 physical cleanup tail on every target; object construction reconstructs the
 decision regions, decodes every join, and replays the shared tail before image
-and installation custody.
-Member/integer comparisons, calls, effects, nested nominal ownership,
-projections, and wider cleanup shapes still fail closed.
+and installation custody. That exception also admits one canonical direct
+relevant Boolean field identity from one claim-free affine nominal-cleanup root,
+combined with those parameters and constants. At least one Boolean parameter
+must remain in the tree so native expression scratch cannot overwrite the
+structural source. Terminal Psi names the exact source place and field ID;
+verification reconstructs that field from the entry type, and interpretation/
+native lowering read the exact structural ABI field without treating opaque
+identity as layout. Machine-code evidence binds every such read to its exact
+field-bearing condition bytes, which object replay validates before image and
+installation custody. Nested paths, field-only trees, a second field identity,
+erased or non-Boolean fields, integer comparisons, calls, effects, nested
+nominal ownership, other projections, and wider cleanup shapes still fail
+closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -881,7 +891,12 @@ branch-only trees described above, with one distinct cleanup-bearing return
 edge per surviving leaf. The shared form also accepts Boolean equality against
 a constant: Psi normalizes that leaf to identity or negation before emitting
 the existing convergence carrier, so no comparison operation crosses the
-terminal boundary. Member/integer comparisons, external
+terminal boundary. It additionally accepts one direct relevant Boolean field
+identity on one claim-free affine nominal-cleanup root; the terminal operation,
+verifier, interpreter, fuel model, codec, and every native target retain the
+exact source place and canonical field ID. At least one Boolean parameter keeps
+that source outside native expression scratch. Field-only trees, nested or
+multiple member identities, integer comparisons, external
 adapter/interrupt-arrival state, and other terminal function forms remain
 outside the shared-join theorem, so the inspection surface makes no
 installed-root WCSU claim.

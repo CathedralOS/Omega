@@ -328,6 +328,14 @@ fn lower_machine(
                         value,
                     });
                 }
+                OperationKind::BooleanStructuralField { source, field } => {
+                    operations.push(TerminalAbstractOperation::BooleanStructuralField {
+                        psi_operation: operation.id,
+                        result: operation.result.expect_scalar().id,
+                        source,
+                        field,
+                    });
+                }
                 OperationKind::BooleanNot { operand } => {
                     operations.push(TerminalAbstractOperation::BooleanNot {
                         psi_operation: operation.id,

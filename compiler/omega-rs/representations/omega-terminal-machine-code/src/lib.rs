@@ -11,7 +11,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ServiceId, StructuralTypeId,
+    ServiceId, StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
@@ -401,8 +401,28 @@ pub enum TerminalScalarControlFlowEvidence {
     BooleanSharedConvergence {
         decisions: Vec<TerminalScalarConditionalBranchEvidence>,
         joins: Vec<TerminalScalarJoinBranchEvidence>,
+        /// Exact emitted condition regions containing structural-field reads.
+        /// Object replay checks these bytes independently from the generic
+        /// scalar instruction walk before accepting the shared tail.
+        structural_conditions: Vec<TerminalBooleanStructuralConditionEvidence>,
         merge_offset: usize,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalBooleanStructuralConditionEvidence {
+    pub reads: Vec<TerminalBooleanStructuralFieldRead>,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalBooleanStructuralFieldRead {
+    pub psi_operation: OperationId,
+    pub source: PlaceId,
+    pub field: StructuralFieldId,
+    pub field_byte_offset: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

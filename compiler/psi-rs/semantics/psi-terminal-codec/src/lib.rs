@@ -1951,6 +1951,11 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.u8(2);
                 writer.u8(u8::from(value));
             }
+            OperationKind::BooleanStructuralField { source, field } => {
+                writer.u8(38);
+                writer.id(source);
+                writer.id(field);
+            }
             OperationKind::BooleanNot { operand } => {
                 writer.u8(9);
                 writer.id(operand);
@@ -3546,6 +3551,10 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             },
             2 => OperationKind::BooleanConstant {
                 value: reader.boolean()?,
+            },
+            38 => OperationKind::BooleanStructuralField {
+                source: reader.id("PlaceId")?,
+                field: reader.id("StructuralFieldId")?,
             },
             3 => OperationKind::WrappingIntegerAdd {
                 left: reader.id("ValueId")?,
