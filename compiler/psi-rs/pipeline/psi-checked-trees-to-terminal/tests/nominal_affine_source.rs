@@ -401,9 +401,12 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         input: u64 in Wrapping,
         small: u8,
         enabled: bool
-    ) -> bool {
+    ) -> bool
+    requires input <= 255u64
+    {
         let staged: bool = ((((input + 1u64) < 4u64) || ((~input) < 1u64) || (input <= 9u64))
             && ((small as u16) < 5u16))
+            && ((input as u8) < 5u8)
             && (input == 3u64)
             && enabled;
         staged
@@ -1704,6 +1707,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             .iter()
             .any(|operation| matches!(operation.kind, OperationKind::IntegerWiden { .. }))
     }));
+    let cast_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::IntegerExactCast { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("shared convergence retains the guarded exact cast");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     assert!(entry.blocks.iter().any(|block| {
         block
             .operations
@@ -1751,6 +1770,49 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
     let proof = encode_proof_bundle(&lowered.proof_bundle)
         .expect("shared integer convergence proof encodes");
+    let mut missing_cast_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_cast_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != cast_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_cast_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == cast_obligation
+    ));
+    let mut changed_bound = decode_module(&semantics).expect("decode shared semantics");
+    let changed_entry = changed_bound.entry;
+    let entry_contract = &mut changed_bound
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed_entry)
+        .expect("changed shared entry")
+        .contract;
+    let [Proposition::LessOrEqual(subject, _)] = entry_contract.requires.as_slice() else {
+        panic!("shared convergence retains one unsigned upper-bound premise")
+    };
+    entry_contract.requires = vec![Proposition::LessOrEqual(
+        subject.clone(),
+        ScalarTerm::integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            IntegerValue::Unsigned(254),
+        )
+        .unwrap(),
+    )];
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_bound,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == cast_obligation
+    ));
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("shared integer convergence retains its cleanup root")
     };
@@ -1767,7 +1829,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         (4, 4, true),
         (10, 4, true),
     ] {
-        let bitwise_not = (!input) & u128::from(u64::MAX);
+        let mask = u128::from(u64::MAX);
+        let bitwise_not = (!input) & mask;
+        let wrapped_add = (input + 1) & mask;
         let mut handler = AcceptTerminalEffects;
         let measured = interpret_terminal_artifact_with_effect_handler_measured(
             &semantics,
@@ -1791,8 +1855,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         assert_eq!(
             measured.value(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
-                ((input.wrapping_add(1) < 4) || (bitwise_not < 1) || (input <= 9))
+                ((wrapped_add < 4) || (bitwise_not < 1) || (input <= 9))
                     && small < 5
+                    && input < 5
                     && input == 3
                     && enabled
             ))

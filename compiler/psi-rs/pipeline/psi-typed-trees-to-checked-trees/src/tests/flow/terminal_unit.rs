@@ -1069,6 +1069,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (((input as u16) as u32) < 4u32) && true;
             staged
         }
+        machine Root::exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u64,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u64
+        {
+            let staged: bool = ((input as u8) < 4u8) && enabled;
+            staged
+        }
+        machine Root::nested_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u64,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u64
+        {
+            let staged: bool = (((input as u8) as u16) < 4u16) && enabled;
+            staged
+        }
         machine Root::member_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -1330,6 +1350,34 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("nested integer widening retains the source-distributed fallback");
     assert!(
         nested_widened_integer_comparison
+            .shared_boolean_convergence
+            .is_none()
+    );
+    let exact_cast_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_cast_integer_comparison_convergence",
+        ))
+        .expect("one guarded exact-cast shell retains the scalar-return plan");
+    assert!(
+        exact_cast_integer_comparison
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let nested_exact_cast_integer_comparison = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nested_exact_cast_integer_comparison_convergence",
+        ))
+        .expect("nested exact-cast shells retain the source-distributed fallback");
+    assert!(
+        nested_exact_cast_integer_comparison
             .shared_boolean_convergence
             .is_none()
     );

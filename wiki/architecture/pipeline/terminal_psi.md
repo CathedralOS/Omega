@@ -351,13 +351,15 @@ typed Boolean convergence parameter, and branch-free work in that continuation
 may lead to the next local tree or to the return expression. That final return
 may itself be a short-circuit Boolean tree; every one of its value leaves then
 performs the same complete cleanup.
-Calls, mutable or non-scalar locals, contracts,
-claims, effects, and multi-state control remain outside this source slice;
+Calls, mutable or non-scalar locals, contracts beyond the bounded premises
+described below, claims, effects, and multi-state control remain outside this
+source slice;
 structural custody is never represented as a scalar parameter.
 One narrower nominal branch admits a finite nonempty list of direct affine
 structural parameters that may mix no-code and nominal roots, a finite set of
 direct primitive scalar inputs interleaved at authored parameter positions,
-and no authored contract beyond the direct-Boolean contextual subset below,
+and no authored contract beyond the direct-Boolean contextual subset and one
+direct unsigned scalar-parameter upper bound described below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
 and either one branch-free scalar result or a finite Boolean continuation chain
 that begins with a finite `&&`/`||` decision tree of arbitrary nesting. Every
@@ -409,7 +411,8 @@ field-bearing condition bytes, which object replay validates before image and
 installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath one
 total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
-arithmetic shell, or one integer-widening shell, may form decision leaves. Psi
+arithmetic shell, one integer-widening shell, or one exact unsigned narrowing
+under a direct parameter upper-bound `requires`, may form decision leaves. Psi
 retains every exact operation and all native targets join its leaves into the
 same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
@@ -905,9 +908,12 @@ verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
 that source outside native expression scratch. Separately, direct integer
 comparisons over scalar parameters and landed constants, with at most one total
-binary, bitwise-not, or integer-widening computation shell per operand, retain
-their exact Psi operations through the same verified, interpreted, and native
-shared join. Field-only trees, nested or multiple member identities, wider or
+binary, bitwise-not, integer-widening, or proof-bearing exact-cast computation
+shell per operand, retain their exact Psi operations through the same verified,
+interpreted, and native shared join. The exact-cast subset accepts one direct
+unsigned parameter upper-bound premise; Psi retains it as a terminal machine
+requirement, and the cast certificate cites that exact assumption. Field-only
+trees, nested or multiple member identities, wider or
 partial integer computation, member/comparison mixtures, external
 adapter/interrupt-arrival state, and other terminal function forms remain
 outside the shared-join theorem, so the inspection surface makes no

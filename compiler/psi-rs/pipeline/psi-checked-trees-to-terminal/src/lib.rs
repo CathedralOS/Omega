@@ -4164,6 +4164,36 @@ fn lower_nominal_structural_scalar_return_machine(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let scalar_parameter_count = scalar_parameters.len();
+    let scalar_requirements = plan
+        .scalar_requirements
+        .iter()
+        .map(|requirement| {
+            let parameter = scalar_parameters
+                .get(
+                    usize::try_from(requirement.parameter_position).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "nominal scalar requirement parameter position exceeds usize",
+                        )
+                    })?,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "nominal scalar requirement parameter is absent",
+                ))?;
+            let scalar_type = terminal_scalar_type(requirement.primitive_type)?;
+            if parameter.scalar_type != scalar_type {
+                return unsupported("nominal scalar requirement parameter type drifted");
+            }
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return unsupported("nominal scalar requirement is not an integer bound");
+            };
+            let maximum = integer_value(&requirement.maximum, scalar_type)?;
+            Ok(Proposition::LessOrEqual(
+                ScalarTerm::value(parameter.id, scalar_type),
+                ScalarTerm::integer(integer_type, maximum)
+                    .map_err(|_| LoweringError::Unsupported("nominal scalar bound is invalid"))?,
+            ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut operations = OperationBuffer::new(operation_identity_base);
     let mut scalar_values = Vec::with_capacity(
         scalar_parameter_count
@@ -4678,6 +4708,7 @@ fn lower_nominal_structural_scalar_return_machine(
     };
     entry.blocks = blocks;
     entry.parameters = scalar_parameters;
+    entry.contract.requires.extend(scalar_requirements);
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
         id: value_id(next_value),
         scalar_type: result_type,
@@ -10625,6 +10656,9 @@ fn shared_integer_runtime_parameters_with_shells(
         LoweredDirectExpression::IntegerWiden { operand, .. } if remaining_shells > 0 => {
             shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
         }
+        LoweredDirectExpression::IntegerExactCast { operand, .. } if remaining_shells > 0 => {
+            shared_integer_runtime_parameters_with_shells(operand, remaining_shells - 1)
+        }
         LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::IntegerBinary { .. }
         | LoweredDirectExpression::IntegerBitwiseNot { .. }
@@ -14689,7 +14723,28 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
         {
             continue;
         }
-        let proof = proof_from_semantic_axioms(&site.obligation.proposition, &site.semantic_axioms);
+        let assumptions = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.blocks.iter().any(|block| {
+                    block.operations.iter().any(|operation| {
+                        matches!(
+                            operation.kind,
+                            OperationKind::IntegerExactCast { obligation, .. }
+                                if obligation == site.obligation.id
+                        )
+                    })
+                })
+            })
+            .map(|machine| machine.contract.requires.as_slice())
+            .unwrap_or_default();
+        let proof = proof_from_available_facts(
+            &site.obligation.proposition,
+            assumptions,
+            &site.semantic_axioms,
+        );
         let proof = proof.ok_or(LoweringError::ExactIntegerCastProofUnavailable(
             site.obligation.id,
         ))?;
@@ -14710,8 +14765,9 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
     Ok(())
 }
 
-fn proof_from_semantic_axioms(
+fn proof_from_available_facts(
     goal: &Proposition,
+    assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
     if goal == &Proposition::Truth {
@@ -14726,6 +14782,12 @@ fn proof_from_semantic_axioms(
             rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
         });
     }
+    if let Some(index) = assumptions.iter().position(|assumption| assumption == goal) {
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::Assumption { index },
+        });
+    }
     if let Some(index) = semantic_axioms.iter().position(|axiom| axiom == goal) {
         return Some(ProofNode {
             conclusion: goal.clone(),
@@ -14737,7 +14799,7 @@ fn proof_from_semantic_axioms(
     };
     let proofs = conjuncts
         .iter()
-        .map(|conjunct| proof_from_semantic_axioms(conjunct, semantic_axioms))
+        .map(|conjunct| proof_from_available_facts(conjunct, assumptions, semantic_axioms))
         .collect::<Option<Vec<_>>>()?;
     Some(ProofNode {
         conclusion: goal.clone(),
@@ -16986,6 +17048,7 @@ mod tests {
                     return_statement_ordinal: 0,
                     shared_boolean_convergence: None,
                     caller_requirements: Vec::new(),
+                    scalar_requirements: Vec::new(),
                     cleanup_actions: vec![
                         CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
                         CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),

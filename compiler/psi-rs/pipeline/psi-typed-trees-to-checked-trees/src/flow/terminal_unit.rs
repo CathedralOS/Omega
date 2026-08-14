@@ -9,13 +9,14 @@ use psi_checked_trees::{
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerUpperBoundRequirementPlan,
+    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
@@ -1165,13 +1166,14 @@ fn build_structural_scalar_return_machine(
     {
         return None;
     }
-    let caller_requirements = if has_nominal_cleanup {
-        nominal_cleanup_caller_boolean_requirements(
+    let (caller_requirements, scalar_requirements) = if has_nominal_cleanup {
+        nominal_scalar_caller_requirements(
             program,
             facts,
             machine,
             state,
             source_state_parameters,
+            &scalar_parameters,
         )?
     } else {
         let checked_contracts =
@@ -1179,7 +1181,7 @@ fn build_structural_scalar_return_machine(
         if !checked_contracts.is_empty() {
             return None;
         }
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
     let cleanup_actions = whole_discards
         .iter()
@@ -1309,6 +1311,7 @@ fn build_structural_scalar_return_machine(
         return_statement_ordinal,
         shared_boolean_convergence,
         caller_requirements,
+        scalar_requirements,
         cleanup_actions,
     })
 }
@@ -1398,8 +1401,9 @@ enum SharedBooleanRuntimeInput {
 /// alongside scalar inputs; terminal production resolves it to one canonical
 /// relevant Boolean field. Integer-comparison leaves separately admit scalar
 /// parameters and landed constants beneath at most one total binary,
-/// bitwise-not, or integer-widening computation shell. Constants and Boolean
-/// equality against a constant add no new runtime input.
+/// bitwise-not, integer-widening, or proof-bearing exact-cast computation
+/// shell. Constants and Boolean equality against a constant add no new runtime
+/// input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1515,6 +1519,13 @@ fn shared_integer_runtime_inputs_with_shells(
             )
         }
         CheckedScalarExpression::IntegerWiden { operand, .. } if remaining_shells > 0 => {
+            shared_integer_runtime_inputs_with_shells(
+                operand,
+                scalar_parameter_count,
+                remaining_shells - 1,
+            )
+        }
+        CheckedScalarExpression::IntegerExactCast { operand, .. } if remaining_shells > 0 => {
             shared_integer_runtime_inputs_with_shells(
                 operand,
                 scalar_parameter_count,
@@ -2881,6 +2892,69 @@ fn nominal_cleanup_boolean_requirements(
     Some(canonical_nominal_cleanup_requirements(requirements))
 }
 
+fn nominal_scalar_caller_requirements(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_machine: &psi_typed_trees::machine::Machine,
+    caller_state: &psi_typed_trees::state::State,
+    source_parameters: &[StateParameter],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+) -> Option<(
+    Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
+    Vec<CheckedStructuralScalarIntegerUpperBoundRequirementPlan>,
+)> {
+    // Both accepted callers preserve checked entry requirements unchanged. The
+    // Unit lane admits only direct Boolean root facts; the scalar lane also
+    // retains one direct unsigned parameter upper bound for exact narrowing.
+    // Wider bodies must instead consult path-specific exit contexts.
+    let caller_requires =
+        checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
+    let mut structural_requirements = Vec::new();
+    let mut scalar_requirements = Vec::new();
+    for expression in caller_requires {
+        if let Some(requirement) = source_parameters.iter().enumerate().find_map(
+            |(source_parameter_index, source_parameter)| {
+                let source_parameter_index = u32::try_from(source_parameter_index).ok()?;
+                direct_boolean_field_requirement(
+                    program,
+                    caller_state.symbol,
+                    source_parameter,
+                    expression,
+                )
+                .map(
+                    |requirement| CheckedUnitNominalAffineCallerRequirementPlan {
+                        source_parameter_index,
+                        field_identity: requirement.field_identity,
+                        expected: requirement.expected,
+                    },
+                )
+            },
+        ) {
+            structural_requirements.push(requirement);
+            continue;
+        }
+        scalar_requirements.push(direct_unsigned_integer_upper_bound_requirement(
+            program,
+            caller_machine.symbol,
+            caller_state,
+            source_parameters,
+            scalar_parameters,
+            expression,
+        )?);
+    }
+    structural_requirements.sort_by(|left, right| {
+        left.source_parameter_index
+            .cmp(&right.source_parameter_index)
+            .then(left.field_identity.cmp(&right.field_identity))
+            .then(left.expected.cmp(&right.expected))
+    });
+    structural_requirements.dedup();
+    if scalar_requirements.len() > 1 {
+        return None;
+    }
+    Some((structural_requirements, scalar_requirements))
+}
+
 fn nominal_cleanup_caller_boolean_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -2888,43 +2962,66 @@ fn nominal_cleanup_caller_boolean_requirements(
     caller_state: &psi_typed_trees::state::State,
     source_parameters: &[StateParameter],
 ) -> Option<Vec<CheckedUnitNominalAffineCallerRequirementPlan>> {
-    // Both accepted callers preserve the checked entry requirements unchanged:
-    // the Unit lane has an empty body, while the scalar lane materializes one
-    // closed immediate value without inspecting or mutating structural roots.
-    // Wider bodies must instead consult path-specific exit contexts.
-    let caller_requires =
-        checked_requires_expressions(program, facts, caller_machine.symbol, caller_state.symbol)?;
-    let mut requirements = caller_requires
-        .into_iter()
-        .map(|expression| {
-            source_parameters.iter().enumerate().find_map(
-                |(source_parameter_index, source_parameter)| {
-                    let source_parameter_index = u32::try_from(source_parameter_index).ok()?;
-                    direct_boolean_field_requirement(
-                        program,
-                        caller_state.symbol,
-                        source_parameter,
-                        expression,
-                    )
-                    .map(|requirement| {
-                        CheckedUnitNominalAffineCallerRequirementPlan {
-                            source_parameter_index,
-                            field_identity: requirement.field_identity,
-                            expected: requirement.expected,
-                        }
-                    })
-                },
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
-    requirements.sort_by(|left, right| {
-        left.source_parameter_index
-            .cmp(&right.source_parameter_index)
-            .then(left.field_identity.cmp(&right.field_identity))
-            .then(left.expected.cmp(&right.expected))
-    });
-    requirements.dedup();
-    Some(requirements)
+    let (structural, scalar) = nominal_scalar_caller_requirements(
+        program,
+        facts,
+        caller_machine,
+        caller_state,
+        source_parameters,
+        &[],
+    )?;
+    scalar.is_empty().then_some(structural)
+}
+
+fn direct_unsigned_integer_upper_bound_requirement(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &psi_typed_trees::state::State,
+    source_parameters: &[StateParameter],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedStructuralScalarIntegerUpperBoundRequirementPlan> {
+    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::LessOrEqual {
+        return None;
+    }
+    let ExpressionNode::Integer(maximum) = program.expression_table.expression(binary.right) else {
+        return None;
+    };
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        0,
+        binary.left,
+    )?;
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let source_position = source_parameters.iter().position(|parameter| {
+        parameter_root_symbol(machine, parameter) == root || parameter.symbol == root
+    })?;
+    let parameter_position = scalar_parameters
+        .iter()
+        .position(|parameter| parameter.source_position as usize == source_position)?;
+    let primitive_type = scalar_parameters.get(parameter_position)?.primitive_type;
+    if !matches!(
+        primitive_type,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    ) {
+        return None;
+    }
+    Some(CheckedStructuralScalarIntegerUpperBoundRequirementPlan {
+        parameter_position: u32::try_from(parameter_position).ok()?,
+        primitive_type,
+        maximum: maximum.clone(),
+    })
 }
 
 fn nominal_cleanup_missing_requirement(
