@@ -108,11 +108,8 @@ fn assign_function(
                 structural_parameters,
                 cleanup_actions,
             )?;
-            let edges = bounded_boolean_cleanup_edges(control)
+            finite_boolean_cleanup_edges(control)
                 .ok_or(AssignmentError::UnsupportedScalarCleanup(function.machine))?;
-            if edges[0] == edges[1] || edges[0] == edges[2] || edges[1] == edges[2] {
-                return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
-            }
             TerminalAssignedOperation::BooleanControlWithCleanup {
                 control: assign_boolean_control(control, architecture)?,
                 structural_types: structural_types.clone(),
@@ -544,77 +541,52 @@ fn validate_scalar_cleanup_signature(
     Ok(())
 }
 
-/// Return the three terminal value edges in canonical true-before-false DFS
-/// order for the exact bounded short-circuit shape: a root decision, exactly
-/// one nested decision, and three direct value-return leaves.
-fn bounded_boolean_cleanup_edges(control: &TerminalTargetBooleanControl) -> Option<[EdgeId; 3]> {
-    let (when_true, when_false) = match control {
-        TerminalTargetBooleanControl::Conditional {
-            when_true,
-            when_false,
-            ..
+/// Return every terminal value edge in canonical true-before-false DFS order.
+/// Cleanup control is finite and branch-only: crashes are a distinct terminal
+/// carrier, and replaying one return edge on multiple leaves is forbidden.
+fn finite_boolean_cleanup_edges(control: &TerminalTargetBooleanControl) -> Option<Vec<EdgeId>> {
+    fn collect(control: &TerminalTargetBooleanControl, edges: &mut Vec<EdgeId>) -> Option<()> {
+        match control {
+            TerminalTargetBooleanControl::ReturnImmediate {
+                psi_return_edge, ..
+            }
+            | TerminalTargetBooleanControl::ReturnParameter {
+                psi_return_edge, ..
+            }
+            | TerminalTargetBooleanControl::ReturnNotParameter {
+                psi_return_edge, ..
+            }
+            | TerminalTargetBooleanControl::ReturnExpression {
+                psi_return_edge, ..
+            } => edges.push(*psi_return_edge),
+            TerminalTargetBooleanControl::Conditional {
+                when_true,
+                when_false,
+                ..
+            }
+            | TerminalTargetBooleanControl::ConditionalExpression {
+                when_true,
+                when_false,
+                ..
+            } => {
+                collect(&when_true.control, edges)?;
+                collect(&when_false.control, edges)?;
+            }
+            TerminalTargetBooleanControl::Crash { .. } => return None,
         }
-        | TerminalTargetBooleanControl::ConditionalExpression {
-            when_true,
-            when_false,
-            ..
-        } => (when_true, when_false),
-        _ => return None,
-    };
-    match (
-        direct_boolean_return_edge(&when_true.control),
-        direct_boolean_return_edge(&when_false.control),
-    ) {
-        (Some(true_edge), None) => {
-            let [nested_true, nested_false] = direct_boolean_decision_edges(&when_false.control)?;
-            Some([true_edge, nested_true, nested_false])
-        }
-        (None, Some(false_edge)) => {
-            let [nested_true, nested_false] = direct_boolean_decision_edges(&when_true.control)?;
-            Some([nested_true, nested_false, false_edge])
-        }
-        (Some(_), Some(_)) | (None, None) => None,
+        Some(())
     }
-}
 
-fn direct_boolean_decision_edges(control: &TerminalTargetBooleanControl) -> Option<[EdgeId; 2]> {
-    let (when_true, when_false) = match control {
-        TerminalTargetBooleanControl::Conditional {
-            when_true,
-            when_false,
-            ..
-        }
-        | TerminalTargetBooleanControl::ConditionalExpression {
-            when_true,
-            when_false,
-            ..
-        } => (when_true, when_false),
-        _ => return None,
-    };
-    Some([
-        direct_boolean_return_edge(&when_true.control)?,
-        direct_boolean_return_edge(&when_false.control)?,
-    ])
-}
-
-fn direct_boolean_return_edge(control: &TerminalTargetBooleanControl) -> Option<EdgeId> {
-    match control {
-        TerminalTargetBooleanControl::ReturnImmediate {
-            psi_return_edge, ..
-        }
-        | TerminalTargetBooleanControl::ReturnParameter {
-            psi_return_edge, ..
-        }
-        | TerminalTargetBooleanControl::ReturnNotParameter {
-            psi_return_edge, ..
-        }
-        | TerminalTargetBooleanControl::ReturnExpression {
-            psi_return_edge, ..
-        } => Some(*psi_return_edge),
-        TerminalTargetBooleanControl::Crash { .. }
-        | TerminalTargetBooleanControl::Conditional { .. }
-        | TerminalTargetBooleanControl::ConditionalExpression { .. } => None,
-    }
+    let mut edges = Vec::new();
+    collect(control, &mut edges)?;
+    (edges.len() >= 2
+        && edges
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == edges.len())
+    .then_some(edges)
 }
 
 fn validate_structural_placement(
@@ -2159,7 +2131,7 @@ mod tests {
     };
 
     #[test]
-    fn bounded_boolean_cleanup_assignment_retains_three_leaf_edges() {
+    fn three_leaf_boolean_cleanup_assignment_retains_exact_edges() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let plan = boolean_cleanup_plan(target);
             let assigned = assign_registers(&plan).expect("assign bounded Boolean cleanup");
@@ -2215,7 +2187,7 @@ mod tests {
     }
 
     #[test]
-    fn bounded_boolean_cleanup_rejects_two_leaf_and_wider_trees() {
+    fn finite_boolean_cleanup_accepts_two_leaf_and_wider_trees() {
         let mut two_leaf = boolean_cleanup_plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::BooleanControlWithCleanup { control, .. } =
             &mut two_leaf.functions[0].operation
@@ -2226,10 +2198,7 @@ mod tests {
             unreachable!()
         };
         when_true.control = Box::new(boolean_immediate_return(13));
-        assert!(matches!(
-            assign_registers(&two_leaf),
-            Err(AssignmentError::UnsupportedScalarCleanup(_))
-        ));
+        assign_registers(&two_leaf).expect("assign two-leaf Boolean cleanup");
 
         let mut wider = boolean_cleanup_plan(NativeTarget::linux_x64());
         let location = boolean_cleanup_condition_location(&wider);
@@ -2255,14 +2224,11 @@ mod tests {
             when_true: boolean_arm(20, boolean_immediate_return(20)),
             when_false: boolean_arm(21, boolean_immediate_return(21)),
         });
-        assert!(matches!(
-            assign_registers(&wider),
-            Err(AssignmentError::UnsupportedScalarCleanup(_))
-        ));
+        assign_registers(&wider).expect("assign wider Boolean cleanup");
     }
 
     #[test]
-    fn bounded_boolean_cleanup_requires_three_distinct_return_edges() {
+    fn finite_boolean_cleanup_requires_distinct_return_edges() {
         let mut plan = boolean_cleanup_plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::BooleanControlWithCleanup { control, .. } =
             &mut plan.functions[0].operation
@@ -2285,7 +2251,7 @@ mod tests {
     }
 
     #[test]
-    fn bounded_boolean_cleanup_rejects_misaligned_cleanup_signature() {
+    fn finite_boolean_cleanup_rejects_misaligned_cleanup_signature() {
         let mut plan = boolean_cleanup_plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::BooleanControlWithCleanup {
             cleanup_actions, ..

@@ -861,13 +861,10 @@ fn build_structural_scalar_return_machine(
     let final_short_circuit_continuation_chain_is_source_distributed = binding_count >= 2
         && binding_branch_free
             .iter()
-            .rposition(|branch_free| !*branch_free)
+            .position(|branch_free| !*branch_free)
             .is_some_and(|short_circuit_index| {
                 if short_circuit_index + 1 >= binding_count
                     || !binding_branch_free[..short_circuit_index]
-                        .iter()
-                        .all(|branch_free| *branch_free)
-                    || !binding_branch_free[short_circuit_index + 1..]
                         .iter()
                         .all(|branch_free| *branch_free)
                     || !bindings[short_circuit_index..]
@@ -912,13 +909,17 @@ fn build_structural_scalar_return_machine(
                             .is_some_and(|expression| {
                                 matches!(
                                     expression,
-                                    CheckedScalarExpression::Boolean(expression)
-                                        if is_branch_free_structural_boolean_expression(
+                                    CheckedScalarExpression::Boolean(boolean)
+                                        if (is_branch_free_structural_boolean_expression(
+                                            boolean,
+                                            scalar_parameters.len(),
+                                            continuation_index,
+                                        ) || is_single_top_level_short_circuit_boolean_return(
                                             expression,
                                             scalar_parameters.len(),
                                             continuation_index,
-                                        ) && checked_boolean_local_reference_count(
-                                            expression,
+                                        )) && checked_boolean_local_reference_count(
+                                            boolean,
                                             scalar_parameters.len() + continuation_index - 1,
                                         ) > 0
                                 )

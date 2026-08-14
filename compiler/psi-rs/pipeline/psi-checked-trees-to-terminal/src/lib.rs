@@ -3218,6 +3218,28 @@ fn lower_nominal_structural_scalar_return_machine(
             {
                 return None;
             }
+            if !(0..binding_index).all(|prior_index| {
+                let Ok(prior_ordinal) = u32::try_from(prior_index) else {
+                    return false;
+                };
+                lower_checked_scalar_expression_at(
+                    checked,
+                    plan.state,
+                    prior_ordinal,
+                    CheckedScalarExpressionRole::LocalInitializer {
+                        binding_ordinal: prior_ordinal,
+                    },
+                )
+                .is_ok_and(|expression| {
+                    is_branch_free_structural_scalar_expression(
+                        &expression,
+                        scalar_parameter_count,
+                        prior_index,
+                    )
+                })
+            }) {
+                return None;
+            }
             let LoweredDirectExpression::Boolean {
                 expression: return_expression,
             } = &authored_return_expression
@@ -3328,11 +3350,15 @@ fn lower_nominal_structural_scalar_return_machine(
                         return None;
                     };
                     let prior_position = scalar_parameter_count + continuation_index - 1;
-                    if !is_branch_free_structural_boolean_expression(
+                    if !(is_branch_free_structural_boolean_expression(
                         &continuation_expression,
                         scalar_parameter_count,
                         continuation_index,
-                    ) || boolean_local_reference_count(&continuation_expression, prior_position)
+                    ) || is_one_top_level_structural_boolean_decision(
+                        &continuation_expression,
+                        scalar_parameter_count,
+                        continuation_index,
+                    )) || boolean_local_reference_count(&continuation_expression, prior_position)
                         == 0
                     {
                         return None;

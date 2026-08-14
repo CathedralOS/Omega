@@ -785,19 +785,12 @@ fn emit_scalar_return_with_cleanup(
     Ok(emitted)
 }
 
-#[derive(Clone, Copy)]
-enum NestedConditionalArm {
-    True,
-    False,
-}
-
 struct BooleanControlCleanupEmission {
     bytes: Vec<u8>,
     internal_calls: Vec<TerminalInternalCallRelocation>,
     internal_unit_calls: Vec<TerminalInternalUnitCallRecord>,
     cleanups: Vec<TerminalScalarControlAffineCleanupRecord>,
     branches: Vec<TerminalScalarConditionalBranchEvidence>,
-    nested_arm: Option<NestedConditionalArm>,
 }
 
 impl BooleanControlCleanupEmission {
@@ -903,7 +896,10 @@ fn emit_boolean_control_with_cleanup(
         functions,
         &mut leaf_ordinal,
     )?;
-    if leaf_ordinal != 3 || emitted.cleanups.len() != 3 || emitted.branches.len() != 2 {
+    if leaf_ordinal < 2
+        || emitted.cleanups.len() != leaf_ordinal
+        || emitted.branches.len().checked_add(1) != Some(leaf_ordinal)
+    {
         return Err(EmissionError::UnsupportedScalarCleanup);
     }
     let mut edges = emitted
@@ -913,15 +909,12 @@ fn emit_boolean_control_with_cleanup(
         .collect::<Vec<_>>();
     edges.sort_unstable();
     edges.dedup();
-    if edges.len() != 3 {
+    if edges.len() != leaf_ordinal {
         return Err(EmissionError::UnsupportedScalarCleanup);
     }
-    emitted
-        .nested_arm
-        .ok_or(EmissionError::UnsupportedScalarCleanup)?;
     let control_flow = TerminalScalarControlFlowEvidence::ConditionalTree {
         decisions: emitted.branches,
-        crash_leaves: vec![false; 3],
+        crash_leaves: vec![false; leaf_ordinal],
         branches: Vec::new(),
     };
     let scalar_stack = Some(collect_scalar_stack_evidence(
@@ -1154,11 +1147,6 @@ fn emit_boolean_cleanup_conditional(
         functions,
         leaf_ordinal,
     )?;
-    let nested_arm = match (true_emission.branches.len(), false_emission.branches.len()) {
-        (1, 0) => Some(NestedConditionalArm::True),
-        (0, 1) => Some(NestedConditionalArm::False),
-        _ => None,
-    };
     let branch_offset = prefix.len();
     let branch_byte_count = match target.architecture {
         Architecture::X86_64 => {
@@ -1206,7 +1194,6 @@ fn emit_boolean_cleanup_conditional(
             branch_byte_count,
             false_arm_offset,
         }],
-        nested_arm,
     };
     emission.append(true_emission)?;
     emission.append(false_emission)?;
@@ -1385,7 +1372,6 @@ fn emit_boolean_cleanup_leaf(
             preservation,
         }],
         branches: Vec::new(),
-        nested_arm: None,
     })
 }
 

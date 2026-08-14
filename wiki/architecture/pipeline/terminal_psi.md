@@ -302,8 +302,11 @@ structural parameters that may mix no-code and nominal roots, a finite set of
 direct primitive scalar inputs interleaved at authored parameter positions,
 and no authored contract beyond the direct-Boolean contextual subset below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
-and either one branch-free scalar result or one top-level Boolean `&&`/`||`
-whose operands are branch-free over the inputs and locals. Checked plans
+and either one branch-free scalar result or a finite Boolean continuation chain
+that begins with one top-level `&&`/`||`. Every later local in that chain is
+branch-free or another top-level `&&`/`||`, its operands are branch-free over
+the inputs and locals, and it uses its immediate Boolean predecessor at least
+once; the return directly names the final local. Checked plans
 retain the complete authored parameter partition; terminal Psi gives scalar
 values and structural places independent dense namespaces. Terminal production
 materializes the input-dependent local and result operations in
@@ -311,8 +314,8 @@ source order, then executes the complete cleanup stream in reverse authored
 root order. No-code roots retain their exact position without invoking a
 machine; nominal targets may be distinct or shared, and each drop may be empty
 or contain the bounded source-ordered zero-argument helper-call body accepted
-by the Unit nominal slice. For the bounded Boolean form, terminal production
-retains exactly two decisions and three distinct return edges, and attaches the
+by the Unit nominal slice. For the finite Boolean form, terminal production
+retains a branch-only decision tree with distinct return edges and attaches the
 same complete cleanup stream to every leaf. Terminal production retains the
 cleanup targets and helpers in the same closed module. Contextual cleanup requirements are accepted
 for a finite mixed root list in the same direct-Boolean subset as Unit cleanup.
@@ -323,17 +326,14 @@ obligations. Omega consumes those facts only after verification and projects
 the proof metadata away before target lowering. Native lowering preserves the
 computed ABI result and, on AArch64, the return link across executable cleanup
 calls in an exact lifetime frame; object construction validates the frame,
-stores, loads, calls, and stack ceiling from emitted bytes. The bounded Boolean
-form instead retains three edge-specific cleanup intervals and validates the
-result and return-link lifetime independently on every native path.
-One final top-level short-circuit Boolean local may feed a finite source-ordered
-chain of branch-free Boolean continuation locals and a direct return of the
-final local. Each continuation uses its immediate predecessor one or more times.
-Terminal production decides the short-circuit value once, substitutes each
-resulting value leaf into the continuation, and source-distributes the chain
-into the same three proof-bearing cleanup leaves without a convergence block.
-Repeated short-circuit stages, explicit convergence to one shared cleanup
-return, arbitrary nested decisions, calls, effects, nested nominal ownership,
+stores, loads, calls, and stack ceiling from emitted bytes. The finite Boolean
+form instead retains one edge-specific cleanup interval per surviving native
+leaf and validates the result and return-link lifetime independently on every
+native path. Terminal production decides every short-circuit local once per
+stage, substitutes each resulting value leaf into the continuation, and
+source-distributes branch-free work and later decision stages without a
+convergence block. Explicit convergence to one shared cleanup return, arbitrary
+nested decisions, calls, effects, nested nominal ownership,
 projections, and wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
@@ -809,10 +809,11 @@ call into several leaves, the object boundary permits its repeated operation
 owner only when every physical pair has conflicting outcomes at a validated
 decision. Calls sharing an executable path still reject. This proves the
 source-distributed tree, not an actual reconvergent native join; shared native
-control-flow joins remain outside the theorem. Affine cleanup is separately
-limited to its bounded three-leaf shape. External adapter/interrupt-arrival
-state and other terminal function forms are also absent, so the inspection
-surface makes no installed-root WCSU claim.
+control-flow joins remain outside the theorem. Affine cleanup admits the finite
+branch-only trees described above, with one distinct cleanup-bearing return
+edge per surviving leaf. External adapter/interrupt-arrival state and other
+terminal function forms are also absent, so the inspection surface makes no
+installed-root WCSU claim.
 
 ## Implementation queue
 

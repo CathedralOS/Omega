@@ -313,7 +313,8 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
             let inverted: bool = !right;
             let staged: bool = left && inverted;
             let reused: bool = staged == staged;
-            reused
+            let repeated: bool = reused && left;
+            repeated
         }
     "#;
     let tokens = Lexer::new(source)
@@ -372,14 +373,14 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(return_edges.len(), 3);
+    assert!(return_edges.len() > 3);
     assert_eq!(
         return_edges
             .iter()
             .copied()
             .collect::<std::collections::BTreeSet<_>>()
             .len(),
-        3
+        return_edges.len()
     );
     assert_eq!(
         return_obligations
@@ -387,9 +388,9 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
             .copied()
             .collect::<std::collections::BTreeSet<_>>()
             .len(),
-        3
+        return_edges.len()
     );
-    assert_eq!(lowered.proof_bundle.evidence.len(), 3);
+    assert_eq!(lowered.proof_bundle.evidence.len(), return_edges.len());
     drop(checked);
     drop(lowered);
 
@@ -426,8 +427,9 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
             .find(|function| function.machine == entry_machine)
             .expect("emitted bounded Boolean cleanup entry");
         assert!(emitted_entry.scalar_affine_cleanup.is_none());
-        assert_eq!(emitted_entry.scalar_control_affine_cleanups.len(), 3);
-        assert_eq!(emitted_entry.internal_unit_calls.len(), 3);
+        let emitted_leaf_count = emitted_entry.scalar_control_affine_cleanups.len();
+        assert!(emitted_leaf_count > 3);
+        assert_eq!(emitted_entry.internal_unit_calls.len(), emitted_leaf_count);
         assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 2);
         assert!(matches!(
             emitted_entry
@@ -447,7 +449,7 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
                 .copied()
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            3
+            emitted_leaf_count
         );
         assert_eq!(
             emitted_entry

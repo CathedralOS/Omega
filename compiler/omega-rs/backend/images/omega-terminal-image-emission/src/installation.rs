@@ -1639,7 +1639,8 @@ fn validate_record_shape(
                     || !function.unit_parameter_homes.is_empty()))
             || function.scalar_structural_parameters.len()
                 != function.scalar_structural_parameter_homes.len()
-            || !matches!(function.scalar_control_affine_cleanups.len(), 0 | 3)
+            || (!function.scalar_control_affine_cleanups.is_empty()
+                && function.scalar_control_affine_cleanups.len() < 2)
             || (function.scalar_affine_cleanup.is_some() && has_scalar_control_cleanup)
             || (has_scalar_cleanup && function.unit_body)
             || function
@@ -2736,7 +2737,7 @@ fn validate_scalar_control_affine_cleanup_shape(
 ) -> Result<(), TerminalInstallationError> {
     let invalid = || TerminalInstallationError::InvalidUnitAffineCleanup(function.machine);
     let cleanups = &function.scalar_control_affine_cleanups;
-    if cleanups.len() != 3 {
+    if cleanups.len() < 2 {
         return Err(
             TerminalInstallationError::InvalidScalarControlAffineCleanupCount(cleanups.len()),
         );
@@ -2771,7 +2772,7 @@ fn scalar_control_affine_cleanups_are_canonical(
     cleanups: &[omega_terminal_machine_code::TerminalUnitAffineCleanupRecord],
     function_byte_count: usize,
 ) -> bool {
-    let [first, second, third] = cleanups else {
+    let Some(first) = cleanups.first() else {
         return false;
     };
     let edges = cleanups
@@ -2785,15 +2786,15 @@ fn scalar_control_affine_cleanups_are_canonical(
                 && cleanup.actions == first.actions
                 && cleanup.byte_count == first.byte_count
         })
-        && first
-            .code_offset
-            .checked_add(first.byte_count)
-            .is_some_and(|end| end <= second.code_offset)
-        && second
-            .code_offset
-            .checked_add(second.byte_count)
-            .is_some_and(|end| end <= third.code_offset)
-        && third.code_offset.checked_add(third.byte_count) == Some(function_byte_count)
+        && cleanups.windows(2).all(|pair| {
+            pair[0]
+                .code_offset
+                .checked_add(pair[0].byte_count)
+                .is_some_and(|end| end <= pair[1].code_offset)
+        })
+        && cleanups.last().is_some_and(|last| {
+            last.code_offset.checked_add(last.byte_count) == Some(function_byte_count)
+        })
 }
 
 fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
@@ -2938,7 +2939,7 @@ fn encode_scalar_control_affine_cleanups(
     bytes: &mut Vec<u8>,
     cleanups: &[omega_terminal_machine_code::TerminalUnitAffineCleanupRecord],
 ) -> Result<(), TerminalInstallationError> {
-    if !matches!(cleanups.len(), 0 | 3) {
+    if !cleanups.is_empty() && cleanups.len() < 2 {
         return Err(
             TerminalInstallationError::InvalidScalarControlAffineCleanupCount(cleanups.len()),
         );
@@ -3761,8 +3762,15 @@ fn decode_scalar_control_affine_cleanups(
     let count = usize::try_from(reader.u32()?).map_err(|_| {
         TerminalInstallationError::InvalidScalarControlAffineCleanupCount(usize::MAX)
     })?;
-    if !matches!(count, 0 | 3) {
+    if count == 1 {
         return Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(count));
+    }
+    // Even an empty cleanup record needs its edge, three collection counts,
+    // code offset, and byte count. Reject impossible capacities before
+    // allocating from an untrusted installation image.
+    const MINIMUM_ENCODED_CLEANUP_BYTES: usize = 36;
+    if count > reader.remaining() / MINIMUM_ENCODED_CLEANUP_BYTES {
+        return Err(TerminalInstallationError::UnexpectedEnd);
     }
     let mut cleanups = Vec::with_capacity(count);
     for _ in 0..count {
@@ -4539,38 +4547,41 @@ mod resource_tests {
     }
 
     #[test]
-    fn scalar_control_cleanup_codec_requires_exactly_three_records() {
-        let cleanups = vec![
-            scalar_control_cleanup(1, 4),
-            scalar_control_cleanup(2, 12),
-            scalar_control_cleanup(3, 20),
-        ];
-        let mut bytes = Vec::new();
-        encode_scalar_control_affine_cleanups(&mut bytes, &cleanups)
-            .expect("encode exact three-leaf cleanup set");
-        let mut reader = Reader::new(&bytes);
-        assert_eq!(
-            decode_scalar_control_affine_cleanups(&mut reader)
-                .expect("decode exact three-leaf cleanup set"),
-            cleanups
-        );
-        assert_eq!(reader.remaining(), 0);
-
-        for count in [1_usize, 2, 4] {
-            let invalid = (0..count)
+    fn scalar_control_cleanup_codec_accepts_finite_leaf_sets() {
+        for count in [0_usize, 2, 3, 4] {
+            let cleanups = (0..count)
                 .map(|index| scalar_control_cleanup(index as u64 + 1, index * 8))
                 .collect::<Vec<_>>();
+            let mut bytes = Vec::new();
+            encode_scalar_control_affine_cleanups(&mut bytes, &cleanups)
+                .expect("encode finite cleanup leaf set");
+            let mut reader = Reader::new(&bytes);
             assert_eq!(
-                encode_scalar_control_affine_cleanups(&mut Vec::new(), &invalid),
-                Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(count))
+                decode_scalar_control_affine_cleanups(&mut reader)
+                    .expect("decode finite cleanup leaf set"),
+                cleanups
             );
-            let mut encoded_count = Vec::new();
-            push_u32(&mut encoded_count, count as u32);
-            assert_eq!(
-                decode_scalar_control_affine_cleanups(&mut Reader::new(&encoded_count)),
-                Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(count))
-            );
+            assert_eq!(reader.remaining(), 0);
         }
+
+        let invalid = vec![scalar_control_cleanup(1, 0)];
+        assert_eq!(
+            encode_scalar_control_affine_cleanups(&mut Vec::new(), &invalid),
+            Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(1))
+        );
+        let mut encoded_count = Vec::new();
+        push_u32(&mut encoded_count, 1);
+        assert_eq!(
+            decode_scalar_control_affine_cleanups(&mut Reader::new(&encoded_count)),
+            Err(TerminalInstallationError::InvalidScalarControlAffineCleanupCount(1))
+        );
+
+        let mut impossible_capacity = Vec::new();
+        push_u32(&mut impossible_capacity, u32::MAX);
+        assert_eq!(
+            decode_scalar_control_affine_cleanups(&mut Reader::new(&impossible_capacity)),
+            Err(TerminalInstallationError::UnexpectedEnd)
+        );
     }
 
     #[test]
@@ -4579,37 +4590,38 @@ mod resource_tests {
             scalar_control_cleanup(1, 4),
             scalar_control_cleanup(2, 12),
             scalar_control_cleanup(3, 20),
+            scalar_control_cleanup(4, 28),
         ];
-        assert!(scalar_control_affine_cleanups_are_canonical(&cleanups, 24));
+        assert!(scalar_control_affine_cleanups_are_canonical(&cleanups, 32));
 
         let mut duplicate_edge = cleanups.clone();
         duplicate_edge[1].psi_edge = duplicate_edge[0].psi_edge;
         assert!(!scalar_control_affine_cleanups_are_canonical(
             &duplicate_edge,
-            24
+            32
         ));
 
         let mut overlapping = cleanups.clone();
         overlapping[1].code_offset = 7;
         assert!(!scalar_control_affine_cleanups_are_canonical(
             &overlapping,
-            24
+            32
         ));
 
         let mut reordered = cleanups.clone();
         reordered.swap(0, 1);
         assert!(!scalar_control_affine_cleanups_are_canonical(
-            &reordered, 24
+            &reordered, 32
         ));
 
         let mut changed_actions = cleanups.clone();
         changed_actions[2].actions.clear();
         assert!(!scalar_control_affine_cleanups_are_canonical(
             &changed_actions,
-            24
+            32
         ));
 
-        assert!(!scalar_control_affine_cleanups_are_canonical(&cleanups, 25));
+        assert!(!scalar_control_affine_cleanups_are_canonical(&cleanups, 33));
     }
 
     #[test]

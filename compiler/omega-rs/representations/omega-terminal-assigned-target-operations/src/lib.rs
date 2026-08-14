@@ -48,9 +48,8 @@ pub enum TerminalAssignedOperation {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
     },
-    /// Assigned form of one bounded short-circuit Boolean tree with exactly
-    /// two decisions and three return leaves. Exact cleanup ownership remains
-    /// attached to each leaf's terminal-Psi return edge.
+    /// Assigned form of one finite short-circuit Boolean tree. Exact cleanup
+    /// ownership remains attached to each leaf's terminal-Psi return edge.
     BooleanControlWithCleanup {
         control: TerminalAssignedBooleanControl,
         structural_types: Vec<StructuralTypeDeclaration>,

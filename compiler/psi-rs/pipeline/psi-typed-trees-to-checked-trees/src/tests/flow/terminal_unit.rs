@@ -1054,6 +1054,14 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         .expect("one branch-free return expression may reuse the short-circuit local");
     assert_eq!(reused_return.bindings.len(), 1);
     assert_eq!(reused_return.return_statement_ordinal, 1);
+    let repeated_short_circuit_locals = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "repeated_short_circuit_locals"))
+        .expect("a later short-circuit stage may consume the preceding Boolean local");
+    assert_eq!(repeated_short_circuit_locals.bindings.len(), 2);
+    assert_eq!(repeated_short_circuit_locals.return_statement_ordinal, 2);
     let two_continuation_locals = checked
         .facts
         .flow
@@ -1072,7 +1080,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     assert_eq!(three_continuation_locals.return_statement_ordinal, 4);
 
     for machine in [
-        "repeated_short_circuit_locals",
         "nested_short_circuit",
         "repeated_short_circuit",
         "mutable_local",
