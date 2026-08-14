@@ -426,6 +426,11 @@ pub struct TerminalBooleanStructuralFieldRead {
     pub source: PlaceId,
     pub field: StructuralFieldId,
     pub field_byte_offset: u32,
+    /// Exact native interval which loads this field and normalizes it to a
+    /// Boolean result. Object replay reconstructs these bytes independently
+    /// from the retained structural home and canonical layout.
+    pub code_offset: usize,
+    pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

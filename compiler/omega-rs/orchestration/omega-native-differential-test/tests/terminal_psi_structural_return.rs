@@ -24,7 +24,10 @@ use omega_terminal_target_operations::{
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::{IntegerSign, IntegerType, IntegerValue, ProfileDecisionId, StructuralPlaceKind};
+use psi_core::{
+    IntegerSign, IntegerType, IntegerValue, PlaceId, ProfileDecisionId, StructuralFieldId,
+    StructuralPlaceKind,
+};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -654,10 +657,13 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         assert!(structural_conditions.iter().all(|condition| {
             !condition.reads.is_empty()
                 && condition.byte_count == condition.bytes.len()
-                && condition
-                    .reads
-                    .iter()
-                    .all(|read| read.field_byte_offset == 1)
+                && condition.reads.iter().all(|read| {
+                    read.field_byte_offset == 1
+                        && read.byte_count != 0
+                        && read.code_offset >= condition.code_offset
+                        && read.code_offset + read.byte_count
+                            <= condition.code_offset + condition.byte_count
+                })
         }));
         assert_eq!(*merge_offset, cleanup.code_offset);
         let forged_join_offset = joins[0].join_offset;
@@ -705,6 +711,120 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
             .expect("forged structural read entry");
         function.bytes[forged_structural_offset] ^= 1;
         assert!(build_terminal_object_artifact(&forged_structural_read).is_err());
+
+        let mut forged_structural_source = machine_code.clone();
+        let function = forged_structural_source
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("forged structural source entry");
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            structural_conditions,
+            ..
+        } = &mut function
+            .scalar_stack
+            .as_mut()
+            .expect("forged structural source stack")
+            .control_flow
+        else {
+            unreachable!("shared convergence evidence shape was already checked")
+        };
+        let read = &mut structural_conditions[0].reads[0];
+        read.source = PlaceId::new(read.source.get() + 1_000).expect("forged source place");
+        assert!(build_terminal_object_artifact(&forged_structural_source).is_err());
+
+        let mut forged_structural_field = machine_code.clone();
+        let function = forged_structural_field
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("forged structural field entry");
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            structural_conditions,
+            ..
+        } = &mut function
+            .scalar_stack
+            .as_mut()
+            .expect("forged structural field stack")
+            .control_flow
+        else {
+            unreachable!("shared convergence evidence shape was already checked")
+        };
+        let read = &mut structural_conditions[0].reads[0];
+        read.field =
+            StructuralFieldId::new(read.field.get() + 1_000).expect("forged structural field");
+        assert!(build_terminal_object_artifact(&forged_structural_field).is_err());
+
+        let mut forged_structural_field_offset = machine_code.clone();
+        let function = forged_structural_field_offset
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("forged structural field offset entry");
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            structural_conditions,
+            ..
+        } = &mut function
+            .scalar_stack
+            .as_mut()
+            .expect("forged structural field offset stack")
+            .control_flow
+        else {
+            unreachable!("shared convergence evidence shape was already checked")
+        };
+        structural_conditions[0].reads[0].field_byte_offset += 1;
+        assert!(build_terminal_object_artifact(&forged_structural_field_offset).is_err());
+
+        let mut coherently_forged_structural_bytes = machine_code.clone();
+        let function = coherently_forged_structural_bytes
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry_machine)
+            .expect("coherently forged structural bytes entry");
+        let (condition_offset, read_offset, read_byte_count) = {
+            let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+                structural_conditions,
+                ..
+            } = &function
+                .scalar_stack
+                .as_ref()
+                .expect("coherently forged structural bytes stack")
+                .control_flow
+            else {
+                unreachable!("shared convergence evidence shape was already checked")
+            };
+            let condition = &structural_conditions[0];
+            let read = &condition.reads[0];
+            (condition.code_offset, read.code_offset, read.byte_count)
+        };
+        let mutation_offset = match case.target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert!(read_byte_count >= 3);
+                read_offset + 2
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert!(read_byte_count >= 4);
+                read_offset
+            }
+        };
+        function.bytes[mutation_offset] ^= match case.target.architecture {
+            omega_target::Architecture::X86_64 => 0x08,
+            omega_target::Architecture::Aarch64 => 0x20,
+        };
+        let TerminalScalarControlFlowEvidence::BooleanSharedConvergence {
+            structural_conditions,
+            ..
+        } = &mut function
+            .scalar_stack
+            .as_mut()
+            .expect("coherently forged structural bytes stack")
+            .control_flow
+        else {
+            unreachable!("shared convergence evidence shape was already checked")
+        };
+        structural_conditions[0].bytes[mutation_offset - condition_offset] =
+            function.bytes[mutation_offset];
+        assert!(build_terminal_object_artifact(&coherently_forged_structural_bytes).is_err());
 
         let mut missing_join = machine_code.clone();
         let function = missing_join

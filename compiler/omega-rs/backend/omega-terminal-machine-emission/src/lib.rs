@@ -1152,11 +1152,13 @@ fn emit_boolean_control_cleanup_tree(
                     condition_frame,
                     condition,
                     Some((&mut condition_calls, target)),
+                    None,
                 )?,
                 Architecture::Aarch64 => emit_aarch64_boolean_condition_value(
                     condition_frame,
                     condition,
                     Some((&mut condition_calls, target)),
+                    None,
                 )?,
             };
             if !condition_calls.is_empty() {
@@ -3365,6 +3367,7 @@ fn emit_x86_64_conditional_integer_expression_control(
         condition_frame,
         condition,
         Some((&mut internal_calls, target)),
+        None,
     )?;
     let true_fragment = emit_x86_64_integer_control(scalar_type, &when_true.control, target)?;
     let false_fragment = emit_x86_64_integer_control(scalar_type, &when_false.control, target)?;
@@ -3444,6 +3447,7 @@ fn emit_x86_64_conditional_boolean_expression_control(
         condition_frame,
         condition,
         Some((&mut internal_calls, target)),
+        None,
     )?;
     let true_fragment = emit_x86_64_boolean_control(&when_true.control, target)?;
     let false_fragment = emit_x86_64_boolean_control(&when_false.control, target)?;
@@ -3658,6 +3662,7 @@ fn emit_aarch64_conditional_integer_expression_control(
         condition_frame,
         condition,
         Some((&mut internal_calls, target)),
+        None,
     )?;
     let true_fragment = emit_aarch64_integer_control(scalar_type, &when_true.control, target)?;
     let false_fragment = emit_aarch64_integer_control(scalar_type, &when_false.control, target)?;
@@ -3748,6 +3753,7 @@ fn emit_aarch64_conditional_boolean_expression_control(
         condition_frame,
         condition,
         Some((&mut internal_calls, target)),
+        None,
     )?;
     let true_fragment = emit_aarch64_boolean_control(&when_true.control, target)?;
     let false_fragment = emit_aarch64_boolean_control(&when_false.control, target)?;
@@ -4022,6 +4028,12 @@ impl BooleanSharedConvergenceEmission {
                 .code_offset
                 .checked_add(base)
                 .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            for read in &mut condition.reads {
+                read.code_offset = read
+                    .code_offset
+                    .checked_add(base)
+                    .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            }
         }
         self.bytes.append(&mut child.bytes);
         self.decisions.append(&mut child.decisions);
@@ -4029,39 +4041,6 @@ impl BooleanSharedConvergenceEmission {
         self.structural_conditions
             .append(&mut child.structural_conditions);
         Ok(())
-    }
-}
-
-fn boolean_structural_field_reads(
-    expression: &TerminalAssignedBooleanExpression,
-    reads: &mut Vec<TerminalBooleanStructuralFieldRead>,
-) {
-    match expression {
-        TerminalAssignedBooleanExpression::StructuralField {
-            psi_operation,
-            source,
-            field,
-            field_byte_offset,
-            ..
-        } => reads.push(TerminalBooleanStructuralFieldRead {
-            psi_operation: *psi_operation,
-            source: *source,
-            field: *field,
-            field_byte_offset: *field_byte_offset,
-        }),
-        TerminalAssignedBooleanExpression::Not { operand, .. } => {
-            boolean_structural_field_reads(operand, reads);
-        }
-        TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
-            boolean_structural_field_reads(left, reads);
-            boolean_structural_field_reads(right, reads);
-        }
-        TerminalAssignedBooleanExpression::Call { .. }
-        | TerminalAssignedBooleanExpression::Immediate { .. }
-        | TerminalAssignedBooleanExpression::Parameter { .. }
-        | TerminalAssignedBooleanExpression::IntegerEqual { .. }
-        | TerminalAssignedBooleanExpression::IntegerLessThan { .. }
-        | TerminalAssignedBooleanExpression::IntegerLessOrEqual { .. } => {}
     }
 }
 
@@ -4121,14 +4100,19 @@ fn emit_boolean_shared_convergence_tree(
             ..
         } if linear_boolean_expression(condition) => {
             let mut structural_reads = Vec::new();
-            boolean_structural_field_reads(condition, &mut structural_reads);
             let bytes = match architecture {
-                Architecture::X86_64 => {
-                    emit_x86_64_boolean_condition_value(condition_frame, condition, None)?
-                }
-                Architecture::Aarch64 => {
-                    emit_aarch64_boolean_condition_value(condition_frame, condition, None)?
-                }
+                Architecture::X86_64 => emit_x86_64_boolean_condition_value(
+                    condition_frame,
+                    condition,
+                    None,
+                    Some(&mut structural_reads),
+                )?,
+                Architecture::Aarch64 => emit_aarch64_boolean_condition_value(
+                    condition_frame,
+                    condition,
+                    None,
+                    Some(&mut structural_reads),
+                )?,
             };
             (
                 bytes,
@@ -4456,12 +4440,14 @@ fn emit_x86_64_boolean_expression_value(
             emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
         }
     }
+    let mut structural_reads = None;
     emit_x86_64_boolean_expression_node(
         &mut bytes,
         expression,
         frame.byte_size,
         0,
         &mut internal_calls,
+        &mut structural_reads,
     )?;
     if frame.byte_size != 0 {
         emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
@@ -4473,6 +4459,7 @@ fn emit_x86_64_boolean_condition_value(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
     mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+    structural_reads: Option<&mut Vec<TerminalBooleanStructuralFieldRead>>,
 ) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
@@ -4491,12 +4478,14 @@ fn emit_x86_64_boolean_condition_value(
             emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
         }
     }
+    let mut structural_reads = structural_reads;
     emit_x86_64_boolean_expression_node(
         &mut bytes,
         expression,
         frame.byte_size,
         0,
         &mut internal_calls,
+        &mut structural_reads,
     )?;
     bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
     for spill in &frame.register_spills {
@@ -4524,6 +4513,7 @@ fn emit_x86_64_boolean_expression_node(
     frame_byte_size: u32,
     stack_depth: u32,
     internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+    structural_reads: &mut Option<&mut Vec<TerminalBooleanStructuralFieldRead>>,
 ) -> Result<(), EmissionError> {
     match expression {
         TerminalAssignedBooleanExpression::Call {
@@ -4601,11 +4591,14 @@ fn emit_x86_64_boolean_expression_node(
             bytes.extend_from_slice(&[0x83, 0xe0, 0x01]); // and eax, 1
         }
         TerminalAssignedBooleanExpression::StructuralField {
+            psi_operation,
             source_value,
+            source,
+            field,
             source_placement,
             field_byte_offset,
-            ..
         } => {
+            let code_offset = bytes.len();
             emit_x86_64_boolean_structural_field(
                 bytes,
                 *source_value,
@@ -4615,6 +4608,16 @@ fn emit_x86_64_boolean_expression_node(
                 stack_depth,
             )?;
             bytes.extend_from_slice(&[0x83, 0xe0, 0x01]);
+            if let Some(reads) = structural_reads.as_deref_mut() {
+                reads.push(TerminalBooleanStructuralFieldRead {
+                    psi_operation: *psi_operation,
+                    source: *source,
+                    field: *field,
+                    field_byte_offset: *field_byte_offset,
+                    code_offset,
+                    byte_count: bytes.len() - code_offset,
+                });
+            }
         }
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             emit_x86_64_boolean_expression_node(
@@ -4623,6 +4626,7 @@ fn emit_x86_64_boolean_expression_node(
                 frame_byte_size,
                 stack_depth,
                 internal_calls,
+                structural_reads,
             )?;
             bytes.extend_from_slice(&[0x83, 0xf0, 0x01]); // xor eax, 1
         }
@@ -4633,6 +4637,7 @@ fn emit_x86_64_boolean_expression_node(
                 frame_byte_size,
                 stack_depth,
                 internal_calls,
+                structural_reads,
             )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
@@ -4646,6 +4651,7 @@ fn emit_x86_64_boolean_expression_node(
                 frame_byte_size,
                 nested_depth,
                 internal_calls,
+                structural_reads,
             )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
@@ -5026,6 +5032,7 @@ fn emit_x86_64_call(
                     frame_byte_size,
                     stack_depth,
                     internal_calls,
+                    &mut None,
                 )?;
             }
             TerminalAssignedScalarExpression::Integer {
@@ -5831,12 +5838,14 @@ fn emit_aarch64_boolean_expression_value(
             )?);
         }
     }
+    let mut structural_reads = None;
     emit_aarch64_boolean_expression_node(
         &mut instructions,
         expression,
         frame,
         0,
         &mut internal_calls,
+        &mut structural_reads,
     )?;
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
@@ -5851,6 +5860,7 @@ fn emit_aarch64_boolean_condition_value(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
     mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+    structural_reads: Option<&mut Vec<TerminalBooleanStructuralFieldRead>>,
 ) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
@@ -5867,12 +5877,14 @@ fn emit_aarch64_boolean_condition_value(
             )?);
         }
     }
+    let mut structural_reads = structural_reads;
     emit_aarch64_boolean_expression_node(
         &mut instructions,
         expression,
         frame,
         0,
         &mut internal_calls,
+        &mut structural_reads,
     )?;
     instructions.push(0x7100_001f); // cmp w0, #0
     for spill in &frame.register_spills {
@@ -5898,6 +5910,7 @@ fn emit_aarch64_boolean_expression_node(
     frame: &TerminalExpressionFrame,
     stack_depth: u32,
     internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+    structural_reads: &mut Option<&mut Vec<TerminalBooleanStructuralFieldRead>>,
 ) -> Result<(), EmissionError> {
     match expression {
         TerminalAssignedBooleanExpression::Call {
@@ -5956,11 +5969,14 @@ fn emit_aarch64_boolean_expression_node(
             instructions.push(0x1200_0000); // and w0, w0, #1
         }
         TerminalAssignedBooleanExpression::StructuralField {
+            psi_operation,
             source_value,
+            source,
+            field,
             source_placement,
             field_byte_offset,
-            ..
         } => {
+            let code_offset = instructions.len() * 4;
             emit_aarch64_boolean_structural_field(
                 instructions,
                 *source_value,
@@ -5970,6 +5986,16 @@ fn emit_aarch64_boolean_expression_node(
                 stack_depth,
             )?;
             instructions.push(0x1200_0000);
+            if let Some(reads) = structural_reads.as_deref_mut() {
+                reads.push(TerminalBooleanStructuralFieldRead {
+                    psi_operation: *psi_operation,
+                    source: *source,
+                    field: *field,
+                    field_byte_offset: *field_byte_offset,
+                    code_offset,
+                    byte_count: instructions.len() * 4 - code_offset,
+                });
+            }
         }
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
             emit_aarch64_boolean_expression_node(
@@ -5978,6 +6004,7 @@ fn emit_aarch64_boolean_expression_node(
                 frame,
                 stack_depth,
                 internal_calls,
+                structural_reads,
             )?;
             instructions.push(0x5200_0000); // eor w0, w0, #1
         }
@@ -5988,6 +6015,7 @@ fn emit_aarch64_boolean_expression_node(
                 frame,
                 stack_depth,
                 internal_calls,
+                structural_reads,
             )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
@@ -6007,6 +6035,7 @@ fn emit_aarch64_boolean_expression_node(
                 frame,
                 nested_depth,
                 internal_calls,
+                structural_reads,
             )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
@@ -6814,6 +6843,7 @@ fn emit_aarch64_call(
                     frame,
                     stack_depth,
                     internal_calls,
+                    &mut None,
                 )?;
             }
             TerminalAssignedScalarExpression::Integer {
