@@ -739,10 +739,11 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             input: u64 in Wrapping,
             small: u8,
             divisor: u8,
+            count: u8,
             enabled: bool
         ) -> bool
-        requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 7u8,
-            1u8 <= divisor
+        requires input <= 255u64, small <= 254u8, small <= 127u8, small <= 63u8,
+            small <= 7u8, 1u8 <= divisor, count <= 2u8
         {
             let staged: bool = (((~input) < 1u64) || ((input + 1u64) < 7u64))
                 && ((small as u16) < 5u16)
@@ -756,6 +757,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
                 && ((small << 1u8) < 11u8)
+                && ((small << count) < 29u8)
                 && enabled;
             staged
         }
@@ -900,6 +902,28 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let count_parameter = terminal_entry.parameters[3].id;
+    let runtime_shift_left_obligations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftLeft {
+                count, obligation, ..
+            } if count == count_parameter => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!runtime_shift_left_obligations.is_empty());
+    for obligation in runtime_shift_left_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let exact_multiply_obligation = terminal_entry
         .blocks
         .iter()

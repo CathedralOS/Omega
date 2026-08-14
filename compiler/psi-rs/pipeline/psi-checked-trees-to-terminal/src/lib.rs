@@ -10687,12 +10687,7 @@ fn shared_integer_runtime_parameters_with_shells(
             left,
             right,
             ..
-        } if remaining_shells > 0
-            && matches!(
-                right.as_ref(),
-                LoweredDirectExpression::IntegerLiteral { .. }
-            ) =>
-        {
+        } if remaining_shells > 0 => {
             let mut parameters =
                 shared_integer_runtime_parameters_with_shells(left, remaining_shells - 1)?;
             parameters.extend(shared_integer_runtime_parameters_with_shells(

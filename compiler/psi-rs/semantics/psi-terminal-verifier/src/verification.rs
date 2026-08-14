@@ -800,6 +800,8 @@ fn reconstruct_machine_semantics(
                     let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
                         unreachable!("validator requires exact-shift integer count type")
                     };
+                    let mut available_bounds = axioms.clone();
+                    available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
@@ -808,7 +810,7 @@ fn reconstruct_machine_semantics(
                                 count_type,
                                 value_term(value),
                                 value_term(count),
-                                &axioms,
+                                &available_bounds,
                             ),
                             class: ObligationClass::Derivable,
                         },
