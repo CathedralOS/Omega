@@ -394,6 +394,17 @@ pub enum TerminalScalarControlFlowEvidence {
         branch_byte_count: usize,
         false_arm_offset: usize,
     },
+    /// The same top-level two-return shape with one or more compiler-generated
+    /// x86-64 signed division/remainder diamonds contained wholly within its
+    /// expression prefix or return arms. The object boundary partitions the
+    /// ordered diamonds by outer region and replays both paths of each one.
+    TopLevelTwoReturnWithDivisionBranches {
+        condition: TerminalScalarConditionalCondition,
+        branch_offset: usize,
+        branch_byte_count: usize,
+        false_arm_offset: usize,
+        branches: Vec<TerminalScalarDivisionBranchEvidence>,
+    },
     /// Exactly two Boolean decisions and three independently returning leaves.
     /// The root is followed by its true arm and then its false arm; `nested_arm`
     /// identifies which root arm contains the sole nested decision. The three

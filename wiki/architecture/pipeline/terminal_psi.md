@@ -811,15 +811,18 @@ their facts survive assignment, the typed call relocation, object/image
 validation, installation serialization, and installed-closure recomposition.
 The same replay now accepts direct division or remainder in the Boolean
 condition operands or either arm of the one top-level two-return conditional.
-AArch64 admits every emitted policy form; x86 admits only byte streams with no
-compiler-generated division diamond. The same branch-free forms may occur in
-typed call arguments in the condition or either arm; exact call relocation and
-closure evidence survives object, image, and installation custody. Signed x86
-Wrapping/Saturating diamonds within the conditional remain outside the bounded
-theorem with general nested and reconvergent control. Crashes in arms, external
-adapter/interrupt-arrival state, and other terminal function forms are not yet
-part of that theorem, so the inspection surface still makes no installed-root
-WCSU claim.
+AArch64 admits every emitted policy form and branch-free x86 uses the same
+region replay. Signed x86 Wrapping/Saturating forms carry composite evidence
+for the outer two-return branch and each inner division diamond. Object
+construction partitions the ordered diamonds by expression prefix or return
+arm, validates their exact conditional/join targets, and independently replays
+the special and ordinary paths. These forms may also occur in typed call
+arguments in the condition or either arm; exact call relocation and closure
+evidence survives object, image, and installation custody. General nested and
+reconvergent control remains outside this bounded theorem. Crashes in arms,
+external adapter/interrupt-arrival state, and other terminal function forms are
+not yet part of that theorem, so the inspection surface still makes no
+installed-root WCSU claim.
 
 ## Implementation queue
 

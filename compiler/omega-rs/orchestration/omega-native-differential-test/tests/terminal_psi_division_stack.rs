@@ -88,7 +88,7 @@ fn division_argument_stack_facts_survive_assignment_emission_object_and_image() 
 #[test]
 fn conditional_arm_division_stack_facts_survive_object_image_and_installation() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let assigned = assign_registers(&conditional_arm_division_plan(target))
+        let assigned = assign_registers(&conditional_arm_division_plan(target, false))
             .expect("assign conditional division arms");
         let emitted = emit_machine_code(&assigned).expect("emit conditional division arms");
         let stack = emitted.functions[0]
@@ -121,6 +121,58 @@ fn conditional_arm_division_stack_facts_survive_object_image_and_installation() 
             .expect("recompose installed conditional division stack demand");
         assert_eq!(installed, demand);
     }
+}
+
+#[test]
+fn signed_x86_conditional_division_diamond_survives_installation_and_rejects_forgery() {
+    let target = NativeTarget::linux_x64();
+    let assigned = assign_registers(&conditional_arm_division_plan(target, true))
+        .expect("assign signed x86 conditional division");
+    let emitted = emit_machine_code(&assigned).expect("emit signed x86 conditional division");
+    let stack = emitted.functions[0]
+        .scalar_stack
+        .as_ref()
+        .expect("signed x86 conditional division stack evidence");
+    let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+        branches, ..
+    } = &stack.control_flow
+    else {
+        panic!("signed x86 conditional division must retain composite evidence")
+    };
+    assert_eq!(branches.len(), 1);
+
+    let mut forged = emitted.clone();
+    let TerminalScalarControlFlowEvidence::TopLevelTwoReturnWithDivisionBranches {
+        branches, ..
+    } = &mut forged.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("forged stack evidence")
+        .control_flow
+    else {
+        unreachable!()
+    };
+    branches[0].ordinary_arm_offset += 1;
+    assert!(build_terminal_object_artifact(&forged).is_err());
+
+    let artifact = build_terminal_object_artifact(&emitted)
+        .expect("object boundary replays the signed x86 conditional division diamond");
+    let demand = derive_terminal_stack_demand(&artifact, machine_id(1))
+        .expect("derive signed x86 conditional division stack demand");
+    let image = emit_terminal_executable_image(&artifact, 19)
+        .expect("emit signed x86 conditional division executable image");
+    let installation = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(5).expect("profile decision"),
+    )
+    .expect("build signed x86 conditional division installation record");
+    let encoded = encode_terminal_installation_record(&installation)
+        .expect("encode signed x86 conditional division installation record");
+    let decoded = decode_terminal_installation_record(&encoded)
+        .expect("decode signed x86 conditional division installation record");
+    let installed = derive_terminal_installation_stack_demand(&decoded, &image, machine_id(1))
+        .expect("recompose installed signed x86 conditional division demand");
+    assert_eq!(installed, demand);
 }
 
 #[test]
@@ -376,15 +428,30 @@ fn conditional_condition_division_plan(target: NativeTarget) -> TerminalTargetOp
     }
 }
 
-fn conditional_arm_division_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+fn conditional_arm_division_plan(
+    target: NativeTarget,
+    signed: bool,
+) -> TerminalTargetOperationPlan {
+    let scalar_type = IntegerType::new(
+        if signed {
+            IntegerSign::Signed
+        } else {
+            IntegerSign::Unsigned
+        },
+        64,
+    )
+    .expect("64-bit integer");
     let condition_register = match target.architecture {
         Architecture::X86_64 => MachineRegister::X86Rdi,
         Architecture::Aarch64 => MachineRegister::Aarch64X(0),
     };
-    let immediate = |source, value| TerminalTargetIntegerExpression::Immediate {
+    let immediate = |source, value: i64| TerminalTargetIntegerExpression::Immediate {
         source_value: value_id(source),
-        value: IntegerValue::Unsigned(value),
+        value: if signed {
+            IntegerValue::Signed(value.into())
+        } else {
+            IntegerValue::Unsigned(value as u128)
+        },
     };
     TerminalTargetOperationPlan {
         terminal_psi: TerminalPsiIdentity {
@@ -412,8 +479,8 @@ fn conditional_arm_division_plan(target: NativeTarget) -> TerminalTargetOperatio
                         source_value: value_id(2),
                         expression: TerminalTargetIntegerExpression::WrappingDivide {
                             psi_operation: operation_id(1),
-                            left: Box::new(immediate(3, 24)),
-                            right: Box::new(immediate(4, 3)),
+                            left: Box::new(immediate(3, if signed { i64::MIN } else { 24 })),
+                            right: Box::new(immediate(4, if signed { -1 } else { 3 })),
                         },
                     }),
                 },
