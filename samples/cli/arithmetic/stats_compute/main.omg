@@ -18,6 +18,7 @@
 //
 // Expected exit: 70.
 
+use omega::language::core::float_operations;
 use omega::language::std::console;
 
 data Stats [copy] {

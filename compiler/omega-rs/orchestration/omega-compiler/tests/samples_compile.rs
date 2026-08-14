@@ -25,8 +25,7 @@
 //!    migrated algorithms cohort has the same exact selection and direct-
 //!    lowering guarantees, with no legacy staging adapter.
 //!  * `arithmetic_samples_compile_from_authored_program_entry_bindings` — the
-//!    deployable arithmetic cohort has the same exact hosted-root guarantees,
-//!    while four float-lowering fixtures remain checked-only.
+//!    complete arithmetic cohort has the same exact hosted-root guarantees.
 //!  * `system_samples_compile_from_authored_program_entry_bindings` — the
 //!    complete systems cohort lowers from exact authored roots.
 //!  * `probe_samples_compile_from_authored_program_entry_bindings` — executable
@@ -114,6 +113,7 @@ const EXPLICIT_ENTRY_ARITHMETIC_SAMPLES: &[&str] = &[
     "collatz_sequence",
     "digital_root",
     "dot_product",
+    "dual_float",
     "euclid_gcd",
     "factorial_loop",
     "fibonacci_golden",
@@ -124,15 +124,12 @@ const EXPLICIT_ENTRY_ARITHMETIC_SAMPLES: &[&str] = &[
     "prime_sieve",
     "recursive_sum",
     "reverse_sum",
-    "smallest_prime_factor",
-    "utf8_byte_class",
-    "xorshift_prng",
-];
-const CHECKED_ONLY_ARITHMETIC_SAMPLES: &[&str] = &[
-    "dual_float",
     "sensor_min_max",
+    "smallest_prime_factor",
     "stats_compute",
+    "utf8_byte_class",
     "vector_distance",
+    "xorshift_prng",
 ];
 const EXPLICIT_ENTRY_SYSTEM_SAMPLES: &[&str] = &[
     "account_ledger",
@@ -714,21 +711,6 @@ fn algorithm_samples_compile_from_authored_program_entry_bindings() {
 #[test]
 fn arithmetic_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("arithmetic", EXPLICIT_ENTRY_ARITHMETIC_SAMPLES);
-
-    for sample in CHECKED_ONLY_ARITHMETIC_SAMPLES {
-        let main_path = repo_root()
-            .join("samples/cli/arithmetic")
-            .join(sample)
-            .join("main.omg");
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!("checked-only arithmetic sample {sample} should compile: {diagnostics:#?}")
-        });
-        assert_eq!(
-            checked.selected_program_entry_machine(),
-            None,
-            "checked-only arithmetic sample {sample} must not select a storage root"
-        );
-    }
 }
 
 #[test]
