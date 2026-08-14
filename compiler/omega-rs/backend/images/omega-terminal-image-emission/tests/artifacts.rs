@@ -499,8 +499,10 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
     let decoded = decode_terminal_installation_record(&encoded).expect("decoded cleanup");
     assert_eq!(decoded, installation);
     assert_eq!(
-        derive_terminal_installation_stack_demand(&decoded, machine_id(3)),
+        derive_terminal_installation_stack_demand(&decoded, &image, machine_id(3))
+            .expect("installed cleanup stack closure"),
         derive_terminal_stack_demand(&artifact, machine_id(3))
+            .expect("object cleanup stack closure")
     );
     validate_terminal_installation_record(&installation, &image)
         .expect("installed cleanup binding");
@@ -572,8 +574,9 @@ fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
         .expect("scalar cleanup stack closure");
     assert_eq!(demand.ceiling_bytes(), 48);
     assert_eq!(
-        derive_terminal_installation_stack_demand(&decoded, machine_id(3)),
-        Ok(demand.clone())
+        derive_terminal_installation_stack_demand(&decoded, &image, machine_id(3))
+            .expect("installed scalar stack closure"),
+        demand
     );
     assert_eq!(
         demand
@@ -1650,6 +1653,14 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         validate_terminal_installation_record(&record, &changed_image),
         Err(TerminalInstallationError::ImageBindingMismatch)
     );
+    assert!(matches!(
+        derive_terminal_installation_stack_demand(&record, &changed_image, machine_id(2)),
+        Err(
+            omega_terminal_image_emission::TerminalInstallationStackError::Installation(
+                TerminalInstallationError::ImageBindingMismatch
+            )
+        )
+    ));
 }
 
 #[test]

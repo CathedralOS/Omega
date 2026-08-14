@@ -127,18 +127,233 @@ pub struct ComponentVersionPin {
     pub version: ComponentVersionPinId,
 }
 
+/// A terminal-Psi stack closure bound to the exact installed bytes and entry
+/// stub selected for one external root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledTerminalEntryStackDemand {
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    architecture: omega_target::Architecture,
+    terminal_entry: psi_core::MachineId,
+    ceiling_bytes: u64,
+    stack_alignment: u64,
+    contributing_machines: BTreeSet<psi_core::MachineId>,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+}
+
+impl InstalledTerminalEntryStackDemand {
+    pub const fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn terminal_entry(&self) -> psi_core::MachineId {
+        self.terminal_entry
+    }
+
+    pub const fn ceiling_bytes(&self) -> u64 {
+        self.ceiling_bytes
+    }
+
+    pub const fn stack_alignment(&self) -> u64 {
+        self.stack_alignment
+    }
+
+    pub const fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId> {
+        &self.contributing_machines
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    fn matches_installed_entry(&self, installed_code: &InstalledCode, entry: EntryStubId) -> bool {
+        self.entry == entry
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
+}
+
+/// Narrow read-only surface implemented by the terminal image crate's sealed
+/// stack-demand value. This keeps the root ledger independent of image
+/// emission while preserving the exact semantic entry and derived closure.
+pub trait TerminalStackDemandEvidence {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
+    fn architecture(&self) -> omega_target::Architecture;
+    fn entry(&self) -> psi_core::MachineId;
+    fn ceiling_bytes(&self) -> u64;
+    fn stack_alignment(&self) -> u32;
+    fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId>;
+}
+
+/// Bind one emitter-derived terminal stack closure to exact installed bytes
+/// and the selected external entry stub.
+pub fn bind_installed_terminal_entry_stack<
+    TerminalArtifact: TerminalObjectEvidence,
+    StackDemand: TerminalStackDemandEvidence,
+>(
+    demand: &StackDemand,
+    terminal_artifact: &TerminalArtifact,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<InstalledTerminalEntryStackDemand, ExternalRootDiagnostic> {
+    if demand.terminal_psi() != terminal_artifact.terminal_psi() {
+        return Err(ExternalRootDiagnostic(
+            "terminal stack demand does not name the terminal artifact's semantic identity".into(),
+        ));
+    }
+    if demand.architecture() != terminal_artifact.architecture() {
+        return Err(ExternalRootDiagnostic(
+            "terminal stack demand target does not match the terminal artifact architecture".into(),
+        ));
+    }
+    if demand.ceiling_bytes() == 0
+        || demand.stack_alignment() == 0
+        || !demand.stack_alignment().is_power_of_two()
+    {
+        return Err(ExternalRootDiagnostic(
+            "terminal stack demand requires nonzero bytes and power-of-two alignment".into(),
+        ));
+    }
+    let function_offset = terminal_artifact
+        .function_text_offset(demand.entry())
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "terminal stack-demand entry is not present in the emitted artifact".into(),
+            )
+        })?;
+    bind_terminal_function(terminal_artifact, installed_code, entry, function_offset)?;
+    Ok(InstalledTerminalEntryStackDemand {
+        terminal_psi: demand.terminal_psi(),
+        architecture: demand.architecture(),
+        terminal_entry: demand.entry(),
+        ceiling_bytes: demand.ceiling_bytes(),
+        stack_alignment: u64::from(demand.stack_alignment()),
+        contributing_machines: demand.contributing_machines().clone(),
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+    })
+}
+
+pub fn validate_installed_terminal_entry_stack(
+    binding: &InstalledTerminalEntryStackDemand,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<(), ExternalRootDiagnostic> {
+    if !binding.matches_installed_entry(installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "terminal stack demand does not bind the selected installed code and entry".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Exact evidence for one provider's local stack demand. Checked terminal
+/// code contributes a byte- and entry-bound closure; an opaque provider must
+/// instead retain its explicit admission receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StackLocalEvidence {
+    TerminalEntry(InstalledTerminalEntryStackDemand),
+    AdmittedProvider {
+        local_wcsu_bytes: u64,
+        wcsu_alignment: u64,
+        validation_receipt: StackValidationReceiptId,
+    },
+}
+
+impl StackLocalEvidence {
+    pub const fn local_wcsu_bytes(&self) -> u64 {
+        match self {
+            Self::TerminalEntry(binding) => binding.ceiling_bytes,
+            Self::AdmittedProvider {
+                local_wcsu_bytes, ..
+            } => *local_wcsu_bytes,
+        }
+    }
+
+    pub const fn wcsu_alignment(&self) -> u64 {
+        match self {
+            Self::TerminalEntry(binding) => binding.stack_alignment,
+            Self::AdmittedProvider { wcsu_alignment, .. } => *wcsu_alignment,
+        }
+    }
+
+    pub const fn provider_validation_receipt(&self) -> Option<StackValidationReceiptId> {
+        match self {
+            Self::TerminalEntry(_) => None,
+            Self::AdmittedProvider {
+                validation_receipt, ..
+            } => Some(*validation_receipt),
+        }
+    }
+}
+
 /// One provider's validated local stack demand for an external entry.
 ///
 /// `stack` is copied from the entry's normalized `StatePlan`; composition and
 /// final root admission verify that it has not drifted from that source fact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderStackSummary {
     pub root: ExternalRootId,
     pub provider: RootProviderId,
     pub stack: EntryStack,
-    pub local_wcsu_bytes: u64,
-    pub wcsu_alignment: u64,
-    pub validation_receipt: StackValidationReceiptId,
+    pub local_evidence: StackLocalEvidence,
+}
+
+impl ProviderStackSummary {
+    pub fn from_admitted_provider(
+        root: ExternalRootId,
+        provider: RootProviderId,
+        stack: EntryStack,
+        local_wcsu_bytes: u64,
+        wcsu_alignment: u64,
+        validation_receipt: StackValidationReceiptId,
+    ) -> Self {
+        Self {
+            root,
+            provider,
+            stack,
+            local_evidence: StackLocalEvidence::AdmittedProvider {
+                local_wcsu_bytes,
+                wcsu_alignment,
+                validation_receipt,
+            },
+        }
+    }
+
+    pub fn from_terminal_entry(
+        root: ExternalRootId,
+        provider: RootProviderId,
+        stack: EntryStack,
+        demand: InstalledTerminalEntryStackDemand,
+    ) -> Self {
+        Self {
+            root,
+            provider,
+            stack,
+            local_evidence: StackLocalEvidence::TerminalEntry(demand),
+        }
+    }
+
+    pub const fn local_wcsu_bytes(&self) -> u64 {
+        self.local_evidence.local_wcsu_bytes()
+    }
+
+    pub const fn wcsu_alignment(&self) -> u64 {
+        self.local_evidence.wcsu_alignment()
+    }
 }
 
 /// One possible asynchronous preemption in an artifact-wide nesting relation.
@@ -237,6 +452,12 @@ impl ComposedStackDemand {
     pub const fn artifact_composition_fingerprint(&self) -> u64 {
         self.artifact_composition_fingerprint
     }
+
+    pub fn summary_evidence(
+        &self,
+    ) -> impl Iterator<Item = (&ExternalRootId, &ProviderStackSummary)> {
+        self.composition_evidence.summaries.iter()
+    }
 }
 
 /// Canonical artifact-wide WCSU result. Per-domain provisioning takes the
@@ -294,17 +515,17 @@ pub fn compose_artifact_stacks<'a>(
 ) -> Result<ArtifactStackComposition, ExternalRootDiagnostic> {
     let mut by_root = BTreeMap::new();
     for summary in summaries {
-        if summary.local_wcsu_bytes == 0 {
+        if summary.local_wcsu_bytes() == 0 {
             return Err(ExternalRootDiagnostic(format!(
                 "provider stack summary for root 0x{:016x} has zero local WCSU",
                 summary.root.normalized_identity()
             )));
         }
-        if summary.wcsu_alignment == 0 || !summary.wcsu_alignment.is_power_of_two() {
+        if summary.wcsu_alignment() == 0 || !summary.wcsu_alignment().is_power_of_two() {
             return Err(ExternalRootDiagnostic(format!(
                 "provider stack summary for root 0x{:016x} has alignment {} instead of a nonzero power of two",
                 summary.root.normalized_identity(),
-                summary.wcsu_alignment
+                summary.wcsu_alignment()
             )));
         }
         if by_root.insert(summary.root, summary).is_some() {
@@ -360,7 +581,7 @@ pub fn compose_artifact_stacks<'a>(
         relation: relation.clone(),
         summaries: by_root
             .iter()
-            .map(|(root, summary)| (*root, **summary))
+            .map(|(root, summary)| (*root, (*summary).clone()))
             .collect(),
     };
     let input_fingerprint = fingerprint_stack_inputs(relation, &by_root);
@@ -369,11 +590,15 @@ pub fn compose_artifact_stacks<'a>(
     let mut domain_alignments = BTreeMap::new();
     for (root, summary) in &by_root {
         let mut contributing_roots = BTreeSet::from([*root]);
-        let mut validation_receipts = BTreeSet::from([summary.validation_receipt]);
+        let mut validation_receipts = summary
+            .local_evidence
+            .provider_validation_receipt()
+            .into_iter()
+            .collect();
         let (composed_wcsu_bytes, wcsu_alignment) = compose_active_stack_peak(
             *root,
-            summary.local_wcsu_bytes,
-            summary.wcsu_alignment,
+            summary.local_wcsu_bytes(),
+            summary.wcsu_alignment(),
             &outgoing,
             &by_root,
             &mut contributing_roots,
@@ -404,7 +629,7 @@ pub fn compose_artifact_stacks<'a>(
                 root_provider: summary.provider,
                 relation: relation.identity,
                 stack: summary.stack,
-                local_wcsu_bytes: summary.local_wcsu_bytes,
+                local_wcsu_bytes: summary.local_wcsu_bytes(),
                 composed_wcsu_bytes,
                 wcsu_alignment,
                 contributing_roots,
@@ -503,17 +728,18 @@ fn compose_active_stack_peak(
                 continue;
             }
             contributing_roots.insert(*preemptor);
-            validation_receipts.insert(summary.validation_receipt);
-            let aligned = align_up_checked(current_bytes, summary.wcsu_alignment)?;
-            let nested_bytes = aligned
-                .checked_add(summary.local_wcsu_bytes)
-                .ok_or_else(|| {
-                    ExternalRootDiagnostic("stack WCSU composition addition overflowed".into())
-                })?;
+            validation_receipts.extend(summary.local_evidence.provider_validation_receipt());
+            let aligned = align_up_checked(current_bytes, summary.wcsu_alignment())?;
+            let nested_bytes =
+                aligned
+                    .checked_add(summary.local_wcsu_bytes())
+                    .ok_or_else(|| {
+                        ExternalRootDiagnostic("stack WCSU composition addition overflowed".into())
+                    })?;
             let (nested_peak, nested_alignment) = compose_active_stack_peak(
                 *preemptor,
                 nested_bytes,
-                current_alignment.max(summary.wcsu_alignment),
+                current_alignment.max(summary.wcsu_alignment()),
                 outgoing,
                 summaries,
                 contributing_roots,
@@ -552,9 +778,7 @@ fn fingerprint_stack_inputs(
         hash.u64(summary.root.normalized_identity());
         hash.u64(summary.provider.normalized_identity());
         fingerprint_entry_stack(&mut hash, summary.stack);
-        hash.u64(summary.local_wcsu_bytes);
-        hash.u64(summary.wcsu_alignment);
-        hash.u64(summary.validation_receipt.normalized_identity());
+        fingerprint_stack_local_evidence(&mut hash, &summary.local_evidence);
     }
     hash.u64(relation.edges.len() as u64);
     for edge in &relation.edges {
@@ -562,6 +786,40 @@ fn fingerprint_stack_inputs(
         hash.u64(edge.preemptor.normalized_identity());
     }
     hash.finish()
+}
+
+fn fingerprint_stack_local_evidence(hash: &mut Fnv1a, evidence: &StackLocalEvidence) {
+    match evidence {
+        StackLocalEvidence::TerminalEntry(binding) => {
+            hash.u64(0);
+            hash.u64(u64::from(binding.terminal_psi.vocabulary_marker.get()));
+            hash.bytes(binding.terminal_psi.program_fingerprint.as_bytes());
+            hash.u64(match binding.architecture {
+                omega_target::Architecture::X86_64 => 1,
+                omega_target::Architecture::Aarch64 => 2,
+            });
+            hash.u64(binding.terminal_entry.get());
+            hash.u64(binding.ceiling_bytes);
+            hash.u64(binding.stack_alignment);
+            hash.u64(binding.contributing_machines.len() as u64);
+            for machine in &binding.contributing_machines {
+                hash.u64(machine.get());
+            }
+            hash.u64(binding.installed_code.normalized_identity());
+            hash.u64(binding.artifact.normalized_identity());
+            hash.u64(binding.entry.normalized_identity());
+        }
+        StackLocalEvidence::AdmittedProvider {
+            local_wcsu_bytes,
+            wcsu_alignment,
+            validation_receipt,
+        } => {
+            hash.u64(1);
+            hash.u64(*local_wcsu_bytes);
+            hash.u64(*wcsu_alignment);
+            hash.u64(validation_receipt.normalized_identity());
+        }
+    }
 }
 
 fn fingerprint_entry_stack(hash: &mut Fnv1a, stack: EntryStack) {
@@ -1744,6 +2002,25 @@ impl ProviderExecution {
             return Err(ExternalRootDiagnostic(
                 "external-root entry is not in the admitted installed artifact".into(),
             ));
+        }
+        let root_stack_summary = self
+            .root_evidence
+            .candidate
+            .stack
+            .realization
+            .composition_evidence
+            .summaries
+            .get(&self.root_evidence.candidate.stack.realization.root)
+            .expect("stack composition retains its root summary");
+        if let StackLocalEvidence::TerminalEntry(binding) = &root_stack_summary.local_evidence {
+            validate_installed_terminal_entry_stack(binding, installed_code, self.entry).map_err(
+                |_| {
+                    ExternalRootDiagnostic(
+                        "terminal stack root evidence is not bound to the exact installed code and selected entry"
+                            .into(),
+                    )
+                },
+            )?;
         }
         let root_fuel_summary = self
             .root_evidence
@@ -3533,14 +3810,14 @@ mod tests {
         stack: EntryStack,
         local_wcsu_bytes: u64,
     ) -> ComposedStackDemand {
-        let summary = ProviderStackSummary {
+        let summary = ProviderStackSummary::from_admitted_provider(
             root,
             provider,
             stack,
             local_wcsu_bytes,
-            wcsu_alignment: 16,
-            validation_receipt: root_id(49, StackValidationReceiptId::from_normalized_identity),
-        };
+            16,
+            root_id(49, StackValidationReceiptId::from_normalized_identity),
+        );
         compose_artifact_stacks(
             &StackNestingRelation {
                 identity: relation,
@@ -5044,14 +5321,14 @@ mod tests {
 
     #[test]
     fn independent_resource_columns_are_validated_before_ledger_entry() {
-        let invalid_summary = ProviderStackSummary {
-            root: root_id(1, ExternalRootId::from_normalized_identity),
-            provider: root_id(2, RootProviderId::from_normalized_identity),
-            stack: EntryStack::ProviderSelected,
-            local_wcsu_bytes: 2048,
-            wcsu_alignment: 3,
-            validation_receipt: root_id(49, StackValidationReceiptId::from_normalized_identity),
-        };
+        let invalid_summary = ProviderStackSummary::from_admitted_provider(
+            root_id(1, ExternalRootId::from_normalized_identity),
+            root_id(2, RootProviderId::from_normalized_identity),
+            EntryStack::ProviderSelected,
+            2048,
+            3,
+            root_id(49, StackValidationReceiptId::from_normalized_identity),
+        );
         let error = compose_artifact_stacks(
             &StackNestingRelation {
                 identity: root_id(6, NestingRelationId::from_normalized_identity),
@@ -5122,38 +5399,38 @@ mod tests {
         let fault_provider = root_id(121, RootProviderId::from_normalized_identity);
         let receipt =
             |identity| root_id(identity, StackValidationReceiptId::from_normalized_identity);
-        let timer_summary = ProviderStackSummary {
-            root: timer,
-            provider: irq_provider,
-            stack: EntryStack::Dedicated { class: 4 },
-            local_wcsu_bytes: 2048,
-            wcsu_alignment: 16,
-            validation_receipt: receipt(130),
-        };
-        let keyboard_summary = ProviderStackSummary {
-            root: keyboard,
-            provider: irq_provider,
-            stack: EntryStack::Dedicated { class: 4 },
-            local_wcsu_bytes: 1536,
-            wcsu_alignment: 16,
-            validation_receipt: receipt(131),
-        };
-        let fatal_fault_summary = ProviderStackSummary {
-            root: fatal_fault,
-            provider: fault_provider,
-            stack: EntryStack::Interrupted,
-            local_wcsu_bytes: 1024,
-            wcsu_alignment: 16,
-            validation_receipt: receipt(132),
-        };
-        let double_fault_summary = ProviderStackSummary {
-            root: double_fault,
-            provider: fault_provider,
-            stack: EntryStack::Dedicated { class: 1 },
-            local_wcsu_bytes: 4096,
-            wcsu_alignment: 64,
-            validation_receipt: receipt(133),
-        };
+        let timer_summary = ProviderStackSummary::from_admitted_provider(
+            timer,
+            irq_provider,
+            EntryStack::Dedicated { class: 4 },
+            2048,
+            16,
+            receipt(130),
+        );
+        let keyboard_summary = ProviderStackSummary::from_admitted_provider(
+            keyboard,
+            irq_provider,
+            EntryStack::Dedicated { class: 4 },
+            1536,
+            16,
+            receipt(131),
+        );
+        let fatal_fault_summary = ProviderStackSummary::from_admitted_provider(
+            fatal_fault,
+            fault_provider,
+            EntryStack::Interrupted,
+            1024,
+            16,
+            receipt(132),
+        );
+        let double_fault_summary = ProviderStackSummary::from_admitted_provider(
+            double_fault,
+            fault_provider,
+            EntryStack::Dedicated { class: 1 },
+            4096,
+            64,
+            receipt(133),
+        );
         let relation = StackNestingRelation {
             identity: relation_identity,
             edges: BTreeSet::from([
@@ -5255,22 +5532,22 @@ mod tests {
         let root = root_id(140, ExternalRootId::from_normalized_identity);
         let nested = root_id(141, ExternalRootId::from_normalized_identity);
         let relation_identity = root_id(142, NestingRelationId::from_normalized_identity);
-        let root_summary = ProviderStackSummary {
+        let root_summary = ProviderStackSummary::from_admitted_provider(
             root,
-            provider: root_id(143, RootProviderId::from_normalized_identity),
-            stack: EntryStack::Dedicated { class: 4 },
-            local_wcsu_bytes: 1024,
-            wcsu_alignment: 16,
-            validation_receipt: root_id(144, StackValidationReceiptId::from_normalized_identity),
-        };
-        let nested_summary = ProviderStackSummary {
-            root: nested,
-            provider: root_id(145, RootProviderId::from_normalized_identity),
-            stack: EntryStack::Dedicated { class: 1 },
-            local_wcsu_bytes: 2048,
-            wcsu_alignment: 16,
-            validation_receipt: root_id(146, StackValidationReceiptId::from_normalized_identity),
-        };
+            root_id(143, RootProviderId::from_normalized_identity),
+            EntryStack::Dedicated { class: 4 },
+            1024,
+            16,
+            root_id(144, StackValidationReceiptId::from_normalized_identity),
+        );
+        let nested_summary = ProviderStackSummary::from_admitted_provider(
+            nested,
+            root_id(145, RootProviderId::from_normalized_identity),
+            EntryStack::Dedicated { class: 1 },
+            2048,
+            16,
+            root_id(146, StackValidationReceiptId::from_normalized_identity),
+        );
         let without_edge = compose_artifact_stacks(
             &StackNestingRelation {
                 identity: relation_identity,

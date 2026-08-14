@@ -767,6 +767,7 @@ dependencies = [
 name = "omega-native-differential-test"
 version = "0.1.0"
 dependencies = [
+ "omega-artifacts",
  "omega-calling-conventions",
  "omega-compiler",
  "omega-executable-installation",

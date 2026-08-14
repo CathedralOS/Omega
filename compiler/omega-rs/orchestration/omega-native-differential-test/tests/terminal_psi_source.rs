@@ -2,6 +2,11 @@
 //! trees are dropped before canonical decoding, verification, interpretation,
 //! and Omega lowering.
 
+use omega_artifacts::external_root_manifest_json;
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, MachineStateSet, RegisterSet, StateFootprintEvidence,
+    evaluate_ordinary_boundary_entry_plan,
+};
 use omega_compiler::compile_to_checked;
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
@@ -13,8 +18,15 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_external_roots::{
-    FixedFuelProviderSummary, ProviderFuelSummaryId, RootProviderId,
-    bind_installed_terminal_entry_fuel, compose_fixed_fuel, validate_installed_terminal_entry_fuel,
+    ExternalRootCandidate, ExternalRootId, FixedFuelProviderSummary, FuelProvisionId,
+    FuelValidationReceiptId, InstalledRootLedger, LogicalFuelResourceColumn,
+    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderPlanId, ProviderStackSummary,
+    RootAdmission, RootAdmissionId, RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId,
+    StackNestingRelation, StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId,
+    TrustReceiptId, bind_installed_terminal_entry_fuel, bind_installed_terminal_entry_stack,
+    compose_artifact_stacks, compose_fixed_fuel, validate_external_root,
+    validate_installed_terminal_entry_fuel, validate_installed_terminal_entry_stack,
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
@@ -27,8 +39,8 @@ use omega_terminal_assigned_target_operations::{
 };
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, build_terminal_installation_record, build_terminal_object_artifact,
-    decode_terminal_installation_record, derive_terminal_stack_demand,
-    emit_terminal_executable_image, emit_terminal_object_container,
+    decode_terminal_installation_record, derive_terminal_installation_stack_demand,
+    derive_terminal_stack_demand, emit_terminal_executable_image, emit_terminal_object_container,
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
@@ -9510,6 +9522,9 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let object_artifact = build_terminal_object_artifact(&machine_code)
         .expect("source-produced machine code should form an owned object artifact");
     assert_eq!(object_artifact.terminal_psi(), original_identity);
+    let terminal_stack_demand =
+        derive_terminal_stack_demand(&object_artifact, object_artifact.entry())
+            .expect("source-produced terminal stack closure");
     let entry = object_artifact.entry_function();
     assert_eq!(
         entry.provenance.operations,
@@ -9638,10 +9653,225 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("installation record should bind the exact source image");
     let installation_bytes =
         encode_terminal_installation_record(&installation).expect("canonical installation bytes");
-    assert_eq!(
-        decode_terminal_installation_record(&installation_bytes),
-        Ok(installation)
+    let decoded_installation = decode_terminal_installation_record(&installation_bytes)
+        .expect("canonical installation record should decode");
+    assert_eq!(decoded_installation, installation);
+    let decoded_stack_demand = derive_terminal_installation_stack_demand(
+        &decoded_installation,
+        &image,
+        object_artifact.entry(),
+    )
+    .expect("decoded installation should reproduce its stack closure");
+    assert_eq!(decoded_stack_demand, terminal_stack_demand);
+
+    // A leaf may have a zero-byte internal closure; external-root admission
+    // still needs a nonzero adapter/provision. Exercise the completed bridge
+    // with a source-produced internal-call closure whose emitter-derived
+    // demand is nonzero.
+    let call_checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal call source canary should compile");
+    let call_lowered = lower_machine(&call_checked, "terminal_call_forward")
+        .expect("source internal call should lower to terminal Psi");
+    let call_verified = verify_module(
+        &call_lowered.semantic_module,
+        &call_lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source internal-call terminal Psi should verify");
+    let call_fuel = derive_fixed_entry_fuel(&call_verified, call_lowered.semantic_module.entry)
+        .expect("source internal-call closure should have fixed fuel");
+    let call_abstract = lower_verified_artifact(&call_verified)
+        .expect("source internal-call closure should cross the Omega boundary");
+    let call_target = lower_to_target_operations(&call_abstract, NativeTarget::host())
+        .expect("source internal call should select for the host");
+    let call_assigned = assign_registers(&call_target).expect("source call homes should assign");
+    let call_machine_code =
+        emit_machine_code(&call_assigned).expect("source internal call should emit");
+    let object_artifact = build_terminal_object_artifact(&call_machine_code)
+        .expect("source internal-call object artifact");
+    let call_image = emit_terminal_executable_image(&object_artifact, 3)
+        .expect("source internal-call executable image");
+    let call_installation = build_terminal_installation_record(
+        &call_image,
+        ProfileDecisionId::new(2).expect("call installation profile"),
+    )
+    .expect("source internal-call installation record");
+    let call_installation_bytes =
+        encode_terminal_installation_record(&call_installation).expect("call installation bytes");
+    let decoded_call_installation = decode_terminal_installation_record(&call_installation_bytes)
+        .expect("call installation decode");
+    let decoded_stack_demand = derive_terminal_installation_stack_demand(
+        &decoded_call_installation,
+        &call_image,
+        object_artifact.entry(),
+    )
+    .expect("decoded call installation should reproduce its stack closure");
+    assert!(decoded_stack_demand.ceiling_bytes() > 0);
+    let entry_offset =
+        u64::try_from(object_artifact.entry_function().text_offset).expect("call entry offset");
+    let (installed_code, entry_stub) = install_terminal_object(
+        &object_artifact,
+        object_artifact.text_bytes().to_vec(),
+        entry_offset,
     );
+    let wrong_entry =
+        EntryStubId::from_normalized_identity(0x5302).expect("different entry stub identity");
+    let installed_fuel = bind_installed_terminal_entry_fuel(
+        call_fuel,
+        &object_artifact,
+        &installed_code,
+        entry_stub,
+    )
+    .expect("source call fuel should bind exact installed entry");
+    let fuel_summary_identity = ProviderFuelSummaryId::from_normalized_identity(0x6100).unwrap();
+    let certified_summary = FixedFuelProviderSummary::from_terminal_entry(
+        fuel_summary_identity,
+        RootProviderId::from_normalized_identity(0x5200).unwrap(),
+        installed_fuel,
+        BTreeSet::new(),
+    );
+    let certified_demand = compose_fixed_fuel(fuel_summary_identity, [&certified_summary])
+        .expect("source call fixed-fuel composition");
+
+    let installed_stack = bind_installed_terminal_entry_stack(
+        &decoded_stack_demand,
+        &object_artifact,
+        &installed_code,
+        entry_stub,
+    )
+    .expect("decoded terminal stack demand should bind exact installed bytes and entry");
+    validate_installed_terminal_entry_stack(&installed_stack, &installed_code, entry_stub)
+        .expect("installed terminal stack demand should revalidate");
+    assert!(
+        validate_installed_terminal_entry_stack(&installed_stack, &installed_code, wrong_entry)
+            .is_err(),
+        "terminal stack evidence must reject a different selected entry"
+    );
+
+    let root_identity = ExternalRootId::from_normalized_identity(0x6000).unwrap();
+    let root_provider =
+        RootProviderId::from_normalized_identity(0x5200).expect("root provider identity");
+    let relation_identity = NestingRelationId::from_normalized_identity(0x6001).unwrap();
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(object_artifact.target()),
+        &CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(1, 1)],
+            result: Some(omega_calling_conventions::ValueShape::integer(1, 1)),
+        },
+    )
+    .expect("host external-root boundary");
+    let stack_summary = ProviderStackSummary::from_terminal_entry(
+        root_identity,
+        root_provider,
+        boundary.plan().state.stack,
+        installed_stack,
+    );
+    let composed_stack = compose_artifact_stacks(
+        &StackNestingRelation {
+            identity: relation_identity,
+            edges: BTreeSet::new(),
+        },
+        [&stack_summary],
+    )
+    .expect("terminal stack evidence should enter artifact-wide composition")
+    .demand(root_identity)
+    .expect("root stack demand")
+    .clone();
+    assert!(composed_stack.validation_receipts().is_empty());
+    assert!(matches!(
+        &composed_stack
+            .summary_evidence()
+            .next()
+            .expect("root summary")
+            .1
+            .local_evidence,
+        omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
+            if binding.terminal_entry() == object_artifact.entry()
+                && binding.installed_code() == installed_code.identity()
+    ));
+
+    let trust_receipt = TrustReceiptId::from_normalized_identity(0x6002).unwrap();
+    let candidate = ExternalRootCandidate {
+        identity: root_identity,
+        entry: entry_stub,
+        provider: root_provider,
+        provider_plan: ProviderPlanId::from_normalized_identity(0x6003).unwrap(),
+        requirement_identity: "TerminalRoot::entry".into(),
+        entry_claims: Vec::new(),
+        acknowledgement_parameter_index: None,
+        interrupt_mask_guard_claim: None,
+        effects: BTreeSet::new(),
+        trust_receipts: BTreeSet::from([trust_receipt]),
+        nesting_relation: relation_identity,
+        acknowledgement_policy: None,
+        stack: StackResourceColumn {
+            ceiling_bytes: composed_stack.composed_wcsu_bytes(),
+            realization: composed_stack,
+            validation_receipt: StackValidationReceiptId::from_normalized_identity(0x6004).unwrap(),
+        },
+        logical_fuel: LogicalFuelResourceColumn {
+            schedule: certified_demand.schedule(),
+            provision: FuelProvisionId::from_normalized_identity(0x6005).unwrap(),
+            ceiling_units: certified_demand.units(),
+            realization: certified_demand,
+            validation_receipt: FuelValidationReceiptId::from_normalized_identity(0x6006).unwrap(),
+        },
+        machine_state: MachineStateResourceColumn {
+            realization: StateFootprintEvidence::new(
+                RegisterSet::new([]),
+                MachineStateSet::empty(),
+            ),
+            validation_receipt: StateValidationReceiptId::from_normalized_identity(0x6007).unwrap(),
+        },
+        component_pins: BTreeSet::new(),
+    };
+    let validated_root =
+        validate_external_root(candidate, &boundary).expect("terminal-backed root validation");
+    let provider_execution = ProviderExecution::from_admitted_provider(
+        ProviderExecutionId::from_normalized_identity(0x6008).unwrap(),
+        &validated_root,
+        Some(OpaqueProviderExitAssurance::HardwareIsolation {
+            validation_receipt: trust_receipt,
+        }),
+    )
+    .expect("terminal-backed provider execution");
+    let slot = RootSlotAuthority::from_admitted_owner(
+        RootSlotId::from_normalized_identity(0x6009).unwrap(),
+        RootSlotOwnerId::from_normalized_identity(0x600a).unwrap(),
+    );
+    let admission = RootAdmission::from_admitted_provider(
+        RootAdmissionId::from_normalized_identity(0x600b).unwrap(),
+        &validated_root,
+        &provider_execution,
+        &installed_code,
+        &slot,
+        [trust_receipt],
+    )
+    .expect("terminal-backed root admission");
+    let mut ledger = InstalledRootLedger::default();
+    let _installed_root = ledger
+        .install(&installed_code, validated_root, slot, admission)
+        .expect("terminal stack evidence should reach the installed-root report");
+    let root_record = ledger.record(root_identity).expect("installed root record");
+    assert_eq!(
+        root_record.stack.realization.local_wcsu_bytes(),
+        decoded_stack_demand.ceiling_bytes()
+    );
+    assert!(matches!(
+        &root_record
+            .stack
+            .realization
+            .summary_evidence()
+            .next()
+            .expect("reported root summary")
+            .1
+            .local_evidence,
+        omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
+            if binding.artifact() == installed_code.artifact()
+    ));
+    let root_report = external_root_manifest_json(&ledger);
+    assert!(root_report.contains("\"origin\": \"terminal_entry\""));
+    assert!(root_report.contains("\"contributing_machines\": ["));
 
     let manifest_module = decode_module(&canonical_bytes)
         .expect("redecode semantic bytes after image realization state is dropped");

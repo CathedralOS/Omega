@@ -1193,6 +1193,13 @@ already active dedicated class fail closed. Every installed root in a ledger
 must bind the same exact canonical nesting relation and provider-summary set.
 The sealed stack and fuel realizations retain those complete inputs; compact
 composition fingerprints are report keys, not admission evidence.
+Emitter-derived terminal stack closures now follow the fixed-fuel trust shape:
+a decoded canonical installation record is revalidated against its exact image,
+then the demand binds exact installed bytes and entry before artifact-wide
+nesting composition. Provider execution rechecks that binding, and the root
+report distinguishes recomputable terminal evidence from an opaque provider's
+admitted numeric summary. Zero-byte internal closures remain insufficient for
+root admission until the external entry-adapter demand is composed.
 
 Machine-state admission checks the final footprint against the `StatePlan`.
 Schedule-keyed fixed-fuel provider summaries compose transitively while

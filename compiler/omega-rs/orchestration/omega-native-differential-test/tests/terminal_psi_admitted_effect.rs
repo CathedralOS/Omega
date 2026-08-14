@@ -74,14 +74,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let provider = root_id(2, RootProviderId::from_normalized_identity);
     let relation = root_id(6, NestingRelationId::from_normalized_identity);
     let entry = EntryStubId::from_normalized_identity(12).expect("entry stub");
-    let stack_summary = ProviderStackSummary {
+    let stack_summary = ProviderStackSummary::from_admitted_provider(
         root,
         provider,
-        stack: EntryStack::ProviderSelected,
-        local_wcsu_bytes: 64,
-        wcsu_alignment: 16,
-        validation_receipt: root_id(49, StackValidationReceiptId::from_normalized_identity),
-    };
+        EntryStack::ProviderSelected,
+        64,
+        16,
+        root_id(49, StackValidationReceiptId::from_normalized_identity),
+    );
     let stack = compose_artifact_stacks(
         &StackNestingRelation {
             identity: relation,

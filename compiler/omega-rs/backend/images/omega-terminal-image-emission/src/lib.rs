@@ -238,6 +238,32 @@ impl TerminalStackDemand {
     }
 }
 
+impl omega_external_roots::TerminalStackDemandEvidence for TerminalStackDemand {
+    fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    fn architecture(&self) -> Architecture {
+        self.target.architecture
+    }
+
+    fn entry(&self) -> MachineId {
+        self.entry
+    }
+
+    fn ceiling_bytes(&self) -> u64 {
+        self.ceiling_bytes
+    }
+
+    fn stack_alignment(&self) -> u32 {
+        self.stack_alignment
+    }
+
+    fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
+        &self.contributing_machines
+    }
+}
+
 /// Compatibility name for the original Unit-only demand entry point. New
 /// callers should use [`TerminalStackDemand`] and [`derive_terminal_stack_demand`].
 pub type TerminalUnitStackDemand = TerminalStackDemand;
