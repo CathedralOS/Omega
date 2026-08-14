@@ -416,7 +416,9 @@ compiler concept is introduced.
   primitive field at either level may wrap independently bounded call operands
   in up to two nested scalar-computation shells made from unary/binary
   operators, primitive value casts, member projections, or indexing without
-  widening that budget.
+  widening that budget. Literal-length caller-isolated fixed-array assignment
+  values preserve the same relation through one nested array level; every
+  element retains the same call and primitive-computation budgets.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
