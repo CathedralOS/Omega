@@ -56,6 +56,8 @@ pub struct MachineStorage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericConformanceBound {
+    pub binder: Option<SymbolHandle>,
+    pub binder_name: Option<DiagnosticName>,
     pub subject: SymbolHandle,
     pub subject_name: DiagnosticName,
     /// The ordinary trait symbol, or the data carrier symbol for a named

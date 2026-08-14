@@ -804,27 +804,35 @@ pub(super) fn parse_field_relevance_brackets<'tokens, 'source>(
 pub(super) struct ParsedGenericParameters {
     pub(super) lifetime_parameters: Vec<Identifier>,
     pub(super) type_parameters: HandleSpan<TypeParameter>,
+    pub(super) conformance_bounds: Vec<psi_syntax_trees::item::GenericConformanceBound>,
 }
 
 pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false, false)
+    parse_type_parameters_in(syntax_trees, input, false, false, false)
 }
 
 pub(super) fn parse_proposition_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false, true)
+    parse_type_parameters_in(syntax_trees, input, false, true, false)
 }
 
 pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true, false)
+    parse_type_parameters_in(syntax_trees, input, true, false, false)
+}
+
+pub(super) fn parse_machine_declaration_parameters<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
+    parse_type_parameters_in(syntax_trees, input, true, false, true)
 }
 
 fn parse_type_parameters_in<'tokens, 'source>(
@@ -832,6 +840,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
     allow_machine_parameters: bool,
     allow_proposition_parameters: bool,
+    allow_conformance_binders: bool,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));
@@ -841,6 +850,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
     let mut type_parameter_start = Handle::invalid();
     let mut type_parameter_count = 0u32;
     let mut lifetime_parameters = Vec::new();
+    let mut conformance_bounds = Vec::new();
     let mut declared_names = Vec::<String>::new();
     let mut saw_runtime_parameter = false;
 
@@ -893,6 +903,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
                 ParsedGenericParameters {
                     lifetime_parameters,
                     type_parameters,
+                    conformance_bounds,
                 },
                 input,
             ));
@@ -941,6 +952,48 @@ fn parse_type_parameters_in<'tokens, 'source>(
             );
         }
         declared_names.push(name.as_str().to_owned());
+
+        if matches!(kind, TypeParameterKind::Type)
+            && allow_conformance_binders
+            && input.at_punctuation(PunctuationKind::Colon)
+        {
+            let rest = input.take_punctuation(PunctuationKind::Colon, ":")?;
+            let (subject, rest) = rest.take_identifier()?;
+            let rest = rest.take_contextual("satisfies")?;
+            let (carrier, rest) = rest.take_identifier()?;
+            let (arguments, rest) =
+                crate::parser::machine::parse_optional_satisfies_type_arguments(
+                    syntax_trees,
+                    rest,
+                )?;
+            conformance_bounds.push(psi_syntax_trees::item::GenericConformanceBound {
+                binder: Some(name),
+                subject,
+                carrier,
+                arguments,
+                conformance: None,
+            });
+            input = rest;
+
+            if input.at_punctuation(PunctuationKind::Comma) {
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+            let type_parameters = if type_parameter_count == 0 {
+                HandleSpan::empty()
+            } else {
+                HandleSpan::from_parts(type_parameter_start, type_parameter_count)
+            };
+            return Ok((
+                ParsedGenericParameters {
+                    lifetime_parameters,
+                    type_parameters,
+                    conformance_bounds,
+                },
+                input,
+            ));
+        }
 
         // Rust-style `<T: copy>` is rejected with the bracket spelling
         // suggested: a colon bound would split the property spelling system.
@@ -1005,6 +1058,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
             ParsedGenericParameters {
                 lifetime_parameters,
                 type_parameters,
+                conformance_bounds,
             },
             input,
         ));

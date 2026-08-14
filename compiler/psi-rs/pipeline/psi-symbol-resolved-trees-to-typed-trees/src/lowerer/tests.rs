@@ -40,6 +40,42 @@ fn retains_typed_name_owned_conformance_telescope() {
 }
 
 #[test]
+fn retains_typed_explicit_conformance_binder_identity() {
+    let source = r#"
+        trait Ranked {}
+
+        machine sort<Element, Order: Element satisfies Ranked>(
+            values: &mut [Element]
+        ) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed.machines().first().expect("machine");
+    let [bound] = machine.conformance_bounds.as_slice() else {
+        panic!("one explicit conformance binder");
+    };
+
+    assert_eq!(
+        bound.binder_name.as_ref().map(|name| name.as_str()),
+        Some("Order")
+    );
+    assert!(bound.binder.is_some_and(|symbol| symbol.is_valid()));
+    assert_eq!(
+        bound.subject,
+        typed.machine_type_parameters(machine)[0].symbol
+    );
+    let snapshot = typed.snapshot();
+    assert_eq!(
+        snapshot.roots.machines[0].conformance_bounds[0]
+            .binder
+            .as_deref(),
+        Some("Order")
+    );
+}
+
+#[test]
 fn retains_typed_evidence_forwarding_owner_identity() {
     let source = r#"
         trait Evidence {}

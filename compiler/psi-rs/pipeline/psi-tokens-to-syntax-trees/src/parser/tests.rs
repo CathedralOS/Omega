@@ -916,6 +916,40 @@ fn retains_generic_and_named_conformance_bounds() {
 }
 
 #[test]
+fn parses_explicit_conformance_binder_in_machine_telescope() {
+    let source = r#"
+        trait Ranked {}
+
+        machine sort<Element, Order: Element satisfies Ranked>(
+            values: &mut [Element]
+        ) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("explicit conformance binder should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+
+    let parameters = parsed.items.type_parameters(machine.type_parameters);
+    assert_eq!(parameters.len(), 1, "Order is not a runtime type parameter");
+    assert_eq!(parameters[0].name.as_str(), "Element");
+    let [bound] = machine.conformance_bounds.as_slice() else {
+        panic!("one explicit conformance binder");
+    };
+    assert_eq!(
+        bound.binder.as_ref().map(|name| name.as_str()),
+        Some("Order")
+    );
+    assert_eq!(bound.subject.as_str(), "Element");
+    assert_eq!(bound.carrier.as_str(), "Ranked");
+    assert!(bound.conformance.is_none());
+}
+
+#[test]
 fn retains_named_dynamic_conformance_path() {
     let source = r#"
         machine inspect(value: &dyn Card::PowerOrder) {}

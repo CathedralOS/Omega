@@ -26,6 +26,11 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                 };
                 symbol_seed(kind, &parameter.name, has_sources)
             })
+            .chain(machine.conformance_bounds.iter().filter_map(|bound| {
+                bound.binder_name.as_ref().map(|binder| {
+                    symbol_seed(SymbolKind::ConformanceParameter, binder, has_sources)
+                })
+            }))
             .chain(inherited_data_field_symbols(program, machine, has_sources))
             .chain(
                 program
@@ -60,6 +65,13 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                 has_sources,
             );
         }
+    }
+    for _ in machine
+        .conformance_bounds
+        .iter()
+        .filter(|bound| bound.binder_name.is_some())
+    {
+        let _ = machine_children.next();
     }
     for _ in 0..inherited_field_count {
         let _ = machine_children.next();

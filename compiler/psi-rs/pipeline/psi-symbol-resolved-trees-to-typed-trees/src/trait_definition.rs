@@ -46,6 +46,8 @@ pub(crate) fn lower_trait_definition(
         typed_trait
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
+                binder: bound.binder,
+                binder_name: bound.binder_name.as_ref().map(crate::name::lower_name),
                 subject: bound.subject,
                 subject_name: crate::name::lower_name(&bound.subject_name),
                 carrier: bound.carrier,

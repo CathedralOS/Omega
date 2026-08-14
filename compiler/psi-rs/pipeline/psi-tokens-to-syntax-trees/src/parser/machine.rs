@@ -1,5 +1,5 @@
 use crate::parser::context::StateKind;
-use crate::parser::data::parse_machine_type_parameters;
+use crate::parser::data::{parse_machine_declaration_parameters, parse_machine_type_parameters};
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
@@ -21,6 +21,7 @@ use psi_tokens::{KeywordKind, PunctuationKind};
 mod clauses;
 
 pub(super) use clauses::parse_generic_conformance_bounds;
+pub(in crate::parser) use clauses::parse_optional_satisfies_type_arguments;
 use clauses::{parse_machine_clauses, parse_satisfies_traits};
 
 pub(super) fn parse_machine<'tokens, 'source>(
@@ -32,7 +33,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
-    let (generic_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, input) = parse_machine_declaration_parameters(syntax_trees, input)?;
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
@@ -58,10 +59,13 @@ pub(super) fn parse_machine<'tokens, 'source>(
             blocks,
             contracts,
             clauses_return_type,
-            conformance_bounds,
+            mut conformance_bounds,
         ),
         next,
     ) = parse_machine_clauses(syntax_trees, next)?;
+    let mut header_conformance_bounds = generic_parameters.conformance_bounds;
+    header_conformance_bounds.append(&mut conformance_bounds);
+    let conformance_bounds = header_conformance_bounds;
     input = next;
     // `-> T` is written either before the clauses or after them
     // (`terminates by ..; -> usize`); both spell the machine's return type.

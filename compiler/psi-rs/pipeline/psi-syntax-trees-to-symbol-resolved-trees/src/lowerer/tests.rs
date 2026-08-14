@@ -74,6 +74,37 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
 }
 
 #[test]
+fn resolves_explicit_conformance_binder_as_proof_static_machine_child() {
+    let source = r#"
+        trait Ranked {}
+
+        machine sort<Element, Order: Element satisfies Ranked>(
+            values: &mut [Element]
+        ) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let machine = program.machines.iter().next().expect("machine");
+    let [bound] = machine.conformance_bounds.as_slice() else {
+        panic!("one explicit conformance binder");
+    };
+    let binder = bound.binder.expect("binder symbol");
+    assert!(binder.is_valid());
+    assert_eq!(program.symbols.name(binder), "Order");
+    assert_eq!(program.symbols.get(binder).parent, machine.symbol);
+    assert_eq!(
+        program.symbols.get(binder).kind,
+        psi_symbols::SymbolKind::ConformanceParameter
+    );
+    let parameters = program.machine_type_parameters(machine);
+    assert_eq!(parameters.len(), 1);
+    assert_eq!(bound.subject, parameters[0].symbol);
+    assert!(bound.carrier.is_valid());
+    assert_eq!(program.symbols.name(bound.carrier), "Ranked");
+}
+
+#[test]
 fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let source = r#"
         trait Ranked {

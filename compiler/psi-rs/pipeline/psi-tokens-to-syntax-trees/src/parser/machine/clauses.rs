@@ -426,6 +426,7 @@ pub(in crate::parser) fn parse_generic_conformance_bounds<'tokens, 'source>(
             None
         };
         bounds.push(GenericConformanceBound {
+            binder: None,
             subject,
             carrier,
             arguments,
@@ -742,7 +743,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
     Ok((satisfies, input))
 }
 
-fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
+pub(in crate::parser) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> Result<

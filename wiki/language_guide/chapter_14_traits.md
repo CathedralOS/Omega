@@ -1177,10 +1177,11 @@ and conformances and do not compete for operator syntax.
 
 Closed implementations use the name-first declaration above. Bodyless carrier
 declarations remain static-only and cannot license local dynamic dispatch.
-Generic name-owned telescopes and package-scoped conformance symbols are now
-retained by typed Psi. Generic conformance instantiation and the explicit
-evidence-binder surface remain tracked in `TASKS.md`; synthesis and its
-eligibility rules are independent of declaration syntax.
+Generic name-owned telescopes, package-scoped conformance symbols, and explicit
+evidence-binder declarations are now retained by typed Psi. Binding a concrete
+call-site conformance and instantiating its normalized map remain tracked in
+`TASKS.md`; synthesis and its eligibility rules are independent of declaration
+syntax.
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).
