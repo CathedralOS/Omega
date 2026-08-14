@@ -583,11 +583,13 @@ reach or trust, and private proof improvements do not change public identity.
   path. Direct integer-return division and remainder now retain exact linear
   facts on AArch64 and branch-free x86 paths; signed x86 wrapping/saturating
   forms retain and independently replay every compiler-generated reconvergent
-  diamond. Extend accounting to language-level nested/reconvergent conditionals,
-  division inside their conditions/arms or call-argument materialization,
-  crashes in arms, and the external entry adapter before calling it a complete
-  root `StackPlan`; zero-byte internal closures remain inadmissible until that
-  adapter demand exists.
+  diamond. Integer division/remainder inside typed scalar call arguments now
+  retains the same facts through ABI assignment, typed relocation, object/image
+  validation, installation serialization, and installed-closure recomposition.
+  Extend accounting to language-level nested/reconvergent conditionals,
+  division inside their conditions/arms, crashes in arms, and the external entry
+  adapter before calling it a complete root `StackPlan`; zero-byte internal
+  closures remain inadmissible until that adapter demand exists.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;
