@@ -229,9 +229,11 @@ Remaining:
   exact fixed-width addition with a landed operand, subtraction with a landed
   subtrahend, or multiplication with a landed factor under retained matching
   direct parameter bounds, one runtime unsigned addition under the retained
-  canonical `left <= MAX - right` bound, or exact unsigned subtraction under a
-  retained direct subtrahend-to-minuend bound, one exact right shift under a
-  direct unsigned count upper bound, one exact left shift by a landed count
+  canonical `left <= MAX - right` bound, one runtime signed addition under
+  retained matching sign and `MAX - right` or `MIN - right` bounds, or exact
+  unsigned subtraction under a retained direct subtrahend-to-minuend bound,
+  one exact right shift under a direct unsigned count upper bound, one exact
+  left shift by a landed count
   under a direct unsigned value upper bound or by an unsigned runtime count
   under direct count and value upper bounds, or exact division/remainder by a
   landed nonzero unsigned constant, a landed signed constant other than `0` or

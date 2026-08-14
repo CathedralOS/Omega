@@ -3121,13 +3121,40 @@ fn direct_integer_requirement(
                 PrimitiveType::U16 => maximum.value_u64() == Some(u64::from(u16::MAX)),
                 PrimitiveType::U32 => maximum.value_u64() == Some(u64::from(u32::MAX)),
                 PrimitiveType::U64 => maximum.value_u64() == Some(u64::MAX),
+                PrimitiveType::I8 => maximum.value_i64() == Some(i64::from(i8::MAX)),
+                PrimitiveType::I16 => maximum.value_i64() == Some(i64::from(i16::MAX)),
+                PrimitiveType::I32 => maximum.value_i64() == Some(i64::from(i32::MAX)),
+                PrimitiveType::I64 => maximum.value_i64() == Some(i64::MAX),
                 _ => false,
             };
             (maximum_matches && primitive_type == subtrahend_type).then_some((
                 position,
                 primitive_type,
                 CheckedStructuralScalarIntegerBoundKind::Upper,
-                CheckedStructuralScalarIntegerBoundPlan::UnsignedMaximumMinusParameter(subtrahend),
+                CheckedStructuralScalarIntegerBoundPlan::MaximumMinusParameter(subtrahend),
+            ))?
+        }
+        (BinaryOperator::LessOrEqual, ExpressionNode::Binary(bound), _)
+            if bound.operator == BinaryOperator::Subtract =>
+        {
+            let (position, primitive_type) = parameter(binary.right)?;
+            let (subtrahend, subtrahend_type) = parameter(bound.right)?;
+            let ExpressionNode::Integer(minimum) = program.expression_table.expression(bound.left)
+            else {
+                return None;
+            };
+            let minimum_matches = match primitive_type {
+                PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
+                PrimitiveType::I16 => minimum.value_i64() == Some(i64::from(i16::MIN)),
+                PrimitiveType::I32 => minimum.value_i64() == Some(i64::from(i32::MIN)),
+                PrimitiveType::I64 => minimum.value_i64() == Some(i64::MIN),
+                _ => false,
+            };
+            (minimum_matches && primitive_type == subtrahend_type).then_some((
+                position,
+                primitive_type,
+                CheckedStructuralScalarIntegerBoundKind::Lower,
+                CheckedStructuralScalarIntegerBoundPlan::SignedMinimumMinusParameter(subtrahend),
             ))?
         }
         (BinaryOperator::LessOrEqual, _, _) => {
