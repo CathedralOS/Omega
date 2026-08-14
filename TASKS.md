@@ -191,11 +191,11 @@ Remaining:
   artifact/install paths agree on these carriers.
 
   The nominal-cleanup Boolean slice decides a finite source-ordered sequence of
-  top-level short-circuit locals once per stage, source-distributing each
-  stage's value leaves through the remaining branch-free or short-circuit
-  continuation locals; each continuation may use its immediate predecessor one
-  or more times. Add complete slices for explicit shared convergence, arbitrary
-  nested decisions, calls and effects,
+  finite short-circuit trees of arbitrary nesting once per stage,
+  source-distributing each stage's value leaves through the remaining
+  branch-free or short-circuit continuation locals; each continuation may use
+  its immediate predecessor one or more times. Add complete slices for explicit
+  shared convergence, calls and effects,
   wider partial-value cleanup, nested nominal ownership, returned transfer,
   loops, suspension, scoped ordering, and ranked tail recursion. Dynamic or
   nested indexing, wider projections/signatures, content-bearing splits, and
@@ -414,11 +414,13 @@ reach or trust, and private proof improvements do not change public identity.
   prefix-disjoint all-field paths, maximal-residual disposal, nominal helper
   calls, shared targets, edge/action ownership, and direct-Boolean contextual
   obligations through terminal verification, interpretation, fuel, and all
-  native artifact paths. Extend contextual cleanup beyond the current
-  receiver-independent Boolean subset and finite continuation chains; add typed
-  shared convergence, wider structural partial values, repeated-cycle resource
-  composition, and conservation/backend-ledger reporting. This is not yet a
-  general conditional CFG, complete cleanup plan, or conservation witness.
+  native artifact paths. Nominal scalar cleanup admits finite continuation
+  chains whose stages contain arbitrarily nested finite short-circuit Boolean
+  decisions. Extend contextual cleanup beyond the current receiver-independent
+  Boolean subset and finite continuation trees; add typed shared convergence,
+  wider structural partial values, repeated-cycle resource composition, and
+  conservation/backend-ledger reporting. This is not yet a general conditional
+  CFG, complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

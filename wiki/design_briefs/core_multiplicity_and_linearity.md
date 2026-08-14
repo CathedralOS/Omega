@@ -256,7 +256,8 @@ exact cleanup on every terminal value leaf, which the verifier checks
 independently. Calls, mutable or non-scalar locals, claims, and richer exits
 remain fail-closed rather than weakening the frontier model. Branch-free
 primitive work may surround and separate any finite sequence of short-circuit
-Boolean local stages: each prefix preserves custody through every decision
+Boolean local stages, and each stage may contain a finite `&&`/`||` decision
+tree of arbitrary nesting: each prefix preserves custody through every decision
 edge, each Boolean value enters one typed convergence parameter, and cleanup
 remains only on the subsequent return. If that return is itself short-circuit
 Boolean control, each terminal value leaf repeats the same exact cleanup.
