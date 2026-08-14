@@ -19,8 +19,8 @@ pub use content::{
 };
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId, EdgeId,
-    EvidenceIdentity, FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId,
-    ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId, StructuralDomainId,
+    EvidenceIdentity, EvidenceTermId, FuelScheduleIdentity, MachineId, ObligationId, OperationId,
+    PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId, StructuralDomainId,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub use proposition::{

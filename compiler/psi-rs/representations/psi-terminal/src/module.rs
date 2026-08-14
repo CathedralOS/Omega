@@ -1,9 +1,9 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarType,
-    ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
-    ValueId,
+    EvidenceTermId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
 
@@ -95,6 +95,10 @@ pub struct TerminalModule {
     pub proposition_declarations: Vec<PropositionDeclaration>,
     /// Normalized applications retained without frontend arena handles.
     pub proposition_applications: Vec<PropositionApplicationIdentity>,
+    /// Canonical erased witness identities. Multiple terms may inhabit the
+    /// same proposition application; a forwarding assignment preserves its
+    /// source identity and therefore does not add a declaration here.
+    pub evidence_terms: Vec<EvidenceTermDeclaration>,
     pub machines: Vec<TerminalMachine>,
 }
 
@@ -241,12 +245,34 @@ pub struct PropositionApplicationIdentity {
     pub declaration: psi_core::PropositionId,
     pub binder_arguments: Vec<PropositionBinderArgumentIdentity>,
     pub arguments: Vec<String>,
+    /// Exact instantiated carrierless interface. This is present exactly for
+    /// witness-bearing applications and is their terminal identity authority.
+    pub evidence_interface: Option<EvidenceInterfaceIdentity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PropositionBinderArgumentIdentity {
     pub kind: PropositionBinderArgumentKind,
     pub identity: String,
+}
+
+/// One exact carrierless witness identity retained independently of both its
+/// nominal proposition and the proof provenance that established it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceTermDeclaration {
+    pub id: EvidenceTermId,
+    /// Exact normalized proposition application inhabited by this term.
+    pub proposition: psi_core::PropositionId,
+    /// Source-handle-free exact carrierless interface. This structured row,
+    /// not `PropositionEvidence::Witness::evidence_type`, is the terminal
+    /// identity authority for projection.
+    pub interface: EvidenceInterfaceIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidenceInterfaceIdentity {
+    pub trait_identity: String,
+    pub arguments: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

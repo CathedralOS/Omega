@@ -36,8 +36,9 @@ use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    CrashRouteGuard, EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
+    MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
@@ -213,6 +214,21 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "proposition applications by PropositionId",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .evidence_terms
+            .iter()
+            .map(|term| (term.proposition, &term.interface, term.id)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "evidence terms by proposition and EvidenceTermId",
+        ));
+    }
+    if !strictly_increasing(module.evidence_terms.iter().map(|term| term.id)) {
+        return Err(CodecError::NonCanonicalOrder(
+            "evidence terms by EvidenceTermId",
         ));
     }
     if !strictly_increasing(module.machines.iter().map(|machine| machine.id)) {
@@ -1311,6 +1327,12 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     for application in &module.proposition_applications {
         encode_proposition_application(&mut writer, application)?;
     }
+    writer.len("evidence terms", module.evidence_terms.len())?;
+    for term in &module.evidence_terms {
+        writer.id(term.id);
+        writer.id(term.proposition);
+        encode_evidence_interface(&mut writer, &term.interface)?;
+    }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
         encode_machine(&mut writer, machine)?;
@@ -1479,6 +1501,28 @@ fn encode_proposition_application(
     writer.len("proposition arguments", application.arguments.len())?;
     for argument in &application.arguments {
         writer.string("proposition argument", argument)?;
+    }
+    match &application.evidence_interface {
+        None => writer.u8(0),
+        Some(interface) => {
+            writer.u8(1);
+            encode_evidence_interface(writer, interface)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_evidence_interface(
+    writer: &mut Writer,
+    interface: &EvidenceInterfaceIdentity,
+) -> Result<(), CodecError> {
+    writer.string(
+        "evidence interface trait identity",
+        &interface.trait_identity,
+    )?;
+    writer.len("evidence interface arguments", interface.arguments.len())?;
+    for argument in &interface.arguments {
+        writer.string("evidence interface argument", argument)?;
     }
     Ok(())
 }
@@ -2785,6 +2829,13 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     for _ in 0..count {
         proposition_applications.push(decode_proposition_application(reader)?);
     }
+    let evidence_terms = decode_counted(reader, |reader| {
+        Ok(EvidenceTermDeclaration {
+            id: reader.id("EvidenceTermId")?,
+            proposition: reader.id("PropositionId")?,
+            interface: decode_evidence_interface(reader)?,
+        })
+    })?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -2799,6 +2850,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         boundary_machines,
         proposition_declarations,
         proposition_applications,
+        evidence_terms,
         machines,
     })
 }
@@ -2990,11 +3042,28 @@ fn decode_proposition_application(
     for _ in 0..argument_count {
         arguments.push(reader.string("proposition argument")?);
     }
+    let evidence_interface = match reader.u8()? {
+        0 => None,
+        1 => Some(decode_evidence_interface(reader)?),
+        tag => return Err(CodecError::InvalidTag("PropositionEvidenceInterface", tag)),
+    };
     Ok(PropositionApplicationIdentity {
         id,
         declaration,
         binder_arguments,
         arguments,
+        evidence_interface,
+    })
+}
+
+fn decode_evidence_interface(
+    reader: &mut Reader<'_>,
+) -> Result<EvidenceInterfaceIdentity, CodecError> {
+    Ok(EvidenceInterfaceIdentity {
+        trait_identity: reader.string("evidence interface trait identity")?,
+        arguments: decode_counted(reader, |reader| {
+            reader.string("evidence interface argument")
+        })?,
     })
 }
 

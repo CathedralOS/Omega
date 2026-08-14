@@ -110,6 +110,10 @@ semantic_id!(
     "Stable identity of one proposition in a terminal-Psi semantic module."
 );
 semantic_id!(
+    EvidenceTermId,
+    "Stable identity of one erased evidence term in a terminal-Psi semantic module."
+);
+semantic_id!(
     ContractId,
     "Stable identity of one author contract in a terminal-Psi semantic module."
 );

@@ -498,6 +498,13 @@ fn build_checked_proposition_vocabulary(
 fn lower_checked_proposition_application(
     normalized: psi_typed_trees::proposition::NormalizedPropositionApplicationIdentity,
 ) -> psi_checked_trees::CheckedPropositionApplication {
+    let evidence_interface = match &normalized.classification {
+        psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
+        psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
+            interface,
+            ..
+        } => interface.clone(),
+    };
     psi_checked_trees::CheckedPropositionApplication {
         declaration: normalized.declaration,
         binder_arguments: normalized
@@ -521,6 +528,7 @@ fn lower_checked_proposition_application(
             )
             .collect(),
         arguments: normalized.arguments,
+        evidence_interface,
     }
 }
 

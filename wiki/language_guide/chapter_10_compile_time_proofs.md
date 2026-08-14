@@ -268,7 +268,14 @@ let value = ordinary_call();
 The artifact keeps proposition identity, evidence-term identity, and
 derivation provenance separate. The first names the claim, the second preserves
 the exact hidden witness across projection and forwarding, and the third records
-how the claim was established and which admitted premises it trusts.
+how the claim was established and which admitted premises it trusts. Terminal
+Psi already carries forwarded terms as dense source-handle-free vocabulary
+identities over the exact proposition application and a structured carrierless
+interface; the application and term interface must agree, and forwarding
+contributes one row. Terminal contract lanes and output fields do not yet refer
+to that ID, so stable projection is not implemented by this groundwork alone.
+A selected producer remains fenced from terminal emission until its conformance
+and normalized rows have a separate proof-bundle provenance identity.
 
 ## Explicit relevance
 

@@ -30,10 +30,10 @@ use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
+    PropositionError, PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentConservationEquation,
@@ -54,8 +54,8 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
-    MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    EvidenceInterfaceIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
@@ -1408,9 +1408,11 @@ pub fn lower_machine(
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
     let mut lowered = lower_selected_machine(checked, selection)?;
-    let (declarations, applications) = lower_proposition_vocabulary(checked);
+    let (declarations, applications, declaration_ids) = lower_proposition_vocabulary(checked);
+    let evidence_terms = lower_evidence_terms(checked, &declaration_ids, &applications)?;
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
+    lowered.semantic_module.evidence_terms = evidence_terms;
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
@@ -1432,6 +1434,7 @@ fn lower_proposition_vocabulary(
 ) -> (
     Vec<PropositionDeclaration>,
     Vec<PropositionApplicationIdentity>,
+    Vec<(psi_symbols::SymbolHandle, PropositionId)>,
 ) {
     let placeholder = proposition_id(1);
     let mut declarations = checked
@@ -1523,6 +1526,16 @@ fn lower_proposition_vocabulary(
                     })
                     .collect(),
                 arguments: application.arguments.clone(),
+                evidence_interface: application.evidence_interface.as_ref().map(|interface| {
+                    EvidenceInterfaceIdentity {
+                        trait_identity: checked.symbols.display_path(interface.trait_symbol, "::"),
+                        arguments: interface
+                            .arguments
+                            .iter()
+                            .map(|argument| argument.as_str().to_owned())
+                            .collect(),
+                    }
+                }),
             })
         })
         .collect::<Vec<_>>();
@@ -1542,7 +1555,134 @@ fn lower_proposition_vocabulary(
             .map(|(_, declaration)| declaration)
             .collect(),
         applications,
+        declaration_ids,
     )
+}
+
+/// Retain one terminal identity per distinct checked evidence term. Direct
+/// forwarding aliases its output to the exact source term and therefore does
+/// not mint a second identity. Selected-conformance provenance remains fenced
+/// until the proof bundle has a separate source-handle-free provenance row.
+fn lower_evidence_terms(
+    checked: &CheckedTrees,
+    declaration_ids: &[(psi_symbols::SymbolHandle, PropositionId)],
+    applications: &[PropositionApplicationIdentity],
+) -> Result<Vec<EvidenceTermDeclaration>, LoweringError> {
+    let mut parents = (0..checked.facts.proof.evidence_terms.len()).collect::<Vec<_>>();
+    for (_, forwarding) in checked.facts.proof.evidence_forwardings.iter() {
+        match &forwarding.source {
+            psi_checked_trees::EvidenceAssignmentSource::Forwarded { term: source } => {
+                let output = usize::try_from(forwarding.output.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                let source = usize::try_from(source.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                let output_root = evidence_term_root(&mut parents, output);
+                let source_root = evidence_term_root(&mut parents, source);
+                parents[output_root] = source_root;
+            }
+            psi_checked_trees::EvidenceAssignmentSource::ProducerConformance { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "terminal evidence producer provenance is not yet serialized separately",
+                ));
+            }
+        }
+    }
+
+    let mut identities_by_root = BTreeMap::new();
+    for (handle, term) in checked.facts.proof.evidence_terms.iter() {
+        let index = usize::try_from(handle.arena_index() - 1)
+            .expect("arena indices fit the host address space");
+        let root = evidence_term_root(&mut parents, index);
+        let declaration = declaration_ids
+            .iter()
+            .find_map(|(symbol, id)| (*symbol == term.proposition.declaration).then_some(*id))
+            .ok_or(LoweringError::Unsupported(
+                "checked evidence term has no terminal proposition declaration",
+            ))?;
+        let binder_arguments = term
+            .proposition
+            .binder_arguments
+            .iter()
+            .map(|argument| PropositionBinderArgumentIdentity {
+                kind: match argument.kind {
+                    CheckedPropositionBinderArgumentKind::Type => {
+                        PropositionBinderArgumentKind::Type
+                    }
+                    CheckedPropositionBinderArgumentKind::Const => {
+                        PropositionBinderArgumentKind::Const
+                    }
+                    CheckedPropositionBinderArgumentKind::Machine => {
+                        PropositionBinderArgumentKind::Machine
+                    }
+                },
+                identity: argument.identity.clone(),
+            })
+            .collect::<Vec<_>>();
+        let proposition = applications
+            .iter()
+            .find(|application| {
+                application.declaration == declaration
+                    && application.binder_arguments == binder_arguments
+                    && application.arguments == term.proposition.arguments
+            })
+            .map(|application| application.id)
+            .ok_or(LoweringError::Unsupported(
+                "checked evidence term has no terminal proposition application",
+            ))?;
+        let checked_interface =
+            term.evidence_interface
+                .as_ref()
+                .ok_or(LoweringError::Unsupported(
+                    "terminal evidence term has an unresolved carrierless interface",
+                ))?;
+        let interface = EvidenceInterfaceIdentity {
+            trait_identity: checked
+                .symbols
+                .display_path(checked_interface.trait_symbol, "::"),
+            arguments: checked_interface
+                .arguments
+                .iter()
+                .map(|argument| argument.as_str().to_owned())
+                .collect(),
+        };
+        let identity = (proposition, interface);
+        if let Some(previous) = identities_by_root.insert(root, identity.clone()) {
+            if previous != identity {
+                return Err(LoweringError::Unsupported(
+                    "forwarded evidence terms disagree on exact terminal identity",
+                ));
+            }
+        }
+    }
+
+    let mut identities = identities_by_root.into_values().collect::<Vec<_>>();
+    identities.sort_unstable();
+    Ok(identities
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, (proposition, interface))| EvidenceTermDeclaration {
+                id: EvidenceTermId::new(
+                    u64::try_from(index)
+                        .expect("evidence term count fits u64")
+                        .checked_add(1)
+                        .expect("one-based evidence term identity fits u64"),
+                )
+                .expect("one-based evidence term identity is nonzero"),
+                proposition,
+                interface,
+            },
+        )
+        .collect())
+}
+
+fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
+    while parents[index] != index {
+        let parent = parents[index];
+        parents[index] = parents[parent];
+        index = parents[index];
+    }
+    index
 }
 
 fn lower_selected_machine(
@@ -1902,6 +2042,7 @@ fn lower_structural_return_machine(
             boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),
@@ -2633,6 +2774,7 @@ fn lower_structural_scalar_return_machine(
             boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),
@@ -4608,6 +4750,7 @@ fn lower_structural_unit_control_machine(
             boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),
@@ -7261,6 +7404,7 @@ fn lower_attached_unit_closure_including(
             boundary_machines,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle {
@@ -8232,6 +8376,7 @@ fn lower_scalar_call_closure(
             boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle { evidence },
@@ -12983,6 +13128,7 @@ fn build_scalar_graph_module(
             boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
             machines: vec![TerminalMachine {
                 id: terminal_machine,
                 attachment: None,

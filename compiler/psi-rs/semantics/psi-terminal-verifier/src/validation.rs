@@ -3,10 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, Proposition, PropositionContext, PropositionError, PropositionId,
-    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
-    ValueId, content_conservation_fingerprint,
+    ContractId, EdgeId, EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
+    StructuralTypeId, ValueId, content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -321,8 +321,61 @@ fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), Module
         if application.arguments.iter().any(String::is_empty) {
             return Err(ModuleError::EmptyPropositionIdentity);
         }
+        let valid_interface = application
+            .evidence_interface
+            .as_ref()
+            .is_some_and(valid_evidence_interface);
+        let classification_matches = match &declaration.evidence {
+            PropositionEvidence::FactOnly => application.evidence_interface.is_none(),
+            PropositionEvidence::Witness { .. } => valid_interface,
+        };
+        if !classification_matches {
+            return Err(ModuleError::InvalidPropositionEvidenceInterface(
+                application.id,
+            ));
+        }
+    }
+    for (index, term) in module.evidence_terms.iter().enumerate() {
+        let expected = EvidenceTermId::new(
+            u64::try_from(index)
+                .expect("evidence term count fits u64")
+                .checked_add(1)
+                .expect("one-based evidence term identity fits u64"),
+        )
+        .expect("one-based evidence term identity is nonzero");
+        if term.id != expected {
+            return Err(ModuleError::NonDenseEvidenceTerm {
+                expected,
+                actual: term.id,
+            });
+        }
+        let Some(application) = module
+            .proposition_applications
+            .iter()
+            .find(|application| application.id == term.proposition)
+        else {
+            return Err(ModuleError::UnknownEvidenceTermProposition(
+                term.proposition,
+            ));
+        };
+        let declaration = declarations
+            .get(&application.declaration)
+            .expect("proposition applications were validated above");
+        if !matches!(declaration.evidence, PropositionEvidence::Witness { .. }) {
+            return Err(ModuleError::FactOnlyEvidenceTerm(term.proposition));
+        }
+        if !valid_evidence_interface(&term.interface) {
+            return Err(ModuleError::InvalidEvidenceInterface(term.id));
+        }
+        if application.evidence_interface.as_ref() != Some(&term.interface) {
+            return Err(ModuleError::EvidenceTermInterfaceMismatch(term.id));
+        }
     }
     Ok(())
+}
+
+fn valid_evidence_interface(interface: &psi_terminal::EvidenceInterfaceIdentity) -> bool {
+    !interface.trait_identity.is_empty() && !interface.arguments.iter().any(String::is_empty)
 }
 
 fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleError> {
@@ -6156,11 +6209,20 @@ pub enum ModuleError {
         expected: PropositionId,
         actual: PropositionId,
     },
+    NonDenseEvidenceTerm {
+        expected: EvidenceTermId,
+        actual: EvidenceTermId,
+    },
     DuplicatePropositionName(String),
     UnknownPropositionDeclaration(PropositionId),
     InvalidPropositionBinder(PropositionId),
     PropositionApplicationArityMismatch(PropositionId),
     PropositionApplicationBinderMismatch(PropositionId),
+    InvalidPropositionEvidenceInterface(PropositionId),
+    UnknownEvidenceTermProposition(PropositionId),
+    FactOnlyEvidenceTerm(PropositionId),
+    InvalidEvidenceInterface(EvidenceTermId),
+    EvidenceTermInterfaceMismatch(EvidenceTermId),
     EmptyPropositionIdentity,
     DuplicateMachine(MachineId),
     DuplicateStructuralType(StructuralTypeId),

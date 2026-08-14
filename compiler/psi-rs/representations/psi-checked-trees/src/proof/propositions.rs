@@ -39,6 +39,10 @@ pub struct CheckedPropositionApplication {
     pub declaration: SymbolHandle,
     pub binder_arguments: Vec<CheckedPropositionBinderArgument>,
     pub arguments: Vec<String>,
+    /// Exact instantiated carrierless interface for witness-bearing
+    /// applications. Fact-only applications carry no interface.
+    pub evidence_interface:
+        Option<psi_typed_trees::proposition::NormalizedEvidenceInterfaceIdentity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
