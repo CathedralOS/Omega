@@ -7485,7 +7485,7 @@ fn fence_generic_value_callee(
     }
     diagnostics.push(Diagnostic::error(format!(
         "a value call to generic machine `{target}` cannot derive a complete \
-         type/const/machine specialization tuple from its argument and result types; add a \
+         type/const/machine/conformance specialization tuple from its argument and result types; add a \
          concrete destination annotation or provide concrete argument type evidence",
     )));
 }

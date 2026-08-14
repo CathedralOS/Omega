@@ -80,7 +80,10 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 }
             }
         }
-        if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Trait) {
+        if matches!(
+            receiver_kind,
+            SymbolKind::Machine | SymbolKind::Trait | SymbolKind::ConformanceParameter
+        ) {
             if receiver_symbol == machine.symbol
                 && let Some(attached_data) = machine.attached_data
             {
@@ -202,10 +205,27 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if parameter.is_valid() {
             return parameter;
         }
+        let evidence_parameter = child_symbol_by_kinds(
+            symbols,
+            machine_symbol,
+            &[SymbolKind::ConformanceParameter],
+            target.as_str(),
+        );
+        if evidence_parameter.is_valid() {
+            return evidence_parameter;
+        }
         let conformance =
             top_level_symbol_by_kinds(symbols, &[SymbolKind::Conformance], target.as_str());
         if conformance.is_valid() {
             return conformance;
+        }
+        let concrete_type = top_level_symbol_by_kinds(
+            symbols,
+            &[SymbolKind::BuiltinType, SymbolKind::Data],
+            target.as_str(),
+        );
+        if concrete_type.is_valid() {
+            return concrete_type;
         }
         return resolve_free_machine_entry_state_symbol(symbols, target.as_str());
     }

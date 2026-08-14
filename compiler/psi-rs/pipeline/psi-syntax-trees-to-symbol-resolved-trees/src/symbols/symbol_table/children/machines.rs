@@ -66,12 +66,33 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             );
         }
     }
-    for _ in machine
+    for bound in machine
         .conformance_bounds
         .iter()
         .filter(|bound| bound.binder_name.is_some())
     {
-        let _ = machine_children.next();
+        let Some(binder_symbol) = machine_children.next() else {
+            break;
+        };
+        if let Some(trait_definition) = program
+            .traits
+            .iter()
+            .find(|trait_definition| trait_definition.name == bound.carrier_name)
+        {
+            let mut requirements = Vec::new();
+            collect_evidence_requirement_closure(
+                program,
+                trait_definition,
+                &mut Vec::new(),
+                &mut requirements,
+            );
+            builder.insert_children(
+                binder_symbol,
+                requirements.into_iter().map(|requirement| {
+                    symbol_seed(SymbolKind::State, &requirement.name, has_sources)
+                }),
+            );
+        }
     }
     for _ in 0..inherited_field_count {
         let _ = machine_children.next();
@@ -84,6 +105,36 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             let state = program.machine_state(*state);
             insert_state_symbol_children(builder, program, state_symbol, state, has_sources);
         }
+    }
+}
+
+fn collect_evidence_requirement_closure<'program>(
+    program: &'program SymbolResolvedTrees,
+    trait_definition: &'program psi_symbol_resolved_trees::trait_definition::TraitDefinition,
+    visited: &mut Vec<String>,
+    output: &mut Vec<&'program psi_symbol_resolved_trees::signature::StateSignature>,
+) {
+    if visited
+        .iter()
+        .any(|name| name == trait_definition.name.as_str())
+    {
+        return;
+    }
+    visited.push(trait_definition.name.as_str().to_owned());
+    output.extend(
+        program
+            .trait_machine_signatures(trait_definition.machines)
+            .iter(),
+    );
+    for parent in program.trait_requirements(trait_definition.requires) {
+        let Some(parent_trait) = program
+            .traits
+            .iter()
+            .find(|candidate| candidate.name == parent.name)
+        else {
+            continue;
+        };
+        collect_evidence_requirement_closure(program, parent_trait, visited, output);
     }
 }
 

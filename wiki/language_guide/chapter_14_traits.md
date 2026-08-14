@@ -1178,10 +1178,12 @@ and conformances and do not compete for operator syntax.
 Closed implementations use the name-first declaration above. Bodyless carrier
 declarations remain static-only and cannot license local dynamic dispatch.
 Generic name-owned telescopes, package-scoped conformance symbols, and explicit
-evidence-binder declarations are now retained by typed Psi. Binding a concrete
-call-site conformance and instantiating its normalized map remain tracked in
-`TASKS.md`; synthesis and its eligibility rules are independent of declaration
-syntax.
+evidence-binder declarations are retained by typed Psi. A concrete binder
+argument selects exactly one named closed map; specialization validates its
+subject and instantiated trait arguments, substitutes direct and inherited
+requirement rows, and retains that map in semantic identity. Instantiation of a
+generic conformance declaration's own telescope remains tracked in `TASKS.md`;
+synthesis and its eligibility rules are independent of declaration syntax.
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).

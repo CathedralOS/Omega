@@ -7,7 +7,7 @@
 //! contract.
 
 use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
 use psi_typed_trees::domain::ProofFact;
@@ -148,18 +148,27 @@ fn validate_call_selection(
         return;
     };
 
-    if arguments.len() != requirements.len() {
+    let machine_arguments = arguments
+        .iter()
+        .filter(|argument| {
+            matches!(
+                program.symbols.get(argument.symbol).kind,
+                SymbolKind::State | SymbolKind::MachineParameter
+            )
+        })
+        .collect::<Vec<_>>();
+    if machine_arguments.len() != requirements.len() {
         diagnostics.push(Diagnostic::error(format!(
             "generic call `{target_name}` requires {} static machine argument(s), got {}",
             requirements.len(),
-            arguments.len()
+            machine_arguments.len()
         )));
         return;
     }
 
     let mut bindings = Vec::new();
 
-    for ((parameter, requirement), selected) in requirements.into_iter().zip(arguments) {
+    for ((parameter, requirement), selected) in requirements.into_iter().zip(machine_arguments) {
         let rendered = selected
             .path
             .iter()

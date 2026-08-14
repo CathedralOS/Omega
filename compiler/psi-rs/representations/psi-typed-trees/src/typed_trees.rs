@@ -147,6 +147,9 @@ pub struct MachineSpecialization {
     pub type_arguments: Vec<String>,
     pub const_arguments: Vec<String>,
     pub machine_arguments: Vec<psi_symbols::SymbolHandle>,
+    /// Exact package-scoped conformances selected for explicit proof-static
+    /// evidence binders. Separate from callable machine arguments.
+    pub conformance_arguments: Vec<psi_symbols::SymbolHandle>,
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.
     pub template_contract_fingerprint: u64,
@@ -158,6 +161,9 @@ pub struct MachineSpecialization {
     /// Populated after contract-plan construction and folded into
     /// `fingerprint`, so a selected contract change invalidates the instance.
     pub machine_argument_contract_fingerprints: Vec<u64>,
+    /// Semantic identities of the selected closed conformance maps. These
+    /// commit to the exact requirement-to-realization rows, not arena handles.
+    pub conformance_argument_fingerprints: Vec<u64>,
     pub fingerprint: u64,
 }
 
