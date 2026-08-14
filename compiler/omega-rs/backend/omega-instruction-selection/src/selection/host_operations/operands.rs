@@ -1198,9 +1198,17 @@ pub(super) fn select_host_operation_operands(
             let buffer =
                 address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, path, buffer) {
-                (Some(result), Some(path), Some(buffer)) => {
-                    operands.insert_many([operand(result), operand(path), operand(buffer)])
-                }
+                (Some(result), Some(path), Some(buffer)) => match host_call.data {
+                    PlatformCallData::ConstantArguments { leading, trailing } => operands
+                        .insert_many([
+                            operand(result),
+                            operand(InstructionOperandKind::ImmediateInteger(leading)),
+                            operand(path),
+                            operand(buffer),
+                            operand(InstructionOperandKind::ImmediateInteger(trailing)),
+                        ]),
+                    _ => operands.insert_many([operand(result), operand(path), operand(buffer)]),
+                },
                 _ => HandleSpan::empty(),
             }
         }
