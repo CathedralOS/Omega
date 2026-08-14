@@ -409,8 +409,9 @@ field-bearing condition bytes, which object replay validates before image and
 installation custody. Separately, direct integer comparisons whose
 operands are scalar parameters or landed constants, optionally beneath one
 total bitwise-not, binary bitwise, wrapping shift/arithmetic, or saturating
-arithmetic shell, may form decision leaves. Psi retains every exact operation
-and all native targets join its leaves into the same cleanup tail. Nested paths,
+arithmetic shell, or one integer-widening shell, may form decision leaves. Psi
+retains every exact operation and all native targets join its leaves into the
+same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,
 nested nominal ownership, other projections, and wider cleanup shapes still
@@ -904,10 +905,10 @@ verifier, interpreter, fuel model, codec, and every native target retain the
 exact source place and canonical field ID. At least one Boolean parameter keeps
 that source outside native expression scratch. Separately, direct integer
 comparisons over scalar parameters and landed constants, with at most one total
-binary or bitwise-not computation shell per operand, retain their exact Psi
-operations through the same verified, interpreted, and native shared join.
-Field-only trees, nested or multiple member identities, wider or partial
-integer computation, member/comparison mixtures, external
+binary, bitwise-not, or integer-widening computation shell per operand, retain
+their exact Psi operations through the same verified, interpreted, and native
+shared join. Field-only trees, nested or multiple member identities, wider or
+partial integer computation, member/comparison mixtures, external
 adapter/interrupt-arrival state, and other terminal function forms remain
 outside the shared-join theorem, so the inspection surface makes no
 installed-root WCSU claim.
