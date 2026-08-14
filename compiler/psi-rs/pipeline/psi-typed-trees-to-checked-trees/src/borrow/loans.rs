@@ -1,6 +1,6 @@
 use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
-    resolve_view_return_source,
+    resolve_signature_view_return_source, resolve_view_return_source,
 };
 use crate::context::*;
 use crate::semantic_calls::find_state;
@@ -375,10 +375,7 @@ fn helper_call_aggregate_borrow_loans(
     call: &psi_checked_trees::expression::TableCallExpression,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
-    let Some(target_state) = find_state(program, call.target_symbol) else {
-        return Vec::new();
-    };
-    let ViewReturnSource::Fields { fields } = resolve_view_return_source(program, target_state)
+    let ViewReturnSource::Fields { fields } = call_view_return_source(program, call.target_symbol)
     else {
         return Vec::new();
     };
@@ -474,13 +471,11 @@ fn helper_call_borrow_loan_place(
         );
     }
 
-    let target_state = find_state(program, call.target_symbol)?;
-
     // The borrow source (self, a named input, or none) is resolved by the same
     // logic the declaration check uses (`borrow::view_link`), so the loan we
     // track here always matches what the elision check accepted. Elision rules
     // 1/3 and stage-2 explicit lifetimes all flow through there.
-    match resolve_view_return_source(program, target_state) {
+    match call_view_return_source(program, call.target_symbol) {
         ViewReturnSource::NotApplicable
         | ViewReturnSource::Ambiguous(_)
         | ViewReturnSource::Fields { .. } => None,
@@ -513,6 +508,36 @@ fn helper_call_borrow_loan_place(
             )
         }
     }
+}
+
+fn call_view_return_source(
+    program: &psi_typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> ViewReturnSource {
+    if let Some(target_state) = find_state(program, target_symbol) {
+        return resolve_view_return_source(program, target_state);
+    }
+    if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
+        return resolve_signature_view_return_source(
+            program,
+            program.state_signature_parameters(signature),
+            signature.return_type,
+        );
+    }
+    for trait_definition in program.traits() {
+        if let Some(signature) = program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == target_symbol)
+        {
+            return resolve_signature_view_return_source(
+                program,
+                program.state_signature_parameters(signature),
+                signature.return_type,
+            );
+        }
+    }
+    ViewReturnSource::NotApplicable
 }
 
 /// The loan place for a call argument that the called machine's returned view

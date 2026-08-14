@@ -23,6 +23,7 @@
 
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::state::State;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -72,11 +73,25 @@ pub(crate) enum ViewReturnAmbiguity {
 
 /// Resolve the source of a state's returned view from its signature alone.
 pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) -> ViewReturnSource {
-    if !returns_borrow(program, state.return_type) {
+    resolve_signature_view_return_source(
+        program,
+        program.state_parameters(state),
+        state.return_type,
+    )
+}
+
+/// Resolve the same lifetime/source relation for a bodyless callable
+/// signature. Boundary-trait requirements and compile-time machine parameters
+/// have no `State`, but their returned views create the same caller-side loans.
+pub(crate) fn resolve_signature_view_return_source(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    return_type: TypeReferenceHandle,
+) -> ViewReturnSource {
+    if !returns_borrow(program, return_type) {
         return ViewReturnSource::NotApplicable;
     }
 
-    let parameters = program.state_parameters(state);
     if parameters.iter().any(|parameter| parameter.is_self) {
         // Elision rule 3: the returned view borrows self.
         return ViewReturnSource::SelfReceiver;
@@ -100,7 +115,7 @@ pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) ->
         }
     }
 
-    if let Some(output_fields) = aggregate_return_lifetimes(program, state.return_type) {
+    if let Some(output_fields) = aggregate_return_lifetimes(program, return_type) {
         let mut fields = Vec::with_capacity(output_fields.len());
         for output in output_fields {
             let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
@@ -140,7 +155,7 @@ pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) ->
         return ViewReturnSource::Fields { fields };
     }
 
-    match reference_lifetime(program, state.return_type) {
+    match reference_lifetime(program, return_type) {
         Some(output_lifetime) => {
             let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
                 .iter()

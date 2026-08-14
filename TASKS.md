@@ -328,8 +328,10 @@ Owners:
   rather than dropping it. An admitted x86-64 `u8` port-read provider now has
   an exact result-returning native realization whose arguments, receipts,
   instruction interval, and provider identity survive installation. Other
-  result shapes and targets remain fail-closed. Finish provider-view
-  invalidation; projected/content-bearing result calls remain fail-closed.
+  result shapes and targets remain fail-closed. Explicit provider views now
+  borrow one linear validity claim: consuming invalidation is accepted after
+  the view's last use and rejected while the view remains live. Projected/
+  content-bearing result calls remain fail-closed.
 - **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
   representation and initialization transition are settled, carry the exact
   view through foreign signatures, calling plans, borrow checking, and both

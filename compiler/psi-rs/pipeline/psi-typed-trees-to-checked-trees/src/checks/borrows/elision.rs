@@ -10,7 +10,10 @@
 
 use psi_diagnostics::Diagnostic;
 
-use crate::borrow::view_link::{ViewReturnAmbiguity, ViewReturnSource, resolve_view_return_source};
+use crate::borrow::view_link::{
+    ViewReturnAmbiguity, ViewReturnSource, resolve_signature_view_return_source,
+    resolve_view_return_source,
+};
 
 pub(super) fn check_view_return_elision(
     program: &psi_typed_trees::TypedTrees,
@@ -35,7 +38,40 @@ pub(super) fn check_view_return_elision(
 
             diagnostics.push(Diagnostic::error(ambiguity_message(subject, &ambiguity)));
         }
+
+        for parameter in program.machine_type_parameters(machine) {
+            let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+            else {
+                continue;
+            };
+            check_bodyless_signature(program, contract, diagnostics);
+        }
     }
+
+    for trait_definition in program.traits() {
+        for signature in program.trait_machine_signatures(trait_definition) {
+            check_bodyless_signature(program, signature, diagnostics);
+        }
+    }
+}
+
+fn check_bodyless_signature(
+    program: &psi_typed_trees::TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ViewReturnSource::Ambiguous(ambiguity) = resolve_signature_view_return_source(
+        program,
+        program.state_signature_parameters(signature),
+        signature.return_type,
+    ) else {
+        return;
+    };
+
+    diagnostics.push(Diagnostic::error(ambiguity_message(
+        signature.name.as_str(),
+        &ambiguity,
+    )));
 }
 
 fn ambiguity_message(subject: &str, ambiguity: &ViewReturnAmbiguity) -> String {

@@ -1,0 +1,37 @@
+// ENT2c provider-view protocol: invalidation must consume the exact linear
+// validity claim. That move is forbidden while a returned view still borrows
+// the claim.
+
+data ProviderView [linear] {}
+
+domain ProviderView::Live {
+    ForeignStorage::view;
+    ForeignStorage::invalidate;
+}
+
+boundary trait ForeignStorage {
+    machine view<'claim>(
+        claim: &'claim ProviderView in ProviderView::Live
+    ) -> &'claim [u8];
+
+    machine invalidate(
+        claim: ProviderView in ProviderView::Live
+    );
+}
+
+machine observe(view: &[u8]) {}
+
+data Worker {}
+
+machine Worker::invalidate_early(
+    &mut self,
+    claim: ProviderView in ProviderView::Live
+) {
+    let view: &[u8] = ForeignStorage::view(&claim);
+    ForeignStorage::invalidate(move claim);
+    observe(view);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

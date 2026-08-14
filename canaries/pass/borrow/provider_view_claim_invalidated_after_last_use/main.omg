@@ -1,0 +1,37 @@
+// ENT2c provider-view protocol: a nonlexical provider view is borrowed from
+// one explicit linear validity claim. The invalidation event consumes that
+// claim only after the returned view's last use.
+
+data ProviderView [linear] {}
+
+domain ProviderView::Live {
+    ForeignStorage::view;
+    ForeignStorage::invalidate;
+}
+
+boundary trait ForeignStorage {
+    machine view<'claim>(
+        claim: &'claim ProviderView in ProviderView::Live
+    ) -> &'claim [u8];
+
+    machine invalidate(
+        claim: ProviderView in ProviderView::Live
+    );
+}
+
+machine observe(view: &[u8]) {}
+
+data Worker {}
+
+machine Worker::finish(
+    &mut self,
+    claim: ProviderView in ProviderView::Live
+) {
+    let view: &[u8] = ForeignStorage::view(&claim);
+    observe(view);
+    ForeignStorage::invalidate(move claim);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
