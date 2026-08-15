@@ -82,6 +82,7 @@ pub(super) fn write_trust_report(
             provenance: provenance.to_owned(),
             machine_contract_fingerprint: None,
             machine_service_reach: None,
+            machine_synchronous_invocations: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -197,6 +198,7 @@ pub(super) fn write_trust_report(
             },
             machine_contract_fingerprint: None,
             machine_service_reach: None,
+            machine_synchronous_invocations: None,
             standing_warning: !granted,
         });
     }
@@ -230,6 +232,12 @@ pub(super) fn write_trust_report(
         let machine_service_reach =
             accepted_machine_service_reach(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_synchronous_invocations = accepted_machine_synchronous_invocations(
+            checked,
+            machine.symbol,
+            machine.name.as_str(),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -239,6 +247,7 @@ pub(super) fn write_trust_report(
             },
             machine_contract_fingerprint: Some(machine_contract_fingerprint),
             machine_service_reach: Some(machine_service_reach),
+            machine_synchronous_invocations: Some(machine_synchronous_invocations),
             standing_warning: !granted,
         });
     }
@@ -262,6 +271,7 @@ pub(super) fn write_trust_report(
                 provenance: "root grant (build.omg)".to_owned(),
                 machine_contract_fingerprint: None,
                 machine_service_reach: None,
+                machine_synchronous_invocations: None,
                 standing_warning: false,
             });
         }
@@ -317,6 +327,28 @@ fn accepted_machine_service_reach(
         .collect()
 }
 
+fn accepted_machine_synchronous_invocations(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<Vec<String>, Diagnostic> {
+    let plan = checked
+        .facts
+        .synchronous_invocations
+        .for_machine(machine)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no exact checked synchronous-invocation facts"
+            ))
+        })?;
+    if plan.interface != psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no published synchronous-invocation ceiling"
+        )));
+    }
+    Ok(plan.published.clone())
+}
+
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
 ) -> TrustProviderRealization {
@@ -354,11 +386,16 @@ fn trust_provider_realization(
 
 #[cfg(test)]
 mod tests {
-    use psi_checked_trees::{CheckedTrees, MachineServiceReachRows, ServiceReachFacts};
-    use psi_language_semantics::{ServiceReachInterface, ServiceReachRowTable, ServiceReachTable};
+    use psi_checked_trees::{
+        CheckedTrees, MachineServiceReachRows, MachineSynchronousInvocationFact, ServiceReachFacts,
+    };
+    use psi_language_semantics::{
+        ServiceReachInterface, ServiceReachRowTable, ServiceReachTable,
+        SynchronousInvocationInterface, SynchronousInvocationPlan,
+    };
     use psi_symbols::SymbolHandle;
 
-    use super::accepted_machine_service_reach;
+    use super::{accepted_machine_service_reach, accepted_machine_synchronous_invocations};
 
     fn checked_with_reach(
         machine: SymbolHandle,
@@ -438,5 +475,56 @@ mod tests {
             .expect_err("unregistered service rejects")
             .to_string();
         assert!(unknown.contains("references an unknown service-reach identity"));
+    }
+
+    #[test]
+    fn accepted_synchronous_invocations_copy_only_the_exact_published_vector() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let mut checked = CheckedTrees::default();
+        checked
+            .facts
+            .synchronous_invocations
+            .machines
+            .push(MachineSynchronousInvocationFact {
+                machine,
+                plan: SynchronousInvocationPlan {
+                    interface: SynchronousInvocationInterface::PublishedCeiling,
+                    published: vec!["parameter:0".to_owned(), "service:Clock".to_owned()],
+                    checked_inferred: vec!["service:Private".to_owned()],
+                },
+            });
+
+        assert_eq!(
+            accepted_machine_synchronous_invocations(&checked, machine, "accepted"),
+            Ok(vec!["parameter:0".to_owned(), "service:Clock".to_owned()])
+        );
+    }
+
+    #[test]
+    fn accepted_synchronous_invocations_fail_closed_on_missing_and_internal_facts() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing =
+            accepted_machine_synchronous_invocations(&CheckedTrees::default(), machine, "missing")
+                .expect_err("missing facts reject")
+                .to_string();
+        assert!(missing.contains("has no exact checked synchronous-invocation facts"));
+
+        let mut internal = CheckedTrees::default();
+        internal
+            .facts
+            .synchronous_invocations
+            .machines
+            .push(MachineSynchronousInvocationFact {
+                machine,
+                plan: SynchronousInvocationPlan {
+                    interface: SynchronousInvocationInterface::InternalInferred,
+                    published: Vec::new(),
+                    checked_inferred: vec!["parameter:0".to_owned()],
+                },
+            });
+        let internal = accepted_machine_synchronous_invocations(&internal, machine, "internal")
+            .expect_err("private inference rejects")
+            .to_string();
+        assert!(internal.contains("has no published synchronous-invocation ceiling"));
     }
 }

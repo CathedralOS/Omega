@@ -677,6 +677,14 @@ impl ArtifactWriter {
                     output.push_str(&service_reach.join(", "));
                 }
             }
+            if let Some(invocations) = &row.machine_synchronous_invocations {
+                output.push_str(" -- synchronous invocations: ");
+                if invocations.is_empty() {
+                    output.push_str("none");
+                } else {
+                    output.push_str(&invocations.join(", "));
+                }
+            }
             if row.standing_warning {
                 output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
             }
@@ -2141,6 +2149,10 @@ pub struct TrustReportRow {
     /// `Some(Vec::new())` is the explicit public negative guarantee; rows that
     /// do not describe a local accepted machine retain `None`.
     pub machine_service_reach: Option<Vec<String>>,
+    /// Exact published direct synchronous invocation ceiling for one local
+    /// accepted machine. `Some(Vec::new())` is explicit public omission; rows
+    /// that do not describe a local accepted machine retain `None`.
+    pub machine_synchronous_invocations: Option<Vec<String>>,
     /// Dev-active rows warn until the root grants them.
     pub standing_warning: bool,
 }
@@ -2527,6 +2539,7 @@ mod tests {
                     provenance: "root grant (build.omg)".to_owned(),
                     machine_contract_fingerprint: Some(0xabcd),
                     machine_service_reach: Some(Vec::new()),
+                    machine_synchronous_invocations: Some(Vec::new()),
                     standing_warning: false,
                 },
                 TrustReportRow {
@@ -2534,6 +2547,7 @@ mod tests {
                     provenance: "root grant (build.omg)".to_owned(),
                     machine_contract_fingerprint: None,
                     machine_service_reach: None,
+                    machine_synchronous_invocations: None,
                     standing_warning: false,
                 },
             ],
@@ -2555,7 +2569,9 @@ mod tests {
             .expect("domain row");
 
         assert!(accepted.contains("service reach: none"));
+        assert!(accepted.contains("synchronous invocations: none"));
         assert!(!domain.contains("service reach:"));
+        assert!(!domain.contains("synchronous invocations:"));
         std::fs::remove_dir_all(root).expect("remove test artifact directory");
     }
 
