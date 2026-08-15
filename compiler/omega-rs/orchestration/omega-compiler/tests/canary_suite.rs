@@ -45169,6 +45169,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_indexed_local_copy_chain_exit",
     "collections/runtime_inplace_reverse_local_temp_exit",
     "calls/recursive_result_bind_first_arg",
+    "calls/guarded_value_call_arm_exit",
     "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_call_guard",
     "calls/runtime_exit_code_exit",
