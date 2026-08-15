@@ -7936,20 +7936,14 @@ fn domain_field_write_then_read_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_write_read_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_write_read_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-write-read-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier write-read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded carrier write-read canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7975,20 +7969,14 @@ fn runtime_bounded_carrier_write_read_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_length_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_length_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-length-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier length canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded carrier length canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -8014,20 +8002,14 @@ fn runtime_bounded_carrier_length_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_length_field_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_length_field_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-length-field-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier length field canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded carrier length field canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -8054,20 +8036,14 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_index_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-byte-index-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier byte index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded carrier byte index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -8088,18 +8064,12 @@ fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
 #[test]
 fn runtime_carrier_indexed_read_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_indexed_read_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-carrier-indexed-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("carrier indexed read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("carrier indexed read canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
