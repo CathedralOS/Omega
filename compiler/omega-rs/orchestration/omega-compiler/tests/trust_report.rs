@@ -933,6 +933,8 @@ machine Main::exercise(&mut self) {}
             line.contains("provider plan: satisfies::Pair [") && line.contains("method: effectful")
         })
         .expect("effectful provider requirement row");
+    assert!(effectful.contains("provider origin package: <none>"));
+    assert!(effectful.contains("own-package (dev-active)"));
     assert!(effectful.contains("service reach: Callback, Clock, Pair"));
     assert!(effectful.contains("synchronous invocations: Callback"));
     assert!(effectful.contains("may suspend: yes"));
@@ -1035,6 +1037,7 @@ machine Main::exercise(&mut self) {}
         .nth(1)
         .and_then(|suffix| suffix.split(']').next())
         .expect("provider-plan fingerprint");
+    assert!(extent_plan.contains("provider origin package: <none>"));
     let extent_rows = report
         .lines()
         .filter(|line| {
@@ -1051,6 +1054,7 @@ machine Main::exercise(&mut self) {}
     assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
     assert!(entry_row.contains("provider type: StorageEntryProvider"));
     assert!(entry_row.contains("target: <all>"));
+    assert!(entry_row.contains("provider origin package: <none>"));
     assert!(entry_row.contains("service schema: StorageEntry"));
     assert!(entry_row.contains("selected: yes"));
     assert!(entry_row.contains("requirement owner: StorageEntry"));
@@ -1076,6 +1080,7 @@ machine Main::exercise(&mut self) {}
         .expect("routed result row");
     assert!(result_row.contains("provider type: <free external>"));
     assert!(result_row.contains("target: <all>"));
+    assert!(result_row.contains("provider origin package: <none>"));
     assert!(result_row.contains("service schema: Issuer"));
     assert!(result_row.contains("requirement owner: Issuer"));
     assert!(result_row.contains("selected: yes"));

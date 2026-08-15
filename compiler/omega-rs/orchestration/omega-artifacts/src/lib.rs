@@ -770,7 +770,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -782,6 +782,11 @@ impl ArtifactWriter {
                     "<all>"
                 } else {
                     row.target.as_str()
+                },
+                if row.provider_origin_package.is_empty() {
+                    "<none>"
+                } else {
+                    row.provider_origin_package.as_str()
                 },
                 row.service_schema,
                 row.calling_plan_fingerprint
@@ -829,7 +834,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -841,6 +846,11 @@ impl ArtifactWriter {
                     "<all>"
                 } else {
                     row.target.as_str()
+                },
+                if row.provider_origin_package.is_empty() {
+                    "<none>"
+                } else {
+                    row.provider_origin_package.as_str()
                 },
                 row.service_schema,
                 row.calling_plan_fingerprint
@@ -2305,6 +2315,9 @@ pub struct TrustProviderRequirementRow {
     pub provider_type: String,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
+    /// Verbatim provider-plan provenance input. Empty remains explicit absence
+    /// and is never repaired from the plan, provider, or schema name.
+    pub provider_origin_package: String,
     /// Exact selected boundary-service schema identity.
     pub service_schema: String,
     /// Exact evaluated calling contract identity, when the requirement has one.
@@ -2379,6 +2392,8 @@ pub struct TrustQualificationRow {
     pub provider_type: String,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
+    /// Verbatim provider-plan provenance input, independent from grant status.
+    pub provider_origin_package: String,
     /// Exact selected boundary-service schema identity.
     pub service_schema: String,
     /// Exact evaluated calling contract identity, when the requirement has one.
@@ -2805,6 +2820,7 @@ mod tests {
                 provider_plan_fingerprint: 0x1234,
                 provider_type: "RootProvider".to_owned(),
                 target: "windows_x64".to_owned(),
+                provider_origin_package: "omega::providers::root".to_owned(),
                 service_schema: "Root".to_owned(),
                 calling_plan_fingerprint: Some(0xfeed),
                 selected: false,
@@ -2833,6 +2849,8 @@ mod tests {
         assert!(output.contains("selected provider closure: 000000000000abcd"));
         assert!(output.contains("provider type: RootProvider"));
         assert!(output.contains("target: windows_x64"));
+        assert!(output.contains("provider origin package: omega::providers::root"));
+        assert!(output.contains("own-package (dev-active)"));
         assert!(output.contains("service schema: Root"));
         assert!(output.contains("calling plan: 000000000000feed"));
         assert!(output.contains("selected: no"));
@@ -2862,6 +2880,7 @@ mod tests {
                 provider_plan_fingerprint: 0x1234,
                 provider_type: String::new(),
                 target: String::new(),
+                provider_origin_package: String::new(),
                 service_schema: "Root".to_owned(),
                 calling_plan_fingerprint: None,
                 selected: true,
@@ -2895,6 +2914,7 @@ mod tests {
         assert!(output.contains("provider plan: RootProvider::satisfies::Root [0000000000001234]"));
         assert!(output.contains("provider type: <free external>"));
         assert!(output.contains("target: <all>"));
+        assert!(output.contains("provider origin package: <none>"));
         assert!(output.contains("service schema: Root"));
         assert!(output.contains("calling plan: <none>"));
         assert!(output.contains("selected: yes"));
