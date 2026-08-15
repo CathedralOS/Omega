@@ -10,7 +10,7 @@
 //! halves enter the fingerprint, never inferred rows or witnesses.
 
 use psi_language_semantics::{
-    BlockingInterface, BlockingPlan, MachineSupplyMode, SuspensionInterface, SuspensionPlan,
+    BlockingInterface, BlockingPlan, MachineSupplyMode, SuspensionInterface,
     SynchronousInvocationInterface, TerminationGuarantee, TerminationInterface,
 };
 use psi_numerics::literals::IntegerLiteral;
@@ -988,8 +988,7 @@ impl MachineContractPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
-    /// Independent authored/inferred operational axes.
-    pub suspension: SuspensionPlan,
+    /// Independent authored/inferred worker-blocking axis.
     pub blocking: BlockingPlan,
     /// Source-handle-free projection of authored value clauses into the
     /// closed reflexive scalar equality subset. An unrecognized clause is

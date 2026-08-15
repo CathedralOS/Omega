@@ -2,7 +2,7 @@ use crate::{
     BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
     DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, InvariantFacts,
     MachineContractPlans, MutationFacts, ProofFacts, QualificationFacts, ServiceReachFacts,
-    SynchronousInvocationFacts,
+    SuspensionFacts, SynchronousInvocationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -31,6 +31,9 @@ pub struct CheckFacts {
     /// Exact machine-keyed direct synchronous invocation contracts. This axis
     /// remains independent from service reach and operational possibilities.
     pub synchronous_invocations: SynchronousInvocationFacts,
+    /// Exact machine-keyed suspension interface and checked inference. Worker
+    /// blocking remains a separate contract axis.
+    pub suspensions: SuspensionFacts,
     /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
     /// commitments each machine's body makes (arithmetic-policy casts v1).
     pub qualifications: QualificationFacts,
@@ -59,6 +62,7 @@ impl CheckFacts {
         mutation: MutationFacts,
         service_reaches: ServiceReachFacts,
         synchronous_invocations: SynchronousInvocationFacts,
+        suspensions: SuspensionFacts,
         qualifications: QualificationFacts,
         contract_plans: MachineContractPlans,
         carry: CarryFacts,
@@ -78,6 +82,7 @@ impl CheckFacts {
             mutation,
             service_reaches,
             synchronous_invocations,
+            suspensions,
             qualifications,
             contract_plans,
             carry,

@@ -60,6 +60,12 @@ pub(super) fn elaborate_task_activation_plans(
                 target_machine.name
             ))]);
         };
+        let Some(suspension) = program.facts.suspensions.for_machine(target_machine.symbol) else {
+            return Err(vec![Diagnostic::error(format!(
+                "task activation target `{}` has no checked suspension plan",
+                target_machine.name
+            ))]);
+        };
         let machine_contract = normalized_id(
             contract.fingerprint,
             MachineContractId::from_normalized_identity,
@@ -96,7 +102,7 @@ pub(super) fn elaborate_task_activation_plans(
             CallingPlanId::from_normalized_identity,
         )?;
 
-        let may_suspend = contract.suspension.checked_may_suspend;
+        let may_suspend = suspension.checked_may_suspend;
         let may_block = contract.blocking.checked_may_block;
         let crossings = activation_carry_crossings(program, target_machine.symbol);
         let canonical_suspension_crossings = crossings
@@ -948,5 +954,22 @@ mod tests {
         assert!(manifest.contains("\"cancellation_required\": true"));
         assert!(manifest.contains("\"activation_plan_id\": \"0x"));
         assert!(!manifest.contains("\"runtime_admission\""));
+
+        let mut missing_suspension = checked.clone();
+        missing_suspension
+            .facts
+            .suspensions
+            .machines
+            .retain(|fact| fact.machine != activation.target_machine);
+        let diagnostics = elaborate_task_activation_plans(
+            &missing_suspension,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("missing exact target suspension facts must fail closed");
+        assert_eq!(
+            diagnostics[0].message,
+            "task activation target `Worker::run` has no checked suspension plan"
+        );
     }
 }

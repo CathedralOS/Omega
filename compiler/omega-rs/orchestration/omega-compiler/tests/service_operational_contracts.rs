@@ -129,7 +129,12 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .contract_plans
         .for_machine(finish.symbol)
         .expect("finish contract plan");
-    assert!(finish_contract.suspension.checked_may_suspend);
+    let finish_suspension = checked
+        .facts
+        .suspensions
+        .for_machine(finish.symbol)
+        .expect("finish suspension plan");
+    assert!(finish_suspension.checked_may_suspend);
     assert!(finish_contract.blocking.checked_may_block);
     let finish_flow = checked
         .facts
@@ -219,8 +224,13 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
     );
     assert_eq!(published_services, ["Clock", "Storage"]);
     assert_eq!(reached_names, ["Clock", "Storage"]);
+    let suspension = checked
+        .facts
+        .suspensions
+        .for_machine(machine.symbol)
+        .expect("run_impl suspension plan");
     assert_eq!(
-        contract.suspension.interface,
+        suspension.interface,
         SuspensionInterface::PublishedMaySuspend(true)
     );
     assert_eq!(

@@ -8,6 +8,7 @@ mod invariants;
 mod mutation;
 mod qualifications;
 mod service_reaches;
+mod suspensions;
 mod synchronous_invocations;
 
 pub use carry::*;
@@ -20,4 +21,5 @@ pub use invariants::*;
 pub use mutation::*;
 pub use qualifications::*;
 pub use service_reaches::*;
+pub use suspensions::*;
 pub use synchronous_invocations::*;

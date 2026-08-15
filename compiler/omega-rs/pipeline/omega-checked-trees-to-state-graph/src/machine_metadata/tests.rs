@@ -138,14 +138,21 @@ fn push_operational_contract(
 ) {
     program
         .facts
+        .suspensions
+        .machines
+        .push(psi_checked_trees::MachineSuspensionFact {
+            machine: machine_symbol,
+            plan: psi_language_semantics::SuspensionPlan {
+                checked_may_suspend,
+                ..Default::default()
+            },
+        });
+    program
+        .facts
         .contract_plans
         .machines
         .push(psi_checked_trees::MachineContractPlan {
             machine: machine_symbol,
-            suspension: psi_language_semantics::SuspensionPlan {
-                checked_may_suspend,
-                ..Default::default()
-            },
             blocking: psi_language_semantics::BlockingPlan {
                 checked_may_block,
                 ..Default::default()
