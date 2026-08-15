@@ -118,33 +118,39 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .find(|machine| machine.name.as_str() == "run_impl")
         .expect("run_impl machine");
 
-    let operational = checked
-        .facts
-        .operational
-        .machines()
-        .iter()
-        .find(|summary| summary.symbol == machine.symbol)
-        .expect("run_impl operational summary");
-    assert!(operational.published_may_suspend);
-    assert!(operational.published_may_block);
-
     let finish = checked
         .typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "finish")
         .expect("finish machine");
-    let finish_operational = checked
+    let finish_contract = checked
         .facts
-        .operational
-        .machines()
+        .contract_plans
+        .for_machine(finish.symbol)
+        .expect("finish contract plan");
+    assert!(finish_contract.suspension.checked_may_suspend);
+    assert!(finish_contract.blocking.checked_may_block);
+    let finish_flow = checked
+        .facts
+        .flow
+        .control
+        .states
         .iter()
-        .find(|summary| summary.symbol == finish.symbol)
-        .expect("finish operational summary");
-    assert!(finish_operational.body_may_suspend);
-    assert!(finish_operational.body_may_block);
-    assert!(finish_operational.transitive_may_suspend);
-    assert!(finish_operational.transitive_may_block);
+        .filter(|(_, state)| state.machine_symbol == finish.symbol)
+        .map(|(_, state)| state)
+        .collect::<Vec<_>>();
+    assert!(!finish_flow.is_empty());
+    assert!(
+        finish_flow
+            .iter()
+            .any(|state| state.suspension.transitive_may_suspend)
+    );
+    assert!(
+        finish_flow
+            .iter()
+            .any(|state| state.blocking.transitive_may_block)
+    );
 
     let reach = checked
         .facts

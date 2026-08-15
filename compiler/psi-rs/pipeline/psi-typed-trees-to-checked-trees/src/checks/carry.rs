@@ -247,23 +247,6 @@ pub(super) fn check_suspension_carry(
         else {
             continue;
         };
-        let Some(machine_operations) = facts
-            .operational
-            .machines()
-            .iter()
-            .find(|operations| operations.symbol == machine.symbol)
-        else {
-            continue;
-        };
-        let Some(state_operations) = facts
-            .operational
-            .states
-            .span_or_empty(machine_operations.states)
-            .iter()
-            .find(|operations| operations.symbol == state.symbol)
-        else {
-            continue;
-        };
         let Some(state_flow) = facts
             .flow
             .control
@@ -279,19 +262,22 @@ pub(super) fn check_suspension_carry(
         };
 
         for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
-            let Some(call_operations) = facts
-                .operational
+            let Some(call_flow) = facts
+                .flow
+                .control
                 .calls
-                .span_or_empty(state_operations.calls)
+                .span_or_empty(state_flow.calls)
                 .iter()
-                .find(|operations| {
-                    operations.statement_index == call.statement_index
-                        && operations.call_ordinal == call.call_ordinal
+                .find(|flow| {
+                    flow.statement_index == call.statement_index
+                        && flow.call_ordinal == call.call_ordinal
                 })
             else {
                 continue;
             };
-            if !call_operations.direct_may_suspend && !call_operations.transitive_may_suspend {
+            if !call_flow.suspension.direct_may_suspend
+                && !call_flow.suspension.transitive_may_suspend
+            {
                 continue;
             }
 

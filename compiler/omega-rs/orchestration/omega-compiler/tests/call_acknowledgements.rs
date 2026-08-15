@@ -257,14 +257,12 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
         .iter()
         .find(|machine| machine.name.as_str() == "Worker::run")
         .expect("worker target");
-    let worker_operational = checked
+    let worker_contract = checked
         .facts
-        .operational
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == worker.symbol)
-        .expect("worker operational summary");
-    assert!(worker_operational.transitive_may_suspend);
+        .contract_plans
+        .for_machine(worker.symbol)
+        .expect("worker contract plan");
+    assert!(worker_contract.suspension.checked_may_suspend);
 }
 
 #[test]
