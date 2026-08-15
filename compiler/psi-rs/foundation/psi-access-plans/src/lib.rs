@@ -2615,6 +2615,118 @@ impl PrimitiveAccessRequest<'_, '_> {
     }
 }
 
+/// Operation subset accepted by ordinary Stable primitive lowering.
+///
+/// Compound mutation needs its distinct bounded read-patch-write realization;
+/// External and atomic events retain their own transfer laws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StablePrimitiveOperation {
+    Read,
+    Write,
+}
+
+/// Stable-only consumer contract for a sealed primitive access.
+///
+/// The original request remains intact inside this carrier, retaining its
+/// exact admission, profile, geometry, and lifetime authority. A future
+/// interpreter or native execution binding adds its result/value operand and
+/// target-owned storage realization to this already-specialized event.
+#[derive(Debug)]
+#[must_use = "Stable primitive access retains its exact placed authority"]
+pub struct StablePrimitiveAccessRequest<'view, 'extent> {
+    request: PrimitiveAccessRequest<'view, 'extent>,
+    operation: StablePrimitiveOperation,
+}
+
+impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
+    pub const fn operation(&self) -> StablePrimitiveOperation {
+        self.operation
+    }
+
+    pub const fn primitive_address(&self) -> u64 {
+        self.request.primitive_address
+    }
+
+    pub const fn transfer_width_bits(&self) -> u16 {
+        self.request.transfer_width_bits
+    }
+
+    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
+        &self.request.logical_extent
+    }
+
+    pub const fn effect_footprint(&self) -> EffectFootprint {
+        self.request.effect_footprint
+    }
+
+    pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
+        self.request
+    }
+}
+
+/// Failed specialization returns the exact sealed request so its authority
+/// and content-custody lifetime remain available to the caller.
+#[derive(Debug)]
+pub struct StablePrimitiveAccessRejection<'view, 'extent> {
+    request: PrimitiveAccessRequest<'view, 'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'view, 'extent> StablePrimitiveAccessRejection<'view, 'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
+        (self.request, self.diagnostic)
+    }
+}
+
+impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
+    /// Consume this general request into the narrow contract accepted by
+    /// ordinary Stable read/write lowering.
+    pub fn into_stable_primitive_access(
+        self,
+    ) -> Result<
+        StablePrimitiveAccessRequest<'view, 'extent>,
+        StablePrimitiveAccessRejection<'view, 'extent>,
+    > {
+        let operation = if self.observation != ObservationModel::Stable {
+            return Err(StablePrimitiveAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "ordinary Stable lowering requires a Stable observation".into(),
+                ),
+            });
+        } else if self.effective_supply.kind() != EffectiveSupplyKind::Stable {
+            return Err(StablePrimitiveAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "ordinary Stable lowering requires admitted Stable supply".into(),
+                ),
+            });
+        } else {
+            match self.operation {
+                AccessOperation::Read => StablePrimitiveOperation::Read,
+                AccessOperation::Write => StablePrimitiveOperation::Write,
+                _ => {
+                    return Err(StablePrimitiveAccessRejection {
+                        request: self,
+                        diagnostic: AccessPlanDiagnostic(
+                            "ordinary Stable lowering accepts only one sealed Read or Write event"
+                                .into(),
+                        ),
+                    });
+                }
+            }
+        };
+        Ok(StablePrimitiveAccessRequest {
+            request: self,
+            operation,
+        })
+    }
+}
+
 pub const fn effect_footprints_conflict(
     left: EffectFootprint,
     left_operation: AccessOperation,
@@ -4485,6 +4597,111 @@ mod tests {
         assert!(rejection.0.contains("Shared current borrow"));
         assert_eq!(established.validity_receipt().normalized_identity(), 121);
         assert_eq!(established.custody_receipt().normalized_identity(), 122);
+    }
+
+    #[test]
+    fn established_owned_read_specializes_for_stable_primitive_lowering() {
+        let (plan, established) = established_stable_word(0xa700, 124, 125, 127);
+        let projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let request = projection
+            .read()
+            .expect("Stable read")
+            .into_primitive_request();
+        let stable = request
+            .into_stable_primitive_access()
+            .expect("Stable read specialization");
+
+        assert_eq!(stable.operation(), StablePrimitiveOperation::Read);
+        assert_eq!(stable.primitive_address(), 0xa700);
+        assert_eq!(stable.transfer_width_bits(), 32);
+        assert_eq!(stable.effect_footprint().address(), 0xa700);
+        assert_eq!(stable.effect_footprint().length_bytes(), 4);
+        assert_eq!(stable.logical_extent().fragments().len(), 1);
+        let request = stable.into_primitive_request();
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 127);
+        assert_eq!(request.profile_receipt().normalized_identity(), 91);
+        assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+    }
+
+    #[test]
+    fn established_owned_write_specializes_for_stable_primitive_lowering() {
+        let (plan, mut established) = established_stable_word(0xa800, 128, 129, 131);
+        let mut projection = established
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable projection");
+        let request = projection
+            .write()
+            .expect("Stable write")
+            .into_primitive_request();
+        let stable = request
+            .into_stable_primitive_access()
+            .expect("Stable write specialization");
+
+        assert_eq!(stable.operation(), StablePrimitiveOperation::Write);
+        assert_eq!(stable.primitive_address(), 0xa800);
+        let request = stable.into_primitive_request();
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 131);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Exclusive);
+        assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+    }
+
+    #[test]
+    fn external_request_rejects_stable_specialization_and_returns_exact_request() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent(0xb000, 12);
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let admission =
+            admit_uart(132, loan, &plan, &uart_reach()).expect("admitted shared UART view");
+        let view = place(admission);
+        let projection = view
+            .project(field_key(plan.access(), "status"))
+            .expect("External status projection");
+        let request = projection
+            .read()
+            .expect("External status read")
+            .into_primitive_request();
+
+        let rejection = request
+            .into_stable_primitive_access()
+            .expect_err("External observation must not enter Stable lowering");
+        assert!(rejection.diagnostic().0.contains("Stable observation"));
+        let (request, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains("Stable observation"));
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 132);
+        assert_eq!(request.primitive_address(), 0xb000);
+        assert_eq!(request.observation(), ObservationModel::External);
+        assert_eq!(request.operation(), AccessOperation::Read);
+        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+    }
+
+    #[test]
+    fn compound_request_rejects_stable_specialization_and_returns_custody() {
+        let (plan, mut established) = established_stable_word(0xb100, 133, 134, 136);
+        let mut projection = established
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable projection");
+        let request = projection
+            .compound_mutation()
+            .expect("authorized Stable compound mutation")
+            .into_primitive_request();
+
+        let rejection = request
+            .into_stable_primitive_access()
+            .expect_err("compound mutation needs its distinct bounded lowering");
+        assert!(rejection.diagnostic().0.contains("Read or Write"));
+        let (request, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains("Read or Write"));
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 136);
+        assert_eq!(request.operation(), AccessOperation::CompoundMutation);
+        drop(request);
+        assert_eq!(established.validity_receipt().normalized_identity(), 134);
+        assert_eq!(established.custody_receipt().normalized_identity(), 135);
     }
 
     #[test]
