@@ -2876,14 +2876,8 @@ fn machine_suspension_summary(
     {
         summary.direct_may_suspend |= flow.suspension.direct_may_suspend;
     }
-    if let Some(machine) = program
-        .facts
-        .operational
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
-        summary.transitive_may_suspend = machine.transitive_may_suspend;
+    if let Some(contract) = program.facts.contract_plans.for_machine(symbol) {
+        summary.transitive_may_suspend = contract.suspension.checked_may_suspend;
     }
     summary
 }
@@ -2904,14 +2898,8 @@ fn machine_blocking_summary(
     {
         summary.direct_may_block |= flow.blocking.direct_may_block;
     }
-    if let Some(machine) = program
-        .facts
-        .operational
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
-        summary.transitive_may_block = machine.transitive_may_block;
+    if let Some(contract) = program.facts.contract_plans.for_machine(symbol) {
+        summary.transitive_may_block = contract.blocking.checked_may_block;
     }
     summary
 }
@@ -3065,7 +3053,8 @@ fn push_json_string(output: &mut String, value: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
+        carry_manifest_json, claim_outcome_manifest_json, machine_blocking_summary,
+        machine_contract_manifest_json, machine_suspension_summary,
         push_termination_interface_json, qualification_evidence_manifest_json,
         task_activation_manifest_json,
     };
@@ -3073,7 +3062,7 @@ mod tests {
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
-        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
+        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
         MachineContractPlan, MachineTerminationFact, SuspensionCrossingCarryFact,
         VacuousQualificationUse,
     };
@@ -3088,10 +3077,11 @@ mod tests {
         conservation_fingerprint,
     };
     use psi_language_semantics::{
-        BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
-        CarrySuspension, MachineSupplyMode, MachineTerminationPlan, QualificationEvidenceOrigin,
-        RankingViewId, RankingWitness, SemanticDomainId, SuspensionInterface, SuspensionPlan,
-        TerminationGuarantee, TerminationInterface,
+        BlockingInterface, BlockingPlan, BlockingSummary, CarryAddress, CarryCpu, CarryHostThread,
+        CarryPolicy, CarrySuspension, MachineSupplyMode, MachineTerminationPlan,
+        QualificationEvidenceOrigin, RankingViewId, RankingWitness, SemanticDomainId,
+        SuspensionInterface, SuspensionPlan, SuspensionSummary, TerminationGuarantee,
+        TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
@@ -3100,6 +3090,115 @@ mod tests {
     use psi_typed_trees::state::State;
     use psi_typed_trees::trait_definition::TraitDefinition;
     use psi_typed_trees::typed_trees::MachineSpecialization;
+
+    fn push_behavior_contract(
+        program: &mut CheckedTrees,
+        machine: SymbolHandle,
+        checked_may_suspend: bool,
+        checked_may_block: bool,
+    ) {
+        program
+            .facts
+            .contract_plans
+            .machines
+            .push(MachineContractPlan {
+                machine,
+                supply_mode: Default::default(),
+                service_reach: Default::default(),
+                synchronous_invocation: Default::default(),
+                suspension: SuspensionPlan {
+                    checked_may_suspend,
+                    ..Default::default()
+                },
+                blocking: BlockingPlan {
+                    checked_may_block,
+                    ..Default::default()
+                },
+                closed_scalar_values: Default::default(),
+                crash: Default::default(),
+                termination: Default::default(),
+                inferred_write_frames: Vec::new(),
+                fingerprint: 0,
+            });
+    }
+
+    fn push_behavior_flow_state(
+        program: &mut CheckedTrees,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        suspension: SuspensionSummary,
+        blocking: BlockingSummary,
+    ) {
+        program.facts.flow.control.states.insert(FlowStateFact {
+            machine_symbol,
+            state_symbol,
+            suspension,
+            blocking,
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn checked_behavior_summaries_keep_operational_axes_independent() {
+        let suspending_machine = SymbolHandle::from_arena_index(1);
+        let blocking_machine = SymbolHandle::from_arena_index(2);
+        let unknown_machine = SymbolHandle::from_arena_index(3);
+        let mut program = CheckedTrees::default();
+
+        push_behavior_contract(&mut program, suspending_machine, true, false);
+        push_behavior_flow_state(
+            &mut program,
+            suspending_machine,
+            SymbolHandle::from_arena_index(11),
+            SuspensionSummary {
+                direct_may_suspend: true,
+                transitive_may_suspend: false,
+            },
+            BlockingSummary::default(),
+        );
+        push_behavior_contract(&mut program, blocking_machine, false, true);
+        push_behavior_flow_state(
+            &mut program,
+            blocking_machine,
+            SymbolHandle::from_arena_index(12),
+            SuspensionSummary::default(),
+            BlockingSummary {
+                direct_may_block: true,
+                transitive_may_block: false,
+            },
+        );
+
+        assert_eq!(
+            machine_suspension_summary(&program, suspending_machine),
+            SuspensionSummary {
+                direct_may_suspend: true,
+                transitive_may_suspend: true,
+            }
+        );
+        assert_eq!(
+            machine_blocking_summary(&program, suspending_machine),
+            BlockingSummary::default()
+        );
+        assert_eq!(
+            machine_suspension_summary(&program, blocking_machine),
+            SuspensionSummary::default()
+        );
+        assert_eq!(
+            machine_blocking_summary(&program, blocking_machine),
+            BlockingSummary {
+                direct_may_block: true,
+                transitive_may_block: true,
+            }
+        );
+        assert_eq!(
+            machine_suspension_summary(&program, unknown_machine),
+            SuspensionSummary::default()
+        );
+        assert_eq!(
+            machine_blocking_summary(&program, unknown_machine),
+            BlockingSummary::default()
+        );
+    }
 
     #[test]
     fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
