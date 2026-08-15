@@ -874,7 +874,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             signed_count: i8,
             enabled: bool
         ) -> bool
-        requires input <= 255u64, small <= 254u8, small <= 253u8, small <= 252u8,
+        requires input <= 255u64, input <= 250u64, 5u64 <= input, input <= 260u64,
+            small <= 254u8, small <= 253u8, small <= 252u8,
             small <= 127u8, small <= 125u8, small <= 63u8, small <= 42u8, small <= 31u8,
             small <= 7u8, 1u8 <= small, 2u8 <= small, 3u8 <= small,
             1u8 <= divisor, divisor <= small,
@@ -884,7 +885,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -126i8 <= signed_arithmetic, signed_arithmetic <= 124i8,
             -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
             -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
-            0i8 <= signed_arithmetic, 1i8 <= signed_arithmetic, 0i8 <= signed_divisor,
+            -1i8 <= signed_arithmetic, 0i8 <= signed_arithmetic,
+            1i8 <= signed_arithmetic, 0i8 <= signed_divisor,
             1i8 <= signed_divisor, signed_divisor <= 7i8,
             -128i8 / signed_divisor <= signed_arithmetic,
             signed_arithmetic <= 127i8 / signed_divisor,
@@ -944,6 +946,9 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((((signed_arithmetic - -3i8) + -5i8) - -1i8) < 127i8)
                 && (((((small + 3u8) - 2u8) + 1u8) as i8) < 127i8)
                 && (((((signed_arithmetic - -3i8) + -5i8) - -1i8) as u8) < 127u8)
+                && (((input as u8) + 5u8) < 255u8)
+                && (((input as u8) - 5u8) < 255u8)
+                && (((signed_arithmetic as u8) + 1u8) < 255u8)
                 && ((signed_arithmetic * 3i8) < 4i8)
                 && ((signed_arithmetic * -3i8) < 4i8)
                 && ((signed_arithmetic * signed_divisor) <= 127i8)
@@ -1900,6 +1905,54 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                     psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
                 )
         }));
+    }
+    let find_cast_then_offset = |subtract: bool| {
+        operations.iter().find_map(|outer| {
+            let (left, right, arithmetic_obligation) = match outer.kind {
+                OperationKind::ExactIntegerAdd {
+                    left,
+                    right,
+                    obligation,
+                } if !subtract => (left, right, obligation),
+                OperationKind::ExactIntegerSubtract {
+                    left,
+                    right,
+                    obligation,
+                } if subtract => (left, right, obligation),
+                _ => return None,
+            };
+            if !has_u8_constant(right, 5) {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == terminal_entry.parameters[0].id)
+                .then_some([cast_obligation, arithmetic_obligation])
+        })
+    };
+    let cast_then_add_obligations = find_cast_then_offset(false)
+        .expect("native path retains one direct exact cast feeding exact addition");
+    let cast_then_subtract_obligations = find_cast_then_offset(true)
+        .expect("native path retains one direct exact cast feeding exact subtraction");
+    for obligations in [cast_then_add_obligations, cast_then_subtract_obligations] {
+        assert_ne!(obligations[0], obligations[1]);
+        for obligation in obligations {
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
     }
     let nested_multiply_obligations = operations
         .iter()

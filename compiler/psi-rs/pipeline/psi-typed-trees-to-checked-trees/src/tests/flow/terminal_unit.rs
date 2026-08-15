@@ -1,5 +1,6 @@
 use super::*;
 use crate::flow::{
+    exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
@@ -1223,6 +1224,106 @@ fn offset_chain_exact_cast_classifier_requires_one_direct_same_carrier_left_chai
             &local_root,
             1,
         ),
+        None
+    );
+}
+
+#[test]
+fn exact_cast_then_offset_classifier_requires_one_left_cast_and_landed_target_literal() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let cast = |source_type, target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: operand,
+            primitive_type: source_type,
+        }),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let operation = |kind, target_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: target_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    for kind in [
+        CheckedIntegerBinaryKind::ExactAdd,
+        CheckedIntegerBinaryKind::ExactSubtract,
+    ] {
+        let accepted = operation(
+            kind,
+            PrimitiveType::U8,
+            cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+            literal(5i64, psi_numerics::literals::LandedIntegerType::U8),
+        );
+        assert_eq!(
+            exact_cast_then_offset_runtime_parameter_positions_for_test(&accepted, 1),
+            Some(vec![0])
+        );
+    }
+    let cross_sign = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        cast(PrimitiveType::I8, PrimitiveType::U8, 0),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_offset_runtime_parameter_positions_for_test(&cross_sign, 1),
+        Some(vec![0])
+    );
+
+    let reversed_add = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        literal(5i64, psi_numerics::literals::LandedIntegerType::U8),
+        cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+    );
+    assert_eq!(
+        exact_cast_then_offset_runtime_parameter_positions_for_test(&reversed_add, 1),
+        None
+    );
+    let runtime_sibling = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        PrimitiveType::U8,
+        cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U8,
+        },
+    );
+    assert_eq!(
+        exact_cast_then_offset_runtime_parameter_positions_for_test(&runtime_sibling, 1),
+        None
+    );
+    let mismatched_target = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        cast(PrimitiveType::I16, PrimitiveType::I8, 0),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_offset_runtime_parameter_positions_for_test(&mismatched_target, 1),
+        None
+    );
+    let nested = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactSubtract,
+            PrimitiveType::U8,
+            cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_offset_runtime_parameter_positions_for_test(&nested, 1),
         None
     );
 }
@@ -2587,6 +2688,78 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((input - 1i8) as u8) < 4u8) && enabled);
             staged
         }
+        machine Root::exact_cast_then_add_u16_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, input <= 250u16
+        {
+            let staged: bool = ((((input as u8) + 5u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::exact_cast_then_subtract_u16_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, 5u16 <= input, input <= 260u16
+        {
+            let staged: bool = ((((input as u8) - 5u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::exact_cast_then_add_i16_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: i16,
+            enabled: bool
+        ) -> bool
+        requires -128i16 <= input, input <= 127i16,
+            -123i16 <= input, input <= 132i16
+        {
+            let staged: bool = ((((input as i8) + -5i8) < 127i8) && enabled);
+            staged
+        }
+        machine Root::exact_cast_then_add_i8_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires 0i8 <= input, -1i8 <= input
+        {
+            let staged: bool = ((((input as u8) + 1u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::reversed_add_after_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, input <= 250u16
+        {
+            let staged: bool = (((5u8 + (input as u8)) < 255u8) && enabled);
+            staged
+        }
+        machine Root::local_exact_cast_then_add_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, input <= 250u16
+        {
+            let retained: u16 = input;
+            let staged: bool = ((((retained as u8) + 5u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::nested_exact_cast_then_add_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, input <= 254u16, input <= 253u16
+        {
+            let staged: bool = (((((input as u8) + 1u8) + 1u8) < 255u8) && enabled);
+            staged
+        }
         machine Root::right_associated_offset_chain_exact_cast_integer_comparison_convergence(
             token: Token,
             input: u16,
@@ -3706,6 +3879,37 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 )
             });
         assert!(offset_chain_cast.shared_boolean_convergence.is_some());
+    }
+    for machine in [
+        "exact_cast_then_add_u16_to_u8_integer_comparison_convergence",
+        "exact_cast_then_subtract_u16_to_u8_integer_comparison_convergence",
+        "exact_cast_then_add_i16_to_i8_integer_comparison_convergence",
+        "exact_cast_then_add_i8_to_u8_integer_comparison_convergence",
+    ] {
+        let cast_then_offset = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!("direct exact cast then landed offset `{machine}` retains its scalar-return plan")
+            });
+        assert!(cast_then_offset.shared_boolean_convergence.is_some());
+    }
+    for machine in [
+        "reversed_add_after_exact_cast_integer_comparison_convergence",
+        "local_exact_cast_then_add_integer_comparison_convergence",
+        "nested_exact_cast_then_add_integer_comparison_convergence",
+    ] {
+        let fenced_cast_then_offset = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine));
+        assert!(
+            fenced_cast_then_offset.is_none_or(|plan| plan.shared_boolean_convergence.is_none()),
+            "fenced exact-cast-then-offset composition `{machine}` must fail closed"
+        );
     }
     for machine in [
         "right_associated_offset_chain_exact_cast_integer_comparison_convergence",

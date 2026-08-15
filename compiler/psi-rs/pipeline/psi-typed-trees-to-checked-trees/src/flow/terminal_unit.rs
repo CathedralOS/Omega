@@ -1556,6 +1556,9 @@ fn shared_integer_runtime_inputs_with_shells(
             };
             collect_direct(left, right)
                 .or_else(|| {
+                    shared_exact_cast_then_offset_runtime_inputs(expression, scalar_parameter_count)
+                })
+                .or_else(|| {
                     shared_exact_add_chain_runtime_inputs(expression, scalar_parameter_count)
                 })
                 .or_else(|| {
@@ -1587,6 +1590,9 @@ fn shared_integer_runtime_inputs_with_shells(
                 Some(inputs)
             };
             collect_direct()
+                .or_else(|| {
+                    shared_exact_cast_then_offset_runtime_inputs(expression, scalar_parameter_count)
+                })
                 .or_else(|| {
                     shared_exact_subtract_chain_runtime_inputs(expression, scalar_parameter_count)
                 })
@@ -1843,6 +1849,67 @@ fn shared_exact_offset_chain_cast_runtime_inputs(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_cast_then_offset_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract,
+        primitive_type: target_type,
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    if !exact_offset_landed_literal(*target_type, right) {
+        return None;
+    }
+    let CheckedScalarExpression::IntegerExactCast {
+        primitive_type: cast_target_type,
+        operand,
+        ..
+    } = left.as_ref()
+    else {
+        return None;
+    };
+    let CheckedScalarExpression::Parameter {
+        position,
+        primitive_type: source_type,
+    } = operand.as_ref()
+    else {
+        return None;
+    };
+    (*cast_target_type == *target_type
+        && matches!(
+            source_type,
+            PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+        )
+        && *position < scalar_parameter_count)
+        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
+}
+
+#[cfg(test)]
+pub(crate) fn exact_cast_then_offset_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_cast_then_offset_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -2045,6 +2045,70 @@ fn exact_integer_offset_chain_cast_obligation(
         return None;
     }
 
+    Some(exact_integer_shifted_interval_obligation(
+        source_type,
+        target_type,
+        variable,
+        offset,
+    ))
+}
+
+fn exact_integer_cast_then_offset_obligation(
+    target_type: psi_core::IntegerType,
+    variable: ScalarTerm,
+    offset: IntegerOffset,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if target_type.is_address() || !matches!(target_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let definition = semantic_axioms[..definition_axiom_count.min(semantic_axioms.len())]
+        .iter()
+        .rev()
+        .find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == &variable => Some(right),
+            _ => None,
+        })?;
+    let ScalarTerm::IntegerExactCast {
+        source_type,
+        target_type: cast_target_type,
+        operand,
+    } = definition
+    else {
+        return None;
+    };
+    if *cast_target_type != target_type
+        || source_type.is_address()
+        || !matches!(source_type.bits(), 8 | 16 | 32 | 64)
+        || *source_type == target_type
+        || source_type.can_widen_to(target_type)
+        || !source_type.can_exact_cast_to(target_type)
+        || !matches!(
+            operand.as_ref(),
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == *source_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    Some(exact_integer_shifted_interval_obligation(
+        *source_type,
+        target_type,
+        (**operand).clone(),
+        offset,
+    ))
+}
+
+fn exact_integer_shifted_interval_obligation(
+    root_type: psi_core::IntegerType,
+    interval_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    offset: IntegerOffset,
+) -> Proposition {
     let integer_value_as_i128 = |value| match value {
         IntegerValue::Signed(value) => Some(value),
         IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
@@ -2055,53 +2119,53 @@ fn exact_integer_offset_chain_cast_obligation(
         }
         IntegerOffset::Negative(magnitude) => boundary.checked_add(i128::try_from(magnitude).ok()?),
     };
-    let Some(source_minimum) = integer_value_as_i128(source_type.minimum_value()) else {
-        return Some(Proposition::Falsehood);
+    let Some(root_minimum) = integer_value_as_i128(root_type.minimum_value()) else {
+        return Proposition::Falsehood;
     };
-    let Some(source_maximum) = integer_value_as_i128(source_type.maximum_value()) else {
-        return Some(Proposition::Falsehood);
+    let Some(root_maximum) = integer_value_as_i128(root_type.maximum_value()) else {
+        return Proposition::Falsehood;
     };
     let Some(target_minimum) =
-        integer_value_as_i128(target_type.minimum_value()).and_then(translate_target_boundary)
+        integer_value_as_i128(interval_type.minimum_value()).and_then(translate_target_boundary)
     else {
-        return Some(Proposition::Falsehood);
+        return Proposition::Falsehood;
     };
     let Some(target_maximum) =
-        integer_value_as_i128(target_type.maximum_value()).and_then(translate_target_boundary)
+        integer_value_as_i128(interval_type.maximum_value()).and_then(translate_target_boundary)
     else {
-        return Some(Proposition::Falsehood);
+        return Proposition::Falsehood;
     };
-    if target_minimum > source_maximum || target_maximum < source_minimum {
-        return Some(Proposition::Falsehood);
+    if target_minimum > root_maximum || target_maximum < root_minimum {
+        return Proposition::Falsehood;
     }
 
-    let source_boundary = |boundary: i128| {
-        let value = match source_type.sign() {
+    let root_boundary = |boundary: i128| {
+        let value = match root_type.sign() {
             IntegerSign::Signed => IntegerValue::Signed(boundary),
             IntegerSign::Unsigned => IntegerValue::Unsigned(u128::try_from(boundary).ok()?),
         };
-        ScalarTerm::integer(source_type, value).ok()
+        ScalarTerm::integer(root_type, value).ok()
     };
     let mut bounds = Vec::with_capacity(2);
-    if target_minimum > source_minimum {
-        let Some(boundary) = source_boundary(target_minimum) else {
-            return Some(Proposition::Falsehood);
+    if target_minimum > root_minimum {
+        let Some(boundary) = root_boundary(target_minimum) else {
+            return Proposition::Falsehood;
         };
-        bounds.push(Proposition::LessOrEqual(boundary, variable.clone()));
+        bounds.push(Proposition::LessOrEqual(boundary, root.clone()));
     }
-    if target_maximum < source_maximum {
-        let Some(boundary) = source_boundary(target_maximum) else {
-            return Some(Proposition::Falsehood);
+    if target_maximum < root_maximum {
+        let Some(boundary) = root_boundary(target_maximum) else {
+            return Proposition::Falsehood;
         };
-        bounds.push(Proposition::LessOrEqual(variable, boundary));
+        bounds.push(Proposition::LessOrEqual(root, boundary));
     }
-    Some(match bounds.len() {
+    match bounds.len() {
         0 => Proposition::Truth,
         1 => bounds
             .pop()
             .expect("one translated exact-cast bound exists"),
         _ => canonical_conjunction(bounds),
-    })
+    }
 }
 
 fn signed_negative_magnitude(magnitude: u128) -> Option<i128> {
@@ -2217,6 +2281,25 @@ fn exact_integer_add_obligation(
         } else {
             Proposition::Falsehood
         };
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_offset_obligation(
+            integer_type,
+            left.clone(),
+            IntegerOffset::from_value(constant),
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
     }
     if known_left.is_none()
         && let Some(constant) = known_right
@@ -2551,6 +2634,24 @@ fn exact_integer_subtract_obligation(
         }
         return Proposition::Falsehood;
     };
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_offset_obligation(
+            integer_type,
+            left.clone(),
+            IntegerOffset::from_subtrahend(constant),
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
     if known_left.is_none()
         && landed_integer_constant_value(
             integer_type,
@@ -4385,6 +4486,201 @@ mod tests {
                 &BTreeSet::from([overflow_root_id]),
             ),
             Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn reconstructs_one_exact_offset_after_a_direct_partial_cast() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root_id = ValueId::new(161).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let cast = ScalarTerm::value(
+            ValueId::new(162).expect("cast"),
+            ScalarType::Integer(target_type),
+        );
+        let cast_definition = Proposition::Equal(
+            cast.clone(),
+            ScalarTerm::integer_exact_cast(source_type, target_type, root.clone())
+                .expect("u16 to u8 exact cast"),
+        );
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_cast_obligation(source_type, target_type, root.clone(), &[], &parameters,),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(255)).expect("255u16"),
+            )
+        );
+        let five = ScalarTerm::integer(target_type, IntegerValue::Unsigned(5)).expect("5u8");
+        let expected_add = Proposition::LessOrEqual(
+            root.clone(),
+            ScalarTerm::integer(source_type, IntegerValue::Unsigned(250)).expect("250u16"),
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                target_type,
+                cast.clone(),
+                five.clone(),
+                std::slice::from_ref(&cast_definition),
+                1,
+                &parameters,
+            ),
+            expected_add
+        );
+        let expected_subtract = canonical_conjunction(vec![
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(5)).expect("5u16"),
+                root.clone(),
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(260)).expect("260u16"),
+            ),
+        ]);
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                target_type,
+                cast.clone(),
+                five.clone(),
+                std::slice::from_ref(&cast_definition),
+                1,
+                &parameters,
+            ),
+            expected_subtract
+        );
+
+        let reversed_definition = match cast_definition.clone() {
+            Proposition::Equal(left, right) => Proposition::Equal(right, left),
+            _ => unreachable!("cast definition is an equality"),
+        };
+        assert_ne!(
+            exact_integer_add_obligation(
+                target_type,
+                cast.clone(),
+                five.clone(),
+                std::slice::from_ref(&reversed_definition),
+                1,
+                &parameters,
+            ),
+            expected_add
+        );
+        let redirected_definition = Proposition::Equal(
+            cast.clone(),
+            ScalarTerm::integer(target_type, IntegerValue::Unsigned(1)).expect("1u8"),
+        );
+        assert_ne!(
+            exact_integer_add_obligation(
+                target_type,
+                cast.clone(),
+                five.clone(),
+                std::slice::from_ref(&redirected_definition),
+                1,
+                &parameters,
+            ),
+            expected_add
+        );
+        assert_ne!(
+            exact_integer_add_obligation(
+                target_type,
+                cast.clone(),
+                five.clone(),
+                std::slice::from_ref(&cast_definition),
+                1,
+                &BTreeSet::new(),
+            ),
+            expected_add
+        );
+        assert_ne!(
+            exact_integer_add_obligation(
+                target_type,
+                five.clone(),
+                cast,
+                std::slice::from_ref(&cast_definition),
+                1,
+                &parameters,
+            ),
+            expected_add,
+            "literal-left addition is outside the canonical composition"
+        );
+
+        let signed_source = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let signed_target = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_root_id = ValueId::new(171).expect("signed root");
+        let signed_root = ScalarTerm::value(signed_root_id, ScalarType::Integer(signed_source));
+        let signed_cast = ScalarTerm::value(
+            ValueId::new(172).expect("signed cast"),
+            ScalarType::Integer(signed_target),
+        );
+        let signed_definition = Proposition::Equal(
+            signed_cast.clone(),
+            ScalarTerm::integer_exact_cast(signed_source, signed_target, signed_root.clone())
+                .expect("i16 to i8 exact cast"),
+        );
+        let negative_five =
+            ScalarTerm::integer(signed_target, IntegerValue::Signed(-5)).expect("-5i8");
+        assert_eq!(
+            exact_integer_add_obligation(
+                signed_target,
+                signed_cast,
+                negative_five,
+                std::slice::from_ref(&signed_definition),
+                1,
+                &BTreeSet::from([signed_root_id]),
+            ),
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed_source, IntegerValue::Signed(-123))
+                        .expect("-123i16"),
+                    signed_root.clone(),
+                ),
+                Proposition::LessOrEqual(
+                    signed_root,
+                    ScalarTerm::integer(signed_source, IntegerValue::Signed(132)).expect("132i16"),
+                ),
+            ])
+        );
+
+        let cross_source = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let cross_target = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let cross_root_id = ValueId::new(181).expect("cross root");
+        let cross_root = ScalarTerm::value(cross_root_id, ScalarType::Integer(cross_source));
+        let cross_cast = ScalarTerm::value(
+            ValueId::new(182).expect("cross cast"),
+            ScalarType::Integer(cross_target),
+        );
+        let cross_definition = Proposition::Equal(
+            cross_cast.clone(),
+            ScalarTerm::integer_exact_cast(cross_source, cross_target, cross_root.clone())
+                .expect("i8 to u8 exact cast"),
+        );
+        let cross_parameters = BTreeSet::from([cross_root_id]);
+        assert_eq!(
+            exact_integer_cast_obligation(
+                cross_source,
+                cross_target,
+                cross_root.clone(),
+                &[],
+                &cross_parameters,
+            ),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(cross_source, IntegerValue::Signed(0)).expect("0i8"),
+                cross_root.clone(),
+            )
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                cross_target,
+                cross_cast,
+                ScalarTerm::integer(cross_target, IntegerValue::Unsigned(1)).expect("1u8"),
+                std::slice::from_ref(&cross_definition),
+                1,
+                &cross_parameters,
+            ),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(cross_source, IntegerValue::Signed(-1)).expect("-1i8"),
+                cross_root,
+            )
         );
     }
 
