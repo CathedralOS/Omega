@@ -33246,13 +33246,8 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-entry-field-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("entry-field-write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("entry-field-write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33895,13 +33890,8 @@ fn runtime_enum_self_method_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-enum-self-method-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("enum-self-method canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("enum-self-method canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33944,13 +33934,8 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-dispatch-results-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dispatch-results canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dispatch-results canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34045,13 +34030,8 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-guard-subject-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guard-subject canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("guard-subject canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34090,13 +34070,8 @@ fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("effectful guard/local and self-terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("effectful guard/local and self-terminal canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -43849,13 +43824,8 @@ fn runtime_shared_ref_param_member_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-sharedref-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shared-ref param canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shared-ref param canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -43888,13 +43858,8 @@ fn runtime_shared_ref_param_large_deref_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-sharedref-large-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("large shared-ref deref canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("large shared-ref deref canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -43923,13 +43888,8 @@ fn runtime_large_shared_ref_direct_assignment_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("large shared-ref direct-assignment canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("large shared-ref direct-assignment canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -43954,13 +43914,8 @@ fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-sametype-direct-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("same-type contained direct-fields canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("same-type contained direct-fields canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45935,6 +45890,15 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_enum_self_method_exit",
+    "calls/runtime_same_type_contained_direct_fields_exit",
+    "calls/runtime_shared_ref_param_member_exit",
+    "calls/runtime_shared_ref_param_large_deref_exit",
+    "calls/runtime_large_shared_ref_direct_assignment_exit",
+    "calls/runtime_value_call_dispatch_results_exit",
+    "calls/runtime_value_call_entry_field_write_exit",
+    "calls/runtime_value_call_guard_subject_exit",
+    "calls/runtime_effectful_guard_local_and_self_terminal_exit",
     "collections/runtime_dual_indexed_guard_compare_exit",
     "collections/runtime_cross_array_indexed_guard_compare_exit",
     "collections/runtime_dual_indexed_guard_equality_exit",
