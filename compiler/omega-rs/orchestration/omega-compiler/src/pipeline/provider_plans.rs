@@ -1601,9 +1601,7 @@ fn external_provider_binding(
     use psi_syntax_trees::item::ExternalBinding;
 
     match binding {
-        ExternalBinding::Syscall { number } => ProviderBinding::Syscall {
-            number: u32::try_from(*number).unwrap_or_default(),
-        },
+        ExternalBinding::Syscall { number } => ProviderBinding::Syscall { number: *number },
         ExternalBinding::DllImport { module, symbol } => ProviderBinding::Import {
             library: module.clone(),
             symbol: symbol.clone(),
@@ -2684,6 +2682,57 @@ mod tests {
                 .message
                 .contains("has no nominal provider type")
         );
+    }
+
+    #[test]
+    fn syscall_derivation_retains_exact_number_before_range_validation() {
+        fn derive(number: i64) -> (TypedTrees, Vec<omega_effects::provider_plan::ProviderPlan>) {
+            let source = format!(
+                r#"
+                    boundary trait Process {{
+                        machine exit(code: i32);
+                    }}
+
+                    machine exit_leaf(code: i32)
+                    satisfies Process::exit
+                    via Binding::Syscall({number});
+                "#
+            );
+            let tokens = psi_source_files_to_tokens::Lexer::new(&source)
+                .tokenize()
+                .expect("tokenize syscall leaf");
+            let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+                .expect("parse syscall leaf");
+            let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+                .expect("resolve syscall leaf");
+            let typed =
+                psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .expect("type syscall leaf");
+            let plans = derive_satisfies_plans(&syntax, &typed, None);
+            (typed, plans)
+        }
+
+        let maximum = i64::from(u32::MAX);
+        let (typed, plans) = derive(maximum);
+        let ProviderBinding::Syscall { number } = &plans[0].rows[0].binding else {
+            panic!("source syscall leaf must retain a syscall binding");
+        };
+        assert_eq!(*number, maximum);
+        assert!(validate_provider_plan_candidates(&typed, &plans).is_empty());
+
+        let oversized = maximum + 1;
+        let (typed, plans) = derive(oversized);
+        let ProviderBinding::Syscall { number } = &plans[0].rows[0].binding else {
+            panic!("source syscall leaf must retain a syscall binding");
+        };
+        assert_eq!(*number, oversized);
+        assert_ne!(*number, 0, "oversized syscall must not normalize to zero");
+        let diagnostics = validate_provider_plan_candidates(&typed, &plans);
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("target syscall plan requires a value in 0..=4294967295")
+        }));
     }
 
     #[test]

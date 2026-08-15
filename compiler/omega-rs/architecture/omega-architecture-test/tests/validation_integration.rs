@@ -6595,7 +6595,7 @@ mod provider_plan {
             trait_name: "Console".to_owned(),
             methods: Vec::new(),
         };
-        let row = |method: &str, number: u32| ProviderPlanRow {
+        let row = |method: &str, number: i64| ProviderPlanRow {
             method: method.to_owned(),
             requirement_identity: String::new(),
             binding: ProviderBinding::Syscall { number },
