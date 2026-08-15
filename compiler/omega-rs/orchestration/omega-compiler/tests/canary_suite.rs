@@ -21119,13 +21119,8 @@ fn runtime_float_nested_operand_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_nested_operand_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-fnest-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested float operand canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested float operand canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested float operand canary should run");
@@ -45527,6 +45522,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/int_transition_arg_width_wrap",
     "termination/custom_ranking_field_countdown_compile",
     "termination/custom_ranking_struct_view",
+    "arithmetic/runtime_float_nested_operand_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
