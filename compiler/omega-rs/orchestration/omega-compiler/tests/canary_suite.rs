@@ -9340,18 +9340,12 @@ stderr:
 #[test]
 fn runtime_value_machine_param_array_index_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_machine_param_array_index_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-vm-param-arr-idx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value machine param array index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value machine param array index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -10007,18 +10001,12 @@ stderr:
 #[test]
 fn runtime_member_arg_nested_read_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_member_arg_nested_read_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-member-arg-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("member arg nested read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("member arg nested read canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -10042,18 +10030,12 @@ stderr:
 #[test]
 fn runtime_constructor_computed_field_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_constructor_computed_field_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-ctor-computed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("constructor computed field canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("constructor computed field canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
