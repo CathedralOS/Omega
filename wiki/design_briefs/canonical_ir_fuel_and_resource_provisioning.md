@@ -155,6 +155,9 @@ no fuel charge.
 A finite chain of direct integer widens followed by an exact narrowing back to
 the original carrier likewise charges every retained operation; the
 verifier-derived self-proof adds no executable work.
+Likewise, a finite retained exact-add/subtract literal-offset chain followed by
+one exact fixed-native cast charges every arithmetic operation and the cast;
+the verifier's shifted target-interval reconstruction adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

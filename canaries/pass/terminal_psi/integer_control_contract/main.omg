@@ -1367,6 +1367,13 @@ requires value <= 252u8, value <= 253u8
     staged
 }
 
+machine terminal_offset_chain_exact_cast(value: u16, enabled: bool) -> bool
+requires value <= 65530u16, value <= 65533u16, value <= 253u16
+{
+    let staged: bool = (((((value + 5u16) - 3u16) as u8) < 255u8) && enabled);
+    staged
+}
+
 machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) -> bool
 {
     let staged: bool = ((((value / 2u8) % 3u8) / 2u8) < 2u8) && enabled;

@@ -519,8 +519,25 @@ every step, checks every adjacent carrier and strict widening, and requires the
 origin value to be a machine signature parameter of the narrowing's target
 carrier. The walk is bounded by the finite prior-axiom count; missing,
 reordered, reversed, cyclic, mistyped, or redirected definitions reject the old
-self-proof. Non-round-trip, local or block-parameter roots, and otherwise
-computed exact casts remain fenced.
+self-proof. Local or block-parameter roots and otherwise computed exact casts
+remain fenced. A second computed-cast exception accepts
+one partial exact conversion whose operand is a finite nonempty left-associated
+same-carrier exact-add/subtract chain. The chain uses a current fixed-native
+source carrier, starts at one direct machine parameter, and has one independently
+landed same-carrier literal on every right edge. The target is another current
+fixed-native carrier; same-width and cross-sign partial conversions are
+included. The verifier follows only ordered shrinking-prefix definitions,
+accumulates additions and mathematical negations of subtrahends in the checked
+sign/magnitude offset, and reconstructs the cast as the target interval shifted
+back by that offset and intersected with the source carrier. Vacuous sides are
+omitted, an empty intersection is false, and one or two surviving bounds are
+canonical source-carrier propositions. Every arithmetic prefix retains its own
+obligation and evidence, so cancellation or a cast-safe final interval cannot
+erase an earlier unsafe operation. Computed or unlanded siblings, literal-left
+addition, reversed subtraction, right-associated shapes, local or block roots,
+mixed-carrier or non-native chains, other proof-bearing operations, additional
+casts, missing or noncanonical definitions, accumulator overflow, and stale or
+missing evidence remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

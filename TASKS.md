@@ -239,7 +239,12 @@ Remaining:
   fixed-integer parameter may also pass through a finite chain of valid
   widenings and then exactly narrow back to its original carrier; Terminal
   retains every operation and independently derives the narrowing obligation
-  from the ordered, uniquely defined widening chain.
+  from the ordered, uniquely defined widening chain. Separately, one exact
+  fixed-native cast may consume a finite nonempty left-associated same-carrier
+  exact-add/subtract literal-offset chain rooted at a direct machine parameter.
+  The verifier retains every prefix proof, accumulates the checked offset, and
+  independently derives target-range-minus-offset bounds intersected with the
+  source carrier, including signed and cross-sign conversions.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
