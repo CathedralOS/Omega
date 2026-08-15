@@ -13895,9 +13895,10 @@ fn runtime_struct_field_temp_arith_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_struct_field_temp_arith_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-field-temp-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-field-temp arithmetic canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("struct-field-temp arithmetic canary should run");
     assert_eq!(
@@ -13917,9 +13918,10 @@ fn runtime_indexed_struct_write_loop_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_write_loop_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-struct-write-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed struct-write loop canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("indexed struct-write loop canary should run");
     assert_eq!(
@@ -13939,9 +13941,10 @@ fn std_option_runtime_match_exit_canary_runs() {
     // must dispatch as None.
     let canary = pass_canary("collections/std_option_runtime_match_exit");
     let scratch = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("std Optional runtime match canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("std option runtime match canary should run");
     assert_eq!(
@@ -13962,9 +13965,10 @@ fn runtime_indexed_read_then_guard_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_read_then_guard_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-read-guard-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed-read-then-guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("indexed-read-then-guard canary should run");
     assert_eq!(
@@ -13984,9 +13988,10 @@ fn runtime_row_const_column_write_exit_canary_runs() {
     // sum 10+15+20+25 = 70. (The runtime-COLUMN case is rejected; see the fail canary.)
     let canary = pass_canary("collections/runtime_row_const_column_write_exit");
     let scratch = std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-row const-column write canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime-row const-column write canary should run");
     assert_eq!(
@@ -14006,9 +14011,10 @@ fn runtime_nested_array_const_index_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_array_const_index_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-array-const-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested array const-index canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested array const-index canary should run");
     assert_eq!(
@@ -14028,9 +14034,10 @@ fn runtime_whole_array_value_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_whole_array_value_copy_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-whole-array-copy-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("whole-array value copy canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("whole-array value copy canary should run");
     assert_eq!(
@@ -14052,9 +14059,10 @@ fn runtime_whole_struct_value_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_whole_struct_value_copy_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-whole-struct-copy-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("whole-struct value copy canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("whole-struct value copy canary should run");
     assert_eq!(
@@ -14077,9 +14085,10 @@ fn runtime_rule90_automaton_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_rule90_automaton_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-rule90-automaton-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("rule90 automaton canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("rule90 automaton canary should run");
     assert_eq!(
@@ -14104,9 +14113,10 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
         "omega-fixed-array-field-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed-array field guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("fixed-array field guard canary should run");
 
@@ -46104,6 +46114,15 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_rpn_evaluator_exit",
     "collections/runtime_two_indexed_reads_binary_exit",
     "collections/runtime_two_pointer_palindrome_exit",
+    "collections/runtime_indexed_read_then_guard_exit",
+    "collections/runtime_indexed_struct_write_loop_exit",
+    "collections/runtime_nested_array_const_index_exit",
+    "collections/runtime_row_const_column_write_exit",
+    "collections/runtime_rule90_automaton_exit",
+    "collections/runtime_struct_field_temp_arith_exit",
+    "collections/runtime_whole_array_value_copy_exit",
+    "collections/runtime_whole_struct_value_copy_exit",
+    "collections/std_option_runtime_match_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46123,6 +46142,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "borrow/runtime_method_view_write_after_last_use_exit",
     "borrow/runtime_view_of_view_chain_exit",
     "expressions/runtime_16bit_cast_exit",
+    "expressions/runtime_fixed_array_field_guard_exit",
     "expressions/runtime_call_result_binary_operand_exit",
     "expressions/runtime_cast_operand_exit",
     "expressions/runtime_f32_arithmetic_exit",
@@ -46579,12 +46599,22 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_rpn_evaluator_exit",
     "collections/runtime_two_indexed_reads_binary_exit",
     "collections/runtime_two_pointer_palindrome_exit",
+    "collections/runtime_indexed_read_then_guard_exit",
+    "collections/runtime_indexed_struct_write_loop_exit",
+    "collections/runtime_nested_array_const_index_exit",
+    "collections/runtime_row_const_column_write_exit",
+    "collections/runtime_rule90_automaton_exit",
+    "collections/runtime_struct_field_temp_arith_exit",
+    "collections/runtime_whole_array_value_copy_exit",
+    "collections/runtime_whole_struct_value_copy_exit",
+    "collections/std_option_runtime_match_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
     "calls/runtime_free_machine_value_call_exit",
     "domains/utf8_return_view_equals_exit",
     "expressions/runtime_16bit_cast_exit",
+    "expressions/runtime_fixed_array_field_guard_exit",
     "expressions/runtime_widened_bitwise_exit",
     "expressions/runtime_widened_comparison_exit",
     "text/runtime_base64_encode_exit",
