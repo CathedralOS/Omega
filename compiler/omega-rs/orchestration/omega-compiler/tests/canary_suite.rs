@@ -13655,9 +13655,10 @@ fn runtime_matrix_multiply_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_matrix_multiply_exit");
     let scratch = std::env::temp_dir().join(format!("omega-matrix-mul-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("matrix multiply canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("matrix multiply canary should run");
     assert_eq!(
@@ -13679,9 +13680,10 @@ fn runtime_ring_buffer_queue_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_ring_buffer_queue_exit");
     let scratch = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ring buffer queue canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("ring buffer queue canary should run");
     assert_eq!(
@@ -13701,9 +13703,10 @@ fn runtime_bubble_sort_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_bubble_sort_exit");
     let scratch = std::env::temp_dir().join(format!("omega-bubble-sort-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bubble sort canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bubble sort canary should run");
     assert_eq!(
@@ -13724,9 +13727,10 @@ fn runtime_2d_transpose_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_2d_transpose_exit");
     let scratch = std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("2d transpose canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("2d transpose canary should run");
     assert_eq!(
@@ -13748,9 +13752,10 @@ fn runtime_indexed_through_guard_chain_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_through_guard_chain_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed-through-guard-chain canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("indexed-through-guard-chain canary should run");
     assert_eq!(
@@ -13771,9 +13776,10 @@ fn runtime_binary_search_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_binary_search_exit");
     let scratch = std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("binary search canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("binary search canary should run");
     assert_eq!(
@@ -13797,9 +13803,10 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
         "omega-two-pointer-palindrome-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("two-pointer palindrome canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("two-pointer palindrome canary should run");
     assert_eq!(
@@ -13819,9 +13826,10 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_struct_array_field_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-array-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested struct-array field canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested struct-array field canary should run");
     assert_eq!(
@@ -13840,9 +13848,10 @@ fn runtime_enum_grid_scan_exit_canary_runs() {
     // grid[i] into self.c, then match. grid=[Wall,Door,Floor,Door,Wall] -> 2 Doors -> exit 70.
     let canary = pass_canary("collections/runtime_enum_grid_scan_exit");
     let scratch = std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("enum grid scan canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("enum grid scan canary should run");
     assert_eq!(
@@ -13862,9 +13871,10 @@ fn runtime_two_indexed_reads_binary_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_two_indexed_reads_binary_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-two-indexed-reads-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("two-indexed-reads binary canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("two-indexed-reads binary canary should run");
     assert_eq!(
@@ -46078,12 +46088,22 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_unsigned_high_comparison_exit",
     "constants/runtime_scoped_const_exit",
     "collections/runtime_activity_selection_greedy_exit",
+    "collections/runtime_2d_transpose_exit",
     "collections/runtime_bfs_traversal_exit",
+    "collections/runtime_binary_search_exit",
+    "collections/runtime_bubble_sort_exit",
     "collections/runtime_coin_change_dp_exit",
+    "collections/runtime_enum_grid_scan_exit",
     "collections/runtime_hash_table_exit",
+    "collections/runtime_indexed_through_guard_chain_exit",
+    "collections/runtime_matrix_multiply_exit",
     "collections/runtime_maze_pathfind_exit",
+    "collections/runtime_nested_struct_array_field_exit",
     "collections/runtime_nqueens_backtracking_exit",
+    "collections/runtime_ring_buffer_queue_exit",
     "collections/runtime_rpn_evaluator_exit",
+    "collections/runtime_two_indexed_reads_binary_exit",
+    "collections/runtime_two_pointer_palindrome_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46543,12 +46563,22 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_newton_sqrt_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "collections/runtime_activity_selection_greedy_exit",
+    "collections/runtime_2d_transpose_exit",
     "collections/runtime_bfs_traversal_exit",
+    "collections/runtime_binary_search_exit",
+    "collections/runtime_bubble_sort_exit",
     "collections/runtime_coin_change_dp_exit",
+    "collections/runtime_enum_grid_scan_exit",
     "collections/runtime_hash_table_exit",
+    "collections/runtime_indexed_through_guard_chain_exit",
+    "collections/runtime_matrix_multiply_exit",
     "collections/runtime_maze_pathfind_exit",
+    "collections/runtime_nested_struct_array_field_exit",
     "collections/runtime_nqueens_backtracking_exit",
+    "collections/runtime_ring_buffer_queue_exit",
     "collections/runtime_rpn_evaluator_exit",
+    "collections/runtime_two_indexed_reads_binary_exit",
+    "collections/runtime_two_pointer_palindrome_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
