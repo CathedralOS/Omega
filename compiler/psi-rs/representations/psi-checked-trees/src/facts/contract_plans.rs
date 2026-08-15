@@ -1007,9 +1007,10 @@ pub struct MachineContractPlan {
     /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
     /// not survive into the published carrier; sites do not enter identity.
     pub crash: CrashPlan,
-    /// Public omission and private derivation stay distinct. The ranking
-    /// witness remains outside this interface carrier.
-    pub termination: TerminationInterface,
+    /// Public omission, private derivation, and the implementation witness
+    /// remain distinct within one normalized termination plan. Only the
+    /// interface contributes to this contract's public fingerprint.
+    pub termination: psi_language_semantics::MachineTerminationPlan,
     /// Body-derived, state-relative write frames. These are implementation
     /// evidence, not authored contract material, and therefore never enter
     /// `fingerprint` or specialization identity.
@@ -1424,6 +1425,47 @@ mod tests {
         assert_ne!(neither, suspending);
         assert_ne!(neither, blocking);
         assert_ne!(suspending, blocking);
+    }
+
+    #[test]
+    fn termination_implementation_evidence_is_contract_invisible() {
+        let interface = TerminationInterface::Published(TerminationGuarantee::Terminates {
+            premises: Vec::new(),
+        });
+        let unresolved = psi_language_semantics::MachineTerminationPlan {
+            interface: interface.clone(),
+            checked_summary: TerminationGuarantee::NoGuarantee,
+            implementation_witness: None,
+        };
+        let established = psi_language_semantics::MachineTerminationPlan {
+            interface,
+            checked_summary: TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
+            implementation_witness: Some(psi_language_semantics::RankingWitness {
+                subjects: vec!["remaining".to_owned()],
+                ranking_view: psi_language_semantics::RankingViewId::NAT_DESCENDING,
+                view_path: "Nat::Descending".to_owned(),
+                view_arguments: Vec::new(),
+                rank_range: None,
+            }),
+        };
+        let fingerprint = |plan: &psi_language_semantics::MachineTerminationPlan| {
+            contract_fingerprint(
+                MachineSupplyMode::CheckedBody,
+                &[],
+                SynchronousInvocationInterface::InternalInferred,
+                &[],
+                SuspensionInterface::InternalInferred,
+                BlockingInterface::InternalInferred,
+                &CrashPlan::default(),
+                &plan.interface,
+                &[],
+            )
+        };
+
+        assert_ne!(unresolved, established);
+        assert_eq!(fingerprint(&unresolved), fingerprint(&established));
     }
 
     #[test]

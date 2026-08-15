@@ -212,7 +212,7 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         BlockingInterface::PublishedMayBlock(true)
     );
     assert_eq!(
-        contract.termination,
+        contract.termination.interface,
         TerminationInterface::Published(TerminationGuarantee::Terminates {
             premises: Vec::new(),
         })

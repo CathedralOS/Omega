@@ -1346,7 +1346,7 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
 /// witness; a proven witness establishes it WITH the resolved explicit
 /// view. The local summary remains separate from the authored public promise.
 #[test]
-fn termination_facts_record_checked_summaries_and_resolved_views() {
+fn checked_termination_plans_record_summaries_and_resolved_views() {
     use psi_language_semantics::TerminationGuarantee;
 
     let source = r#"
@@ -1376,48 +1376,54 @@ fn termination_facts_record_checked_summaries_and_resolved_views() {
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    let facts = crate::checks::termination::build_termination_facts(&typed);
-    let machine_symbol = |name: &str| {
+    let machine = |name: &str| {
         typed
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == name)
             .unwrap_or_else(|| panic!("machine {name}"))
-            .symbol
     };
 
-    let promise = facts
-        .for_machine(machine_symbol("Main::promise"))
-        .expect("acyclic claimant fact");
+    let promise = crate::checks::termination::build_checked_termination_plan(
+        &typed,
+        machine("Main::promise"),
+    );
     assert_eq!(
         promise.checked_summary,
         TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
-    assert!(promise.resolved_view_path.is_empty());
+    assert!(promise.implementation_witness.is_none());
 
-    let countdown = facts
-        .for_machine(machine_symbol("Main::countdown"))
-        .expect("proven witness fact");
+    let countdown = crate::checks::termination::build_checked_termination_plan(
+        &typed,
+        machine("Main::countdown"),
+    );
     assert_eq!(
         countdown.checked_summary,
         TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
-    assert_eq!(countdown.resolved_view_path, "Nat::Descending");
+    assert_eq!(
+        countdown
+            .implementation_witness
+            .as_ref()
+            .expect("proven witness")
+            .view_path,
+        "Nat::Descending"
+    );
 
-    let inferred = facts
-        .for_machine(machine_symbol("Main::main"))
-        .expect("unannotated acyclic body still gets a local summary");
+    let inferred =
+        crate::checks::termination::build_checked_termination_plan(&typed, machine("Main::main"));
     assert_eq!(
         inferred.checked_summary,
         TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
-    assert!(inferred.resolved_view_path.is_empty());
+    assert!(inferred.implementation_witness.is_none());
 }
 
 #[test]
@@ -1452,9 +1458,10 @@ fn inferred_completion_never_publishes_a_promise() {
     assert_eq!(
         checked
             .facts
-            .termination
+            .contract_plans
             .for_machine(inferred)
             .expect("inferred local summary")
+            .termination
             .checked_summary,
         TerminationGuarantee::Terminates {
             premises: Vec::new()
@@ -1466,7 +1473,8 @@ fn inferred_completion_never_publishes_a_promise() {
             .contract_plans
             .for_machine(inferred)
             .expect("inferred contract plan")
-            .termination,
+            .termination
+            .interface,
         psi_language_semantics::TerminationInterface::InternalDerived,
         "body inference must never redefine the published contract"
     );
@@ -1476,7 +1484,8 @@ fn inferred_completion_never_publishes_a_promise() {
             .contract_plans
             .for_machine(promised)
             .expect("promised contract plan")
-            .termination,
+            .termination
+            .interface,
         psi_language_semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
             premises: Vec::new()
         })

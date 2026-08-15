@@ -1758,7 +1758,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push_str(",\n        \"crashes\": ");
             push_crash_plan_json(&mut json, &contract.crash);
             json.push_str(",\n        \"termination\": ");
-            push_termination_interface_json(&mut json, &contract.termination);
+            push_termination_interface_json(&mut json, &contract.termination.interface);
             json.push_str("\n      }");
         } else {
             json.push_str("}");
@@ -1971,41 +1971,44 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push(']');
             has_implementation_field = true;
         }
-        if let Some(fact) = program.facts.termination.for_machine(machine.symbol) {
+        if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
             if has_implementation_field {
                 json.push(',');
             }
             json.push_str("\n        \"checked_termination\": ");
-            push_termination_json(&mut json, &fact.checked_summary);
+            push_termination_json(&mut json, &contract.termination.checked_summary);
             json.push_str(",\n        \"resolved_ranking_view\": ");
-            push_json_string(&mut json, &fact.resolved_view_path);
-            has_implementation_field = true;
-        }
-        if let Some(witness) = machine.termination_plan.implementation_witness.as_ref() {
-            if has_implementation_field {
-                json.push(',');
+            push_json_string(
+                &mut json,
+                contract
+                    .termination
+                    .implementation_witness
+                    .as_ref()
+                    .map_or("", |witness| witness.view_path.as_str()),
+            );
+            if let Some(witness) = contract.termination.implementation_witness.as_ref() {
+                json.push_str(",\n        \"ranking_witness\": {\n          \"subjects\": [");
+                push_json_strings(&mut json, &witness.subjects);
+                json.push_str("],\n          \"view\": ");
+                push_json_string(&mut json, &witness.view_path);
+                json.push_str(",\n          \"view_arguments\": [");
+                push_json_strings(&mut json, &witness.view_arguments);
+                json.push(']');
+                if let Some(range) = witness.rank_range.as_ref() {
+                    json.push_str(",\n          \"rank_range\": {\"floor\": ");
+                    push_json_string(&mut json, &range.floor);
+                    json.push_str(", \"ceiling\": ");
+                    push_json_string(&mut json, &range.ceiling);
+                    json.push_str(", \"ceiling_inclusive\": ");
+                    json.push_str(if range.ceiling_inclusive {
+                        "true"
+                    } else {
+                        "false"
+                    });
+                    json.push('}');
+                }
+                json.push_str("\n        }");
             }
-            json.push_str("\n        \"ranking_witness\": {\n          \"subjects\": [");
-            push_json_strings(&mut json, &witness.subjects);
-            json.push_str("],\n          \"view\": ");
-            push_json_string(&mut json, &witness.view_path);
-            json.push_str(",\n          \"view_arguments\": [");
-            push_json_strings(&mut json, &witness.view_arguments);
-            json.push(']');
-            if let Some(range) = witness.rank_range.as_ref() {
-                json.push_str(",\n          \"rank_range\": {\"floor\": ");
-                push_json_string(&mut json, &range.floor);
-                json.push_str(", \"ceiling\": ");
-                push_json_string(&mut json, &range.ceiling);
-                json.push_str(", \"ceiling_inclusive\": ");
-                json.push_str(if range.ceiling_inclusive {
-                    "true"
-                } else {
-                    "false"
-                });
-                json.push('}');
-            }
-            json.push_str("\n        }");
         }
         json.push_str("\n      }\n    }");
     }
@@ -3063,8 +3066,7 @@ mod tests {
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
-        MachineContractPlan, MachineTerminationFact, SuspensionCrossingCarryFact,
-        VacuousQualificationUse,
+        MachineContractPlan, SuspensionCrossingCarryFact, VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
@@ -3938,9 +3940,21 @@ mod tests {
                 },
                 closed_scalar_values: Default::default(),
                 crash,
-                termination: psi_language_semantics::TerminationInterface::Published(
-                    TerminationGuarantee::NoGuarantee,
-                ),
+                termination: MachineTerminationPlan {
+                    interface: psi_language_semantics::TerminationInterface::Published(
+                        TerminationGuarantee::NoGuarantee,
+                    ),
+                    checked_summary: TerminationGuarantee::Terminates {
+                        premises: Vec::new(),
+                    },
+                    implementation_witness: Some(RankingWitness {
+                        subjects: vec!["remaining".to_string()],
+                        ranking_view: RankingViewId::NAT_DESCENDING,
+                        view_path: "Nat::Descending".to_string(),
+                        view_arguments: Vec::new(),
+                        rank_range: None,
+                    }),
+                },
                 inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,
             });
@@ -3954,18 +3968,6 @@ mod tests {
                 )],
             ),
         );
-        program
-            .facts
-            .termination
-            .machines
-            .push(MachineTerminationFact {
-                machine: symbol,
-                checked_summary: TerminationGuarantee::Terminates {
-                    premises: Vec::new(),
-                },
-                resolved_view_path: "Nat::Descending".to_string(),
-            });
-
         let json = machine_contract_manifest_json(&program);
         let contract_start = json.find("\"contract\"").expect("contract object");
         let implementation_start = json

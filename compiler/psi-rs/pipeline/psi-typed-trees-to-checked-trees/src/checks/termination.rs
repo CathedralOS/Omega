@@ -103,27 +103,20 @@ pub(crate) fn check_machine_termination(
     }
 }
 
-/// TPR3 slice 4 (decision 23): build the checked termination facts -- the
-/// `checked_summary`'s producer. Derives from the SAME pure resolution and
-/// proof functions the check uses, so facts and diagnostics cannot
-/// disagree; an unproven claimant records `NoGuarantee` AND fails
-/// compilation, so a compiled artifact never carries an unestablished
-/// claim. Every ACYCLIC checked body derives eventual termination without a
-/// witness (the brief: "an acyclic checked body derives termination without
-/// source annotation"). This local summary never publishes a promise: the
-/// contract plan continues to read only `termination_plan.interface`.
-pub(crate) fn build_termination_facts(
+/// Complete one machine's normalized termination plan from the same pure
+/// resolution and proof functions used by the checker. The authored interface
+/// is preserved, while the checked summary and any pending canonical witness
+/// view are implementation-only evidence.
+pub(crate) fn build_checked_termination_plan(
     program: &psi_typed_trees::TypedTrees,
-) -> psi_checked_trees::TerminationFacts {
-    let mut machines = Vec::new();
-    for machine in program.machines() {
-        machines.push(psi_checked_trees::MachineTerminationFact {
-            machine: machine.symbol,
-            checked_summary: infer_machine_checked_summary(program, machine),
-            resolved_view_path: ranking::machine_resolved_view_path(program, machine),
-        });
+    machine: &psi_typed_trees::machine::Machine,
+) -> psi_language_semantics::MachineTerminationPlan {
+    let mut plan = machine.termination_plan.clone();
+    plan.checked_summary = infer_machine_checked_summary(program, machine);
+    if let Some(witness) = plan.implementation_witness.as_mut() {
+        witness.view_path = ranking::machine_resolved_view_path(program, machine);
     }
-    psi_checked_trees::TerminationFacts { machines }
+    plan
 }
 
 /// Derive the same body-local termination summary retained in checked facts.

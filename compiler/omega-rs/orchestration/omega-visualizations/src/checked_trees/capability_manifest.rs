@@ -255,9 +255,12 @@ mod tests {
                 },
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
-                termination: psi_language_semantics::TerminationInterface::Published(
-                    TerminationGuarantee::NoGuarantee,
-                ),
+                termination: psi_language_semantics::MachineTerminationPlan {
+                    interface: psi_language_semantics::TerminationInterface::Published(
+                        TerminationGuarantee::NoGuarantee,
+                    ),
+                    ..Default::default()
+                },
                 inferred_write_frames: Vec::<StateWriteFramePlan>::new(),
                 fingerprint: 0,
             });
