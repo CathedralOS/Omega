@@ -417,8 +417,11 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
     let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
         panic!("one typed evidence-package invocation expected")
     };
-    assert_eq!(typed_invocation.output_field.as_str(), "outgoing");
-    assert_eq!(typed_invocation.binding.as_str(), "local");
+    let [typed_binding] = typed_invocation.bindings.as_ref() else {
+        panic!("one typed evidence-package binding expected")
+    };
+    assert_eq!(typed_binding.output_field.as_str(), "outgoing");
+    assert_eq!(typed_binding.binding.as_str(), "local");
     let invocation = checked
         .facts
         .proof
@@ -427,14 +430,12 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
         .next()
         .map(|(_, invocation)| invocation)
         .expect("one checked evidence-package invocation expected");
-    assert_ne!(invocation.output, invocation.callee_output);
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one checked evidence-package output expected")
+    };
+    assert_ne!(output.output, output.callee_output);
     assert_eq!(
-        checked
-            .facts
-            .proof
-            .evidence_terms
-            .get(invocation.output)
-            .name,
+        checked.facts.proof.evidence_terms.get(output.output).name,
         "local"
     );
     let relay = checked
@@ -455,7 +456,198 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
     let psi_checked_trees::EvidenceAssignmentSource::Forwarded { term } = forwarding.source else {
         panic!("the caller-local package evidence must forward by exact term identity")
     };
-    assert_eq!(term, invocation.output);
+    assert_eq!(term, output.output);
+}
+
+#[test]
+fn immediate_generated_output_package_completely_binds_multiple_fresh_terms() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce()
+        ensures first: ready()
+        ensures second: ready()
+        {
+            first = ConcreteEvidence;
+            second = ConcreteEvidence;
+        }
+
+        machine relay()
+        ensures relayed_first: ready()
+        ensures relayed_second: ready()
+        {
+            let { second: local_second, first: local_first } = produce();
+            relayed_first = local_first;
+            relayed_second = local_second;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("a complete multi-field proof-only package should check");
+    let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
+        panic!("one typed evidence-package invocation expected")
+    };
+    assert_eq!(typed_invocation.bindings.len(), 2);
+    let invocation = checked
+        .facts
+        .proof
+        .evidence_package_invocations
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked evidence-package invocation expected");
+    let [first, second] = invocation.outputs.as_slice() else {
+        panic!("two checked evidence-package outputs expected")
+    };
+    assert_eq!((first.output_position, second.output_position), (0, 1));
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(first.output).name,
+        "local_first"
+    );
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(second.output).name,
+        "local_second"
+    );
+    assert_ne!(first.output, first.callee_output);
+    assert_ne!(second.output, second.callee_output);
+    assert_ne!(first.output, second.output);
+
+    let relay = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("relay machine");
+    assert!(checked.machine_states(relay)[0].statement_nodes.is_empty());
+}
+
+#[test]
+fn generated_output_package_rejects_an_incomplete_multi_field_pattern() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce()
+        ensures first: ready()
+        ensures second: ready()
+        { first = ConcreteEvidence; second = ConcreteEvidence; }
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { first: local } = produce();
+            relayed = local;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("every generated package field must be destructured");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must destructure all 2 fields; found 1 bindings")
+    }));
+}
+
+#[test]
+fn generated_output_package_rejects_duplicate_fields_and_local_names() {
+    let duplicate_field = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce()
+        ensures first: ready()
+        ensures second: ready()
+        { first = ConcreteEvidence; second = ConcreteEvidence; }
+        machine relay()
+        ensures one: ready()
+        ensures two: ready()
+        {
+            let { first: local_one, first: local_two } = produce();
+            one = local_one;
+            two = local_two;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate_field))
+        .expect_err("a generated package field cannot be repeated");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("field `first` is bound more than once")
+    }));
+
+    let duplicate_local = duplicate_field.replace(
+        "first: local_one, first: local_two",
+        "first: local_one, second: local_one",
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&duplicate_local))
+        .expect_err("caller-local evidence names must remain unique");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("term `local_one` is bound more than once")
+    }));
+}
+
+#[test]
+fn generated_output_package_enforces_exactly_one_use_for_each_field() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce()
+        ensures first: ready()
+        ensures second: ready()
+        { first = ConcreteEvidence; second = ConcreteEvidence; }
+        machine relay()
+        ensures relayed_first: ready()
+        ensures relayed_second: ready()
+        {
+            let { first: local_first, second: local_second } = produce();
+            relayed_first = local_first;
+            relayed_second = local_first;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("every fresh package field must be consumed exactly once");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("term `local_first` must be forwarded exactly once; found 2 uses")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("term `local_second` must be forwarded exactly once; found 0 uses")
+    }));
+}
+
+#[test]
+fn generated_output_package_keeps_explicit_discard_outside_this_rung() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce()
+        ensures first: ready()
+        ensures second: ready()
+        { first = ConcreteEvidence; second = ConcreteEvidence; }
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { first: local, second: _ } = produce();
+            relayed = local;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("explicit evidence discard remains a later package rung");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("generated evidence package output cannot be discarded")
+    }));
 }
 
 #[test]
@@ -481,11 +673,11 @@ fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("a generated package field cannot be forged");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("has field `outgoing`, not `invented`")
-    }));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("has no field `invented`") })
+    );
 }
 
 #[test]

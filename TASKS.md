@@ -513,16 +513,17 @@ Remaining N6/N8 work:
   accepted carrier is stated in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 
-  The first generated-output-package rung now supports immediate colon-form
-  destructuring of one unconditional proof-only field from a concrete
-  zero-input, zero-runtime checked machine. It creates one fresh caller-local
-  term, requires exactly one forwarding use, and crosses terminal Psi through
-  a dense verified invocation row with no runtime or fuel effect.
+  The immediate generated-output-package rung now destructures the complete
+  nonempty set of unconditional proof-only fields from a concrete zero-input,
+  zero-runtime checked machine. Source field order may vary; checked and
+  terminal Psi canonicalize by callee lane, mint one distinct fresh
+  caller-local term per field, require each term to be forwarded exactly once,
+  and retain one dense verified invocation group with no runtime or fuel effect.
 
-  Next, complete retained/projection, multi-field, runtime-`value`, guarded,
-  generic, and explicit-discard package forms. Keep proposition, evidence-term,
-  and provenance identities separate; neither provenance nor display spelling
-  is a term identity oracle.
+  Next, complete retained/projection, runtime-`value`, guarded, generic, and
+  explicit-discard package forms. Keep proposition, evidence-term, and
+  provenance identities separate; neither provenance nor display spelling is a
+  term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
   front half now parses `Name<Telescope>: [Subject] satisfies Trait { ... }`,
   retains lifetime/type/const/static-machine parameters through resolved and

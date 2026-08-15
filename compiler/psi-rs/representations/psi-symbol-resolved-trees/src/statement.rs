@@ -23,9 +23,14 @@ pub struct EvidencePackageDestructure {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
+    pub bindings: Box<[EvidencePackageBinding]>,
+    pub call: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidencePackageBinding {
     pub output_field: DiagnosticName,
     pub binding: DiagnosticName,
-    pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -381,8 +386,7 @@ impl StatementTable {
                         machine_symbol: package.machine_symbol,
                         state_symbol: package.state_symbol,
                         statement_index: package.statement_index,
-                        output_field: package.output_field.clone(),
-                        binding: package.binding.clone(),
+                        bindings: package.bindings.clone(),
                         call,
                     },
                 ))

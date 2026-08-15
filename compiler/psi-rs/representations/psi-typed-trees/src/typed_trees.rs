@@ -78,9 +78,14 @@ pub struct EvidencePackageInvocation {
     pub statement_index: usize,
     /// Pre-erasure coordinate used only to normalize other erased metadata.
     pub source_statement_index: usize,
+    pub bindings: Box<[EvidencePackageBinding]>,
+    pub call: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidencePackageBinding {
     pub output_field: crate::name::Identifier,
     pub binding: crate::name::Identifier,
-    pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

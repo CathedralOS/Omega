@@ -698,10 +698,18 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
             syntax.expressions.display_name(assignment.value)
         ),
         StatementNode::Call(call) => call_label(syntax, call),
-        StatementNode::EvidencePackageDestructure(binding) => format!(
-            "evidence package {}: {}",
-            binding.output_field.as_str(),
-            binding.binding.as_str()
+        StatementNode::EvidencePackageDestructure(package) => format!(
+            "evidence package {}",
+            package
+                .bindings
+                .iter()
+                .map(|binding| format!(
+                    "{}: {}",
+                    binding.output_field.as_str(),
+                    binding.binding.as_str()
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(value) => format!("local {}", value.name.as_str()),

@@ -252,28 +252,49 @@ fn validate_evidence_contract_lanes(
                 invocation.caller,
             ));
         }
-        let Some(callee_output) = terms.get(&invocation.callee_output) else {
-            return Err(ModuleError::UnknownEvidenceContractTerm(
-                invocation.callee_output,
-            ));
-        };
-        let Some(output) = terms.get(&invocation.output) else {
-            return Err(ModuleError::UnknownEvidenceContractTerm(invocation.output));
-        };
-        if invocation.callee_output == invocation.output
-            || callee_output.proposition != output.proposition
-            || callee_output.interface != output.interface
-            || invocation.target_machine_identity.is_empty()
-            || invocation.output_position != 0
-            || invocation.output_field.is_empty()
-            || invocation.output_field == "value"
-        {
+        if invocation.target_machine_identity.is_empty() || invocation.outputs.is_empty() {
             return Err(ModuleError::InvalidEvidencePackageInvocation {
                 caller: invocation.caller,
                 ordinal: invocation.ordinal,
             });
         }
-        used_terms.extend([invocation.callee_output, invocation.output]);
+        let mut fields = BTreeSet::new();
+        let mut callee_terms = BTreeSet::new();
+        let mut output_terms = BTreeSet::new();
+        for (expected_position, binding) in invocation.outputs.iter().enumerate() {
+            let Some(callee_output) = terms.get(&binding.callee_output) else {
+                return Err(ModuleError::UnknownEvidenceContractTerm(
+                    binding.callee_output,
+                ));
+            };
+            let Some(output) = terms.get(&binding.output) else {
+                return Err(ModuleError::UnknownEvidenceContractTerm(binding.output));
+            };
+            if binding.output_position
+                != u32::try_from(expected_position).map_err(|_| {
+                    ModuleError::InvalidEvidencePackageInvocation {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    }
+                })?
+                || binding.callee_output == binding.output
+                || callee_output.proposition != output.proposition
+                || callee_output.interface != output.interface
+                || binding.output_field.is_empty()
+                || binding.output_field == "value"
+                || !fields.insert(binding.output_field.as_str())
+                || !callee_terms.insert(binding.callee_output)
+                || !output_terms.insert(binding.output)
+                || callee_terms.contains(&binding.output)
+                || output_terms.contains(&binding.callee_output)
+            {
+                return Err(ModuleError::InvalidEvidencePackageInvocation {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                });
+            }
+            used_terms.extend([binding.callee_output, binding.output]);
+        }
     }
     if let Some(term) = terms
         .keys()

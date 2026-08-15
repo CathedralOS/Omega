@@ -453,8 +453,10 @@ fn count_statement_node(
             }
         }
         StatementNode::EvidencePackageDestructure(package) => {
-            count_declaration_name(&package.output_field, counts);
-            count_declaration_name(&package.binding, counts);
+            for binding in &package.bindings {
+                count_declaration_name(&binding.output_field, counts);
+                count_declaration_name(&binding.binding, counts);
+            }
             count_expression_handle(expressions, package.call, counts);
         }
         StatementNode::Expression(expression) => {

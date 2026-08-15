@@ -382,6 +382,12 @@ pub struct EvidencePackageInvocation {
     pub ordinal: u32,
     /// Canonical checked callable identity, never a diagnostic display path.
     pub target_machine_identity: String,
+    /// Complete canonical generated-package field set, ordered by callee lane.
+    pub outputs: Vec<EvidencePackageOutputBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidencePackageOutputBinding {
     pub output_position: u32,
     /// Exact public generated-package field selected from the callee lane.
     pub output_field: String,

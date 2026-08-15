@@ -55,8 +55,7 @@ pub struct EvidencePackageInvocationSnapshot {
     pub state_symbol: u32,
     pub statement_index: usize,
     pub source_statement_index: usize,
-    pub output_field: String,
-    pub binding: String,
+    pub bindings: Vec<(String, String)>,
     pub call: ExpressionSnapshot,
 }
 
@@ -151,8 +150,16 @@ impl TypedTreesSnapshot {
                     state_symbol: package.state_symbol.arena_index(),
                     statement_index: package.statement_index,
                     source_statement_index: package.source_statement_index,
-                    output_field: package.output_field.to_string(),
-                    binding: package.binding.to_string(),
+                    bindings: package
+                        .bindings
+                        .iter()
+                        .map(|binding| {
+                            (
+                                binding.output_field.to_string(),
+                                binding.binding.to_string(),
+                            )
+                        })
+                        .collect(),
                     call: expression_snapshot(program, package.call),
                 })
                 .collect(),

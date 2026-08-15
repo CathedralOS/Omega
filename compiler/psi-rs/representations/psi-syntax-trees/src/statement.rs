@@ -104,14 +104,19 @@ pub enum StatementNode {
     Transition(TableTransition),
 }
 
-/// Immediate binding of the sole erased field of a proof-only generated
+/// Immediate complete binding of the erased fields of a proof-only generated
 /// output package. This is deliberately distinct from record destructuring:
 /// the receiver is evaluated once and no runtime local or member read exists.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableEvidencePackageDestructure {
+    pub bindings: Box<[TableEvidencePackageBinding]>,
+    pub call: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableEvidencePackageBinding {
     pub output_field: Identifier,
     pub binding: Identifier,
-    pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

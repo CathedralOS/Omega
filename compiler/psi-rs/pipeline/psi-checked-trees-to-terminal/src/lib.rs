@@ -57,9 +57,9 @@ use psi_terminal::{
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
-    EvidencePackageInvocation, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidenceProjectionIdentity,
+    EvidenceRequirementIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
@@ -1684,26 +1684,26 @@ fn lower_evidence_term_ids(
             .and_modify(|previous| *previous = (*previous).min(lane_key))
             .or_insert(lane_key);
     }
-    for (ordinal, (_, invocation)) in checked
+    let mut package_identity_position = 0_usize;
+    for (_, invocation) in checked
         .facts
         .proof
         .evidence_package_invocations
         .iter()
         .filter(|(_, invocation)| invocation.caller_machine_symbol == selected_machine)
-        .enumerate()
     {
-        for (offset, handle) in [invocation.callee_output, invocation.output]
-            .into_iter()
-            .enumerate()
-        {
-            let index = usize::try_from(handle.arena_index() - 1)
-                .expect("arena indices fit the host address space");
-            let root = evidence_term_root(&mut parents, index);
-            let position = ordinal
-                .checked_mul(2)
-                .and_then(|position| position.checked_add(offset))
-                .expect("evidence package identity order fits usize");
-            roots.entry(root).or_insert((2_u8, position));
+        for output in &invocation.outputs {
+            for handle in [output.callee_output, output.output] {
+                let index = usize::try_from(handle.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                let root = evidence_term_root(&mut parents, index);
+                roots
+                    .entry(root)
+                    .or_insert((2_u8, package_identity_position));
+                package_identity_position = package_identity_position
+                    .checked_add(1)
+                    .expect("evidence package identity order fits usize");
+            }
         }
     }
     let mut roots = roots
@@ -1953,11 +1953,42 @@ fn lower_evidence_package_invocations(
         })
         .enumerate()
         .map(|(ordinal, invocation)| {
-            let callee_output = checked
-                .facts
-                .proof
-                .evidence_terms
-                .get(invocation.callee_output);
+            let outputs = invocation
+                .outputs
+                .iter()
+                .map(|output| {
+                    let callee_output =
+                        checked.facts.proof.evidence_terms.get(output.callee_output);
+                    Ok(EvidencePackageOutputBinding {
+                        output_position: u32::try_from(output.output_position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "terminal evidence package output position exceeds u32",
+                            )
+                        })?,
+                        output_field: callee_output.name.clone(),
+                        callee_output: term_ids
+                            .get(
+                                usize::try_from(output.callee_output.arena_index() - 1)
+                                    .expect("arena indices fit the host address space"),
+                            )
+                            .copied()
+                            .flatten()
+                            .ok_or(LoweringError::Unsupported(
+                                "terminal evidence package callee term has no canonical identity",
+                            ))?,
+                        output: term_ids
+                            .get(
+                                usize::try_from(output.output.arena_index() - 1)
+                                    .expect("arena indices fit the host address space"),
+                            )
+                            .copied()
+                            .flatten()
+                            .ok_or(LoweringError::Unsupported(
+                                "terminal evidence package output term has no canonical identity",
+                            ))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
             Ok(EvidencePackageInvocation {
                 caller: terminal_machine,
                 ordinal: u32::try_from(ordinal).map_err(|_| {
@@ -1969,32 +2000,7 @@ fn lower_evidence_package_invocations(
                     checked,
                     invocation.target_machine_symbol,
                 )?,
-                output_position: u32::try_from(invocation.output_position).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "terminal evidence package output position exceeds u32",
-                    )
-                })?,
-                output_field: callee_output.name.clone(),
-                callee_output: term_ids
-                    .get(
-                        usize::try_from(invocation.callee_output.arena_index() - 1)
-                            .expect("arena indices fit the host address space"),
-                    )
-                    .copied()
-                    .flatten()
-                    .ok_or(LoweringError::Unsupported(
-                        "terminal evidence package callee term has no canonical identity",
-                    ))?,
-                output: term_ids
-                    .get(
-                        usize::try_from(invocation.output.arena_index() - 1)
-                            .expect("arena indices fit the host address space"),
-                    )
-                    .copied()
-                    .flatten()
-                    .ok_or(LoweringError::Unsupported(
-                        "terminal evidence package output term has no canonical identity",
-                    ))?,
+                outputs,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

@@ -37,9 +37,9 @@ use psi_terminal::{
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidenceTermDeclaration, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
+    EvidenceTermDeclaration, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
@@ -125,10 +125,27 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             "structural types by StructuralTypeId",
         ));
     }
-    if !strictly_increasing(module.evidence_package_invocations.iter()) {
+    if !strictly_increasing(
+        module
+            .evidence_package_invocations
+            .iter()
+            .map(|invocation| (invocation.caller, invocation.ordinal)),
+    ) {
         return Err(CodecError::NonCanonicalOrder(
             "evidence package invocations by caller and ordinal",
         ));
+    }
+    for invocation in &module.evidence_package_invocations {
+        if invocation
+            .outputs
+            .iter()
+            .enumerate()
+            .any(|(position, output)| u32::try_from(position).ok() != Some(output.output_position))
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "evidence package outputs by position",
+            ));
+        }
     }
     for declaration in &module.structural_types {
         if let StructuralTypeShape::Record { fields } = &declaration.shape {
@@ -1428,10 +1445,13 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
             "evidence package target machine identity",
             &invocation.target_machine_identity,
         )?;
-        writer.u32(invocation.output_position);
-        writer.string("evidence package output field", &invocation.output_field)?;
-        writer.id(invocation.callee_output);
-        writer.id(invocation.output);
+        writer.len("evidence package outputs", invocation.outputs.len())?;
+        for output in &invocation.outputs {
+            writer.u32(output.output_position);
+            writer.string("evidence package output field", &output.output_field)?;
+            writer.id(output.callee_output);
+            writer.id(output.output);
+        }
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -3066,10 +3086,14 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
             caller: reader.id("MachineId")?,
             ordinal: reader.u32()?,
             target_machine_identity: reader.string("evidence package target machine identity")?,
-            output_position: reader.u32()?,
-            output_field: reader.string("evidence package output field")?,
-            callee_output: reader.id("EvidenceTermId")?,
-            output: reader.id("EvidenceTermId")?,
+            outputs: decode_counted(reader, |reader| {
+                Ok(EvidencePackageOutputBinding {
+                    output_position: reader.u32()?,
+                    output_field: reader.string("evidence package output field")?,
+                    callee_output: reader.id("EvidenceTermId")?,
+                    output: reader.id("EvidenceTermId")?,
+                })
+            })?,
         })
     })?;
     let machine_count = reader.count()?;

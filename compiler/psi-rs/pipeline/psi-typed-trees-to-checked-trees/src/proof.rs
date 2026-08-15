@@ -123,11 +123,13 @@ pub(crate) fn bind_evidence_forwarding_facts(
             proof
                 .evidence_package_invocations
                 .iter()
-                .filter_map(|(_, invocation)| {
+                .flat_map(|(_, invocation)| {
                     (invocation.caller_machine_symbol == forwarding.machine_symbol
                         && invocation.caller_state_symbol == forwarding.state_symbol
                         && invocation.source_statement_index < forwarding.source_statement_index)
-                        .then_some(invocation.output)
+                        .then_some(invocation.outputs.iter().map(|output| output.output))
+                        .into_iter()
+                        .flatten()
                 })
                 .find(|term| proof.evidence_terms.get(*term).name == forwarding.source.as_str())
         });
@@ -182,21 +184,23 @@ pub(crate) fn bind_evidence_forwarding_facts(
     }
 
     for (_, invocation) in proof.evidence_package_invocations.iter() {
-        let uses = forwardings
-            .iter()
-            .filter(|(_, forwarding)| {
-                matches!(
-                    forwarding.source,
-                    psi_checked_trees::EvidenceAssignmentSource::Forwarded { term }
-                        if term == invocation.output
-                )
-            })
-            .count();
-        if uses != 1 {
-            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package term `{}` must be forwarded exactly once; found {uses} uses",
-                proof.evidence_terms.get(invocation.output).name
-            )));
+        for output in &invocation.outputs {
+            let uses = forwardings
+                .iter()
+                .filter(|(_, forwarding)| {
+                    matches!(
+                        forwarding.source,
+                        psi_checked_trees::EvidenceAssignmentSource::Forwarded { term }
+                            if term == output.output
+                    )
+                })
+                .count();
+            if uses != 1 {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "generated evidence package term `{}` must be forwarded exactly once; found {uses} uses",
+                    proof.evidence_terms.get(output.output).name
+                )));
+            }
         }
     }
 
@@ -276,7 +280,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                             }))
             })
             .count();
-        let outputs = proof
+        let mut callee_outputs = proof
             .evidence_terms
             .iter()
             .filter_map(|(handle, term)| {
@@ -288,13 +292,14 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 .then_some(handle)
             })
             .collect::<Vec<_>>();
-        let [callee_output] = outputs.as_slice() else {
+        callee_outputs.sort_by_key(|handle| proof.evidence_terms.get(*handle).lane_position);
+        if callee_outputs.is_empty() {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package call `{}` requires exactly one unconditional named ensures output",
+                "generated evidence package call `{}` requires at least one unconditional named ensures output",
                 call.target
             )));
             continue;
-        };
+        }
         if requires != 0 {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "generated evidence package call `{}` cannot require input evidence",
@@ -302,59 +307,127 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             )));
             continue;
         }
-        let declaration = proof.evidence_terms.get(*callee_output).clone();
-        if declaration.name != package.output_field.as_str() {
+
+        if package.bindings.len() != callee_outputs.len() {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package from `{}` has field `{}`, not `{}`",
-                call.target, declaration.name, package.output_field
-            )));
-            continue;
-        }
-        if package.binding.as_str() == "_" {
-            diagnostics.push(psi_diagnostics::Diagnostic::error(
-                "generated evidence package output cannot be discarded",
-            ));
-            continue;
-        }
-        let duplicate = proof.evidence_terms.iter().any(|(_, term)| {
-            term.name == package.binding.as_str()
-                && (term.owner
-                    == (ContractProofFactOwner::Machine {
-                        machine_symbol: package.machine_symbol,
-                    })
-                    || term.owner
-                        == (ContractProofFactOwner::MachineState {
-                            machine_symbol: package.machine_symbol,
-                            state_symbol: package.state_symbol,
-                        }))
-        }) || invocations.iter().any(
-            |(_, invocation): (_, &psi_checked_trees::EvidencePackageInvocationFact)| {
-                let term = proof.evidence_terms.get(invocation.output);
-                invocation.caller_machine_symbol == package.machine_symbol
-                    && invocation.caller_state_symbol == package.state_symbol
-                    && term.name == package.binding.as_str()
-            },
-        );
-        if duplicate {
-            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "evidence term `{}` is already bound in this machine state",
-                package.binding
+                "generated evidence package from `{}` must destructure all {} fields; found {} bindings",
+                call.target,
+                callee_outputs.len(),
+                package.bindings.len()
             )));
             continue;
         }
 
-        let output = proof.evidence_terms.append(CheckedEvidenceTerm {
-            name: package.binding.as_str().to_owned(),
-            owner: ContractProofFactOwner::MachineState {
-                machine_symbol: package.machine_symbol,
-                state_symbol: package.state_symbol,
-            },
-            kind: ContractProofFactKind::Ensures,
-            lane_position: declaration.lane_position,
-            proposition: declaration.proposition,
-            evidence_type: declaration.evidence_type,
-            evidence_interface: declaration.evidence_interface,
-        });
+        let mut fields = std::collections::BTreeMap::new();
+        let mut local_names = std::collections::BTreeSet::new();
+        let mut invalid = false;
+        for binding in &package.bindings {
+            if binding.binding.as_str() == "_" {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "generated evidence package output cannot be discarded",
+                ));
+                invalid = true;
+                continue;
+            }
+            if fields
+                .insert(binding.output_field.as_str(), binding)
+                .is_some()
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "generated evidence package field `{}` is bound more than once",
+                    binding.output_field
+                )));
+                invalid = true;
+            }
+            if !local_names.insert(binding.binding.as_str()) {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "evidence term `{}` is bound more than once in this package pattern",
+                    binding.binding
+                )));
+                invalid = true;
+            }
+        }
+        for callee_output in &callee_outputs {
+            let declaration = proof.evidence_terms.get(*callee_output);
+            if !fields.contains_key(declaration.name.as_str()) {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "generated evidence package from `{}` is missing field `{}`",
+                    call.target, declaration.name
+                )));
+                invalid = true;
+            }
+        }
+        for field in fields.keys() {
+            if !callee_outputs
+                .iter()
+                .any(|output| proof.evidence_terms.get(*output).name == *field)
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "generated evidence package from `{}` has no field `{field}`",
+                    call.target
+                )));
+                invalid = true;
+            }
+        }
+        for binding in &package.bindings {
+            let duplicate = proof.evidence_terms.iter().any(|(_, term)| {
+                term.name == binding.binding.as_str()
+                    && (term.owner
+                        == (ContractProofFactOwner::Machine {
+                            machine_symbol: package.machine_symbol,
+                        })
+                        || term.owner
+                            == (ContractProofFactOwner::MachineState {
+                                machine_symbol: package.machine_symbol,
+                                state_symbol: package.state_symbol,
+                            }))
+            }) || invocations.iter().any(
+                |(_, invocation): (_, &psi_checked_trees::EvidencePackageInvocationFact)| {
+                    invocation.caller_machine_symbol == package.machine_symbol
+                        && invocation.caller_state_symbol == package.state_symbol
+                        && invocation.outputs.iter().any(|output| {
+                            proof.evidence_terms.get(output.output).name == binding.binding.as_str()
+                        })
+                },
+            );
+            if duplicate {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "evidence term `{}` is already bound in this machine state",
+                    binding.binding
+                )));
+                invalid = true;
+            }
+        }
+        if invalid {
+            continue;
+        }
+
+        let outputs = callee_outputs
+            .into_iter()
+            .map(|callee_output| {
+                let declaration = proof.evidence_terms.get(callee_output).clone();
+                let binding = fields
+                    .get(declaration.name.as_str())
+                    .expect("complete package fields were validated");
+                let output = proof.evidence_terms.append(CheckedEvidenceTerm {
+                    name: binding.binding.as_str().to_owned(),
+                    owner: ContractProofFactOwner::MachineState {
+                        machine_symbol: package.machine_symbol,
+                        state_symbol: package.state_symbol,
+                    },
+                    kind: ContractProofFactKind::Ensures,
+                    lane_position: declaration.lane_position,
+                    proposition: declaration.proposition,
+                    evidence_type: declaration.evidence_type,
+                    evidence_interface: declaration.evidence_interface,
+                });
+                psi_checked_trees::EvidencePackageOutputFact {
+                    output_position: declaration.lane_position,
+                    callee_output,
+                    output,
+                }
+            })
+            .collect();
         invocations.append(psi_checked_trees::EvidencePackageInvocationFact {
             caller_machine_symbol: package.machine_symbol,
             caller_state_symbol: package.state_symbol,
@@ -362,9 +435,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             source_statement_index: package.source_statement_index,
             target_machine_symbol: target_machine.symbol,
             target_state_symbol: target_state.symbol,
-            output_position: declaration.lane_position,
-            callee_output: *callee_output,
-            output,
+            outputs,
         });
     }
 

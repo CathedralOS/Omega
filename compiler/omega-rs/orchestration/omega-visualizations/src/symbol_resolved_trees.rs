@@ -909,9 +909,17 @@ fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> Stri
             symbol_label(call.target_symbol)
         ),
         Statement::EvidencePackageDestructure(package) => format!(
-            "evidence package {}: {}",
-            package.output_field.as_str(),
-            package.binding.as_str()
+            "evidence package {}",
+            package
+                .bindings
+                .iter()
+                .map(|binding| format!(
+                    "{}: {}",
+                    binding.output_field.as_str(),
+                    binding.binding.as_str()
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         Statement::Expression(_) => "expression".to_owned(),
         Statement::LocalData(local) => format!(
