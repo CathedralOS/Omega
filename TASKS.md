@@ -523,8 +523,9 @@ Remaining N6/N8 work:
   links the grouped proof row to that exact canonical terminal call operation;
   proof metadata adds no runtime work or fuel beyond the ordinary call.
 
-  Next, complete retained/projection, guarded, and generic package forms.
-  Explicit-discard packages are design-blocked on `OWNER_QUESTIONS.md` Q13.
+  Retained/projection and guarded complete-package forms are design-blocked on
+  `OWNER_QUESTIONS.md` Q14. Generic package application is design-blocked on
+  Q12. Explicit-discard packages are design-blocked on Q13.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
@@ -668,6 +669,7 @@ specifications:
 - **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q9.
 - **GENERIC-CONFORMANCE-APPLICATION:** owner Q12.
 - **EVIDENCE-PACKAGE-DISCARD:** owner Q13.
+- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q14.
 
 ## Platform-gated verification
 

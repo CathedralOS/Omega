@@ -160,9 +160,10 @@ type and the exact canonical ordinary `Call` operation ID and callee. The
 verifier requires that operation to occur in the declared caller, produce the
 declared scalar type, and call the linked callee; a missing, spurious, unknown,
 wrong-kind, wrong-caller, or mismatched-callee link rejects. The proof row adds
-no operation or fuel beyond that ordinary call. Retained, guarded, generic, and
-general projection forms remain separate work. Explicit discard is
-design-blocked on `OWNER_QUESTIONS.md` Q13.
+no operation or fuel beyond that ordinary call. Retained/general projection and
+guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q14.
+Generic package application is blocked on Q12, and explicit discard is blocked
+on Q13.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
