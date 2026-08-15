@@ -11156,15 +11156,18 @@ fn shared_integer_runtime_parameters_with_shells(
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type: ScalarType::Integer(_),
             left,
             right,
-            ..
         } if proof_shell_allowed => {
-            let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
-            parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right, 0, false,
-            )?);
-            Some(parameters)
+            let collect_direct = || {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                Some(parameters)
+            };
+            collect_direct().or_else(|| shared_exact_multiply_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactShiftRight,
@@ -11362,6 +11365,66 @@ fn shared_exact_subtract_chain_runtime_parameters(
             }
             _ => return None,
         }
+    }
+}
+
+fn shared_exact_multiply_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_multiply = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+            || !nonnegative_exact_multiply_landed_literal(*integer_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*integer_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => {
+                saw_nested_multiply = true;
+                expression = nested;
+            }
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if saw_nested_multiply && *root_type == *integer_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn nonnegative_exact_multiply_landed_literal(
+    integer_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> bool {
+    let LoweredDirectExpression::IntegerLiteral { value, scalar_type } = expression else {
+        return false;
+    };
+    if *scalar_type != ScalarType::Integer(integer_type) {
+        return false;
+    }
+    match (integer_type.sign(), value) {
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(_)) => true,
+        (IntegerSign::Signed, IntegerValue::Signed(value)) => *value >= 0,
+        _ => false,
     }
 }
 

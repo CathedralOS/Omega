@@ -1491,6 +1491,12 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_multiply_literal_chain(value: u32) -> bool
+requires value <= 2147483647u32, value <= 715827882u32
+{
+    (((value * 2u32) * 3u32) * 1u32) < 4294967295u32
+}
+
 machine terminal_exact_multiply_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
