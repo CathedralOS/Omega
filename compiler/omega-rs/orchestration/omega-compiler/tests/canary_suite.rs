@@ -17264,6 +17264,16 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&scratch);
+            if canary_name == "host/runtime_console_line_fixed_array_exit" {
+                compile_rooted_canary_for_target(&canary, scratch.join("out"), target)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "runtime line replay {canary_name} must compile for {target}: {error:?}"
+                        )
+                    });
+                let _ = fs::remove_dir_all(&scratch);
+                continue;
+            }
             let src_dir = scratch.join("src");
             fs::create_dir_all(&src_dir).expect("runtime line replay scratch source");
             fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
