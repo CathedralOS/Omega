@@ -11236,14 +11236,12 @@ fn shared_roundtrip_exact_cast_runtime_parameters(
     target_type: ScalarType,
     operand: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    let LoweredDirectExpression::IntegerWiden { operand, .. } = operand else {
-        return None;
-    };
-    let operand = match operand.as_ref() {
-        LoweredDirectExpression::Parameter { .. } => operand.as_ref(),
-        LoweredDirectExpression::IntegerWiden { operand, .. } => operand.as_ref(),
-        _ => return None,
-    };
+    let mut operand = operand;
+    let mut saw_widen = false;
+    while let LoweredDirectExpression::IntegerWiden { operand: inner, .. } = operand {
+        saw_widen = true;
+        operand = inner;
+    }
     let LoweredDirectExpression::Parameter {
         position,
         scalar_type,
@@ -11251,7 +11249,7 @@ fn shared_roundtrip_exact_cast_runtime_parameters(
     else {
         return None;
     };
-    (*scalar_type == target_type)
+    (saw_widen && *scalar_type == target_type)
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 

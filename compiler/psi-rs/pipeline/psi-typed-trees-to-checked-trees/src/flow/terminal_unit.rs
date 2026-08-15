@@ -1410,8 +1410,9 @@ enum SharedBooleanRuntimeInput {
 /// independently proved exact leaf. One exact-add result may additionally feed
 /// one same-type exact add when the inner operation has a landed constant
 /// addend and otherwise direct operands, and the other outer operand is a
-/// landed constant. A direct fixed-integer parameter may also widen through
-/// one or two carriers before an exact narrowing back to its original carrier.
+/// landed constant. A direct fixed-integer parameter may also pass through a
+/// finite chain of valid widenings before an exact narrowing back to its
+/// original carrier.
 /// Constants and Boolean equality against a constant add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
@@ -1692,14 +1693,12 @@ fn shared_roundtrip_exact_cast_runtime_inputs(
     operand: &CheckedScalarExpression,
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    let CheckedScalarExpression::IntegerWiden { operand, .. } = operand else {
-        return None;
-    };
-    let operand = match operand.as_ref() {
-        CheckedScalarExpression::Parameter { .. } => operand.as_ref(),
-        CheckedScalarExpression::IntegerWiden { operand, .. } => operand.as_ref(),
-        _ => return None,
-    };
+    let mut operand = operand;
+    let mut saw_widen = false;
+    while let CheckedScalarExpression::IntegerWiden { operand: inner, .. } = operand {
+        saw_widen = true;
+        operand = inner;
+    }
     let CheckedScalarExpression::Parameter {
         position,
         primitive_type,
@@ -1707,7 +1706,7 @@ fn shared_roundtrip_exact_cast_runtime_inputs(
     else {
         return None;
     };
-    (*primitive_type == target_type && *position < scalar_parameter_count)
+    (saw_widen && *primitive_type == target_type && *position < scalar_parameter_count)
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
