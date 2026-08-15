@@ -9440,10 +9440,11 @@ fn runtime_machine_frame_index_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_write_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mfi-write-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine frame-index write canary should run");
 
@@ -9467,10 +9468,11 @@ fn runtime_machine_frame_index_dual_frame_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_dual_frame_write_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mfi-dual-write-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index dual-frame write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine frame-index dual-frame write canary should run");
 
@@ -9495,10 +9497,11 @@ fn runtime_machine_frame_index_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_rmw_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mfi-rmw-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index rmw canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine frame-index rmw canary should run");
 
@@ -9523,10 +9526,11 @@ fn runtime_machine_frame_index_arg_operand_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-mfi-arg-operand-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index arg/operand canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine frame-index arg/operand canary should run");
 
@@ -9552,10 +9556,11 @@ fn runtime_nested_const_row_indexed_read_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested const-row indexed read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested const-row indexed read canary should run");
 
@@ -9581,10 +9586,11 @@ fn runtime_nested_const_row_struct_field_write_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested const-row struct-field write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested const-row struct-field write canary should run");
 
@@ -9609,10 +9615,11 @@ fn runtime_nested_middle_index_3d_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-middle-3d-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested runtime-middle 3D canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested runtime-middle 3D canary should run");
 
@@ -9637,10 +9644,11 @@ fn runtime_let_bound_computed_index_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-let-computed-index-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("let-bound computed index canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("let-bound computed index canary should run");
 
@@ -9665,10 +9673,11 @@ fn runtime_struct_field_operand_matrix_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-sf-operand-matrix-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-field operand matrix canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("struct-field operand matrix canary should run");
 
@@ -9692,10 +9701,11 @@ fn runtime_struct_field_operand_param_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-sf-operand-param-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-field operand param canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("struct-field operand param canary should run");
 
@@ -46044,6 +46054,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_frame_indexed_local_read_exit",
     "collections/runtime_frame_indexed_byte_param_read_exit",
     "collections/runtime_machine_frame_index_read_exit",
+    "collections/runtime_machine_frame_index_write_exit",
+    "collections/runtime_machine_frame_index_dual_frame_write_exit",
+    "collections/runtime_machine_frame_index_rmw_exit",
+    "calls/runtime_machine_frame_index_arg_operand_exit",
+    "collections/runtime_nested_const_row_indexed_read_exit",
+    "collections/runtime_nested_const_row_struct_field_write_exit",
+    "collections/runtime_nested_middle_index_3d_exit",
+    "collections/runtime_let_bound_computed_index_exit",
+    "collections/runtime_struct_field_operand_matrix_exit",
+    "collections/runtime_struct_field_operand_param_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
@@ -46631,6 +46651,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_frame_indexed_local_read_exit",
     "collections/runtime_frame_indexed_byte_param_read_exit",
     "collections/runtime_machine_frame_index_read_exit",
+    "collections/runtime_machine_frame_index_write_exit",
+    "collections/runtime_machine_frame_index_dual_frame_write_exit",
+    "collections/runtime_machine_frame_index_rmw_exit",
+    "calls/runtime_machine_frame_index_arg_operand_exit",
+    "collections/runtime_nested_const_row_indexed_read_exit",
+    "collections/runtime_nested_const_row_struct_field_write_exit",
+    "collections/runtime_nested_middle_index_3d_exit",
+    "collections/runtime_let_bound_computed_index_exit",
+    "collections/runtime_struct_field_operand_matrix_exit",
+    "collections/runtime_struct_field_operand_param_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
