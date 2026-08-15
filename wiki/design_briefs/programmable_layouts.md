@@ -212,8 +212,10 @@ consumers narrow those requests without reauthoring geometry and return the
 original authority-bearing request unchanged when specialization rejects. Its
 normalized `PlacementPlan` owns the complete layout/access pairing and one
 normalized boundary reach, which admission checks once and lowering retains.
-The Rust bootstrap consumes an
-internal exact-loan carrier; source instead admits ordinary `&`/`&mut`
+Before content establishment, a borrowed admission may be withdrawn to recover
+the exact original loan without claiming vacancy or destruction. The Rust
+bootstrap consumes an internal exact-loan carrier; source instead admits
+ordinary `&`/`&mut`
 projections of `Extent in Granted`, with range, lifetime, and polarity supplied
 by the borrow checker. Current view-borrow and retained source-borrow polarity
 are checked independently.
