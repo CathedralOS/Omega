@@ -4969,13 +4969,8 @@ fn linear_obligation_survives_dispatched_call_continuation() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("linear call-continuation canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("linear call-continuation canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45363,6 +45358,7 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "ownership/linear_live_across_call_continuation",
     "calls/runtime_reference_returned_slice_element_through_param_exit",
     "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
