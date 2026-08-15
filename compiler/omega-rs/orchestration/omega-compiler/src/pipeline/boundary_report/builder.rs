@@ -24,8 +24,7 @@ pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checke
             continue;
         }
 
-        let provider = registry.provider(trait_definition.symbol);
-        let approved_provider = provider.map(|provider| provider.approved).unwrap_or(true);
+        let approved_provider = boundary_provider_is_approved(&registry, trait_definition.symbol);
 
         report
             .capability_blast_radius
@@ -60,6 +59,13 @@ pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checke
                 flows: capability_flow_rows(checked, trait_definition.symbol),
             });
     }
+}
+
+fn boundary_provider_is_approved(
+    registry: &omega_effects::BoundaryProviderApprovalRegistry,
+    trait_symbol: SymbolHandle,
+) -> bool {
+    registry.authorize_boundary_call(trait_symbol).is_approved()
 }
 
 fn capability_verb_count(
@@ -350,9 +356,29 @@ fn identifier_path_name(syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> S
 
 #[cfg(test)]
 mod tests {
-    use super::build_boundary_report;
+    use super::{boundary_provider_is_approved, build_boundary_report};
+    use omega_effects::{BoundaryProviderApproval, BoundaryProviderApprovalRegistry};
     use psi_source_files_to_tokens::Lexer;
+    use psi_symbols::SymbolHandle;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn blast_radius_approval_uses_exact_registry_authorization_and_fails_closed() {
+        let approved = SymbolHandle::from_arena_index(1);
+        let unapproved = SymbolHandle::from_arena_index(2);
+        let absent = SymbolHandle::from_arena_index(3);
+        let registry = BoundaryProviderApprovalRegistry::with_providers(vec![
+            BoundaryProviderApproval::new(approved, true),
+            BoundaryProviderApproval::new(unapproved, false),
+        ]);
+
+        assert!(boundary_provider_is_approved(&registry, approved));
+        assert!(!boundary_provider_is_approved(&registry, unapproved));
+        assert!(
+            !boundary_provider_is_approved(&registry, absent),
+            "an unrelated approved symbol must not authorize an absent exact capability"
+        );
+    }
 
     #[test]
     fn boundary_report_collects_targets_contracts_and_operators() {
