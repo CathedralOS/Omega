@@ -93,13 +93,13 @@ fn capability_flow_rows(
         .flows()
         .filter(|flow| flow.capability_symbol == capability_symbol)
         .map(|flow| CapabilityBlastRadiusFlow {
-            state: state_path(checked, flow.state_symbol),
+            state: state_path_for_machine(checked, flow.machine_symbol, flow.state_symbol),
             machine_overload_identity: machine_overload_identity(checked, flow.machine_symbol),
             authority_flow: flow.kind.as_str().to_owned(),
             statement_index: flow.statement_index,
             call_ordinal: flow.call_ordinal,
             via: flow.is_propagated().then(|| CapabilityBlastRadiusRoute {
-                state: state_path(checked, flow.via_state_symbol),
+                state: propagated_state_path(checked, flow.via_state_symbol),
                 machine_overload_identity: state_owner_overload_identity(
                     checked,
                     flow.via_state_symbol,
@@ -138,24 +138,47 @@ fn state_owner_overload_identity(checked: &CheckedTrees, state_symbol: SymbolHan
         .identity()
 }
 
-/// Renders the `Machine::state` path that owns `state_symbol`. Machine names
-/// already spell the attached-data path (`Vault::expose`), so the state segment
-/// is appended only when the machine name does not already end with it.
-fn state_path(checked: &CheckedTrees, state_symbol: SymbolHandle) -> String {
-    for machine in checked.machines() {
-        for state in checked.machine_states(machine) {
-            if state.symbol != state_symbol {
-                continue;
-            }
-            let machine_name = machine.name.as_str();
-            let state_name = state.name.as_str();
-            if machine_name == state_name || machine_name.ends_with(&format!("::{state_name}")) {
-                return machine_name.to_owned();
-            }
-            return format!("{machine_name}::{state_name}");
-        }
+/// Renders the exact `Machine::state` pair retained on a primary flow row.
+fn state_path_for_machine(
+    checked: &CheckedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> String {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .expect("checked capability flow must name an owning machine");
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+        .expect("checked capability flow state must belong to its exact owning machine");
+    format_state_path(machine.name.as_str(), state.name.as_str())
+}
+
+/// A propagated row carries only the helper state coordinate; resolve its
+/// owner from checked topology and reject rather than rendering a placeholder.
+fn propagated_state_path(checked: &CheckedTrees, state_symbol: SymbolHandle) -> String {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == state_symbol)
+        })
+        .expect("checked propagated capability flow must name a helper state");
+    state_path_for_machine(checked, machine.symbol, state_symbol)
+}
+
+fn format_state_path(machine_name: &str, state_name: &str) -> String {
+    if machine_name == state_name || machine_name.ends_with(&format!("::{state_name}")) {
+        machine_name.to_owned()
+    } else {
+        format!("{machine_name}::{state_name}")
     }
-    "unknown".to_owned()
 }
 
 pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
@@ -356,11 +379,77 @@ fn identifier_path_name(syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> S
 
 #[cfg(test)]
 mod tests {
-    use super::{boundary_provider_is_approved, build_boundary_report};
+    use super::{
+        boundary_provider_is_approved, build_boundary_report, propagated_state_path,
+        state_path_for_machine,
+    };
     use omega_effects::{BoundaryProviderApproval, BoundaryProviderApprovalRegistry};
+    use psi_checked_trees::CheckedTrees;
     use psi_source_files_to_tokens::Lexer;
     use psi_symbols::SymbolHandle;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_typed_trees::machine::Machine;
+    use psi_typed_trees::name::Identifier as TypedIdentifier;
+    use psi_typed_trees::state::State;
+
+    fn checked_state_fixture() -> (CheckedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
+        let owner = SymbolHandle::from_arena_index(1);
+        let state = SymbolHandle::from_arena_index(2);
+        let other = SymbolHandle::from_arena_index(3);
+        let other_state = SymbolHandle::from_arena_index(4);
+        let mut checked = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: owner,
+            name: TypedIdentifier::generated("Vault::expose"),
+            ..Default::default()
+        };
+        checked.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state,
+                name: TypedIdentifier::generated("expose"),
+                ..Default::default()
+            },
+        );
+        checked.typed.push_machine(machine);
+        let mut other_machine = Machine {
+            symbol: other,
+            name: TypedIdentifier::generated("Other::run"),
+            ..Default::default()
+        };
+        checked.typed.push_machine_state(
+            &mut other_machine,
+            State {
+                symbol: other_state,
+                name: TypedIdentifier::generated("run"),
+                ..Default::default()
+            },
+        );
+        checked.typed.push_machine(other_machine);
+        (checked, owner, state, other)
+    }
+
+    #[test]
+    fn capability_flow_state_path_retains_exact_owned_pair() {
+        let (checked, owner, state, _) = checked_state_fixture();
+        assert_eq!(
+            state_path_for_machine(&checked, owner, state),
+            "Vault::expose"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "state must belong to its exact owning machine")]
+    fn capability_flow_state_path_rejects_cross_machine_pair() {
+        let (checked, _, state, other) = checked_state_fixture();
+        state_path_for_machine(&checked, other, state);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name a helper state")]
+    fn propagated_capability_flow_rejects_missing_state() {
+        propagated_state_path(&CheckedTrees::default(), SymbolHandle::from_arena_index(1));
+    }
 
     #[test]
     fn blast_radius_approval_uses_exact_registry_authorization_and_fails_closed() {
