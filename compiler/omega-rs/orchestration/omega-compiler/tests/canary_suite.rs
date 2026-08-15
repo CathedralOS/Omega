@@ -18195,13 +18195,8 @@ fn struct_literal_field_coercion_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-struct-lit-coerce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("struct-literal coercion canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("struct-literal coercion canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("struct-literal coercion canary should run");
@@ -45562,6 +45557,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "float/anonymous_exact_rat_const_exit",
     "float/finite_core_domain_range_discharge",
     "float/runtime_std_is_finite_exit",
+    "arithmetic/struct_literal_field_coercion",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
