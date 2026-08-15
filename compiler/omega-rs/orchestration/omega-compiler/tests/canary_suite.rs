@@ -45213,6 +45213,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shl_saturating_exit",
     "arithmetic/runtime_shift_right_atwidth_exit",
     "arithmetic/runtime_sat_min_idiom_exit",
+    "text/runtime_alias_string_write",
     "text/runtime_chained_string_append_exit",
     "text/runtime_string_append_in_place_exit",
     "text/runtime_local_struct_string_field_concat_exit",
