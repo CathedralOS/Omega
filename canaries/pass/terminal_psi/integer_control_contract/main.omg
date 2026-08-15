@@ -1401,6 +1401,20 @@ requires value <= 127u8, value <= 42u8, value <= 21u8
     staged
 }
 
+machine terminal_literal_shift_left_chain_then_exact_cast(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 8191u16, value <= 31u16
+{
+    let staged: bool = (((((value << 1i8) << 2u16) << 0i32) as u8) < 255u8) && enabled;
+    staged
+}
+
+machine terminal_width_shift_left_chain_then_exact_cast(value: u8, enabled: bool) -> bool
+requires value <= 15u8, value <= 0u8
+{
+    let staged: bool = ((((value << 4u8) << 4i8) as i8) < 127i8) && enabled;
+    staged
+}
+
 machine terminal_exact_cast_then_literal_shift_left_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 127u16, value <= 31u16
 {
