@@ -7738,18 +7738,12 @@ fn boundary_qualification_evidence_names_exact_requirement() {
 #[test]
 fn utf8_param_len_field_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_param_len_field_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-param-len-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 param len field canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf8 param len field canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7776,20 +7770,14 @@ fn utf8_param_len_field_exit_canary_runs() {
 #[test]
 fn utf8_regular_call_len_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_regular_call_len_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-utf8-regular-call-len-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 regular call len canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf8 regular call len canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7815,18 +7803,12 @@ fn utf8_regular_call_len_exit_canary_runs() {
 #[test]
 fn utf8_equals_literal_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_equals_literal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-equals-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 equals literal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf8 equals literal canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7851,18 +7833,12 @@ fn utf8_equals_literal_exit_canary_runs() {
 #[test]
 fn utf8_equals_view_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_equals_view_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-equals-view-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 equals view canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf8 equals view canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7889,20 +7865,14 @@ fn utf8_equals_view_exit_canary_runs() {
 #[test]
 fn utf8_field_read_carries_domain_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_field_read_carries_domain_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-utf8-field-read-domain-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 field-read domain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf8 field-read domain canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7931,20 +7901,14 @@ fn utf8_field_read_carries_domain_exit_canary_runs() {
 #[test]
 fn domain_field_write_then_read_exit_canary_runs() {
     let canary = pass_canary("domains/domain_field_write_then_read_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-domain-field-write-then-read-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("domain field write-then-read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("domain field write-then-read canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45874,11 +45838,13 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_unsigned_min_max_exit",
     "data/runtime_data_properties_exit",
     "domains/bodyless_domain_declarations_exit",
+    "domains/domain_field_write_then_read_exit",
     "domains/executable_domain_membership_intersection_value_exit",
     "domains/executable_imported_domain_membership_intersection_guard_exit",
     "domains/executable_imported_domain_membership_intersection_value_exit",
     "domains/executable_imported_domain_membership_union_guard_exit",
     "domains/executable_imported_domain_membership_union_value_exit",
+    "domains/utf8_field_read_carries_domain_exit",
     "expressions/runtime_flat_boolean_logic_exit",
     "expressions/runtime_literal_source_cast_exit",
     "traits/runtime_conformance_item_exit",
