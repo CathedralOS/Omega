@@ -249,7 +249,16 @@ Remaining:
   exact-add/subtract literal-offset chain rooted at a direct machine parameter.
   The verifier retains every prefix proof, accumulates the checked offset, and
   independently derives target-range-minus-offset bounds intersected with the
-  source carrier, including signed and cross-sign conversions. Conversely, one
+  source carrier, including signed and cross-sign conversions. One
+  validator-legal partial fixed-native cast may also consume a finite nonempty
+  left-associated same-source-carrier exact-multiply chain rooted at a direct
+  machine parameter, with independently landed nonnegative literal factors.
+  Every multiply prefix keeps its own evidence; the cast uses the checked
+  cumulative product to reconstruct the inverse target interval and intersect
+  it with the source carrier. Product zero makes only the cast obligation true,
+  product one uses the ordinary target/source intersection, and larger products
+  divide the signed or unsigned target bounds without erasing earlier proofs.
+  Conversely, one
   validator-legal partial fixed-native cast of a direct parameter may root a
   finite nonempty left-associated same-target-carrier exact-add/subtract chain
   with independently landed literal right siblings. The cast keeps its own

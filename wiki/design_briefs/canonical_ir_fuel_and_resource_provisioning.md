@@ -158,6 +158,10 @@ verifier-derived self-proof adds no executable work.
 Likewise, a finite retained exact-add/subtract literal-offset chain followed by
 one exact fixed-native cast charges every arithmetic operation and the cast;
 the verifier's shifted target-interval reconstruction adds no executable work.
+Likewise, a finite retained exact-multiply literal chain followed by one partial
+fixed-native exact cast charges every multiply operation and the cast; the
+verifier's cumulative-product inverse-interval reconstruction adds no
+executable work.
 The converse finite retained chain—one direct partial exact cast followed by a
 nonempty left-associated same-target-carrier exact-add/subtract literal-offset
 chain—likewise charges the cast and every arithmetic operation separately;

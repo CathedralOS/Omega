@@ -537,8 +537,26 @@ erase an earlier unsafe operation. Computed or unlanded siblings, literal-left
 addition, reversed subtraction, right-associated shapes, local or block roots,
 mixed-carrier or non-native chains, other proof-bearing operations, additional
 casts, missing or noncanonical definitions, accumulator overflow, and stale or
-missing evidence remain fenced. Conversely, one validator-legal partial
-fixed-native exact cast of a direct machine parameter may root a finite
+missing evidence remain fenced. A third computed-cast exception accepts one
+validator-legal partial fixed-native exact cast whose operand is a finite
+nonempty left-associated same-source-carrier exact-multiply chain. The chain
+starts at one direct machine parameter and every right operand is an
+independently landed nonnegative source-carrier literal. Every multiply prefix
+retains its ordinary independent obligation and evidence. For the cast, the
+verifier follows only prior canonical shrinking-prefix definitions, accumulates
+the factors in a checked `u128`, maps the target range back through the
+cumulative product, and intersects it with the source carrier. Product zero
+makes only the cast obligation true. Product one uses the ordinary target/source
+intersection. A larger product reconstructs `[0, MAX / product]` for an unsigned
+target or `[ceil(MIN / product), floor(MAX / product)]` for a signed target
+before the source-carrier intersection; vacuous sides are omitted and an empty
+intersection is false. Literal-left or right-associated shapes, runtime,
+computed, negative, or mistyped factors, mixed carriers, local or block roots,
+intervening operations or casts, non-native or invalid casts, malformed or stale
+definitions, cumulative-product overflow, and stale or missing evidence remain
+fenced. A later zero cannot erase an earlier multiply proof. Conversely, one
+validator-legal partial fixed-native exact cast of a direct machine parameter
+may root a finite
 nonempty left-associated same-target-carrier exact-add/subtract chain. The cast
 result is the innermost left operand, and every right operand is an
 independently landed target-carrier literal. The cast retains its ordinary
