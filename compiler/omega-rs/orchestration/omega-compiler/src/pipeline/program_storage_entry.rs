@@ -162,6 +162,7 @@ impl ProgramEntryReceiverStoragePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramStorageEntryPlan {
     root_slot: omega_external_roots::RootSlotId,
+    requirement_identity: String,
     schema: omega_effects::provider_plan::ServiceSchema,
 }
 
@@ -169,6 +170,7 @@ impl SelectedProgramStorageEntryPlan {
     pub fn from_target_slot(
         slot: omega_target::ProgramEntrySlotDeclaration,
         schema: omega_effects::provider_plan::ServiceSchema,
+        requirement_identity: String,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
         if slot != slot.owner.program_entry_slot()
             || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
@@ -198,6 +200,29 @@ impl SelectedProgramStorageEntryPlan {
                 schema.trait_name
             )));
         }
+        if requirement_identity.is_empty() {
+            return Err(ProgramStorageEntryDiagnostic(
+                "target program-storage entry has no exact arrival requirement identity".into(),
+            ));
+        }
+        let matching_methods = schema
+            .methods
+            .iter()
+            .filter(|method| method.requirement_identity == requirement_identity)
+            .collect::<Vec<_>>();
+        let [method] = matching_methods.as_slice() else {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "target program-storage entry schema retains {} copies of exact arrival requirement `{requirement_identity}`",
+                matching_methods.len(),
+            )));
+        };
+        if method.requirement_owner != PROGRAM_STORAGE_ENTRY_OWNER
+            || method.name != PROGRAM_STORAGE_ENTRY_METHOD
+        {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "target program-storage arrival requirement `{requirement_identity}` drifted from `{PROGRAM_STORAGE_ENTRY_OWNER}::{PROGRAM_STORAGE_ENTRY_METHOD}`",
+            )));
+        }
 
         let canonical = format!(
             "target-root-slot\n{}::{}",
@@ -211,7 +236,11 @@ impl SelectedProgramStorageEntryPlan {
         }
         let root_slot = omega_external_roots::RootSlotId::from_normalized_identity(identity)
             .map_err(|diagnostic| ProgramStorageEntryDiagnostic(diagnostic.to_string()))?;
-        Ok(Self { root_slot, schema })
+        Ok(Self {
+            root_slot,
+            requirement_identity,
+            schema,
+        })
     }
 
     pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
@@ -220,6 +249,10 @@ impl SelectedProgramStorageEntryPlan {
 
     pub const fn schema(&self) -> &omega_effects::provider_plan::ServiceSchema {
         &self.schema
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
     }
 }
 
@@ -1060,22 +1093,22 @@ pub fn bind_program_storage_entry_plan(
         .schema
         .methods
         .iter()
-        .filter(|method| {
-            method.requirement_owner == PROGRAM_STORAGE_ENTRY_OWNER
-                && method.name == PROGRAM_STORAGE_ENTRY_METHOD
-        })
+        .filter(|method| method.requirement_identity == selected.requirement_identity)
         .collect::<Vec<_>>();
     let [method] = matches.as_slice() else {
         return Err(ProgramStorageEntryDiagnostic(match matches.len() {
-            0 => "selected target entry does not inherit ProgramStorageEntry::enter".into(),
+            0 => "selected target entry lost its exact program-storage arrival requirement".into(),
             count => format!(
-                "selected target entry carries {count} copies of ProgramStorageEntry::enter"
+                "selected target entry carries {count} copies of its exact program-storage arrival requirement"
             ),
         }));
     };
-    if method.requirement_identity.is_empty() {
+    if method.requirement_owner != PROGRAM_STORAGE_ENTRY_OWNER
+        || method.name != PROGRAM_STORAGE_ENTRY_METHOD
+    {
         return Err(ProgramStorageEntryDiagnostic(
-            "program-storage entry requirement identity cannot be empty".into(),
+            "selected target entry arrival requirement drifted from ProgramStorageEntry::enter"
+                .into(),
         ));
     }
     if method.parameter_count != 2 || method.parameter_type_identities.len() != 2 {
