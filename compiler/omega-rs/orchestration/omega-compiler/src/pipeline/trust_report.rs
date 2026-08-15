@@ -65,6 +65,7 @@ pub(super) fn write_trust_report(
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: method.requirement_identity.clone(),
                     method: method.name.clone(),
                     subject: format!("parameter:{}", claim.parameter_index),
@@ -84,6 +85,7 @@ pub(super) fn write_trust_report(
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: method.requirement_identity.clone(),
                     method: method.name.clone(),
                     subject: "result".to_owned(),

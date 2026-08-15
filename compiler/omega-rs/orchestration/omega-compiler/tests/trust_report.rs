@@ -669,6 +669,7 @@ machine Main::exercise(&mut self) {}
     );
     let entry_row = extent_rows[0];
     assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
+    assert!(entry_row.contains("requirement owner: StorageEntry"));
     assert!(entry_row.contains("requirement identity: named-callable(path(StorageEntry::enter)"));
     assert!(entry_row.contains("subject: parameter:0"));
     assert!(entry_row.contains("flow: accepts"));
@@ -689,6 +690,7 @@ machine Main::exercise(&mut self) {}
             line.contains("provider plan: satisfies::Issuer [") && line.contains("subject: result")
         })
         .expect("routed result row");
+    assert!(result_row.contains("requirement owner: Issuer"));
     assert!(result_row.contains("requirement identity: named-callable(path(Issuer::issue)"));
     assert!(result_row.contains("result-dispatch(declared:Token::Issued)"));
     assert!(result_row.contains("flow: returns"));
