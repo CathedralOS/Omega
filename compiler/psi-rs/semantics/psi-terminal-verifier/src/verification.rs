@@ -2159,21 +2159,11 @@ fn exact_integer_shifted_interval_obligation(
     root: ScalarTerm,
     offset: IntegerOffset,
 ) -> Proposition {
-    let integer_value_as_i128 = |value| match value {
-        IntegerValue::Signed(value) => Some(value),
-        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
-    };
     let translate_target_boundary = |boundary: i128| match offset {
         IntegerOffset::Nonnegative(magnitude) => {
             boundary.checked_sub(i128::try_from(magnitude).ok()?)
         }
         IntegerOffset::Negative(magnitude) => boundary.checked_add(i128::try_from(magnitude).ok()?),
-    };
-    let Some(root_minimum) = integer_value_as_i128(root_type.minimum_value()) else {
-        return Proposition::Falsehood;
-    };
-    let Some(root_maximum) = integer_value_as_i128(root_type.maximum_value()) else {
-        return Proposition::Falsehood;
     };
     let Some(target_minimum) =
         integer_value_as_i128(interval_type.minimum_value()).and_then(translate_target_boundary)
@@ -2183,6 +2173,21 @@ fn exact_integer_shifted_interval_obligation(
     let Some(target_maximum) =
         integer_value_as_i128(interval_type.maximum_value()).and_then(translate_target_boundary)
     else {
+        return Proposition::Falsehood;
+    };
+    exact_integer_source_interval_obligation(root_type, root, target_minimum, target_maximum)
+}
+
+fn exact_integer_source_interval_obligation(
+    root_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    target_minimum: i128,
+    target_maximum: i128,
+) -> Proposition {
+    let Some(root_minimum) = integer_value_as_i128(root_type.minimum_value()) else {
+        return Proposition::Falsehood;
+    };
+    let Some(root_maximum) = integer_value_as_i128(root_type.maximum_value()) else {
         return Proposition::Falsehood;
     };
     if target_minimum > root_maximum || target_maximum < root_minimum {
@@ -2215,6 +2220,13 @@ fn exact_integer_shifted_interval_obligation(
             .pop()
             .expect("one translated exact-cast bound exists"),
         _ => canonical_conjunction(bounds),
+    }
+}
+
+fn integer_value_as_i128(value: IntegerValue) -> Option<i128> {
+    match value {
+        IntegerValue::Signed(value) => Some(value),
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
     }
 }
 
@@ -3085,6 +3097,24 @@ fn exact_integer_multiply_obligation_with_definitions(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_multiply_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_multiply_chain_obligation(
             integer_type,
             variable.clone(),
@@ -3157,6 +3187,128 @@ fn exact_integer_multiply_obligation_with_definitions(
         }
         _ => Proposition::Falsehood,
     }
+}
+
+fn exact_integer_cast_then_multiply_chain_obligation(
+    target_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    factor: IntegerValue,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if target_type.is_address() || !matches!(target_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let mut cumulative_factor = nonnegative_integer_factor(target_type, factor)?;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => {
+                if landed_integer_constant_value(
+                    target_type,
+                    left,
+                    semantic_axioms,
+                    definition_index,
+                )
+                .is_some()
+                {
+                    return None;
+                }
+                let nested_factor = landed_integer_constant_value(
+                    target_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )
+                .and_then(|factor| nonnegative_integer_factor(target_type, factor))?;
+                let Some(product) = cumulative_factor.checked_mul(nested_factor) else {
+                    return Some(Proposition::Falsehood);
+                };
+                cumulative_factor = product;
+                variable = (**left).clone();
+                prior_axiom_count = definition_index;
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: cast_target_type,
+                operand,
+            } if *cast_target_type == target_type
+                && !source_type.is_address()
+                && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                && *source_type != target_type
+                && !source_type.can_widen_to(target_type)
+                && source_type.can_exact_cast_to(target_type)
+                && matches!(
+                    operand.as_ref(),
+                    ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Integer(root_type),
+                    } if *root_type == *source_type && machine_parameter_values.contains(id)
+                ) =>
+            {
+                return Some(exact_integer_scaled_interval_obligation(
+                    *source_type,
+                    target_type,
+                    (**operand).clone(),
+                    cumulative_factor,
+                ));
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn exact_integer_scaled_interval_obligation(
+    root_type: psi_core::IntegerType,
+    interval_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    cumulative_factor: u128,
+) -> Proposition {
+    if cumulative_factor <= 1 {
+        return Proposition::Truth;
+    }
+    let (target_minimum, target_maximum) = match interval_type.sign() {
+        IntegerSign::Unsigned => {
+            let IntegerValue::Unsigned(maximum) = interval_type.maximum_value() else {
+                unreachable!("unsigned fixed integer type has an unsigned maximum")
+            };
+            let Some(maximum) = i128::try_from(maximum / cumulative_factor).ok() else {
+                return Proposition::Falsehood;
+            };
+            (0, maximum)
+        }
+        IntegerSign::Signed => {
+            let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                (interval_type.minimum_value(), interval_type.maximum_value())
+            else {
+                unreachable!("signed fixed integer type has signed bounds")
+            };
+            let Some(minimum) =
+                signed_negative_magnitude(minimum.unsigned_abs() / cumulative_factor)
+            else {
+                return Proposition::Falsehood;
+            };
+            let Some(maximum) = i128::try_from(maximum as u128 / cumulative_factor).ok() else {
+                return Proposition::Falsehood;
+            };
+            (minimum, maximum)
+        }
+    };
+    exact_integer_source_interval_obligation(root_type, root, target_minimum, target_maximum)
 }
 
 #[cfg(test)]
@@ -6160,6 +6312,246 @@ mod tests {
                 &BTreeSet::from([ValueId::new(10).expect("root")]),
             ),
             Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn exact_multiply_chain_after_partial_cast_reconstructs_every_scaled_source_interval() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root_id = ValueId::new(201).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let cast = ScalarTerm::value(
+            ValueId::new(202).expect("cast"),
+            ScalarType::Integer(target_type),
+        );
+        let first = ScalarTerm::value(
+            ValueId::new(203).expect("first product"),
+            ScalarType::Integer(target_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(204).expect("second product"),
+            ScalarType::Integer(target_type),
+        );
+        let cast_definition = Proposition::Equal(
+            cast.clone(),
+            ScalarTerm::integer_exact_cast(source_type, target_type, root.clone())
+                .expect("u16 to u8 exact cast"),
+        );
+        let two = ScalarTerm::integer(target_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let three = ScalarTerm::integer(target_type, IntegerValue::Unsigned(3)).expect("3u8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_multiply(target_type, cast.clone(), two.clone())
+                .expect("cast * 2u8"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_multiply(target_type, first.clone(), three.clone())
+                .expect("(cast * 2u8) * 3u8"),
+        );
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                target_type,
+                cast.clone(),
+                two.clone(),
+                std::slice::from_ref(&cast_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(127)).expect("127u16"),
+            )
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                target_type,
+                first.clone(),
+                three,
+                &[cast_definition.clone(), first_definition.clone()],
+                2,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(42)).expect("42u16"),
+            )
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                target_type,
+                second,
+                ScalarTerm::integer(target_type, IntegerValue::Unsigned(0)).expect("0u8"),
+                &[
+                    cast_definition.clone(),
+                    first_definition.clone(),
+                    second_definition,
+                ],
+                3,
+                &parameters,
+            ),
+            Proposition::Truth,
+            "a zero factor makes only the current prefix total"
+        );
+
+        let signed_source = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let signed_target = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_root_id = ValueId::new(211).expect("signed root");
+        let signed_root = ScalarTerm::value(signed_root_id, ScalarType::Integer(signed_source));
+        let signed_cast = ScalarTerm::value(
+            ValueId::new(212).expect("signed cast"),
+            ScalarType::Integer(signed_target),
+        );
+        let signed_first = ScalarTerm::value(
+            ValueId::new(213).expect("signed first product"),
+            ScalarType::Integer(signed_target),
+        );
+        let signed_cast_definition = Proposition::Equal(
+            signed_cast.clone(),
+            ScalarTerm::integer_exact_cast(signed_source, signed_target, signed_root.clone())
+                .expect("i16 to i8 exact cast"),
+        );
+        let signed_first_definition = Proposition::Equal(
+            signed_first.clone(),
+            ScalarTerm::exact_integer_multiply(
+                signed_target,
+                signed_cast,
+                ScalarTerm::integer(signed_target, IntegerValue::Signed(2)).expect("2i8"),
+            )
+            .expect("signed cast * 2i8"),
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                signed_target,
+                signed_first,
+                ScalarTerm::integer(signed_target, IntegerValue::Signed(3)).expect("3i8"),
+                &[signed_cast_definition, signed_first_definition],
+                2,
+                &BTreeSet::from([signed_root_id]),
+            ),
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed_source, IntegerValue::Signed(-21)).expect("-21i16"),
+                    signed_root.clone(),
+                ),
+                Proposition::LessOrEqual(
+                    signed_root,
+                    ScalarTerm::integer(signed_source, IntegerValue::Signed(21)).expect("21i16"),
+                ),
+            ])
+        );
+
+        let cross_source = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let cross_target = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let cross_root_id = ValueId::new(221).expect("cross root");
+        let cross_root = ScalarTerm::value(cross_root_id, ScalarType::Integer(cross_source));
+        let cross_cast = ScalarTerm::value(
+            ValueId::new(222).expect("cross cast"),
+            ScalarType::Integer(cross_target),
+        );
+        let cross_definition = Proposition::Equal(
+            cross_cast.clone(),
+            ScalarTerm::integer_exact_cast(cross_source, cross_target, cross_root.clone())
+                .expect("i8 to u8 exact cast"),
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                cross_target,
+                cross_cast,
+                ScalarTerm::integer(cross_target, IntegerValue::Unsigned(2)).expect("2u8"),
+                std::slice::from_ref(&cross_definition),
+                1,
+                &BTreeSet::from([cross_root_id]),
+            ),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(cross_source, IntegerValue::Signed(0)).expect("0i8"),
+                cross_root,
+            )
+        );
+
+        let reversed_cast_definition = match cast_definition.clone() {
+            Proposition::Equal(left, right) => Proposition::Equal(right, left),
+            _ => unreachable!("cast definition is an equality"),
+        };
+        assert_ne!(
+            exact_integer_multiply_obligation_with_definitions(
+                target_type,
+                cast.clone(),
+                two.clone(),
+                std::slice::from_ref(&reversed_cast_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(127)).expect("127u16"),
+            )
+        );
+        assert_ne!(
+            exact_integer_multiply_obligation_with_definitions(
+                target_type,
+                two,
+                cast,
+                std::slice::from_ref(&cast_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root,
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(127)).expect("127u16"),
+            ),
+            "literal-left multiplication does not gain definition authority"
+        );
+
+        let wide_source = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let wide_target = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let wide_root_id = ValueId::new(231).expect("wide root");
+        let wide_root = ScalarTerm::value(wide_root_id, ScalarType::Integer(wide_source));
+        let wide_cast = ScalarTerm::value(
+            ValueId::new(232).expect("wide cast"),
+            ScalarType::Integer(wide_target),
+        );
+        let wide_first = ScalarTerm::value(
+            ValueId::new(233).expect("wide first product"),
+            ScalarType::Integer(wide_target),
+        );
+        let wide_second = ScalarTerm::value(
+            ValueId::new(234).expect("wide second product"),
+            ScalarType::Integer(wide_target),
+        );
+        let maximum =
+            ScalarTerm::integer(wide_target, IntegerValue::Unsigned(u128::from(u64::MAX)))
+                .expect("u64::MAX");
+        let wide_definitions = [
+            Proposition::Equal(
+                wide_cast.clone(),
+                ScalarTerm::integer_exact_cast(wide_source, wide_target, wide_root)
+                    .expect("i64 to u64 exact cast"),
+            ),
+            Proposition::Equal(
+                wide_first.clone(),
+                ScalarTerm::exact_integer_multiply(wide_target, wide_cast, maximum.clone())
+                    .expect("wide cast * MAX"),
+            ),
+            Proposition::Equal(
+                wide_second.clone(),
+                ScalarTerm::exact_integer_multiply(wide_target, wide_first, maximum.clone())
+                    .expect("wide first * MAX"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                wide_target,
+                wide_second,
+                maximum,
+                &wide_definitions,
+                wide_definitions.len(),
+                &BTreeSet::from([wide_root_id]),
+            ),
+            Proposition::Falsehood,
+            "cumulative product overflow fails closed"
         );
     }
 

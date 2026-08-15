@@ -554,6 +554,24 @@ local or block roots, intervening shells, additional casts or other
 proof-bearing operations, non-native or mismatched carriers, missing,
 reordered, reversed, redirected, cyclic, or stale definitions, cumulative
 offset overflow, and stale or missing evidence remain fenced.
+A direct validator-legal partial fixed-native exact cast may likewise root a
+finite nonempty left-associated same-target-carrier exact-multiply chain. Every
+right operand is an independently landed nonnegative target-carrier literal;
+signed negative factors remain outside this family. The cast independently
+proves direct representability. For each multiply prefix, the verifier walks
+only prior canonical shrinking-prefix definitions to that cast and accumulates
+the literal factors with checked arithmetic. Cumulative product zero or one
+makes only the current multiply prefix true. A larger product divides the
+target interval back toward the direct source root—`[0, MAX / product]` for an
+unsigned target, or `[ceil(MIN / product), floor(MAX / product)]` for a signed
+target—and intersects that interval with the source carrier. Vacuous sides are
+omitted and an empty intersection is false. The cast and every prefix retain
+distinct obligations and evidence, so a later zero factor cannot erase an
+earlier unsafe multiply. Literal-left or right-associated shapes, runtime,
+computed, negative, or mistyped factors, mixed carriers, local or block roots,
+intervening operations or casts, non-native or invalid casts, malformed or
+stale definitions, cumulative-product overflow, and stale or missing evidence
+remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

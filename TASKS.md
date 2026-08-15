@@ -256,7 +256,12 @@ Remaining:
   direct representability evidence; every arithmetic prefix keeps distinct
   evidence for the target interval shifted by its checked cumulative offset and
   intersected with the source carrier. Cancellation cannot erase an earlier
-  prefix obligation.
+  prefix obligation. The same direct partial-cast root may instead feed a
+  finite nonempty left-associated same-target-carrier exact-multiply chain with
+  independently landed nonnegative literal factors. Every multiply prefix
+  keeps distinct evidence for the target interval divided by its checked
+  cumulative product and intersected with the source carrier; zero and one
+  produce a true current-prefix obligation without erasing earlier proofs.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
