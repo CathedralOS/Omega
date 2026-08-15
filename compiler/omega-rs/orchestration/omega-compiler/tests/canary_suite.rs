@@ -22542,13 +22542,8 @@ fn runtime_generic_param_position_inference_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-gen-param-infer-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("borrowed-place parameter inference canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("borrowed-place parameter inference canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("borrowed-place parameter inference canary should run");
@@ -45387,6 +45382,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_record_instance_exit",
     "generics/runtime_generic_two_instantiations_exit",
     "generics/runtime_generic_enum_payload_exit",
+    "generics/runtime_generic_param_position_inference_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
