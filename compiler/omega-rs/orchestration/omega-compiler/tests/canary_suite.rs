@@ -20797,7 +20797,7 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
     // scaled arg discriminates at runtime (dx=7 -> 70). Exit 70.
     let canary = pass_canary("arithmetic/runtime_nested_payload_range_narrowing_exit");
     let scratch = std::env::temp_dir().join(format!("omega-npr-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested payload range narrowing canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45424,6 +45424,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_i64_full_width_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "arithmetic/runtime_u64_guarded_cap_store_exit",
+    "arithmetic/runtime_nested_payload_range_narrowing_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
