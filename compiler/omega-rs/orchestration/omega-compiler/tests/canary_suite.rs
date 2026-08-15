@@ -21150,13 +21150,8 @@ fn runtime_recursive_walk_call_with_return_canaries_run() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-            write_output: true,
-        })
-        .unwrap_or_else(|d| panic!("{name} should compile: {d:?}"));
+        compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .unwrap_or_else(|d| panic!("{name} should compile: {d:?}"));
         let output = Command::new(build_dir.join(executable_name()))
             .output()
             .unwrap_or_else(|e| panic!("{name} should run: {e}"));
@@ -22642,13 +22637,8 @@ fn runtime_branching_callee_chain_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_branching_callee_chain_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-brchain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("branching callee chain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("branching callee chain canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("branching callee chain canary should run");
@@ -22676,13 +22666,8 @@ fn recursive_result_bind_first_arg_canary_runs() {
     let canary = pass_canary("calls/recursive_result_bind_first_arg");
     let build_dir = std::env::temp_dir().join(format!("omega-bindfirst-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bind-first arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bind-first arg canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("bind-first arg canary should run");
@@ -45990,6 +45975,11 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/recursive_result_bind_first_arg",
+    "calls/runtime_branching_callee_chain_exit",
+    "calls/runtime_inline_recursive_walk_exit",
+    "calls/runtime_value_call_direct_recursive_walk_exit",
+    "calls/runtime_value_call_statement_recursive_walk_exit",
     "traits/equatable_sum_stale_payload_exit",
     "traits/ring_requirement_satisfies_exit",
     "traits/runtime_trait_default_dispatch_exit",
