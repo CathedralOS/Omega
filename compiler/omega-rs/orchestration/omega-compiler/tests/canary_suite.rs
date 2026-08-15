@@ -15881,9 +15881,10 @@ fn arithmetic_domain_trapping_let_overflow_aborts() {
     let canary = pass_canary("expressions/arithmetic_domain_trapping_let_overflow");
     let scratch =
         std::env::temp_dir().join(format!("omega-trapping-let-of-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_let_overflow canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_let_overflow canary should run");
 
@@ -15970,9 +15971,10 @@ fn constant_trapping_shift_value_overflow_aborts() {
         "omega-constant-trapping-shift-value-overflow-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("constant trapping shift-overflow canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("constant trapping shift-overflow canary should run");
     let code = output.status.code();
@@ -16032,10 +16034,11 @@ fn f32_field_binary_to_local_cast_exit_canary_runs() {
         "omega-f32-field-binary-local-cast-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32_field_binary_to_local_cast canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32_field_binary_to_local_cast canary should run");
 
@@ -16060,10 +16063,11 @@ fn f32_to_f64_local_cast_exit_canary_runs() {
         "omega-f32-to-f64-local-cast-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32_to_f64_local_cast canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32_to_f64_local_cast canary should run");
 
@@ -16118,10 +16122,11 @@ fn no_payload_case_variant_after_payload_dispatch_exit_canary_runs() {
         "omega-no-payload-variant-dispatch-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("no_payload_case_variant_after_payload_dispatch canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("no_payload_case_variant_after_payload_dispatch canary should run");
 
@@ -16146,10 +16151,11 @@ fn transition_arg_local_from_embedded_call_exit_canary_runs() {
         "omega-transition-arg-embedded-call-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("transition_arg_local_from_embedded_call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("transition_arg_local_from_embedded_call canary should run");
 
@@ -16175,10 +16181,11 @@ fn value_call_embedded_in_binary_exit_canary_runs() {
         "omega-value-call-embedded-binary-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value_call_embedded_in_binary canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("value_call_embedded_in_binary canary should run");
 
@@ -16204,10 +16211,11 @@ fn sequential_self_field_rmw_exit_canary_runs() {
         "omega-sequential-self-field-rmw-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sequential_self_field_rmw canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("sequential_self_field_rmw canary should run");
 
@@ -16257,10 +16265,11 @@ fn runtime_float_constant_store_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_float_constant_store_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-float-store-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float constant store canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float constant store canary should run");
 
@@ -16280,10 +16289,11 @@ fn runtime_match_value_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_match_value_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-match-value-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("match value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("match value canary should run");
 
@@ -46045,6 +46055,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "expressions/arithmetic_domain_trapping_let_overflow",
+    "arithmetic/constant_trapping_shift_value_overflow_traps",
+    "expressions/f32_field_binary_to_local_cast",
+    "expressions/f32_to_f64_local_cast",
+    "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
+    "calls/transition_arg_local_from_embedded_call_exit",
+    "calls/value_call_embedded_in_binary_exit",
+    "calls/sequential_self_field_rmw_exit",
+    "expressions/runtime_float_constant_store_exit",
+    "expressions/runtime_match_value_exit",
     "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "arithmetic/runtime_modulo_div_narrowing_exit",
