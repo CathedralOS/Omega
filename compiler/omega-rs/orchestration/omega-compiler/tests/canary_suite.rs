@@ -27349,9 +27349,9 @@ fn runtime_value_call_slice_len_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_sleep_exit_canary_runs() {
-    // Clock.sleep -- a kernel32 `Sleep(ms)` native call, the first host op beyond the
-    // original four. Reaching exit_process(70) after the call proves the Win64 ABI
-    // (shadow space, ecx arg, clean non-terminal return) is correct.
+    // Clock.sleep uses the selected target's hosted millisecond-sleep realization.
+    // Reaching exit_process(70) proves its immediate and field arguments survive
+    // the selected native ABI and both non-terminal calls return cleanly.
     let canary = pass_canary("host/runtime_sleep_exit");
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-sleep-{}", std::process::id()));

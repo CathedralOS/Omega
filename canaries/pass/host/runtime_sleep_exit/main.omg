@@ -1,9 +1,7 @@
-// Clock.sleep host op: a kernel32 `Sleep(DWORD ms)` native call -- the first host
-// operation beyond the original four, and the first rung of the native-FFI ladder.
-// Pauses with both an IMMEDIATE arg and a RUNTIME (field) arg, then exits 70;
-// reaching `exit_process(70)` proves both call forms obeyed the Win64 ABI (shadow
-// space, ecx arg from a constant and from a relocated storage scalar, clean return)
-// and continued. The runtime-arg form shares exit_process's single-u32-arg encoder.
+// Clock.sleep is a hosted millisecond sleep with target-specific realizations:
+// Win32 Sleep, Linux nanosleep, and Darwin poll. It pauses with both an IMMEDIATE
+// arg and a RUNTIME (field) arg, then exits 70; reaching `exit_process(70)` proves
+// both call forms obey the selected hosted ABI and return cleanly.
 use omega::language::std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 data Main { console: Console; clock: Clock; delay: u32 in Wrapping; }
