@@ -2691,41 +2691,61 @@ fn derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprin
     requires_data_argument: bool,
 ) -> Result<StateFootprintEvidence, PlanDiagnostic> {
     use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
-    use omega_calling_conventions::{EntryControl, HostBindingMechanism};
+    use omega_calling_conventions::{
+        EntryControl, HostBindingMechanism, HostOperation, HostOperationKey,
+    };
 
     let mut registers = Vec::new();
     let mut has_syscall = false;
     for instruction in instructions {
-        let AbstractOperationKind::HostOperation {
-            operation_ordinal,
-            operands: operand_span,
-        } = &instruction.kind
-        else {
-            continue;
-        };
-        let Some((_, host_call)) = input.host_calls.calls.iter().find(|(_, host_call)| {
-            host_call.source_key == instruction.source_key
-                && host_call.statement_index == instruction.source_statement
+        let Some((operation_key, operand_span)) = (match &instruction.kind {
+            AbstractOperationKind::HostOperation {
+                operation_ordinal,
+                operands,
+            } => input
+                .host_calls
+                .calls
+                .iter()
+                .find(|(_, host_call)| {
+                    host_call.source_key == instruction.source_key
+                        && host_call.statement_index == instruction.source_statement
+                })
+                .and_then(|(_, host_call)| {
+                    input
+                        .host_calls
+                        .operations
+                        .span(host_call.operations)
+                        .and_then(|operations| operations.get(usize::from(*operation_ordinal)))
+                })
+                .map(|operation| (operation.operation_key, *operands)),
+            AbstractOperationKind::WritePlatformNewline {
+                capability,
+                use_file_api,
+                operands,
+            } => Some((
+                HostOperationKey::new(
+                    *capability,
+                    if *use_file_api {
+                        HostOperation::WriteFile
+                    } else {
+                        HostOperation::Write
+                    },
+                ),
+                *operands,
+            )),
+            _ => None,
         }) else {
-            continue;
-        };
-        let Some(operation) = input
-            .host_calls
-            .operations
-            .span(host_call.operations)
-            .and_then(|operations| operations.get(usize::from(*operation_ordinal)))
-        else {
             continue;
         };
         let Some((_, binding)) = input
             .host_abi
             .bindings
             .iter()
-            .find(|(_, binding)| binding.operation_key == operation.operation_key)
+            .find(|(_, binding)| binding.operation_key == operation_key)
         else {
             continue;
         };
-        let Some(arguments) = operands.span(*operand_span) else {
+        let Some(arguments) = operands.span(operand_span) else {
             continue;
         };
         let has_storage = arguments.iter().any(|operand| {
@@ -2735,10 +2755,9 @@ fn derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprin
             .iter()
             .any(abstract_outbound_syscall_data_argument_is_closed);
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
-            || operation.operation_key.uses_linux_timespec_result()
-            || operation.operation_key.uses_linux_timespec_argument()
-            || (binding.call_plan().result.is_some()
-                && !operation.operation_key.discards_native_result())
+            || operation_key.uses_linux_timespec_result()
+            || operation_key.uses_linux_timespec_argument()
+            || (binding.call_plan().result.is_some() && !operation_key.discards_native_result())
             || binding.call_plan().parameters.len() != arguments.len()
             || !matches!(
                 binding.call_plan().entry_control,
