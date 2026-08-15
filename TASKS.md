@@ -273,6 +273,11 @@ Remaining:
   preimage of the target interval; at or above source width, unsigned roots
   yield zero while signed roots yield `-1` or `0` and therefore require a
   nonnegative root only when the target is unsigned.
+  A finite nonempty same-source-carrier exact-divide/remainder chain may now
+  feed the same partial cast when verifier-owned toward-zero division and
+  dividend-sign remainder interval-hull replay maps the full source carrier
+  wholly inside the target. Every arithmetic prefix and the cast retain
+  independent evidence; guard-sensitive nonconvex preimages remain fenced.
   Conversely, one
   validator-legal partial fixed-native cast of a direct parameter may root a
   finite nonempty left-associated same-target-carrier exact-add/subtract chain

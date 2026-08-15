@@ -1805,6 +1805,13 @@ fn shared_integer_runtime_inputs_with_shells(
             scalar_parameter_count,
         )
         .or_else(|| {
+            shared_exact_divide_remainder_chain_cast_runtime_inputs(
+                *primitive_type,
+                operand,
+                scalar_parameter_count,
+            )
+        })
+        .or_else(|| {
             shared_exact_shift_right_chain_cast_runtime_inputs(
                 *primitive_type,
                 operand,
@@ -1873,6 +1880,168 @@ fn shared_roundtrip_exact_cast_runtime_inputs(
     };
     (saw_widen && *primitive_type == target_type && *position < scalar_parameter_count)
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
+}
+
+#[derive(Clone, Copy)]
+enum ExactDivideRemainderTransfer {
+    Divide,
+    Remainder,
+}
+
+fn shared_exact_divide_remainder_chain_cast_runtime_inputs(
+    target_type: PrimitiveType,
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let target_interval = fixed_native_primitive_interval(target_type)?;
+    let mut source_type = None;
+    let mut transfers = Vec::new();
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                kind
+                @ (CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder),
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if source_type.is_some_and(|source_type| source_type != *primitive_type) {
+            return None;
+        }
+        source_type = Some(*primitive_type);
+        let divisor = landed_safe_exact_divide_remainder_literal(*primitive_type, right)?;
+        transfers.push((
+            match kind {
+                CheckedIntegerBinaryKind::ExactDivide => ExactDivideRemainderTransfer::Divide,
+                CheckedIntegerBinaryKind::ExactRemainder => ExactDivideRemainderTransfer::Remainder,
+                _ => unreachable!("matched one exact divide/remainder operation"),
+            },
+            divisor,
+        ));
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if *root_type == *primitive_type && *position < scalar_parameter_count => {
+                let source_interval = fixed_native_primitive_interval(*root_type)?;
+                if source_interval.0 >= target_interval.0 && source_interval.1 <= target_interval.1
+                {
+                    return None;
+                }
+                let final_interval = transfers.into_iter().rev().try_fold(
+                    source_interval,
+                    |interval, (transfer, divisor)| {
+                        exact_divide_remainder_interval_transfer(interval, transfer, divisor)
+                    },
+                )?;
+                return (final_interval.0 >= target_interval.0
+                    && final_interval.1 <= target_interval.1)
+                    .then(|| {
+                        BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                    });
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn fixed_native_primitive_interval(primitive_type: PrimitiveType) -> Option<(i128, i128)> {
+    match primitive_type {
+        PrimitiveType::I8 => Some((i128::from(i8::MIN), i128::from(i8::MAX))),
+        PrimitiveType::I16 => Some((i128::from(i16::MIN), i128::from(i16::MAX))),
+        PrimitiveType::I32 => Some((i128::from(i32::MIN), i128::from(i32::MAX))),
+        PrimitiveType::I64 => Some((i128::from(i64::MIN), i128::from(i64::MAX))),
+        PrimitiveType::U8 => Some((0, i128::from(u8::MAX))),
+        PrimitiveType::U16 => Some((0, i128::from(u16::MAX))),
+        PrimitiveType::U32 => Some((0, i128::from(u32::MAX))),
+        PrimitiveType::U64 => Some((0, i128::from(u64::MAX))),
+        _ => None,
+    }
+}
+
+fn exact_divide_remainder_interval_transfer(
+    (minimum, maximum): (i128, i128),
+    transfer: ExactDivideRemainderTransfer,
+    divisor: i128,
+) -> Option<(i128, i128)> {
+    if divisor == 0 || divisor == -1 {
+        return None;
+    }
+    match transfer {
+        ExactDivideRemainderTransfer::Divide if divisor > 0 => {
+            Some((minimum / divisor, maximum / divisor))
+        }
+        ExactDivideRemainderTransfer::Divide => Some((maximum / divisor, minimum / divisor)),
+        ExactDivideRemainderTransfer::Remainder => {
+            let magnitude = divisor.checked_abs()?;
+            let remainder_maximum = magnitude.checked_sub(1)?;
+            if minimum >= 0 {
+                Some((0, maximum.min(remainder_maximum)))
+            } else if maximum <= 0 {
+                Some((minimum.max(-remainder_maximum), 0))
+            } else {
+                Some((
+                    minimum.max(-remainder_maximum),
+                    maximum.min(remainder_maximum),
+                ))
+            }
+        }
+    }
+}
+
+fn landed_safe_exact_divide_remainder_literal(
+    primitive_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+) -> Option<i128> {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    let value = match (
+        primitive_type,
+        literal.landing().map(|landing| landing.landed_type),
+    ) {
+        (PrimitiveType::I8, Some(psi_numerics::literals::LandedIntegerType::I8))
+        | (PrimitiveType::I16, Some(psi_numerics::literals::LandedIntegerType::I16))
+        | (PrimitiveType::I32, Some(psi_numerics::literals::LandedIntegerType::I32))
+        | (PrimitiveType::I64, Some(psi_numerics::literals::LandedIntegerType::I64)) => {
+            i128::from(literal.value_i64()?)
+        }
+        (PrimitiveType::U8, Some(psi_numerics::literals::LandedIntegerType::U8))
+        | (PrimitiveType::U16, Some(psi_numerics::literals::LandedIntegerType::U16))
+        | (PrimitiveType::U32, Some(psi_numerics::literals::LandedIntegerType::U32))
+        | (PrimitiveType::U64, Some(psi_numerics::literals::LandedIntegerType::U64)) => {
+            i128::from(literal.value_u64()?)
+        }
+        _ => return None,
+    };
+    (value != 0 && value != -1).then_some(value)
+}
+
+#[cfg(test)]
+pub(crate) fn exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test(
+    target_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_divide_remainder_chain_cast_runtime_inputs(
+        target_type,
+        expression,
+        scalar_parameter_count,
+    )?
+    .into_iter()
+    .map(|input| match input {
+        SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+        _ => None,
+    })
+    .collect()
 }
 
 fn shared_exact_offset_chain_cast_runtime_inputs(
@@ -2915,18 +3084,7 @@ fn safe_exact_divide_remainder_literal(
     primitive_type: PrimitiveType,
     expression: &CheckedScalarExpression,
 ) -> bool {
-    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
-        return false;
-    };
-    match primitive_type {
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64 => {
-            literal.value_u64().is_some_and(|value| value != 0)
-        }
-        PrimitiveType::I8 | PrimitiveType::I16 | PrimitiveType::I32 | PrimitiveType::I64 => literal
-            .value_i64()
-            .is_some_and(|value| value != 0 && value != -1),
-        _ => false,
-    }
+    landed_safe_exact_divide_remainder_literal(primitive_type, expression).is_some()
 }
 
 fn shared_exact_shift_right_chain_runtime_inputs(

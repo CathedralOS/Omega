@@ -872,7 +872,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             positive_subtrahend: i8,
             negative_subtrahend: i8,
             signed_count: i8,
-            enabled: bool
+            enabled: bool,
+            wide: u16
         ) -> bool
         requires input <= 255u64, input <= 250u64, input <= 253u64, input <= 252u64,
             input <= 251u64, input <= 127u64, input <= 125u64, input <= 124u64,
@@ -945,7 +946,11 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && (((((small / 2u8) % 3u8) / 2u8) < 2u8)
                 && (((((input as u8) / 2u8) % 3u8) / 2u8) < 2u8)
                 && ((((signed as i8) / 2i8) % -3i8) < 3i8)
-                && ((((signed_arithmetic as u8) / 2u8) % 3u8) < 3u8)))
+                && ((((signed_arithmetic as u8) / 2u8) % 3u8) < 3u8)
+                && ((((wide / 256u16) as u8) < 255u8)
+                    && ((((wide / 2u16) % 3u16) as u8) < 3u8)
+                    && (((signed % -3i64) as i8) < 3i8)
+                    && (((wide % 3u16) as i8) < 3i8))))
                 && ((small / divisor) < 6u8)
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
@@ -2972,6 +2977,108 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         cast_then_divide_remainder_obligations.as_slice(),
         signed_cast_then_divide_remainder_obligations.as_slice(),
         cross_cast_then_divide_remainder_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
+    let wide_parameter = terminal_entry.parameters[17].id;
+    let find_cast_after_divide_remainder = |parameter, divisor, remainder: bool| {
+        operations.iter().find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let arithmetic = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let (left, right, arithmetic_obligation) = match arithmetic.kind {
+                OperationKind::ExactIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } if !remainder => (left, right, obligation),
+                OperationKind::ExactIntegerRemainder {
+                    left,
+                    right,
+                    obligation,
+                } if remainder => (left, right, obligation),
+                _ => return None,
+            };
+            (left == parameter && has_integer_constant(right, divisor))
+                .then_some([arithmetic_obligation, cast_obligation])
+        })
+    };
+    let divide_chain_cast_obligations =
+        find_cast_after_divide_remainder(wide_parameter, IntegerValue::Unsigned(256), false)
+            .expect("native path retains one carrier-total divide feeding an exact cast");
+    let mixed_divide_remainder_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let remainder = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: remainder_obligation,
+            } = remainder.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(right, IntegerValue::Unsigned(3)) {
+                return None;
+            }
+            let divide = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: divide_left,
+                right: divide_right,
+                obligation: divide_obligation,
+            } = divide.kind
+            else {
+                return None;
+            };
+            (divide_left == wide_parameter
+                && has_integer_constant(divide_right, IntegerValue::Unsigned(2)))
+            .then_some([divide_obligation, remainder_obligation, cast_obligation])
+        })
+        .expect("native path retains one carrier-total mixed chain feeding an exact cast");
+    let signed_remainder_cast_obligations = find_cast_after_divide_remainder(
+        terminal_entry.parameters[4].id,
+        IntegerValue::Signed(-3),
+        true,
+    )
+    .expect("native path retains one signed carrier-total remainder feeding an exact cast");
+    let cross_remainder_cast_obligations =
+        find_cast_after_divide_remainder(wide_parameter, IntegerValue::Unsigned(3), true).expect(
+            "native path retains one cross-sign carrier-total remainder feeding an exact cast",
+        );
+    for obligations in [
+        divide_chain_cast_obligations.as_slice(),
+        mixed_divide_remainder_cast_obligations.as_slice(),
+        signed_remainder_cast_obligations.as_slice(),
+        cross_remainder_cast_obligations.as_slice(),
     ] {
         for (index, obligation) in obligations.iter().enumerate() {
             for other in &obligations[index + 1..] {

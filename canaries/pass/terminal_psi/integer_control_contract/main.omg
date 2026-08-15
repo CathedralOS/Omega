@@ -1530,6 +1530,29 @@ machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) 
     staged
 }
 
+machine terminal_exact_divide_chain_then_exact_cast(value: u16, enabled: bool) -> bool
+{
+    (((value / 256u16) as u8) <= 255u8) && enabled
+}
+
+machine terminal_exact_divide_remainder_chain_then_exact_cast(
+    value: u16,
+    enabled: bool
+) -> bool
+{
+    ((((value / 2u16) % 3u16) as u8) < 3u8) && enabled
+}
+
+machine terminal_signed_exact_remainder_then_exact_cast(value: i16, enabled: bool) -> bool
+{
+    (((value % -3i16) as i8) < 3i8) && enabled
+}
+
+machine terminal_cross_sign_exact_remainder_then_exact_cast(value: u16, enabled: bool) -> bool
+{
+    (((value % 3u16) as i8) < 3i8) && enabled
+}
+
 machine terminal_exact_cast_then_divide_remainder_literal_chain(
     value: u16,
     enabled: bool

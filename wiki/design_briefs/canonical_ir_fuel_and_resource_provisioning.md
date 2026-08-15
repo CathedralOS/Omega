@@ -176,6 +176,10 @@ executable work.
 The same rule applies to a finite exact-right-shift literal chain followed by a
 partial fixed-native exact cast: every shift and the cast are charged, while
 the verifier's target-preimage reconstruction adds no executable work.
+The same rule applies to a carrier-total finite exact-divide/remainder literal
+chain followed by a partial fixed-native exact cast: every arithmetic operation
+and the cast are charged, while verifier-owned interval-hull replay adds no
+executable work.
 The converse finite retained chain—one direct partial exact cast followed by a
 nonempty left-associated same-target-carrier exact-add/subtract literal-offset
 chain—likewise charges the cast and every arithmetic operation separately;
