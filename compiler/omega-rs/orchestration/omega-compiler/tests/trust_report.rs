@@ -113,7 +113,9 @@ fn claim_free_boundary_symbols_do_not_consume_trust() {
         project.join("main.omg"),
         r#"boundary data Carrier;
 boundary machine Carrier::combine(a: Carrier, b: Carrier) -> Carrier;
+boundary trait AlgebraAudit {}
 boundary machine combine_commutative(a: Carrier, b: Carrier)
+reaches AlgebraAudit
 ensures Carrier::combine(a, b) == Carrier::combine(b, a);
 
 data Main {}
@@ -163,6 +165,7 @@ machine Main::exercise(&mut self) {}
     assert!(accepted_row.contains(&format!(
         "machine contract: {expected_contract_fingerprint:016x}"
     )));
+    assert!(accepted_row.contains("service reach: AlgebraAudit"));
     assert!(
         !report.contains("accepted fact: Carrier::combine"),
         "a claim-free symbol asserts nothing and needs no grant:\n{report}"
@@ -274,11 +277,13 @@ machine Main::exercise(&mut self) {
         "a root-granted domain drops the standing warning:\n{report}"
     );
     assert!(!meters_row.contains("machine contract:"));
+    assert!(!meters_row.contains("service reach:"));
     let unmatched_grant_row = report
         .lines()
         .find(|line| line.contains("accepted fact: walker_lib::collatz_cert_checked"))
         .expect("unmatched imported grant row");
     assert!(!unmatched_grant_row.contains("machine contract:"));
+    assert!(!unmatched_grant_row.contains("service reach:"));
 
     let _ = std::fs::remove_dir_all(&project);
 }

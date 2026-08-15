@@ -81,6 +81,7 @@ pub(super) fn write_trust_report(
             ),
             provenance: provenance.to_owned(),
             machine_contract_fingerprint: None,
+            machine_service_reach: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -195,6 +196,7 @@ pub(super) fn write_trust_report(
                 "own-package (dev-active)".to_owned()
             },
             machine_contract_fingerprint: None,
+            machine_service_reach: None,
             standing_warning: !granted,
         });
     }
@@ -225,6 +227,9 @@ pub(super) fn write_trust_report(
                 ))]
             })?
             .fingerprint;
+        let machine_service_reach =
+            accepted_machine_service_reach(checked, machine.symbol, machine.name.as_str())
+                .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -233,6 +238,7 @@ pub(super) fn write_trust_report(
                 "own-package (dev-active)".to_owned()
             },
             machine_contract_fingerprint: Some(machine_contract_fingerprint),
+            machine_service_reach: Some(machine_service_reach),
             standing_warning: !granted,
         });
     }
@@ -255,6 +261,7 @@ pub(super) fn write_trust_report(
                 commitment: format!("accepted fact: {grant}"),
                 provenance: "root grant (build.omg)".to_owned(),
                 machine_contract_fingerprint: None,
+                machine_service_reach: None,
                 standing_warning: false,
             });
         }
@@ -265,6 +272,49 @@ pub(super) fn write_trust_report(
     writer
         .write_trust_report(&report)
         .map_err(|diagnostic| vec![diagnostic])
+}
+
+fn accepted_machine_service_reach(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<Vec<String>, Diagnostic> {
+    let machine_reach = checked
+        .facts
+        .service_reaches
+        .for_machine(machine)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no exact checked service-reach facts"
+            ))
+        })?;
+    let psi_language_semantics::ServiceReachInterface::PublishedCeiling(reach_row) =
+        machine_reach.interface
+    else {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no published service-reach ceiling"
+        )));
+    };
+    checked
+        .facts
+        .service_reaches
+        .rows
+        .services(reach_row)
+        .iter()
+        .map(|service| {
+            checked
+                .facts
+                .service_reaches
+                .services
+                .definition(*service)
+                .map(|definition| definition.name.clone())
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "accepted machine `{machine_name}` references an unknown service-reach identity"
+                    ))
+                })
+        })
+        .collect()
 }
 
 fn trust_provider_realization(
@@ -299,5 +349,94 @@ fn trust_provider_realization(
         ProviderBinding::CheckedAdapter { machine } => TrustProviderRealization::CheckedAdapter {
             machine: machine.clone(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use psi_checked_trees::{CheckedTrees, MachineServiceReachRows, ServiceReachFacts};
+    use psi_language_semantics::{ServiceReachInterface, ServiceReachRowTable, ServiceReachTable};
+    use psi_symbols::SymbolHandle;
+
+    use super::accepted_machine_service_reach;
+
+    fn checked_with_reach(
+        machine: SymbolHandle,
+        interface: ServiceReachInterface,
+        services: ServiceReachTable,
+        rows: ServiceReachRowTable,
+    ) -> CheckedTrees {
+        let mut service_reaches = ServiceReachFacts {
+            services,
+            rows,
+            ..Default::default()
+        };
+        service_reaches.machines.append_to_span(
+            &mut service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                interface,
+                ..Default::default()
+            },
+        );
+        let mut checked = CheckedTrees::default();
+        checked.facts.service_reaches = service_reaches;
+        checked
+    }
+
+    #[test]
+    fn accepted_service_reach_projects_only_exact_published_registry_rows() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let service_symbol = SymbolHandle::from_arena_index(2);
+        let mut services = ServiceReachTable::default();
+        let service = services.intern(service_symbol, "Clock");
+        let mut rows = ServiceReachRowTable::default();
+        let row = rows.intern(vec![service]);
+        let checked = checked_with_reach(
+            machine,
+            ServiceReachInterface::PublishedCeiling(row),
+            services,
+            rows,
+        );
+
+        assert_eq!(
+            accepted_machine_service_reach(&checked, machine, "accepted"),
+            Ok(vec!["Clock".to_owned()])
+        );
+    }
+
+    #[test]
+    fn accepted_service_reach_fails_closed_on_missing_internal_and_unknown_facts() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing = accepted_machine_service_reach(&CheckedTrees::default(), machine, "missing")
+            .expect_err("missing facts reject")
+            .to_string();
+        assert!(missing.contains("has no exact checked service-reach facts"));
+
+        let internal = checked_with_reach(
+            machine,
+            ServiceReachInterface::InternalInferred,
+            ServiceReachTable::default(),
+            ServiceReachRowTable::default(),
+        );
+        let internal = accepted_machine_service_reach(&internal, machine, "internal")
+            .expect_err("private inference rejects")
+            .to_string();
+        assert!(internal.contains("has no published service-reach ceiling"));
+
+        let mut foreign_services = ServiceReachTable::default();
+        let unknown_service = foreign_services.intern(SymbolHandle::from_arena_index(2), "Unknown");
+        let mut rows = ServiceReachRowTable::default();
+        let row = rows.intern(vec![unknown_service]);
+        let unknown = checked_with_reach(
+            machine,
+            ServiceReachInterface::PublishedCeiling(row),
+            ServiceReachTable::default(),
+            rows,
+        );
+        let unknown = accepted_machine_service_reach(&unknown, machine, "unknown")
+            .expect_err("unregistered service rejects")
+            .to_string();
+        assert!(unknown.contains("references an unknown service-reach identity"));
     }
 }
