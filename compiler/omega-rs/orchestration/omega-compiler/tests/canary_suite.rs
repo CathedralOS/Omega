@@ -10673,9 +10673,10 @@ fn runtime_linear_search_early_exit_canary_runs() {
     // (each element read into a field first, then compared). arr=[3,7,12,18,5], target=12 -> index 2.
     let canary = pass_canary("control_flow/runtime_linear_search_early_exit");
     let scratch = std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("linear search early exit canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("linear search early exit canary should run");
     assert_eq!(
@@ -10923,10 +10924,11 @@ fn runtime_loop_patterns_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_loop_patterns_exit");
     let scratch = std::env::temp_dir().join(format!("omega-loop-patterns-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("loop-patterns canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("loop-patterns canary should run");
 
@@ -10953,10 +10955,11 @@ fn runtime_composite_initializer_local_arg_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("composite-initializer-local-arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("composite-initializer-local-arg canary should run");
 
@@ -10979,10 +10982,11 @@ fn runtime_captured_local_remutated_field_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("captured-local-remutated-field canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("captured-local-remutated-field canary should run");
 
@@ -14211,9 +14215,10 @@ fn runtime_float_local_arithmetic_exit_canary_runs() {
         "omega-runtime-float-local-arith-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float local arithmetic canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float local arithmetic canary should run");
 
@@ -14348,9 +14353,10 @@ fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
         "omega-arith-domain-sat-div-mod-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating_div_mod canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_div_mod canary should run");
 
@@ -14377,9 +14383,10 @@ fn runtime_guard_divide_modulo_exit_canary_runs() {
         "omega-runtime-guard-div-mod-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime_guard_divide_modulo canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime_guard_divide_modulo canary should run");
 
@@ -14406,9 +14413,10 @@ fn runtime_guard_negative_arithmetic_exit_canary_runs() {
         "omega-runtime-guard-neg-arith-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime_guard_negative_arithmetic canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime_guard_negative_arithmetic canary should run");
 
@@ -14434,9 +14442,10 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
         "omega-runtime-guard-divmod-sign-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime_guard_divide_modulo_signedness canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime_guard_divide_modulo_signedness canary should run");
 
@@ -14459,9 +14468,10 @@ fn runtime_nested_loop_grid_sum_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_nested_loop_grid_sum_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-loop-grid-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested loop grid canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested loop grid canary should run");
     assert_eq!(
@@ -46145,6 +46155,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "range/runtime_guarded_runtime_index_increment_exit",
     "text/runtime_bounded_carrier_byte_write_exit",
     "text/runtime_carrier_byte_write_width_coercion",
+    "control_flow/runtime_captured_local_remutated_field_exit",
+    "control_flow/runtime_composite_initializer_local_arg_exit",
+    "control_flow/runtime_linear_search_early_exit",
+    "control_flow/runtime_loop_patterns_exit",
+    "control_flow/runtime_nested_loop_grid_sum_exit",
+    "expressions/arithmetic_domain_saturating_div_mod_exit",
+    "expressions/runtime_float_local_arithmetic_exit",
+    "expressions/runtime_guard_divide_modulo_exit",
+    "expressions/runtime_guard_divide_modulo_signedness_exit",
+    "expressions/runtime_guard_negative_arithmetic_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46641,6 +46661,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "range/runtime_guarded_runtime_index_increment_exit",
     "text/runtime_bounded_carrier_byte_write_exit",
     "text/runtime_carrier_byte_write_width_coercion",
+    "control_flow/runtime_captured_local_remutated_field_exit",
+    "control_flow/runtime_composite_initializer_local_arg_exit",
+    "control_flow/runtime_linear_search_early_exit",
+    "control_flow/runtime_loop_patterns_exit",
+    "control_flow/runtime_nested_loop_grid_sum_exit",
+    "expressions/arithmetic_domain_saturating_div_mod_exit",
+    "expressions/runtime_float_local_arithmetic_exit",
+    "expressions/runtime_guard_divide_modulo_exit",
+    "expressions/runtime_guard_divide_modulo_signedness_exit",
+    "expressions/runtime_guard_negative_arithmetic_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
