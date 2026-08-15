@@ -57,10 +57,6 @@ pub(crate) fn build_check_facts(
     flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
     flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
-    // TPR3 slice 4: the checker-established termination summaries (built
-    // from the same pure functions the termination CHECK uses -- facts and
-    // diagnostics cannot disagree).
-    let termination = crate::checks::termination::build_termination_facts(program);
     // EFX: the durable service-reach fixed point is built independently from
     // resolved boundary-trait identities and stored as a first-class checked
     // root with grouped machine/state/call arenas.
@@ -93,7 +89,6 @@ pub(crate) fn build_check_facts(
         capabilities,
         flow,
         index_compatibility,
-        termination,
         service_reaches,
         qualifications,
         contract_plans,
@@ -265,7 +260,8 @@ fn build_contract_plans(
             published: published_invocations.clone(),
             checked_inferred: checked_invocations,
         };
-        let termination = machine.termination_plan.interface.clone();
+        let termination =
+            crate::checks::termination::build_checked_termination_plan(program, machine);
         // Slice 2: the declared requires/ensures facts in a CANONICAL,
         // clause-order-independent encoding (each fact serializes to a
         // stable byte form; the set sorts before folding). Parameter
@@ -387,7 +383,7 @@ fn build_contract_plans(
             suspension.interface,
             blocking.interface,
             &crash,
-            &termination,
+            &termination.interface,
             &canonical_facts,
         );
         let inferred_write_frames = program
