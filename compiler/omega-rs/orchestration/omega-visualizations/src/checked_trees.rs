@@ -1261,28 +1261,27 @@ fn qualification_requirement_identity(
         );
         return None;
     }
-    assert!(
-        evidence.requirement_symbol.is_valid(),
-        "admitted qualification evidence must name an exact boundary requirement",
-    );
-    program
+    let definition = program
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
-        .find_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|requirement| requirement.symbol == evidence.requirement_symbol)
-                .map(|requirement| {
-                    program
-                        .normalized_trait_requirement_overload_identity(definition, requirement)
-                        .identity()
-                })
+        .find(|definition| {
+            definition.is_boundary && definition.symbol == evidence.source_symbol
         })
-        .or_else(|| {
-            panic!("admitted qualification evidence must name an exact boundary requirement")
-        })
+        .expect(
+            "admitted qualification evidence must name an exact boundary requirement owner/signature pair",
+        );
+    let requirement = program
+        .trait_machine_signatures(definition)
+        .iter()
+        .find(|requirement| requirement.symbol == evidence.requirement_symbol)
+        .expect(
+            "admitted qualification evidence must name an exact boundary requirement owner/signature pair",
+        );
+    Some(
+        program
+            .normalized_trait_requirement_overload_identity(definition, requirement)
+            .identity(),
+    )
 }
 
 fn machine_overload_identity(
@@ -3495,14 +3494,17 @@ mod tests {
     fn push_qualification_requirement(
         program: &mut CheckedTrees,
         is_boundary: bool,
-    ) -> SymbolHandle {
+        owner_index: u32,
+        requirement_index: u32,
+        owner_name: &str,
+    ) -> (SymbolHandle, SymbolHandle) {
         let mut owner = TraitDefinition {
-            symbol: SymbolHandle::from_arena_index(70),
+            symbol: SymbolHandle::from_arena_index(owner_index),
             is_boundary,
-            name: Identifier::generated("StorageBase"),
+            name: Identifier::generated(owner_name),
             ..Default::default()
         };
-        let requirement = SymbolHandle::from_arena_index(71);
+        let requirement = SymbolHandle::from_arena_index(requirement_index);
         program.typed.push_trait_machine_signature(
             &mut owner,
             StateSignature {
@@ -3511,8 +3513,9 @@ mod tests {
                 ..Default::default()
             },
         );
+        let owner_symbol = owner.symbol;
         program.typed.push_trait_definition(owner);
-        requirement
+        (owner_symbol, requirement)
     }
 
     #[test]
@@ -3920,8 +3923,8 @@ mod tests {
     fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
         let subject = SymbolHandle::from_arena_index(4);
         let domain = SymbolHandle::from_arena_index(5);
-        let provider = SymbolHandle::from_arena_index(6);
         let plan = selected_storage_plan();
+        assert_ne!(plan.schema.trait_name, "StorageBase");
         let receipt_identity = plan.identity_fingerprint();
         let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&plan),
@@ -3929,7 +3932,8 @@ mod tests {
         )
         .expect("complete selected provider plan");
         let mut program = CheckedTrees::default();
-        let requirement = push_qualification_requirement(&mut program, true);
+        let (requirement_owner, requirement) =
+            push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
         let place = program.facts.semantic.append_symbol_place(subject);
         program.facts.semantic.append_fact(Fact {
             place: FactPlace::Place(place),
@@ -3942,7 +3946,7 @@ mod tests {
             origin: FactOrigin::CallEnsures,
             evidence: QualificationEvidence {
                 origin: QualificationEvidenceOrigin::AdmittedReceipt,
-                source_symbol: provider,
+                source_symbol: requirement_owner,
                 requirement_symbol: requirement,
                 receipt_identity,
             },
@@ -3963,7 +3967,7 @@ mod tests {
             origin: FactOrigin::CallEnsures,
             evidence: QualificationEvidence {
                 origin: QualificationEvidenceOrigin::AdmittedReceipt,
-                source_symbol: provider,
+                source_symbol: requirement_owner,
                 requirement_symbol: requirement,
                 receipt_identity: 0,
             },
@@ -3984,7 +3988,7 @@ mod tests {
         assert!(json.contains("\"domain\": \"#5\""));
         assert!(json.contains("\"origin\": \"admitted_receipt\""));
         assert!(json.contains("\"program_point\": \"call_ensures\""));
-        assert!(json.contains("\"source\": \"#6\""));
+        assert!(json.contains("\"source\": \"#70\""));
         assert!(json.contains("\"requirement\": \"#71\""));
         assert!(
             json.contains("\"requirement_identity\": \"named-callable(path(StorageBase::transfer)")
@@ -4037,7 +4041,25 @@ mod tests {
     #[should_panic(expected = "must name an exact boundary requirement")]
     fn qualification_manifest_rejects_admitted_ordinary_trait_requirement() {
         let mut program = CheckedTrees::default();
-        let requirement = push_qualification_requirement(&mut program, false);
+        let (requirement_owner, requirement) =
+            push_qualification_requirement(&mut program, false, 70, 71, "StorageBase");
+        qualification_requirement_identity(
+            &program,
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                source_symbol: requirement_owner,
+                requirement_symbol: requirement,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact boundary requirement owner/signature pair")]
+    fn qualification_manifest_rejects_admitted_requirement_without_owner() {
+        let mut program = CheckedTrees::default();
+        let (_, requirement) =
+            push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
         qualification_requirement_identity(
             &program,
             &QualificationEvidence {
@@ -4049,10 +4071,30 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "must name an exact boundary requirement owner/signature pair")]
+    fn qualification_manifest_rejects_cross_owner_requirement() {
+        let mut program = CheckedTrees::default();
+        let (_, requirement) =
+            push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
+        let (unrelated_owner, _) =
+            push_qualification_requirement(&mut program, true, 72, 73, "AuditBase");
+        qualification_requirement_identity(
+            &program,
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                source_symbol: unrelated_owner,
+                requirement_symbol: requirement,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "non-admitted qualification evidence must not name")]
     fn qualification_manifest_rejects_requirement_on_non_admitted_evidence() {
         let mut program = CheckedTrees::default();
-        let requirement = push_qualification_requirement(&mut program, true);
+        let (_, requirement) =
+            push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
         qualification_requirement_identity(
             &program,
             &QualificationEvidence {
