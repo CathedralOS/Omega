@@ -327,6 +327,13 @@ Remaining:
   prefix retains independent evidence derived only from its own landed safe
   divisor; cast evidence, prior operation proofs, value definitions, and
   quotient/remainder algebra supply no authority.
+  The direct-root and post-cast exact-divide/remainder chain families now share
+  one runtime-divisor widening when at least one right sibling is a direct
+  same-carrier machine parameter. Every runtime divisor retains an independent
+  positive or at-most-`-2` proposition. The joint signed `-1` exception remains
+  restricted to the first direct-root operation when its dividend bound is
+  independently available; computed and post-cast dividends import no prior
+  proof authority. Literal-only chains remain on their existing paths.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
