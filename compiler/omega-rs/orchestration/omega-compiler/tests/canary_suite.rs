@@ -10114,10 +10114,11 @@ fn runtime_machine_bounded_subslice_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_machine_bounded_subslice_local_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mach-subslice-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine-bounded subslice canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine-bounded subslice canary should run");
 
@@ -10141,10 +10142,11 @@ fn runtime_subslice_start_pointer_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_start_pointer_exit");
     let scratch = std::env::temp_dir().join(format!("omega-subslice-ptr-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("subslice start pointer canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("subslice start pointer canary should run");
 
@@ -10425,10 +10427,11 @@ fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-rt-end-subslice-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-end fixed-array subslice local canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime-end fixed-array subslice local canary should run");
 
@@ -10454,10 +10457,11 @@ fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-rt-end-subslice-elem-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-end fixed-array subslice element canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime-end fixed-array subslice element canary should run");
 
@@ -10483,10 +10487,11 @@ fn guard_fixed_array_len_operand_exit_canary_runs() {
     let canary = pass_canary("slices/guard_fixed_array_len_operand_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guard-arr-len-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guard fixed-array len operand canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("guard fixed-array len operand canary should run");
 
@@ -10515,10 +10520,11 @@ fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-bounded fixed-array subslice arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime-bounded fixed-array subslice arg canary should run");
 
@@ -10546,10 +10552,11 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier concat canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier concat canary should run");
 
@@ -10577,10 +10584,11 @@ fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier alias concat canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier alias concat canary should run");
 
@@ -10606,10 +10614,11 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier local source concat canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier local source concat canary should run");
 
@@ -10639,10 +10648,11 @@ fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-call slice-view carrier guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("value-call slice-view carrier guard canary should run");
 
@@ -46084,6 +46094,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_mixed_index_copy_exit",
     "slices/runtime_slice_element_machine_roundtrip_exit",
     "slices/runtime_slice_element_runtime_index_read_exit",
+    "slices/runtime_machine_bounded_subslice_local_exit",
+    "slices/runtime_subslice_start_pointer_exit",
+    "slices/runtime_end_fixed_array_subslice_local_exit",
+    "slices/runtime_end_fixed_array_subslice_element_exit",
+    "slices/guard_fixed_array_len_operand_exit",
+    "slices/runtime_bounded_fixed_array_subslice_arg_exit",
+    "text/runtime_bounded_carrier_concat_exit",
+    "text/runtime_bounded_carrier_alias_concat_exit",
+    "text/runtime_bounded_carrier_local_source_concat_exit",
+    "text/runtime_value_call_slice_view_carrier_guard_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
@@ -46691,6 +46711,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_mixed_index_copy_exit",
     "slices/runtime_slice_element_machine_roundtrip_exit",
     "slices/runtime_slice_element_runtime_index_read_exit",
+    "slices/runtime_machine_bounded_subslice_local_exit",
+    "slices/runtime_subslice_start_pointer_exit",
+    "slices/runtime_end_fixed_array_subslice_local_exit",
+    "slices/runtime_end_fixed_array_subslice_element_exit",
+    "slices/guard_fixed_array_len_operand_exit",
+    "slices/runtime_bounded_fixed_array_subslice_arg_exit",
+    "text/runtime_bounded_carrier_concat_exit",
+    "text/runtime_bounded_carrier_alias_concat_exit",
+    "text/runtime_bounded_carrier_local_source_concat_exit",
+    "text/runtime_value_call_slice_view_carrier_guard_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
