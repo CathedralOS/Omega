@@ -27409,18 +27409,12 @@ fn runtime_exit_code_exit_canary_runs() {
     // exit-code operand was ignored and the process silently exited 0. The canary
     // computes 5 + 65 = 70 and exits with `self.v`.
     let canary = pass_canary("calls/runtime_exit_code_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-exit-code-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime exit code canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime exit code canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45177,6 +45171,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/recursive_result_bind_first_arg",
     "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_call_guard",
+    "calls/runtime_exit_code_exit",
     "calls/runtime_inline_recursive_walk_exit",
     "calls/runtime_let_mut_reassign_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
