@@ -21720,13 +21720,8 @@ fn u64_magnitude_transition_arg_exit_canary_runs() {
     let canary = pass_canary("arithmetic/u64_magnitude_transition_arg_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-u64arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("u64-magnitude transition-arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("u64-magnitude transition-arg canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("u64-magnitude transition-arg canary should run");
@@ -45494,6 +45489,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
     "arithmetic/runtime_shl_saturating_value_overflow_exit",
     "arithmetic/float_literal_cast_proves_exit",
+    "arithmetic/u64_magnitude_transition_arg_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
