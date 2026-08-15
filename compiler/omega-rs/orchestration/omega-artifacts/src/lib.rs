@@ -685,6 +685,12 @@ impl ArtifactWriter {
                     output.push_str(&invocations.join(", "));
                 }
             }
+            if let Some(may_suspend) = row.machine_may_suspend {
+                output.push_str(&format!(
+                    " -- may suspend: {}",
+                    if may_suspend { "yes" } else { "no" }
+                ));
+            }
             if row.standing_warning {
                 output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
             }
@@ -2153,6 +2159,10 @@ pub struct TrustReportRow {
     /// accepted machine. `Some(Vec::new())` is explicit public omission; rows
     /// that do not describe a local accepted machine retain `None`.
     pub machine_synchronous_invocations: Option<Vec<String>>,
+    /// Exact published suspension ceiling for one local accepted machine.
+    /// `Some(false)` is the public negative guarantee; rows that do not
+    /// describe a local accepted machine retain `None`.
+    pub machine_may_suspend: Option<bool>,
     /// Dev-active rows warn until the root grants them.
     pub standing_warning: bool,
 }
@@ -2540,6 +2550,7 @@ mod tests {
                     machine_contract_fingerprint: Some(0xabcd),
                     machine_service_reach: Some(Vec::new()),
                     machine_synchronous_invocations: Some(Vec::new()),
+                    machine_may_suspend: Some(false),
                     standing_warning: false,
                 },
                 TrustReportRow {
@@ -2548,6 +2559,7 @@ mod tests {
                     machine_contract_fingerprint: None,
                     machine_service_reach: None,
                     machine_synchronous_invocations: None,
+                    machine_may_suspend: None,
                     standing_warning: false,
                 },
             ],
@@ -2570,8 +2582,10 @@ mod tests {
 
         assert!(accepted.contains("service reach: none"));
         assert!(accepted.contains("synchronous invocations: none"));
+        assert!(accepted.contains("may suspend: no"));
         assert!(!domain.contains("service reach:"));
         assert!(!domain.contains("synchronous invocations:"));
+        assert!(!domain.contains("may suspend:"));
         std::fs::remove_dir_all(root).expect("remove test artifact directory");
     }
 
