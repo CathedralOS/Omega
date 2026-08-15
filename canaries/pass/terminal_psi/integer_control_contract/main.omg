@@ -1735,6 +1735,24 @@ requires value <= 0u8
     (((((value + 255u8) * 0u8) << 1u8) >> 1i16) < 255u8) && enabled
 }
 
+machine terminal_exact_shift_then_arithmetic_unsigned(value: u8, enabled: bool) -> bool
+requires value <= 127u8, value <= 63u8
+{
+    (((((value >> 1i8) << 2u16) + 3u8) * 2u8) < 255u8) && enabled
+}
+
+machine terminal_exact_shift_then_arithmetic_signed(value: i8, enabled: bool) -> bool
+requires -64i8 <= value, value <= 63i8, -32i8 <= value, value <= 31i8
+{
+    (((((value >> 1u8) << 2i16) - -3i8) * 2i8) < 127i8) && enabled
+}
+
+machine terminal_exact_shift_then_arithmetic_zero(value: u8, enabled: bool) -> bool
+requires value <= 127u8
+{
+    ((((value << 1u8) * 0u8) + 255u8) <= 255u8) && enabled
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

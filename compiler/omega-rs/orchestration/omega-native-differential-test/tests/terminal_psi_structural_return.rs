@@ -867,6 +867,9 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             affine_unsigned: u8,
             affine_signed: i8,
             zero_root: u8,
+            shift_affine_unsigned: u8,
+            shift_affine_signed: i8,
+            shift_zero_root: u8,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -881,7 +884,11 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             affine_unsigned <= 60u8,
             affine_signed <= 124i8, -67i8 <= affine_signed,
             affine_signed <= 60i8, -35i8 <= affine_signed, affine_signed <= 28i8,
-            zero_root <= 0u8
+            zero_root <= 0u8,
+            shift_affine_unsigned <= 127u8, shift_affine_unsigned <= 63u8,
+            -64i8 <= shift_affine_signed, shift_affine_signed <= 63i8,
+            -32i8 <= shift_affine_signed, shift_affine_signed <= 31i8,
+            shift_zero_root <= 127u8
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -897,6 +904,9 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && ((((((affine_unsigned + 3u8) * 2u8) >> 1i8) << 2u16) < 255u8))
                 && ((((((affine_signed - -3i8) * 2i8) >> 1u16) << 2i32) < 127i8))
                 && ((((((zero_root + 255u8) * 0u8) << 1u8) >> 1i16) < 255u8))
+                && ((((((shift_affine_unsigned >> 1i8) << 2u16) + 3u8) * 2u8) < 255u8))
+                && ((((((shift_affine_signed >> 1u8) << 2i16) - -3i8) * 2i8) < 127i8))
+                && (((((shift_zero_root << 1u8) * 0u8) + 255u8) <= 255u8))
                 && enabled
         }
     "#;
@@ -924,7 +934,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        18,
+        20,
     );
     assert_eq!(
         operations
@@ -934,7 +944,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        20,
+        23,
     );
     assert_eq!(
         operations
@@ -948,7 +958,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             .iter()
             .filter(|operation| matches!(operation.kind, OperationKind::ExactIntegerAdd { .. }))
             .count(),
-        2,
+        4,
     );
     assert_eq!(
         operations
@@ -958,7 +968,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerSubtract { .. }
             ))
             .count(),
-        1,
+        2,
     );
     assert_eq!(
         operations
@@ -968,7 +978,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerMultiply { .. }
             ))
             .count(),
-        3,
+        6,
     );
     verify_module(
         &lowered.semantic_module,
@@ -990,7 +1000,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        18,
+        20,
     );
     assert_eq!(
         abstract_plan
@@ -1002,7 +1012,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        20,
+        23,
     );
     assert_eq!(
         abstract_plan
@@ -1028,7 +1038,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        2,
+        4,
     );
     assert_eq!(
         abstract_plan
@@ -1042,7 +1052,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        1,
+        2,
     );
     assert_eq!(
         abstract_plan
@@ -1056,7 +1066,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        3,
+        6,
     );
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)

@@ -559,6 +559,18 @@ canonical falsehood, while checked affine or interval transfer failure admits
 no family. Right-only suffixes, runtime or computed siblings/counts, negative
 factors, non-left-associated shapes, casts, shells, and non-parameter roots
 remain fenced.
+The converse composition admits a finite nonempty left-associated exact-shift
+prefix followed by a finite nonempty same-carrier add/subtract/nonnegative-
+multiply literal suffix. Every count remains independently landed and every
+left-shift overflow and arithmetic-prefix obligation remains distinct. For each
+arithmetic prefix the verifier composes checked `A * shifted_root + B`, maps the
+carrier backward through that affine form, then replays the complete ordered
+shift prefix to the direct machine parameter. `A == 0` decides only the current
+arithmetic proposition after the complete canonical root shape is validated;
+it cannot erase any earlier proof. Mathematical emptiness is falsehood, while
+checked affine or interval transfer failure admits no family. Runtime or
+computed siblings/counts, negative factors, reversed or right-associated
+shapes, casts, shells, and non-parameter roots remain fenced.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
