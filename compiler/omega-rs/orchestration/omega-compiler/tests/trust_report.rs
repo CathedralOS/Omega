@@ -757,6 +757,7 @@ machine Main::exercise(&mut self) {}
     );
     let entry_row = extent_rows[0];
     assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
+    assert!(entry_row.contains("selected: yes"));
     assert!(entry_row.contains("requirement owner: StorageEntry"));
     assert!(entry_row.contains("requirement identity: named-callable(path(StorageEntry::enter)"));
     assert!(entry_row.contains("subject: parameter:0"));
@@ -779,6 +780,7 @@ machine Main::exercise(&mut self) {}
         })
         .expect("routed result row");
     assert!(result_row.contains("requirement owner: Issuer"));
+    assert!(result_row.contains("selected: yes"));
     assert!(result_row.contains("requirement identity: named-callable(path(Issuer::issue)"));
     assert!(result_row.contains("result-dispatch(declared:Token::Issued)"));
     assert!(result_row.contains("flow: returns"));
@@ -954,6 +956,7 @@ machine Main::exercise(&mut self) {}
         .find(|line| line.contains("provider plan: satisfies::Pair ["))
         .expect("partial provider plan row");
     assert!(plan_row.contains("coverage 1/2"));
+    assert!(plan_row.contains("selected: no"));
     assert!(report.contains("provider requirements: 1"));
     assert!(report.contains("routed qualifications: 1"));
     let qualification = report
@@ -963,6 +966,7 @@ machine Main::exercise(&mut self) {}
         })
         .expect("bound result qualification row");
     assert!(qualification.contains("requirement identity: named-callable(path(Pair::bound)"));
+    assert!(qualification.contains("selected: no"));
     assert!(qualification.contains("domain: Token::Bound"));
     assert!(!report.contains("subject: result -- flow: returns -- domain: Token::Unbound"));
     assert!(!report.lines().any(|line| {
@@ -1093,6 +1097,8 @@ machine Main::exercise(&mut self) {}
         .expect("second candidate row");
     assert!(first.contains("own-package (dev-active)") && first.contains("STANDING WARNING"));
     assert!(second.contains("root grant (build.omg)") && !second.contains("STANDING WARNING"));
+    assert!(first.contains("selected: no"));
+    assert!(second.contains("selected: yes"));
     let first_requirement = report
         .lines()
         .find(|line| {
@@ -1108,10 +1114,12 @@ machine Main::exercise(&mut self) {}
         })
         .expect("selected requirement row");
     assert!(first_requirement.contains("requirement owner: Pair"));
+    assert!(first_requirement.contains("selected: no"));
     assert!(first_requirement.contains("realization: checked adapter `FirstProvider::choose`"));
     assert!(first_requirement.contains("grant selectors: none"));
     assert!(first_requirement.contains("STANDING WARNING"));
     assert!(second_requirement.contains("requirement owner: Pair"));
+    assert!(second_requirement.contains("selected: yes"));
     assert!(second_requirement.contains("realization: checked adapter `SecondProvider::choose`"));
     assert!(second_requirement.contains("grant selectors: Pair"));
     assert!(second_requirement.contains("root grant (build.omg)"));

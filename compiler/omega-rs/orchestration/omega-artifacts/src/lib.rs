@@ -674,9 +674,10 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
+                if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
                 row.requirement_identity,
                 row.method,
@@ -712,9 +713,10 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
+                if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
                 row.requirement_identity,
                 row.method,
@@ -2096,6 +2098,7 @@ pub struct TrustReportRow {
 pub struct TrustProviderRequirementRow {
     pub provider_plan: String,
     pub provider_plan_fingerprint: u64,
+    pub selected: bool,
     pub requirement_owner: String,
     pub requirement_identity: String,
     pub method: String,
@@ -2154,6 +2157,7 @@ impl TrustProviderRealization {
 pub struct TrustQualificationRow {
     pub provider_plan: String,
     pub provider_plan_fingerprint: u64,
+    pub selected: bool,
     /// Readable semantic owner of the exact requirement. This remains
     /// separate from the canonical overload identity because an inherited
     /// requirement's owner can differ from the selected service schema.
@@ -2441,6 +2445,7 @@ mod tests {
             qualifications: vec![TrustQualificationRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
                 provider_plan_fingerprint: 0x1234,
+                selected: false,
                 requirement_owner: "Base".to_owned(),
                 requirement_identity:
                     "named-callable(path(Base::enter), parameters(), result(none))".to_owned(),
@@ -2463,6 +2468,7 @@ mod tests {
             std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
 
         assert!(output.contains("requirement owner: Base"));
+        assert!(output.contains("selected: no"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
         assert!(!output.contains("requirement owner: Root"));
         std::fs::remove_dir_all(root).expect("remove test artifact directory");
@@ -2485,6 +2491,7 @@ mod tests {
             provider_requirements: vec![TrustProviderRequirementRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
                 provider_plan_fingerprint: 0x1234,
+                selected: true,
                 requirement_owner: "Base".to_owned(),
                 requirement_identity:
                     "named-callable(path(Base::enter), parameters(), result(none))".to_owned(),
@@ -2509,6 +2516,7 @@ mod tests {
 
         assert!(output.contains("provider requirements: 1"));
         assert!(output.contains("provider plan: RootProvider::satisfies::Root [0000000000001234]"));
+        assert!(output.contains("selected: yes"));
         assert!(output.contains("requirement owner: Base"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
         assert!(output.contains("method: enter"));
