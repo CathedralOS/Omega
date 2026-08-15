@@ -11137,6 +11137,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct(left, right)
+                .or_else(|| shared_exact_cast_then_offset_runtime_parameters(expression))
                 .or_else(|| shared_exact_add_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_mixed_add_subtract_chain_runtime_parameters(expression))
         }
@@ -11154,6 +11155,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
+                .or_else(|| shared_exact_cast_then_offset_runtime_parameters(expression))
                 .or_else(|| shared_exact_subtract_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_mixed_add_subtract_chain_runtime_parameters(expression))
         }
@@ -11318,6 +11320,40 @@ fn shared_exact_offset_chain_cast_runtime_parameters(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_cast_then_offset_runtime_parameters(
+    expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let LoweredDirectExpression::IntegerBinary {
+        kind: LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract,
+        scalar_type: ScalarType::Integer(target_type),
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    if !native_fixed_integer_type(*target_type) || !exact_offset_landed_literal(*target_type, right)
+    {
+        return None;
+    }
+    let LoweredDirectExpression::IntegerExactCast {
+        scalar_type: ScalarType::Integer(cast_target_type),
+        operand,
+    } = left.as_ref()
+    else {
+        return None;
+    };
+    let LoweredDirectExpression::Parameter {
+        position,
+        scalar_type: ScalarType::Integer(source_type),
+    } = operand.as_ref()
+    else {
+        return None;
+    };
+    (*cast_target_type == *target_type && native_fixed_integer_type(*source_type))
+        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
 fn shared_exact_add_chain_runtime_parameters(

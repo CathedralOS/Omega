@@ -158,6 +158,9 @@ verifier-derived self-proof adds no executable work.
 Likewise, a finite retained exact-add/subtract literal-offset chain followed by
 one exact fixed-native cast charges every arithmetic operation and the cast;
 the verifier's shifted target-interval reconstruction adds no executable work.
+The converse retained pair—one direct partial exact cast followed by one exact
+add or subtract with a landed target-carrier literal—likewise charges the cast
+and arithmetic operation separately; its two proofs add no fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
