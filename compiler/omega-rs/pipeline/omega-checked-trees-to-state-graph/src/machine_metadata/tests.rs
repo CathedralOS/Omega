@@ -142,7 +142,6 @@ fn push_operational_contract(
         .machines
         .push(psi_checked_trees::MachineContractPlan {
             machine: machine_symbol,
-            service_reach: Default::default(),
             synchronous_invocation: Default::default(),
             suspension: psi_language_semantics::SuspensionPlan {
                 checked_may_suspend,

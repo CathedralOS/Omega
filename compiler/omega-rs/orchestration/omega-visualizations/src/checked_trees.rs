@@ -2162,11 +2162,7 @@ fn independent_machine_service_reach_plan(
     program
         .facts
         .service_reaches
-        .for_machine(machine)
-        .map(|reach| psi_language_semantics::ServiceReachPlan {
-            interface: reach.interface,
-            checked_inferred: reach.inferred_transitive,
-        })
+        .plan_for_machine(machine)
         .unwrap_or_default()
 }
 
@@ -3135,7 +3131,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine,
-                service_reach: Default::default(),
                 synchronous_invocation: Default::default(),
                 suspension: SuspensionPlan {
                     checked_may_suspend,
@@ -4079,9 +4074,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine: symbol,
-                // Deliberately contradictory legacy source: visualization
-                // must use the independently published reach axis above.
-                service_reach: Default::default(),
                 synchronous_invocation: psi_language_semantics::SynchronousInvocationPlan {
                     interface:
                         psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,

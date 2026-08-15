@@ -211,12 +211,6 @@ fn build_contract_plans(
             .filter_map(|service| service_reaches.services.definition(*service))
             .map(|definition| definition.name.clone())
             .collect::<Vec<_>>();
-        let service_reach = psi_language_semantics::ServiceReachPlan {
-            interface: service_fact.map(|fact| fact.interface).unwrap_or_default(),
-            checked_inferred: service_fact
-                .map(|fact| fact.inferred_transitive)
-                .unwrap_or(psi_language_semantics::ServiceReachRowTable::EMPTY_ROW),
-        };
         let invocation_summary = invocation_inference.for_machine(machine.symbol);
         let canonical_invocation = |target: psi_effects::InvocationTarget| match target {
             psi_effects::InvocationTarget::Parameter(index) => format!("parameter:{index}"),
@@ -381,7 +375,6 @@ fn build_contract_plans(
         );
         machines.push(psi_checked_trees::MachineContractPlan {
             machine: machine.symbol,
-            service_reach,
             synchronous_invocation,
             suspension,
             blocking,

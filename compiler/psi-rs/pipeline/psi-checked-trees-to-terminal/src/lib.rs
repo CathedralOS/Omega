@@ -4016,7 +4016,13 @@ fn lower_nominal_structural_scalar_return_machine(
         entry_claims: Vec::new(),
         body_qualifications: Vec::new(),
         contract_fingerprint: contract.fingerprint,
-        contract_service_reach: contract.service_reach,
+        contract_service_reach: checked
+            .facts
+            .service_reaches
+            .plan_for_machine(plan.machine)
+            .ok_or(LoweringError::Unsupported(
+                "nominal scalar return is missing its checked service-reach plan",
+            ))?,
         service_reach: flow.service_reach,
         operations: vec![CheckedUnitEffectOperationPlan::ReturnUnit {
             statement_index: 0,
