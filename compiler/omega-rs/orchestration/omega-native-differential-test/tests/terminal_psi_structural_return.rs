@@ -875,7 +875,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             enabled: bool
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 253u8, small <= 252u8,
-            small <= 127u8, small <= 63u8, small <= 42u8,
+            small <= 127u8, small <= 63u8, small <= 42u8, small <= 31u8,
             small <= 7u8, 1u8 <= small, 2u8 <= small, 3u8 <= small,
             1u8 <= divisor, divisor <= small,
             small <= 255u8 / divisor, count <= 2u8,
@@ -925,6 +925,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small >> small) < 1u8)
                 && ((signed_arithmetic >> signed_divisor) < 4i8)
                 && ((((small >> 1i8) >> 2u16) >> 0i32) < 2u8)
+                && ((((small << 1i8) << 2u16) << 0i32) < 255u8)
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
                 && ((small << signed_count) < 255u8)
@@ -1928,6 +1929,59 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         })
         .expect("native path retains the finite exact-shift-right chain");
     for obligation in nested_shift_right_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let nested_shift_left_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerShiftLeft {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(count, IntegerValue::Signed(0)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftLeft {
+                value: middle_value,
+                count: middle_count,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(middle_count, IntegerValue::Unsigned(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_value)
+            })?;
+            let OperationKind::ExactIntegerShiftLeft {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_value == terminal_entry.parameters[1].id
+                && has_integer_constant(inner_count, IntegerValue::Signed(1)))
+            .then_some([inner_obligation, middle_obligation, outer_obligation])
+        })
+        .expect("native path retains the finite exact-shift-left chain");
+    for obligation in nested_shift_left_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(

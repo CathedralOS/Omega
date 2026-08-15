@@ -819,6 +819,7 @@ fn reconstruct_machine_semantics(
                     let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
                         unreachable!("validator requires exact-shift integer count type")
                     };
+                    let definition_axiom_count = axioms.len();
                     let mut available_bounds = axioms.clone();
                     available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -830,6 +831,8 @@ fn reconstruct_machine_semantics(
                                 value_term(value),
                                 value_term(count),
                                 &available_bounds,
+                                definition_axiom_count,
+                                &machine_parameter_values,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1576,7 +1579,25 @@ fn exact_integer_shift_left_obligation(
     value: ScalarTerm,
     count: ScalarTerm,
     semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Proposition {
+    if let Some(count_value) = landed_exact_shift_count(
+        value_type,
+        count_type,
+        &count,
+        semantic_axioms,
+        definition_axiom_count,
+    ) && let Some(obligation) = exact_integer_shift_left_chain_obligation(
+        value_type,
+        value.clone(),
+        count_value,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     if let Some(count) = exact_known_shift_count(value_type, count_type, &count, semantic_axioms) {
         let mut bounds = Vec::with_capacity(2);
         append_exact_shift_left_value_bounds(&mut bounds, value_type, value, count);
@@ -1607,6 +1628,133 @@ fn exact_integer_shift_left_obligation(
     let maximum_count = known_maximum.unwrap_or_else(|| u32::from(value_type.bits() - 1));
     append_exact_shift_left_value_bounds(&mut bounds, value_type, value, maximum_count);
     canonical_conjunction(bounds)
+}
+
+fn exact_integer_shift_left_chain_obligation(
+    value_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    count: u128,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if value_type.is_address() || !matches!(value_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let mut cumulative_count = count;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut followed_definition = false;
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let ScalarTerm::ExactIntegerShiftLeft {
+            value_type: nested_value_type,
+            count_type,
+            value: nested_value,
+            count: nested_count,
+        } = definition
+        else {
+            break;
+        };
+        if *nested_value_type != value_type {
+            break;
+        }
+        let Some(nested_count) = landed_exact_shift_count(
+            value_type,
+            *count_type,
+            nested_count,
+            semantic_axioms,
+            definition_index,
+        ) else {
+            break;
+        };
+        let Some(total) = cumulative_count.checked_add(nested_count) else {
+            return Some(Proposition::Falsehood);
+        };
+        cumulative_count = total;
+        value = (**nested_value).clone();
+        prior_axiom_count = definition_index;
+        followed_definition = true;
+    }
+    if !followed_definition
+        || !matches!(
+            &value,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == value_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    Some(exact_integer_cumulative_shift_left_obligation(
+        value_type,
+        value,
+        cumulative_count,
+    ))
+}
+
+fn landed_exact_shift_count(
+    value_type: psi_core::IntegerType,
+    count_type: psi_core::IntegerType,
+    count: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+    prior_axiom_count: usize,
+) -> Option<u128> {
+    if count_type.is_address() || !matches!(count_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let count =
+        landed_integer_constant_value(count_type, count, semantic_axioms, prior_axiom_count)?;
+    let count = match count {
+        IntegerValue::Signed(count) => u128::try_from(count).ok()?,
+        IntegerValue::Unsigned(count) => count,
+    };
+    (count < u128::from(value_type.bits())).then_some(count)
+}
+
+fn exact_integer_cumulative_shift_left_obligation(
+    value_type: psi_core::IntegerType,
+    value: ScalarTerm,
+    cumulative_count: u128,
+) -> Proposition {
+    if cumulative_count == 0 {
+        return Proposition::Truth;
+    }
+    if cumulative_count < u128::from(value_type.bits()) {
+        let mut bounds = Vec::with_capacity(2);
+        append_exact_shift_left_value_bounds(
+            &mut bounds,
+            value_type,
+            value,
+            u32::try_from(cumulative_count).expect("count below native width fits u32"),
+        );
+        return canonical_conjunction(bounds);
+    }
+    let zero = ScalarTerm::integer(
+        value_type,
+        match value_type.sign() {
+            IntegerSign::Signed => IntegerValue::Signed(0),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+        },
+    )
+    .expect("fixed integer value types admit zero");
+    match value_type.sign() {
+        IntegerSign::Unsigned => Proposition::LessOrEqual(value, zero),
+        IntegerSign::Signed => canonical_conjunction(vec![
+            Proposition::LessOrEqual(zero.clone(), value.clone()),
+            Proposition::LessOrEqual(value, zero),
+        ]),
+    }
 }
 
 fn append_exact_shift_left_value_bounds(
@@ -5040,6 +5188,324 @@ mod tests {
         assert_eq!(
             exact_integer_shift_obligation(value_type, unsigned_count_type, eight, &[]),
             Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn exact_shift_left_chain_reconstructs_cumulative_parameter_bounds() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
+        let i8_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let u16_count_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+        let i32_count_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 count");
+        let root = ScalarTerm::value(ValueId::new(1).expect("root"), ScalarType::Integer(u8_type));
+        let first = ScalarTerm::value(
+            ValueId::new(2).expect("first"),
+            ScalarType::Integer(u8_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(3).expect("second"),
+            ScalarType::Integer(u8_type),
+        );
+        let one = ScalarTerm::integer(i8_count_type, IntegerValue::Signed(1)).expect("1i8");
+        let two = ScalarTerm::integer(u16_count_type, IntegerValue::Unsigned(2)).expect("2u16");
+        let zero = ScalarTerm::integer(i32_count_type, IntegerValue::Signed(0)).expect("0i32");
+        let axioms = vec![
+            Proposition::Equal(
+                first.clone(),
+                ScalarTerm::exact_integer_shift_left(u8_type, i8_count_type, root.clone(), one)
+                    .expect("root << 1i8"),
+            ),
+            Proposition::Equal(
+                second.clone(),
+                ScalarTerm::exact_integer_shift_left(u8_type, u16_count_type, first, two)
+                    .expect("first << 2u16"),
+            ),
+        ];
+        let thirty_one = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(31)).expect("31u8");
+        assert_eq!(
+            exact_integer_shift_left_obligation(
+                u8_type,
+                i32_count_type,
+                second,
+                zero,
+                &axioms,
+                axioms.len(),
+                &BTreeSet::from([ValueId::new(1).expect("root")]),
+            ),
+            Proposition::LessOrEqual(root, thirty_one)
+        );
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 value");
+        let signed_root = ScalarTerm::value(
+            ValueId::new(4).expect("signed root"),
+            ScalarType::Integer(i8_type),
+        );
+        let signed_first = ScalarTerm::value(
+            ValueId::new(5).expect("signed first"),
+            ScalarType::Integer(i8_type),
+        );
+        let one = ScalarTerm::integer(i8_count_type, IntegerValue::Signed(1)).expect("1i8");
+        let two = ScalarTerm::integer(u16_count_type, IntegerValue::Unsigned(2)).expect("2u16");
+        let signed_axioms = vec![Proposition::Equal(
+            signed_first.clone(),
+            ScalarTerm::exact_integer_shift_left(i8_type, i8_count_type, signed_root.clone(), one)
+                .expect("signed root << 1i8"),
+        )];
+        let negative_sixteen =
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-16)).expect("-16i8");
+        let fifteen = ScalarTerm::integer(i8_type, IntegerValue::Signed(15)).expect("15i8");
+        assert_eq!(
+            exact_integer_shift_left_obligation(
+                i8_type,
+                u16_count_type,
+                signed_first,
+                two,
+                &signed_axioms,
+                signed_axioms.len(),
+                &BTreeSet::from([ValueId::new(4).expect("signed root")]),
+            ),
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(negative_sixteen, signed_root.clone()),
+                Proposition::LessOrEqual(signed_root, fifteen),
+            ])
+        );
+    }
+
+    #[test]
+    fn exact_shift_left_chain_rejects_broken_definitions_and_counts() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 value");
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 count");
+        let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let root_id = ValueId::new(1).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(u8_type));
+        let first = ScalarTerm::value(
+            ValueId::new(2).expect("first"),
+            ScalarType::Integer(u8_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(3).expect("second"),
+            ScalarType::Integer(u8_type),
+        );
+        let local = ScalarTerm::value(
+            ValueId::new(4).expect("local"),
+            ScalarType::Integer(u8_type),
+        );
+        let one = ScalarTerm::integer(count_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let two = ScalarTerm::integer(count_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, root.clone(), one.clone())
+                .expect("root << 1u8"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, first.clone(), two.clone())
+                .expect("first << 2u8"),
+        );
+        let parameters = BTreeSet::from([root_id]);
+        let reconstruct = |axioms: &[Proposition], parameters: &BTreeSet<ValueId>| {
+            exact_integer_shift_left_chain_obligation(
+                u8_type,
+                second.clone(),
+                0,
+                axioms,
+                axioms.len(),
+                parameters,
+            )
+        };
+        assert_eq!(
+            reconstruct(
+                &[first_definition.clone(), second_definition.clone()],
+                &parameters,
+            ),
+            Some(Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(u8_type, IntegerValue::Unsigned(31)).expect("31u8"),
+            ))
+        );
+        assert_eq!(
+            reconstruct(
+                &[second_definition.clone(), first_definition.clone()],
+                &parameters,
+            ),
+            None,
+            "a definition may not be recovered from outside the shrinking prefix"
+        );
+
+        let reversed_first = Proposition::Equal(
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, root.clone(), one.clone())
+                .expect("root << 1u8"),
+            first.clone(),
+        );
+        assert_eq!(
+            reconstruct(&[reversed_first, second_definition.clone()], &parameters),
+            None,
+            "a symmetric equality is not operation-definition authority"
+        );
+
+        let redirected_second = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, local.clone(), two.clone())
+                .expect("local << 2u8"),
+        );
+        assert_eq!(
+            reconstruct(&[first_definition.clone(), redirected_second], &parameters),
+            None
+        );
+        assert_eq!(
+            reconstruct(
+                &[first_definition.clone(), second_definition.clone()],
+                &BTreeSet::new(),
+            ),
+            None,
+            "a local or block parameter is not a machine-parameter root"
+        );
+
+        let cyclic_first = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, second.clone(), one.clone())
+                .expect("second << 1u8"),
+        );
+        assert_eq!(
+            reconstruct(&[cyclic_first, second_definition.clone()], &parameters),
+            None
+        );
+
+        let negative =
+            ScalarTerm::integer(signed_count_type, IntegerValue::Signed(-1)).expect("-1i8");
+        let negative_first = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(
+                u8_type,
+                signed_count_type,
+                root.clone(),
+                negative,
+            )
+            .expect("root << -1i8 remains a proposition term"),
+        );
+        assert_eq!(
+            reconstruct(&[negative_first, second_definition.clone()], &parameters),
+            None
+        );
+
+        let eight = ScalarTerm::integer(count_type, IntegerValue::Unsigned(8)).expect("8u8");
+        let out_of_range_first = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, root.clone(), eight)
+                .expect("root << 8u8 remains a proposition term"),
+        );
+        assert_eq!(
+            reconstruct(
+                &[out_of_range_first, second_definition.clone()],
+                &parameters,
+            ),
+            None
+        );
+
+        let computed_count = ScalarTerm::value(
+            ValueId::new(5).expect("computed count"),
+            ScalarType::Integer(count_type),
+        );
+        let computed_first = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, root.clone(), computed_count)
+                .expect("root << computed count"),
+        );
+        assert_eq!(
+            reconstruct(&[computed_first, second_definition.clone()], &parameters),
+            None
+        );
+
+        let signed_root = ScalarTerm::value(
+            ValueId::new(6).expect("signed root"),
+            ScalarType::Integer(i8_type),
+        );
+        let mismatched_first = Proposition::Equal(
+            first,
+            ScalarTerm::exact_integer_shift_left(
+                i8_type,
+                signed_count_type,
+                signed_root,
+                ScalarTerm::integer(signed_count_type, IntegerValue::Signed(1)).expect("1i8"),
+            )
+            .expect("signed root << 1i8"),
+        );
+        assert_eq!(
+            reconstruct(&[mismatched_first, second_definition], &parameters),
+            None
+        );
+    }
+
+    #[test]
+    fn exact_shift_left_chain_handles_zero_width_and_count_overflow() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 count");
+        let root = ScalarTerm::value(ValueId::new(1).expect("root"), ScalarType::Integer(u8_type));
+        let first = ScalarTerm::value(
+            ValueId::new(2).expect("first"),
+            ScalarType::Integer(u8_type),
+        );
+        let four = ScalarTerm::integer(count_type, IntegerValue::Unsigned(4)).expect("4u8");
+        let zero = ScalarTerm::integer(count_type, IntegerValue::Unsigned(0)).expect("0u8");
+        let width_axioms = vec![Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, root.clone(), four.clone())
+                .expect("root << 4u8"),
+        )];
+        let zero_value = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(0)).expect("0u8");
+        assert_eq!(
+            exact_integer_shift_left_obligation(
+                u8_type,
+                count_type,
+                first.clone(),
+                four,
+                &width_axioms,
+                width_axioms.len(),
+                &BTreeSet::from([ValueId::new(1).expect("root")]),
+            ),
+            Proposition::LessOrEqual(root.clone(), zero_value)
+        );
+        let identity_axioms = vec![Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_shift_left(u8_type, count_type, root, zero.clone())
+                .expect("root << 0u8"),
+        )];
+        assert_eq!(
+            exact_integer_shift_left_obligation(
+                u8_type,
+                count_type,
+                first.clone(),
+                zero,
+                &identity_axioms,
+                identity_axioms.len(),
+                &BTreeSet::from([ValueId::new(1).expect("root")]),
+            ),
+            Proposition::Truth
+        );
+        assert_eq!(
+            exact_integer_shift_left_chain_obligation(
+                u8_type,
+                first,
+                u128::MAX,
+                &width_axioms,
+                width_axioms.len(),
+                &BTreeSet::from([ValueId::new(1).expect("root")]),
+            ),
+            Some(Proposition::Falsehood)
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 value");
+        let signed_root = ScalarTerm::value(
+            ValueId::new(3).expect("signed root"),
+            ScalarType::Integer(i8_type),
+        );
+        let signed_zero = ScalarTerm::integer(i8_type, IntegerValue::Signed(0)).expect("0i8");
+        assert_eq!(
+            exact_integer_cumulative_shift_left_obligation(i8_type, signed_root.clone(), 8),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(signed_zero.clone(), signed_root.clone()),
+                Proposition::LessOrEqual(signed_root, signed_zero),
+            ])
         );
     }
 

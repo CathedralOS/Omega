@@ -1,6 +1,8 @@
 use super::*;
+use crate::flow::exact_shift_left_chain_runtime_parameter_positions_for_test;
 use psi_checked_trees::{
-    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedScalarExpression,
+    CheckedScalarExpressionRole,
 };
 
 #[test]
@@ -954,6 +956,60 @@ fn nominal_scalar_cleanup_retains_contextual_short_circuit_return() {
         [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)]
             if cleanup.requirements.len() == 1
     ));
+}
+
+#[test]
+fn exact_shift_left_chain_classifier_covers_u64_and_fences_other_exact_roots() {
+    let count = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U64,
+    };
+    let shift_left = |value, count| CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactShiftLeft,
+        primitive_type: PrimitiveType::U64,
+        left: Box::new(value),
+        right: Box::new(count),
+    };
+    let u64_chain = shift_left(
+        shift_left(
+            shift_left(
+                parameter(),
+                count(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            ),
+            count(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        count(3i64, psi_numerics::literals::LandedIntegerType::U32),
+    );
+    assert_eq!(
+        exact_shift_left_chain_runtime_parameter_positions_for_test(&u64_chain, 1),
+        Some(vec![0])
+    );
+
+    let shifted_root = CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactShiftRight,
+        primitive_type: PrimitiveType::U64,
+        left: Box::new(parameter()),
+        right: Box::new(count(1i64, psi_numerics::literals::LandedIntegerType::U8)),
+    };
+    let fenced = shift_left(
+        shift_left(
+            shifted_root,
+            count(0i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        count(0i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_shift_left_chain_runtime_parameter_positions_for_test(&fenced, 1),
+        None
+    );
 }
 
 #[test]
@@ -2023,6 +2079,128 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((input << 1u8) >> 1u8) >> 1u8) < 5u8) && enabled;
             staged
         }
+        machine Root::exact_shift_left_chain_u8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 127u8, input <= 31u8
+        {
+            let staged: bool = ((((input << 1i8) << 2u16) << 0i32) < 255u8) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_u16_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((((input << 0u8) << 0i16) << 0u32) < 5u16) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_u32_integer_comparison_convergence(
+            token: Token,
+            input: u32,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((((input << 0i64) << 0u8) << 0i16) < 5u32) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_i8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -64i8 <= input, input <= 63i8, -16i8 <= input, input <= 15i8
+        {
+            let staged: bool = ((((input << 1u16) << 2i32) << 0u8) < 5i8) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_i16_integer_comparison_convergence(
+            token: Token,
+            input: i16,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((((input << 0i8) << 0u32) << 0i64) < 5i16) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_i32_integer_comparison_convergence(
+            token: Token,
+            input: i32,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((((input << 0u64) << 0i16) << 0u8) < 5i32) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_i64_integer_comparison_convergence(
+            token: Token,
+            input: i64,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((((input << 0i32) << 0u16) << 0u64) < 5i64) && enabled;
+            staged
+        }
+        machine Root::width_exact_shift_left_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 0u8
+        {
+            let staged: bool = (((input << 4u8) << 4i8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::runtime_count_exact_shift_left_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            count: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 0u8, count <= 7u8
+        {
+            let staged: bool = (((input << 1u8) << count) < 5u8) && enabled;
+            staged
+        }
+        machine Root::computed_count_exact_shift_left_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 0u8
+        {
+            let staged: bool = (((input << 0u8) << (input % 8u8)) < 5u8) && enabled;
+            staged
+        }
+        machine Root::local_exact_shift_left_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 0u8
+        {
+            let retained: u8 = input;
+            let staged: bool = (((retained << 1u8) << 1u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::widened_exact_shift_left_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 0u8
+        {
+            let staged: bool = (((((input << 1u8) as u16) << 1u8) << 1u8) < 5u16) && enabled;
+            staged
+        }
+        machine Root::exact_add_feeds_shift_left_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 0u8
+        {
+            let staged: bool = ((((input + 0u8) << 1u8) << 1u8) < 5u8) && enabled;
+            staged
+        }
         machine Root::two_nested_exact_add_operands_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -3026,6 +3204,47 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 .shared_boolean_convergence
                 .is_none()
         );
+    }
+    for carrier in ["u8", "u16", "u32", "i8", "i16", "i32", "i64"] {
+        let machine = format!("exact_shift_left_chain_{carrier}_integer_comparison_convergence");
+        let shift_left_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, &machine))
+            .unwrap_or_else(|| {
+                panic!("the {carrier} finite exact-shift-left chain retains the scalar-return plan")
+            });
+        assert!(shift_left_chain.shared_boolean_convergence.is_some());
+    }
+    let width_shift_left_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "width_exact_shift_left_chain_integer_comparison_convergence",
+        ))
+        .expect("a cumulative carrier-width shift retains the zero-only root bound");
+    assert!(width_shift_left_chain.shared_boolean_convergence.is_some());
+    for machine in [
+        "runtime_count_exact_shift_left_chain_integer_comparison_convergence",
+        "computed_count_exact_shift_left_chain_integer_comparison_convergence",
+        "local_exact_shift_left_chain_integer_comparison_convergence",
+        "widened_exact_shift_left_chain_integer_comparison_convergence",
+        "exact_add_feeds_shift_left_chain_integer_comparison_convergence",
+    ] {
+        let fenced_shift_left_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!(
+                    "fenced exact-shift-left composition `{machine}` retains only source-distributed fallback"
+                )
+            });
+        assert!(fenced_shift_left_chain.shared_boolean_convergence.is_none());
     }
     let nested_exact_cast_integer_comparison = checked
         .facts

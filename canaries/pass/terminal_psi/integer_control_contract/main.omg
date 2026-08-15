@@ -1372,6 +1372,12 @@ machine terminal_exact_shift_right_literal_chain(value: u8, enabled: bool) -> bo
     staged
 }
 
+machine terminal_exact_shift_left_literal_chain(value: u32) -> bool
+requires value <= 2147483647u32, value <= 536870911u32
+{
+    (((value << 1u8) << 2i16) << 0u32) < 4294967295u32
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
