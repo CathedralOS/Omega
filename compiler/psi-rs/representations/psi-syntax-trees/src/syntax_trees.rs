@@ -1009,8 +1009,7 @@ impl SyntaxTrees {
             StatementNode::EvidencePackageDestructure(binding) => {
                 StatementNode::EvidencePackageDestructure(
                     crate::statement::TableEvidencePackageDestructure {
-                        output_field: binding.output_field.clone(),
-                        binding: binding.binding.clone(),
+                        bindings: binding.bindings.clone(),
                         call: self.copy_expression_handle(other, binding.call),
                     },
                 )

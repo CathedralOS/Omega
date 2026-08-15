@@ -148,13 +148,15 @@ identity. Forwarding is canonicalized before applications are serialized, so
 input and output aliases project the same opaque identity while separate terms
 remain distinct. The verifier requires the term and exact row to exist in the
 retained interface; diagnostic display spelling is never an identity oracle.
-The first generated-package rung adds a dense invocation table retaining the
-canonical caller and ordinal, normalized callee-machine identity, public output
-field and position, one callee declaration, and one distinct caller-local term
-with the same proposition and interface. Source coordinates and diagnostic
-paths erase. The row adds no runtime operation or fuel. Retained, multi-field,
-runtime-value, guarded, generic, discarded, and general projection forms remain
-separate work.
+The immediate generated-package rung adds a dense invocation table retaining
+the canonical caller and ordinal, normalized callee-machine identity, and the
+complete nonempty output set in callee-lane order. Each output binds its public
+field and dense position, one callee declaration, and one distinct caller-local
+term with the same proposition and interface. Repeated calls share callee terms
+and producers while minting fresh caller terms. Source coordinates, source
+field order, and diagnostic paths erase; the grouped row adds no runtime
+operation or fuel. Retained, runtime-value, guarded, generic, discarded, and
+general projection forms remain separate work.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

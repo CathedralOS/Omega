@@ -116,8 +116,15 @@ pub(crate) fn lower_state(
                     state_symbol: package.state_symbol,
                     statement_index: typed_state.statement_nodes.count() as usize,
                     source_statement_index: package.statement_index,
-                    output_field: crate::name::lower_name(&package.output_field),
-                    binding: crate::name::lower_name(&package.binding),
+                    bindings: package
+                        .bindings
+                        .iter()
+                        .map(|binding| typed::typed_trees::EvidencePackageBinding {
+                            output_field: crate::name::lower_name(&binding.output_field),
+                            binding: crate::name::lower_name(&binding.binding),
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     call,
                 },
             );

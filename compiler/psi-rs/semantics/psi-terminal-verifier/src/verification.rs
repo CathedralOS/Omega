@@ -185,7 +185,7 @@ fn validate_evidence_producer_provenance(
     let package_outputs = module
         .evidence_package_invocations
         .iter()
-        .map(|invocation| invocation.output)
+        .flat_map(|invocation| invocation.outputs.iter().map(|output| output.output))
         .collect::<BTreeSet<_>>();
     for lane in &module.evidence_contract_lanes {
         if lane.kind == EvidenceContractLaneKind::Ensures
@@ -196,9 +196,9 @@ fn validate_evidence_producer_provenance(
         }
     }
     for invocation in &module.evidence_package_invocations {
-        unmatched_ensures
-            .entry(invocation.callee_output)
-            .or_insert(1);
+        for output in &invocation.outputs {
+            unmatched_ensures.entry(output.callee_output).or_insert(1);
+        }
     }
 
     let mut previous_id = None;

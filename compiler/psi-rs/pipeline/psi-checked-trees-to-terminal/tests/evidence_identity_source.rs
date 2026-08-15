@@ -91,6 +91,56 @@ const GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
+const MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::produce()
+    ensures first: ready()
+    ensures second: ready()
+    {
+        first = ConcreteEvidence;
+        second = ConcreteEvidence;
+    }
+
+    machine Root::relay()
+    ensures relayed_first: ready()
+    ensures relayed_second: ready()
+    {
+        let { second: local_second, first: local_first } = Root::produce();
+        relayed_first = local_first;
+        relayed_second = local_second;
+    }
+"#;
+
+const REPEATED_MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::produce()
+    ensures first: ready()
+    ensures second: ready()
+    { first = ConcreteEvidence; second = ConcreteEvidence; }
+
+    machine Root::relay()
+    ensures first_one: ready()
+    ensures first_two: ready()
+    ensures second_one: ready()
+    ensures second_two: ready()
+    {
+        let { first: local_first_one, second: local_first_two } = Root::produce();
+        first_one = local_first_one;
+        first_two = local_first_two;
+        let { first: local_second_one, second: local_second_two } = Root::produce();
+        second_one = local_second_one;
+        second_two = local_second_two;
+    }
+"#;
+
 const REPEATED_GENERATED_PACKAGE_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -767,9 +817,12 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
         panic!("one terminal evidence-package invocation expected")
     };
     assert_eq!(invocation.ordinal, 0);
-    assert_eq!(invocation.output_position, 0);
-    assert_eq!(invocation.output_field, "outgoing");
-    assert_ne!(invocation.callee_output, invocation.output);
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one terminal evidence-package output expected")
+    };
+    assert_eq!(output.output_position, 0);
+    assert_eq!(output.output_field, "outgoing");
+    assert_ne!(output.callee_output, output.output);
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
 
     let bytes = encode_module(&lowered.semantic_module).expect("package module encodes");
@@ -801,8 +854,8 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
     );
 
     let mut forged = lowered.semantic_module.clone();
-    forged.evidence_package_invocations[0].output =
-        forged.evidence_package_invocations[0].callee_output;
+    forged.evidence_package_invocations[0].outputs[0].output =
+        forged.evidence_package_invocations[0].outputs[0].callee_output;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&forged),
         Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
@@ -817,7 +870,7 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
         baseline
     );
     let mut renamed_field = lowered.semantic_module.clone();
-    renamed_field.evidence_package_invocations[0].output_field = "renamed".to_owned();
+    renamed_field.evidence_package_invocations[0].outputs[0].output_field = "renamed".to_owned();
     assert_ne!(
         semantic_fingerprint(&renamed_field).expect("renamed field is distinct semantics"),
         baseline
@@ -837,11 +890,138 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
         Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
     ));
     let mut reserved_field = lowered.semantic_module.clone();
-    reserved_field.evidence_package_invocations[0].output_field = "value".to_owned();
+    reserved_field.evidence_package_invocations[0].outputs[0].output_field = "value".to_owned();
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&reserved_field),
         Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
     ));
+}
+
+#[test]
+fn multi_field_generated_package_is_complete_canonical_and_runtime_erased() {
+    let checked = check(MULTI_FIELD_GENERATED_PACKAGE_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("complete multi-field package should cross terminal Psi");
+    let [invocation] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("one grouped terminal evidence-package invocation expected")
+    };
+    assert_eq!(invocation.ordinal, 0);
+    let [first, second] = invocation.outputs.as_slice() else {
+        panic!("two terminal evidence-package outputs expected")
+    };
+    assert_eq!((first.output_position, second.output_position), (0, 1));
+    assert_eq!(
+        (first.output_field.as_str(), second.output_field.as_str()),
+        ("first", "second")
+    );
+    assert_ne!(first.callee_output, first.output);
+    assert_ne!(second.callee_output, second.output);
+    assert_ne!(first.output, second.output);
+    assert_ne!(first.callee_output, second.callee_output);
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 2);
+
+    let bytes = encode_module(&lowered.semantic_module).expect("multi-field package encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("multi-field proof encodes");
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("complete multi-field package verifies");
+    derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("multi-field proof-only invocation adds no runtime fuel");
+
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+    )
+    .expect("multi-field proof-only package requires no runtime argument");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("execute erased package"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+
+    let mut non_dense = lowered.semantic_module.clone();
+    non_dense.evidence_package_invocations[0].outputs[1].output_position = 2;
+    assert!(encode_module(&non_dense).is_err());
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&non_dense),
+        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+    ));
+
+    let mut aliased = lowered.semantic_module.clone();
+    aliased.evidence_package_invocations[0].outputs[1].output =
+        aliased.evidence_package_invocations[0].outputs[0].output;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&aliased),
+        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+    ));
+
+    let mut duplicate_field = lowered.semantic_module.clone();
+    duplicate_field.evidence_package_invocations[0].outputs[1].output_field =
+        duplicate_field.evidence_package_invocations[0].outputs[0]
+            .output_field
+            .clone();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&duplicate_field),
+        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+    ));
+
+    let mut incomplete = lowered.semantic_module.clone();
+    incomplete.evidence_package_invocations[0].outputs.pop();
+    assert!(psi_terminal_verifier::validate_module_representation(&incomplete).is_err());
+}
+
+#[test]
+fn repeated_multi_field_packages_group_calls_and_reuse_callee_producers() {
+    let checked = check(REPEATED_MULTI_FIELD_GENERATED_PACKAGE_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("repeated multi-field packages should lower");
+    let [first, second] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("two grouped package invocations expected")
+    };
+    assert_eq!((first.ordinal, second.ordinal), (0, 1));
+    assert_eq!(first.outputs.len(), 2);
+    assert_eq!(second.outputs.len(), 2);
+    for position in 0..2 {
+        assert_eq!(
+            first.outputs[position].callee_output,
+            second.outputs[position].callee_output
+        );
+        assert_ne!(
+            first.outputs[position].output,
+            second.outputs[position].output
+        );
+    }
+    let caller_outputs = first
+        .outputs
+        .iter()
+        .chain(&second.outputs)
+        .map(|output| output.output)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(caller_outputs.len(), 4);
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 2);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("two calls reuse each callee producer and mint four caller terms");
 }
 
 #[test]
@@ -857,8 +1037,11 @@ fn repeated_generated_package_calls_have_dense_fresh_outputs_and_one_callee_prod
         panic!("two invocation rows expected")
     };
     assert_eq!((first.ordinal, second.ordinal), (0, 1));
-    assert_eq!(first.callee_output, second.callee_output);
-    assert_ne!(first.output, second.output);
+    assert_eq!(
+        first.outputs[0].callee_output,
+        second.outputs[0].callee_output
+    );
+    assert_ne!(first.outputs[0].output, second.outputs[0].output);
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,

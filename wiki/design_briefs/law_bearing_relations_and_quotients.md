@@ -168,12 +168,13 @@ callee binding names do not participate in matching. The separator remains in
 an evidence-only call (`callee(; proof)`) and is omitted only when there is no
 evidence lane. Named guarantees are public fields of an inferred,
 source-unnameable, compiler-generated nominal output package. The implemented
-first rung admits only immediate colon-form destructuring of one unconditional
-evidence field from a concrete zero-input, zero-runtime checked machine, and
-requires the fresh caller-local term to be forwarded exactly once. Retained,
-projected, multi-field, runtime-value, guarded, generic, and discarded packages
-remain pending; evidence fields erase and remain subject to ordinary
-multiplicity.
+immediate rung requires colon-form destructuring of the complete nonempty set of
+unconditional evidence fields from a concrete zero-input, zero-runtime checked
+machine. Source field order may vary; checking canonicalizes by callee lane,
+mints one distinct fresh caller-local term per field, and requires each term to
+be forwarded exactly once. Retained, projected, runtime-value, guarded, generic,
+and discarded packages remain pending; evidence fields erase and remain subject
+to ordinary multiplicity.
 
 A transparent logical definition uses `=`:
 
@@ -511,13 +512,15 @@ reject. The interface also retains its complete normalized requirement surface.
 `term.member` resolves to an exact checked term and requirement row, then
 terminal Psi replaces the term handle with its forwarding-canonical ID and
 retains the declaring trait application plus canonical requirement overload.
-The verifier rejects unknown terms and rows. The first generated-package rung
-retains a dense source-coordinate-free invocation table joining the normalized
-callee-machine identity and public output field/position to one callee term
-declaration and a distinct caller-local term with the same exact proposition
-and interface; the callee declaration has one producer provenance regardless
-of invocation count. A display spelling is never an identity oracle. Retained
-and general package projection remain future work.
+The verifier rejects unknown terms and rows. The immediate generated-package
+rung retains a dense source-coordinate-free invocation table. Each call is one
+group joining the normalized callee-machine identity to its complete field set;
+outputs are dense in callee-lane order and bind each public field/position and
+callee term declaration to one distinct caller-local term with the same exact
+proposition and interface. Repeated calls reuse callee declarations and their
+producer provenance while minting distinct caller terms. A display spelling is
+never an identity oracle. Retained and general package projection remain future
+work.
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.

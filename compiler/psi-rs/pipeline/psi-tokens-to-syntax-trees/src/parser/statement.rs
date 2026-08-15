@@ -1314,11 +1314,11 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
 }
 
 /// Chapter-10 generated proof-package destructuring:
-/// `let { output_field: binding } = producer();`.
+/// `let { first: local_first, second: local_second } = producer();`.
 ///
-/// The first rung is intentionally one-field and call-only. It remains a
-/// dedicated erased statement so the call is evaluated once and the generic
-/// place-only record destructure cannot manufacture Unit locals for it.
+/// This remains a dedicated erased, call-only statement so the call is
+/// evaluated once and the generic place-only record destructure cannot
+/// manufacture Unit locals for it.
 pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -1327,18 +1327,38 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     Input<'tokens, 'source>,
 )> {
     use psi_syntax_trees::expression::ExpressionNode;
-    use psi_syntax_trees::statement::TableEvidencePackageDestructure;
+    use psi_syntax_trees::statement::{
+        TableEvidencePackageBinding, TableEvidencePackageDestructure,
+    };
 
     let mut rest = input.take_keyword(KeywordKind::Let, "let").ok()?;
     rest = rest
         .take_punctuation(PunctuationKind::LeftBrace, "{")
         .ok()?;
-    let (output_field, next) = rest.take_identifier().ok()?;
-    rest = next.take_punctuation(PunctuationKind::Colon, ":").ok()?;
-    let (binding, next) = rest.take_identifier().ok()?;
-    rest = next
-        .take_punctuation(PunctuationKind::RightBrace, "}")
-        .ok()?;
+    let mut bindings = Vec::new();
+    loop {
+        if rest.at_punctuation(PunctuationKind::RightBrace) {
+            rest = rest
+                .take_punctuation(PunctuationKind::RightBrace, "}")
+                .ok()?;
+            break;
+        }
+        let (output_field, next) = rest.take_identifier().ok()?;
+        rest = next.take_punctuation(PunctuationKind::Colon, ":").ok()?;
+        let (binding, next) = rest.take_identifier().ok()?;
+        bindings.push(TableEvidencePackageBinding {
+            output_field,
+            binding,
+        });
+        if next.at_punctuation(PunctuationKind::Comma) {
+            rest = next.take_punctuation(PunctuationKind::Comma, ",").ok()?;
+        } else {
+            rest = next;
+        }
+    }
+    if bindings.is_empty() {
+        return None;
+    }
     rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
     let (call, next) = parse_expression_handle(syntax_trees, rest).ok()?;
     if !matches!(
@@ -1353,8 +1373,7 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     let statement = syntax_trees.statements.insert(
         psi_syntax_trees::statement::StatementNode::EvidencePackageDestructure(
             TableEvidencePackageDestructure {
-                output_field,
-                binding,
+                bindings: bindings.into_boxed_slice(),
                 call,
             },
         ),

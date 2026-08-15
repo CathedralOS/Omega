@@ -552,8 +552,7 @@ pub enum StatementSnapshot {
         acknowledges_block: bool,
     },
     EvidencePackageDestructure {
-        output_field: String,
-        binding: String,
+        bindings: Vec<(String, String)>,
         call: ExpressionSnapshot,
     },
     Expression {
@@ -1330,8 +1329,16 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
         },
         Statement::EvidencePackageDestructure(package) => {
             StatementSnapshot::EvidencePackageDestructure {
-                output_field: package.output_field.to_string(),
-                binding: package.binding.to_string(),
+                bindings: package
+                    .bindings
+                    .iter()
+                    .map(|binding| {
+                        (
+                            binding.output_field.to_string(),
+                            binding.binding.to_string(),
+                        )
+                    })
+                    .collect(),
                 call: statement_expression_snapshot(program, package.call),
             }
         }
