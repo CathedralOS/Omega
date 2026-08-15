@@ -10682,10 +10682,11 @@ fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-call slice-view element canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("value-call slice-view element canary should run");
 
@@ -13198,10 +13199,11 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-fixed-vec-round-trip-{}", std::process::id()));
 
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed vec round trip canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("fixed vec round trip canary should run");
 
@@ -14199,9 +14201,10 @@ fn runtime_fixed_array_field_value_exit_canary_runs() {
         "omega-fixed-array-field-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed-array field value canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("fixed-array field value canary should run");
 
@@ -14227,9 +14230,10 @@ fn fixed_array_element_guard_canary_runs() {
         "omega-fixed-array-elem-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed-array element guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("fixed-array element guard canary should run");
 
@@ -14286,9 +14290,10 @@ fn float_array_binary_op_zero_exit_canary_runs() {
         "omega-float-array-binary-op-zero-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float_array_binary_op_zero canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float_array_binary_op_zero canary should run");
 
@@ -14313,9 +14318,10 @@ fn f32_array_binary_op_zero_exit_canary_runs() {
         "omega-f32-array-binary-op-zero-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32_array_binary_op_zero canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32_array_binary_op_zero canary should run");
 
@@ -14338,9 +14344,10 @@ fn arithmetic_domain_wrapping_exit_canary_runs() {
         "omega-arith-domain-wrapping-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_wrapping canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_wrapping canary should run");
 
@@ -14364,9 +14371,10 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
         "omega-arith-domain-saturating-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating canary should run");
 
@@ -14532,9 +14540,10 @@ fn runtime_multi_field_payload_arith_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_multi_field_payload_arith_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-multi-field-payload-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("multi-field payload canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("multi-field payload canary should run");
     assert_eq!(
@@ -14556,9 +14565,10 @@ fn case_payload_shared_field_name_exit_canary_runs() {
         "omega-case-payload-collision-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("case_payload_shared_field_name canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("case_payload_shared_field_name canary should run");
     assert_eq!(
@@ -46005,6 +46015,12 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "collections/runtime_fixed_vec_round_trip_exit",
+    "expressions/float_array_binary_op_zero",
+    "expressions/f32_array_binary_op_zero",
+    "expressions/arithmetic_domain_wrapping_exit",
+    "expressions/arithmetic_domain_saturating_exit",
+    "control_flow/case_payload_shared_field_name_exit",
     "arithmetic/bare_name_scopes",
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_bitwise_high_ops_exit",
@@ -46104,6 +46120,10 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_bounded_carrier_alias_concat_exit",
     "text/runtime_bounded_carrier_local_source_concat_exit",
     "text/runtime_value_call_slice_view_carrier_guard_exit",
+    "calls/runtime_value_call_slice_view_element_arg_exit",
+    "expressions/runtime_fixed_array_field_value_exit",
+    "control_flow/fixed_array_element_guard",
+    "control_flow/runtime_multi_field_payload_arith_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
@@ -46721,6 +46741,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_bounded_carrier_alias_concat_exit",
     "text/runtime_bounded_carrier_local_source_concat_exit",
     "text/runtime_value_call_slice_view_carrier_guard_exit",
+    "calls/runtime_value_call_slice_view_element_arg_exit",
+    "expressions/runtime_fixed_array_field_value_exit",
+    "control_flow/fixed_array_element_guard",
+    "control_flow/runtime_multi_field_payload_arith_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
