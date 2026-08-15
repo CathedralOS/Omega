@@ -23816,13 +23816,8 @@ fn runtime_let_mut_reassign_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_let_mut_reassign_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-let-mut-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("let-mut canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("let-mut canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("let-mut canary should run");
@@ -45182,6 +45177,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/recursive_result_bind_first_arg",
     "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_inline_recursive_walk_exit",
+    "calls/runtime_let_mut_reassign_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
     "calls/runtime_value_call_statement_recursive_walk_exit",
     "control_flow/runtime_branching_helper_value",
