@@ -6899,18 +6899,12 @@ stderr:
 #[test]
 fn runtime_container_setter_matrix_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_container_setter_matrix_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-container-setter-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("container setter matrix canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("container setter matrix canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -6933,18 +6927,12 @@ stderr:
 #[test]
 fn runtime_container_method_instances_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_container_method_instances_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-container-methods-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("container method instances canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("container method instances canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
