@@ -1741,6 +1741,25 @@ requires value <= 127u16, value <= 63u16
     ((((value as i8) << 1u8) >> 2i16) < 127i8) && enabled
 }
 
+machine terminal_exact_shift_cast_shift_unsigned(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 127u16, value <= 63u16
+{
+    ((((((value >> 1i8) << 2u16) as u8) >> 1i32) << 2u64) < 255u8) && enabled
+}
+
+machine terminal_exact_shift_cast_shift_cross_sign(value: i16, enabled: bool) -> bool
+requires -16384i16 <= value, value <= 16383i16,
+    0i16 <= value, value <= 127i16, value <= 63i16
+{
+    ((((((value >> 1u8) << 2i16) as u8) >> 1u32) << 2i64) < 255u8) && enabled
+}
+
+machine terminal_exact_shift_cast_shift_one_sided_kinds(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 127u16
+{
+    ((((value << 1u8) as u8) >> 1i16) < 255u8) && enabled
+}
+
 machine terminal_exact_arithmetic_then_shift_unsigned(value: u8, enabled: bool) -> bool
 requires value <= 252u8, value <= 124u8, value <= 60u8
 {

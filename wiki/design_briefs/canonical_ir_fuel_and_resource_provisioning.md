@@ -228,6 +228,10 @@ The finite affine/cast/affine sandwich charges every source arithmetic
 operation, the partial cast, and every target arithmetic operation separately.
 Two-stage affine preimage reconstruction and the source/target carrier
 intersection are verifier work and add no executable fuel.
+The finite shift/cast/shift sandwich follows the same rule: every source shift,
+the partial cast, and every target shift is retained and charged separately.
+Ordered target replay, carrier intersection, and ordered source replay are
+verifier work and add no executable fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

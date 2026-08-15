@@ -1756,6 +1756,16 @@ fn exact_integer_shift_left_obligation(
         ) {
             return obligation;
         }
+        if let Some(obligation) = exact_integer_shift_cast_shift_obligation(
+            value_type,
+            value.clone(),
+            count_value,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        ) {
+            return obligation;
+        }
         if let Some(obligation) = exact_integer_cast_then_mixed_shift_chain_obligation(
             value_type,
             value.clone(),
@@ -2301,6 +2311,170 @@ fn exact_integer_shift_then_arithmetic_chain_obligation(
             }
             _ => return None,
         }
+    }
+    None
+}
+
+fn exact_integer_shift_cast_shift_obligation(
+    target_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    count: u128,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if target_type.is_address() || !matches!(target_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let mut interval = exact_integer_shift_left_input_interval(target_type, count)?;
+    let mut mathematical_empty = false;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let (source_type, mut source_value) = loop {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            definition @ ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                value: nested_value,
+                count,
+            }
+            | definition @ ScalarTerm::ExactIntegerShiftRight {
+                value_type,
+                count_type,
+                value: nested_value,
+                count,
+            } if *value_type == target_type => {
+                let count = landed_exact_shift_count(
+                    target_type,
+                    *count_type,
+                    count,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                if !mathematical_empty {
+                    interval = match exact_integer_mixed_shift_preimage(
+                        target_type,
+                        interval,
+                        definition,
+                        count,
+                    ) {
+                        Ok(Some(interval)) => interval,
+                        Ok(None) => {
+                            mathematical_empty = true;
+                            interval
+                        }
+                        Err(()) => return None,
+                    };
+                }
+                value = (**nested_value).clone();
+                prior_axiom_count = definition_index;
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: cast_target_type,
+                operand,
+            } if *cast_target_type == target_type
+                && !source_type.is_address()
+                && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                && *source_type != target_type
+                && !source_type.can_widen_to(target_type)
+                && source_type.can_exact_cast_to(target_type) =>
+            {
+                if !mathematical_empty {
+                    let source_interval = fixed_integer_type_interval(*source_type)?;
+                    let minimum = interval.0.max(source_interval.0);
+                    let maximum = interval.1.min(source_interval.1);
+                    if minimum > maximum {
+                        mathematical_empty = true;
+                    } else {
+                        interval = (minimum, maximum);
+                    }
+                }
+                prior_axiom_count = definition_index;
+                break (*source_type, (**operand).clone());
+            }
+            _ => return None,
+        }
+    };
+
+    let mut followed_source_definition = false;
+    for _ in 0..=prior_axiom_count {
+        if matches!(
+            &source_value,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == source_type && machine_parameter_values.contains(id)
+        ) {
+            if !followed_source_definition {
+                return None;
+            }
+            return Some(if mathematical_empty {
+                Proposition::Falsehood
+            } else {
+                exact_integer_source_interval_obligation(
+                    source_type,
+                    source_value,
+                    interval.0,
+                    interval.1,
+                )
+            });
+        }
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &source_value => Some((index, right)),
+                _ => None,
+            })?;
+        let (nested_value, count_type, count) = match definition {
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            | ScalarTerm::ExactIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
+            } if *value_type == source_type => (value, *count_type, count),
+            _ => return None,
+        };
+        let count = landed_exact_shift_count(
+            source_type,
+            count_type,
+            count,
+            semantic_axioms,
+            definition_index,
+        )?;
+        if !mathematical_empty {
+            interval = match exact_integer_mixed_shift_preimage(
+                source_type,
+                interval,
+                definition,
+                count,
+            ) {
+                Ok(Some(interval)) => interval,
+                Ok(None) => {
+                    mathematical_empty = true;
+                    interval
+                }
+                Err(()) => return None,
+            };
+        }
+        source_value = (**nested_value).clone();
+        prior_axiom_count = definition_index;
+        followed_source_definition = true;
     }
     None
 }
@@ -11279,6 +11453,168 @@ mod tests {
                 cross_root,
                 ScalarTerm::integer(cross_source, IntegerValue::Unsigned(63)).expect("63u16"),
             )),
+        );
+    }
+
+    #[test]
+    fn exact_shift_cast_shift_reconstructs_both_sides_without_importing_prefix_proofs() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 source");
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 target");
+        let i8_count = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let u16_count = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+        let i32_count = IntegerType::new(IntegerSign::Signed, 32).expect("i32 count");
+        let root_id = ValueId::new(338).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let source_right = ScalarTerm::value(
+            ValueId::new(339).expect("source right"),
+            ScalarType::Integer(source_type),
+        );
+        let source_left = ScalarTerm::value(
+            ValueId::new(340).expect("source left"),
+            ScalarType::Integer(source_type),
+        );
+        let cast = ScalarTerm::value(
+            ValueId::new(1341).expect("cast"),
+            ScalarType::Integer(target_type),
+        );
+        let target_right = ScalarTerm::value(
+            ValueId::new(1342).expect("target right"),
+            ScalarType::Integer(target_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                source_right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    source_type,
+                    i8_count,
+                    root.clone(),
+                    ScalarTerm::integer(i8_count, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("root >> 1"),
+            ),
+            Proposition::Equal(
+                source_left.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    source_type,
+                    u16_count,
+                    source_right,
+                    ScalarTerm::integer(u16_count, IntegerValue::Unsigned(2)).expect("2u16"),
+                )
+                .expect("(root >> 1) << 2"),
+            ),
+            Proposition::Equal(
+                cast.clone(),
+                ScalarTerm::integer_exact_cast(source_type, target_type, source_left)
+                    .expect("u16 to u8 cast"),
+            ),
+            Proposition::Equal(
+                target_right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    target_type,
+                    i32_count,
+                    cast,
+                    ScalarTerm::integer(i32_count, IntegerValue::Signed(1)).expect("1i32"),
+                )
+                .expect("cast >> 1"),
+            ),
+        ];
+        let maximum = ScalarTerm::integer(source_type, IntegerValue::Unsigned(63)).expect("63u16");
+        assert_eq!(
+            exact_integer_shift_cast_shift_obligation(
+                target_type,
+                target_right.clone(),
+                2,
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::LessOrEqual(root.clone(), maximum)),
+            "the target prefix, cast, and source prefix are replayed from canonical definitions",
+        );
+        assert_eq!(
+            exact_integer_shift_cast_shift_obligation(
+                target_type,
+                target_right,
+                2,
+                &[Proposition::Truth],
+                1,
+                &BTreeSet::from([root_id]),
+            ),
+            None,
+            "stale definitions cannot authorize the sandwich",
+        );
+
+        let signed_source = IntegerType::new(IntegerSign::Signed, 16).expect("i16 source");
+        let signed_root_id = ValueId::new(1343).expect("signed root");
+        let signed_root = ScalarTerm::value(signed_root_id, ScalarType::Integer(signed_source));
+        let signed_right = ScalarTerm::value(
+            ValueId::new(1344).expect("signed right"),
+            ScalarType::Integer(signed_source),
+        );
+        let signed_left = ScalarTerm::value(
+            ValueId::new(1345).expect("signed left"),
+            ScalarType::Integer(signed_source),
+        );
+        let signed_cast = ScalarTerm::value(
+            ValueId::new(1346).expect("signed cast"),
+            ScalarType::Integer(target_type),
+        );
+        let signed_target_right = ScalarTerm::value(
+            ValueId::new(1347).expect("signed target right"),
+            ScalarType::Integer(target_type),
+        );
+        let signed_definitions = vec![
+            Proposition::Equal(
+                signed_right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    signed_source,
+                    u16_count,
+                    signed_root.clone(),
+                    ScalarTerm::integer(u16_count, IntegerValue::Unsigned(1)).expect("1u16"),
+                )
+                .expect("signed root >> 1"),
+            ),
+            Proposition::Equal(
+                signed_left.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    signed_source,
+                    i8_count,
+                    signed_right,
+                    ScalarTerm::integer(i8_count, IntegerValue::Signed(2)).expect("2i8"),
+                )
+                .expect("(signed root >> 1) << 2"),
+            ),
+            Proposition::Equal(
+                signed_cast.clone(),
+                ScalarTerm::integer_exact_cast(signed_source, target_type, signed_left)
+                    .expect("i16 to u8 cast"),
+            ),
+            Proposition::Equal(
+                signed_target_right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    target_type,
+                    i32_count,
+                    signed_cast,
+                    ScalarTerm::integer(i32_count, IntegerValue::Signed(1)).expect("1i32"),
+                )
+                .expect("signed cast >> 1"),
+            ),
+        ];
+        let minimum = ScalarTerm::integer(signed_source, IntegerValue::Signed(0)).expect("0i16");
+        let maximum = ScalarTerm::integer(signed_source, IntegerValue::Signed(63)).expect("63i16");
+        assert_eq!(
+            exact_integer_shift_cast_shift_obligation(
+                target_type,
+                signed_target_right,
+                2,
+                &signed_definitions,
+                signed_definitions.len(),
+                &BTreeSet::from([signed_root_id]),
+            ),
+            Some(canonical_conjunction(vec![
+                Proposition::LessOrEqual(minimum, signed_root.clone()),
+                Proposition::LessOrEqual(signed_root, maximum),
+            ])),
         );
     }
 

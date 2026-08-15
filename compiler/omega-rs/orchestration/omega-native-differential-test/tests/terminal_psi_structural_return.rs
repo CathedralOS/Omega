@@ -870,6 +870,9 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             shift_affine_unsigned: u8,
             shift_affine_signed: i8,
             shift_zero_root: u8,
+            sandwich_unsigned: u16,
+            sandwich_signed: i16,
+            sandwich_right_only: u16,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -888,7 +891,13 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             shift_affine_unsigned <= 127u8, shift_affine_unsigned <= 63u8,
             -64i8 <= shift_affine_signed, shift_affine_signed <= 63i8,
             -32i8 <= shift_affine_signed, shift_affine_signed <= 31i8,
-            shift_zero_root <= 127u8
+            shift_zero_root <= 127u8,
+            sandwich_unsigned <= 32767u16, sandwich_unsigned <= 127u16,
+            sandwich_unsigned <= 63u16,
+            -16384i16 <= sandwich_signed, sandwich_signed <= 16383i16,
+            0i16 <= sandwich_signed, sandwich_signed <= 127i16,
+            sandwich_signed <= 63i16,
+            sandwich_right_only <= 32767u16, sandwich_right_only <= 127u16
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -907,6 +916,9 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && ((((((shift_affine_unsigned >> 1i8) << 2u16) + 3u8) * 2u8) < 255u8))
                 && ((((((shift_affine_signed >> 1u8) << 2i16) - -3i8) * 2i8) < 127i8))
                 && (((((shift_zero_root << 1u8) * 0u8) + 255u8) <= 255u8))
+                && (((((sandwich_unsigned >> 1i8) << 2u16) as u8) >> 1i32) << 2u64) < 255u8
+                && (((((sandwich_signed >> 1u8) << 2i16) as u8) >> 1u32) << 2i64) < 255u8
+                && (((sandwich_right_only << 1u8) as u8) >> 1i16) < 255u8
                 && enabled
         }
     "#;
@@ -934,7 +946,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        20,
+        25,
     );
     assert_eq!(
         operations
@@ -944,14 +956,14 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        23,
+        28,
     );
     assert_eq!(
         operations
             .iter()
             .filter(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
             .count(),
-        4,
+        7,
     );
     assert_eq!(
         operations
@@ -1000,7 +1012,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        20,
+        25,
     );
     assert_eq!(
         abstract_plan
@@ -1012,7 +1024,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        23,
+        28,
     );
     assert_eq!(
         abstract_plan
@@ -1024,7 +1036,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::IntegerExactCast { .. }
             ))
             .count(),
-        4,
+        7,
     );
     assert_eq!(
         abstract_plan

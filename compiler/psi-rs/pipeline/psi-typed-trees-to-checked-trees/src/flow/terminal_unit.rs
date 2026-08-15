@@ -1722,6 +1722,9 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_shift_cast_shift_runtime_inputs(expression, scalar_parameter_count)
+                })
+                .or_else(|| {
                     shared_exact_cast_then_mixed_shift_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1830,6 +1833,9 @@ fn shared_integer_runtime_inputs_with_shells(
                         expression,
                         scalar_parameter_count,
                     )
+                })
+                .or_else(|| {
+                    shared_exact_shift_cast_shift_runtime_inputs(expression, scalar_parameter_count)
                 })
                 .or_else(|| {
                     shared_exact_cast_then_mixed_shift_runtime_inputs(
@@ -3916,6 +3922,99 @@ fn shared_exact_cast_then_mixed_shift_runtime_inputs(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_shift_cast_shift_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut target_type = None;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                CheckedIntegerBinaryKind::ExactShiftLeft | CheckedIntegerBinaryKind::ExactShiftRight,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if target_type.is_some_and(|target_type| target_type != *primitive_type)
+            || landed_exact_shift_literal_count(*primitive_type, right).is_none()
+        {
+            return None;
+        }
+        target_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactShiftLeft | CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target_type,
+                operand,
+                ..
+            } if Some(*cast_target_type) == target_type => {
+                let mut operand = operand.as_ref();
+                let mut source_type = None;
+                loop {
+                    let CheckedScalarExpression::IntegerBinary {
+                        kind:
+                            CheckedIntegerBinaryKind::ExactShiftLeft
+                            | CheckedIntegerBinaryKind::ExactShiftRight,
+                        primitive_type,
+                        left,
+                        right,
+                    } = operand
+                    else {
+                        return None;
+                    };
+                    if source_type.is_some_and(|source_type| source_type != *primitive_type)
+                        || landed_exact_shift_literal_count(*primitive_type, right).is_none()
+                    {
+                        return None;
+                    }
+                    source_type = Some(*primitive_type);
+                    match left.as_ref() {
+                        nested @ CheckedScalarExpression::IntegerBinary {
+                            kind:
+                                CheckedIntegerBinaryKind::ExactShiftLeft
+                                | CheckedIntegerBinaryKind::ExactShiftRight,
+                            ..
+                        } => operand = nested,
+                        CheckedScalarExpression::Parameter {
+                            position,
+                            primitive_type: root_type,
+                        } if Some(*root_type) == source_type
+                            && *position < scalar_parameter_count =>
+                        {
+                            return Some(BTreeSet::from([
+                                SharedBooleanRuntimeInput::IntegerScalar(*position),
+                            ]));
+                        }
+                        _ => return None,
+                    }
+                }
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_shift_cast_shift_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_shift_cast_shift_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]
