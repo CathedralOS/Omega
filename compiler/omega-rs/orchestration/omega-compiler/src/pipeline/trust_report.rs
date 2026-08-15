@@ -8,8 +8,8 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
-    TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
-    TrustReportRow,
+    TrustGenericAcceptedInstanceRow, TrustProviderRealization, TrustProviderRequirementRow,
+    TrustQualificationRow, TrustReport, TrustReportRow,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -271,6 +271,17 @@ pub(super) fn write_trust_report(
         if machine.supply_mode != psi_language_semantics::MachineSupplyMode::Accepted {
             continue;
         }
+        // A generic accepted template spends and reports one universal
+        // commitment. Later specializations may clone its machine under fresh
+        // symbols; those clones belong exclusively to the exact instance
+        // section below and must not mint duplicate commitment rows.
+        if typed.machine_specializations.iter().any(|specialization| {
+            specialization.accepted_template_commitment.is_some()
+                && specialization.instance == machine.symbol
+                && specialization.instance != specialization.template
+        }) {
+            continue;
+        }
         let leaf = machine
             .name
             .as_str()
@@ -363,6 +374,25 @@ pub(super) fn write_trust_report(
             });
         }
     }
+    report
+        .generic_accepted_instances
+        .extend(
+            typed
+                .machine_specializations
+                .iter()
+                .filter_map(|specialization| {
+                    specialization.accepted_template_commitment.as_ref().map(
+                        |template_commitment| TrustGenericAcceptedInstanceRow {
+                            template_commitment: template_commitment.clone(),
+                            template_fingerprint: specialization.template_contract_fingerprint,
+                            instance_fingerprint: specialization.fingerprint,
+                            machine_argument_contract_fingerprints: specialization
+                                .machine_argument_contract_fingerprints
+                                .clone(),
+                        },
+                    )
+                }),
+        );
 
     let writer =
         ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;

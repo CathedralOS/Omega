@@ -732,6 +732,28 @@ impl ArtifactWriter {
             }
             output.push('\n');
         }
+        output.push_str("\n## Generic accepted instances\n\n");
+        output.push_str(&format!(
+            "generic accepted instances: {}\n\n",
+            trust_report.generic_accepted_instances.len()
+        ));
+        for row in &trust_report.generic_accepted_instances {
+            output.push_str(&format!(
+                "- accepted template: {} [{:016x}] -- instance: {:016x} -- machine argument contracts: {}\n",
+                row.template_commitment,
+                row.template_fingerprint,
+                row.instance_fingerprint,
+                if row.machine_argument_contract_fingerprints.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.machine_argument_contract_fingerprints
+                        .iter()
+                        .map(|fingerprint| format!("{fingerprint:016x}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+            ));
+        }
         output.push_str("\n## Provider requirements\n\n");
         output.push_str(&format!(
             "provider requirements: {}\n\n",
@@ -2375,11 +2397,23 @@ pub struct TrustQualificationRow {
     pub standing_warning: bool,
 }
 
+/// One checked instantiation of a universal generic accepted machine. These
+/// rows consume no additional grant: they retain the exact template identity
+/// and selected machine-contract identities for audit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustGenericAcceptedInstanceRow {
+    pub template_commitment: String,
+    pub template_fingerprint: u64,
+    pub instance_fingerprint: u64,
+    pub machine_argument_contract_fingerprints: Vec<u64>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustReport {
     /// Deterministic identity of the complete retained selected-provider set.
     pub selected_provider_closure_fingerprint: u64,
     pub rows: Vec<TrustReportRow>,
+    pub generic_accepted_instances: Vec<TrustGenericAcceptedInstanceRow>,
     pub provider_requirements: Vec<TrustProviderRequirementRow>,
     pub qualifications: Vec<TrustQualificationRow>,
 }
@@ -2742,6 +2776,7 @@ mod tests {
         let report = TrustReport {
             selected_provider_closure_fingerprint: 0xabcd,
             rows: Vec::new(),
+            generic_accepted_instances: Vec::new(),
             provider_requirements: Vec::new(),
             qualifications: vec![TrustQualificationRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
@@ -2799,6 +2834,7 @@ mod tests {
         let report = TrustReport {
             selected_provider_closure_fingerprint: 0x5678,
             rows: Vec::new(),
+            generic_accepted_instances: Vec::new(),
             provider_requirements: vec![TrustProviderRequirementRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
                 provider_plan_fingerprint: 0x1234,
