@@ -674,7 +674,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 row.requirement_owner,
@@ -692,6 +692,7 @@ impl ArtifactWriter {
                 },
                 if row.may_suspend { "yes" } else { "no" },
                 if row.may_block { "yes" } else { "no" },
+                row.realization.report_text(),
                 row.provenance,
                 if row.grant_selectors.is_empty() {
                     "none".to_owned()
@@ -2104,9 +2105,44 @@ pub struct TrustProviderRequirementRow {
     pub synchronous_invocations: Vec<String>,
     pub may_suspend: bool,
     pub may_block: bool,
+    pub realization: TrustProviderRealization,
     pub provenance: String,
     pub grant_selectors: Vec<String>,
     pub standing_warning: bool,
+}
+
+/// Exact normalized realization selected by one provider-plan row.
+///
+/// This remains structured so the durable trust artifact distinguishes checked
+/// Omega adapters from opaque/raw leaves without parsing a debug rendering or
+/// inferring mechanism from the provider name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrustProviderRealization {
+    Import { library: String, symbol: String },
+    Syscall { number: i64 },
+    CompilerIntrinsic { name: String },
+    VtableSlot { index: i64 },
+    VtableField { table: String, field: String },
+    TableFunction { table: String, field: String },
+    CheckedAdapter { machine: String },
+}
+
+impl TrustProviderRealization {
+    fn report_text(&self) -> String {
+        match self {
+            Self::Import { library, symbol } => {
+                format!("import `{library}` symbol `{symbol}`")
+            }
+            Self::Syscall { number } => format!("syscall {number}"),
+            Self::CompilerIntrinsic { name } => format!("compiler intrinsic `{name}`"),
+            Self::VtableSlot { index } => format!("vtable slot {index}"),
+            Self::VtableField { table, field } => format!("vtable field `{table}.{field}`"),
+            Self::TableFunction { table, field } => {
+                format!("table function `{table}.{field}`")
+            }
+            Self::CheckedAdapter { machine } => format!("checked adapter `{machine}`"),
+        }
+    }
 }
 
 /// One exact routed qualification carried by a normalized provider plan.
@@ -2381,9 +2417,10 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
-        ArtifactWriter, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
-        WireFieldRelevance, WireFieldReportEntry, build_backend_surface_report,
-        external_root_records_manifest_json, push_wire_field_table, value_placement_json,
+        ArtifactWriter, TrustProviderRealization, TrustProviderRequirementRow,
+        TrustQualificationRow, TrustReport, WireFieldRelevance, WireFieldReportEntry,
+        build_backend_surface_report, external_root_records_manifest_json, push_wire_field_table,
+        value_placement_json,
     };
 
     #[test]
@@ -2456,6 +2493,7 @@ mod tests {
                 synchronous_invocations: vec!["Callback".to_owned()],
                 may_suspend: true,
                 may_block: false,
+                realization: TrustProviderRealization::VtableSlot { index: 4 },
                 provenance: "root grant (build.omg)".to_owned(),
                 grant_selectors: vec!["Root".to_owned()],
                 standing_warning: false,
@@ -2478,11 +2516,27 @@ mod tests {
         assert!(output.contains("synchronous invocations: Callback"));
         assert!(output.contains("may suspend: yes"));
         assert!(output.contains("may block: no"));
+        assert!(output.contains("realization: vtable slot 4"));
         assert!(output.contains("root grant (build.omg)"));
         assert!(output.contains("grant selectors: Root"));
         assert!(!output.contains("requirement owner: Root"));
         assert!(!output.contains("STANDING WARNING"));
         std::fs::remove_dir_all(root).expect("remove test artifact directory");
+    }
+
+    #[test]
+    fn trust_provider_realizations_distinguish_checked_and_opaque_leaves() {
+        assert_eq!(
+            TrustProviderRealization::CheckedAdapter {
+                machine: "ConsoleProvider::write".to_owned(),
+            }
+            .report_text(),
+            "checked adapter `ConsoleProvider::write`"
+        );
+        assert_eq!(
+            TrustProviderRealization::Syscall { number: 60 }.report_text(),
+            "syscall 60"
+        );
     }
 
     #[test]

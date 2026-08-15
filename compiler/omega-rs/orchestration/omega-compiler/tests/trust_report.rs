@@ -586,6 +586,7 @@ machine Main::exercise(&mut self) {
     assert!(requirement_row.contains("requirement owner: Flags"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
     assert!(requirement_row.contains("method: open_read"));
+    assert!(requirement_row.contains("realization: vtable slot 1"));
     assert!(requirement_row.contains("grant selectors: none"));
     assert!(requirement_row.contains("STANDING WARNING"));
 
@@ -1107,9 +1108,11 @@ machine Main::exercise(&mut self) {}
         })
         .expect("selected requirement row");
     assert!(first_requirement.contains("requirement owner: Pair"));
+    assert!(first_requirement.contains("realization: checked adapter `FirstProvider::choose`"));
     assert!(first_requirement.contains("grant selectors: none"));
     assert!(first_requirement.contains("STANDING WARNING"));
     assert!(second_requirement.contains("requirement owner: Pair"));
+    assert!(second_requirement.contains("realization: checked adapter `SecondProvider::choose`"));
     assert!(second_requirement.contains("grant selectors: Pair"));
     assert!(second_requirement.contains("root grant (build.omg)"));
     assert!(!second_requirement.contains("STANDING WARNING"));
