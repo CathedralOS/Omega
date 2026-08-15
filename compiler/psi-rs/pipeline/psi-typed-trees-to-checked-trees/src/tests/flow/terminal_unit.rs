@@ -1,5 +1,6 @@
 use super::*;
 use crate::flow::{
+    exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
@@ -1354,6 +1355,116 @@ fn exact_cast_then_offset_classifier_accepts_one_finite_left_literal_chain() {
 }
 
 #[test]
+fn exact_cast_then_multiply_classifier_accepts_one_finite_left_nonnegative_literal_chain() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let cast = |source_type, target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: operand,
+            primitive_type: source_type,
+        }),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let multiply = |target_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactMultiply,
+        primitive_type: target_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let accepted = multiply(
+        PrimitiveType::U8,
+        cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0])
+    );
+    let finite_with_zero = multiply(
+        PrimitiveType::U8,
+        multiply(
+            PrimitiveType::U8,
+            accepted,
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(0i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&finite_with_zero, 1),
+        Some(vec![0])
+    );
+    let signed = multiply(
+        PrimitiveType::I8,
+        cast(PrimitiveType::I16, PrimitiveType::I8, 0),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&signed, 1),
+        Some(vec![0])
+    );
+
+    let reversed = multiply(
+        PrimitiveType::U8,
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+        cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&reversed, 1),
+        None
+    );
+    let runtime_sibling = multiply(
+        PrimitiveType::U8,
+        cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U8,
+        },
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&runtime_sibling, 1),
+        None
+    );
+    let negative = multiply(
+        PrimitiveType::I8,
+        cast(PrimitiveType::I16, PrimitiveType::I8, 0),
+        literal(-1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&negative, 1),
+        None
+    );
+    let mismatched = multiply(
+        PrimitiveType::U8,
+        cast(PrimitiveType::I16, PrimitiveType::I8, 0),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&mismatched, 1),
+        None
+    );
+    let right_associated = multiply(
+        PrimitiveType::U8,
+        cast(PrimitiveType::U16, PrimitiveType::U8, 0),
+        multiply(
+            PrimitiveType::U8,
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+    );
+    assert_eq!(
+        exact_cast_then_multiply_runtime_parameter_positions_for_test(&right_associated, 1),
+        None
+    );
+}
+
+#[test]
 fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     let checked = checked(
         r#"
@@ -2101,6 +2212,58 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         requires input <= 127u8
         {
             let staged: bool = ((((input * 2u8) * 0u8) * 7u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::exact_cast_then_multiply_chain_u16_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, input <= 127u16, input <= 42u16
+        {
+            let staged: bool = (((((input as u8) * 2u8) * 3u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::zero_factor_exact_cast_then_multiply_chain_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 255u16, input <= 127u16
+        {
+            let staged: bool = (((((input as u8) * 2u8) * 0u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::exact_cast_then_multiply_chain_i16_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: i16,
+            enabled: bool
+        ) -> bool
+        requires -128i16 <= input, input <= 127i16,
+            -64i16 <= input, input <= 63i16,
+            -21i16 <= input, input <= 21i16
+        {
+            let staged: bool = (((((input as i8) * 2i8) * 3i8) < 127i8) && enabled);
+            staged
+        }
+        machine Root::exact_cast_then_multiply_chain_i8_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires 0i8 <= input, input <= 42i8
+        {
+            let staged: bool = (((((input as u8) * 2u8) * 3u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::exact_cast_then_multiply_chain_u8_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 127u8, input <= 63u8, input <= 21u8
+        {
+            let staged: bool = (((((input as i8) * 2i8) * 3i8) < 127i8) && enabled);
             staged
         }
         machine Root::runtime_factor_exact_multiply_chain_integer_comparison_convergence(
@@ -3759,6 +3922,27 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    for machine in [
+        "exact_cast_then_multiply_chain_u16_to_u8_integer_comparison_convergence",
+        "zero_factor_exact_cast_then_multiply_chain_integer_comparison_convergence",
+        "exact_cast_then_multiply_chain_i16_to_i8_integer_comparison_convergence",
+        "exact_cast_then_multiply_chain_i8_to_u8_integer_comparison_convergence",
+        "exact_cast_then_multiply_chain_u8_to_i8_integer_comparison_convergence",
+    ] {
+        let cast_then_multiply_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!("post-cast exact-multiply chain `{machine}` retains its scalar-return plan")
+            });
+        assert!(
+            cast_then_multiply_chain
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
     for machine in [
         "runtime_factor_exact_multiply_chain_integer_comparison_convergence",
         "negative_factor_exact_multiply_chain_integer_comparison_convergence",

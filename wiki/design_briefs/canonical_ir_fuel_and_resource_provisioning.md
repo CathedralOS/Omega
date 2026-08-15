@@ -162,6 +162,10 @@ The converse finite retained chain—one direct partial exact cast followed by a
 nonempty left-associated same-target-carrier exact-add/subtract literal-offset
 chain—likewise charges the cast and every arithmetic operation separately;
 the cast proof and every independently reconstructed prefix proof add no fuel.
+A direct partial exact cast followed by a finite nonempty same-target-carrier
+exact-multiply literal chain follows the same rule: the cast and every multiply
+operation are charged separately, while cumulative-product interval proofs add
+no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
