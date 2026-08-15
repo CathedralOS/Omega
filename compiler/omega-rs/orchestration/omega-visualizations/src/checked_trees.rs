@@ -124,6 +124,11 @@ pub fn qualification_evidence_manifest_json(
                     ..
                 } => {
                     if domain_symbol.is_valid() {
+                        program
+                            .domain_definitions()
+                            .iter()
+                            .find(|definition| definition.symbol == domain_symbol)
+                            .expect("qualification evidence must name an exact declared domain");
                         qualification_symbol_label(program, domain_symbol)
                     } else {
                         program
@@ -3932,6 +3937,11 @@ mod tests {
         )
         .expect("complete selected provider plan");
         let mut program = CheckedTrees::default();
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: domain,
+            name: Identifier::generated("Storage::Qualified"),
+            ..Default::default()
+        });
         let (requirement_owner, requirement) =
             push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
         let place = program.facts.semantic.append_symbol_place(subject);
@@ -3997,6 +4007,36 @@ mod tests {
             "\"receipt_identity\": \"0x{receipt_identity:016x}\""
         )));
         assert!(json.contains("\"receipt_identity\": null"));
+    }
+
+    #[test]
+    #[should_panic(expected = "qualification evidence must name an exact declared domain")]
+    fn qualification_manifest_rejects_missing_declared_domain() {
+        let subject = SymbolHandle::from_arena_index(4);
+        let domain = SymbolHandle::from_arena_index(5);
+        let mut program = CheckedTrees::default();
+        let place = program.facts.semantic.append_symbol_place(subject);
+        program.facts.semantic.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point: ProgramPoint::Global,
+            origin: FactOrigin::MachineFieldDomain {
+                machine_symbol: subject,
+            },
+            evidence: QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::CheckedValidation,
+                subject,
+            ),
+            payload: FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol: domain,
+            },
+        });
+
+        qualification_evidence_manifest_json(
+            &program,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        );
     }
 
     #[test]
