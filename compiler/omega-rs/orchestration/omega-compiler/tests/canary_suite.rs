@@ -24682,13 +24682,8 @@ fn runtime_f32_field_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_f32_field_guard_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f32-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32 field-guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("f32 field-guard canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("f32 field-guard canary should run");
@@ -45432,6 +45427,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/runtime_i64_full_width_exit",
+    "arithmetic/runtime_f32_field_guard_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
