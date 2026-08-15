@@ -708,7 +708,22 @@ impl ProviderPlan {
     /// slot.
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
+        if self.name.is_empty() {
+            errors.push("provider plan has no exact selection name".to_owned());
+        }
+        if self.schema.trait_name.is_empty() {
+            errors.push(format!(
+                "plan `{}` schema has no exact boundary-slot identity",
+                self.name
+            ));
+        }
         for method in &self.schema.methods {
+            if method.name.is_empty() {
+                errors.push(format!(
+                    "plan `{}` schema `{}` has a method with no readable drift name",
+                    self.name, self.schema.trait_name,
+                ));
+            }
             if method.requirement_owner.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` has no exact requirement owner",
@@ -1425,6 +1440,59 @@ mod tests {
                 .iter()
                 .any(|error| error
                     .contains("synchronous-invocation identities are not strictly increasing"))
+        );
+    }
+
+    #[test]
+    fn schema_validation_requires_selection_and_readable_names() {
+        let mut valid = windows_console_plan();
+        valid.target.clear();
+        valid.provider_type.clear();
+        valid.schema.trait_name = "DerivedConsole".to_owned();
+        valid.schema.methods[0].requirement_owner = "BaseConsole".to_owned();
+        valid.schema.methods[0].name = "operation".to_owned();
+        valid.rows[0].method = "operation".to_owned();
+        valid.schema.methods[1].name = "operation".to_owned();
+        valid.rows[1].method = "operation".to_owned();
+        assert!(
+            valid.validate_candidate_against_schema().is_empty(),
+            "free universal plans, inherited owners, and duplicate readable overload names remain valid"
+        );
+        assert!(
+            valid.covers_schema(),
+            "exact overload identity still selects"
+        );
+
+        let mut blank_plan = valid.clone();
+        blank_plan.name.clear();
+        assert!(
+            blank_plan
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("no exact selection name"))
+        );
+
+        let mut blank_schema = valid.clone();
+        blank_schema.schema.trait_name.clear();
+        assert!(
+            blank_schema
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("no exact boundary-slot identity"))
+        );
+
+        let mut blank_method = valid;
+        blank_method.schema.methods[0].name.clear();
+        blank_method.rows[0].method.clear();
+        assert!(
+            blank_method.covers_schema(),
+            "a matching blank label still proves why a separate presence fence is required"
+        );
+        assert!(
+            blank_method
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("method with no readable drift name"))
         );
     }
 }
