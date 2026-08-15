@@ -258,6 +258,8 @@ pub fn qualification_evidence_manifest_json(
         push_json_string(&mut json, &plan.schema.trait_name);
         json.push_str(",\n      \"requirement\": ");
         push_json_string(&mut json, &service_requirement_label(plan, method));
+        json.push_str(",\n      \"requirement_owner\": ");
+        push_json_string(&mut json, &method.requirement_owner);
         json.push_str(",\n      \"requirement_identity\": ");
         push_json_string(&mut json, &method.requirement_identity);
         json.push_str(",\n      \"parameter_index\": ");
@@ -298,6 +300,8 @@ pub fn qualification_evidence_manifest_json(
         push_json_string(&mut json, &plan.schema.trait_name);
         json.push_str(",\n      \"requirement\": ");
         push_json_string(&mut json, &service_requirement_label(plan, method));
+        json.push_str(",\n      \"requirement_owner\": ");
+        push_json_string(&mut json, &method.requirement_owner);
         json.push_str(",\n      \"requirement_identity\": ");
         push_json_string(&mut json, &method.requirement_identity);
         json.push_str(",\n      \"parameter_index\": null");
@@ -3706,11 +3710,11 @@ mod tests {
             provider_type: "StorageProvider".to_owned(),
             target: String::new(),
             schema: ServiceSchema {
-                trait_name: "Storage".to_owned(),
+                trait_name: "StorageRoot".to_owned(),
                 methods: vec![ServiceMethod {
                     name: "transfer".to_owned(),
-                    requirement_owner: "Storage".to_owned(),
-                    requirement_identity: "Storage::transfer".to_owned(),
+                    requirement_owner: "StorageBase".to_owned(),
+                    requirement_identity: "StorageBase::transfer".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["Token".to_owned()],
                     entry_claims: vec![ServiceEntryClaim {
@@ -3726,7 +3730,7 @@ mod tests {
                         domain: "Token::Issued".to_owned(),
                         effective_carry: CarryPolicy::STRICT,
                     }],
-                    service_reach: vec!["Storage".to_owned()],
+                    service_reach: vec!["StorageRoot".to_owned()],
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: false,
@@ -3736,7 +3740,7 @@ mod tests {
             },
             rows: vec![ProviderPlanRow {
                 method: "transfer".to_owned(),
-                requirement_identity: "Storage::transfer".to_owned(),
+                requirement_identity: "StorageBase::transfer".to_owned(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine: "StorageProvider::transfer".to_owned(),
                 },
@@ -3766,7 +3770,22 @@ mod tests {
         );
         assert!(json.contains("\"flow\": \"accepts\""));
         assert!(json.contains("\"flow\": \"returns\""));
-        assert!(json.contains("\"requirement_identity\": \"Storage::transfer\""));
+        assert_eq!(json.matches("\"boundary\": \"StorageRoot\"").count(), 2);
+        assert_eq!(
+            json.matches("\"requirement\": \"StorageBase::transfer\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            json.matches("\"requirement_owner\": \"StorageBase\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            json.matches("\"requirement_identity\": \"StorageBase::transfer\"")
+                .count(),
+            2
+        );
         assert!(json.contains(&format!("\"receipt_identity\": \"0x{plan_identity:016x}\"")));
 
         let mut absent = plan.clone();
