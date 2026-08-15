@@ -124,7 +124,6 @@ fn entry_capability_manifest(
         };
     };
 
-    let contract = program.facts.contract_plans.for_machine(machine_symbol);
     let service_reach = program
         .facts
         .service_reaches
@@ -151,7 +150,11 @@ fn entry_capability_manifest(
             .suspensions
             .for_machine(machine_symbol)
             .is_some_and(|plan| plan.checked_may_suspend),
-        may_block: contract.is_some_and(|contract| contract.blocking.checked_may_block),
+        may_block: program
+            .facts
+            .blocking
+            .for_machine(machine_symbol)
+            .is_some_and(|plan| plan.checked_may_block),
         capability_flow_counts: capability_flow_counts(program),
     }
 }
@@ -265,14 +268,21 @@ mod tests {
             });
         program
             .facts
+            .blocking
+            .machines
+            .push(psi_checked_trees::MachineBlockingFact {
+                machine: machine_symbol,
+                plan: BlockingPlan {
+                    interface: BlockingInterface::InternalInferred,
+                    checked_may_block: false,
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine: machine_symbol,
-                blocking: BlockingPlan {
-                    interface: BlockingInterface::InternalInferred,
-                    checked_may_block: false,
-                },
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
                 termination: psi_language_semantics::MachineTerminationPlan {

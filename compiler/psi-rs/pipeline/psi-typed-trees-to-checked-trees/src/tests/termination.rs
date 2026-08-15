@@ -1841,26 +1841,26 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     let run = symbol_of("Main::run");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
-    let wait_plan = checked
-        .facts
-        .contract_plans
-        .for_machine(wait)
-        .expect("published callee plan");
     let wait_suspension = checked
         .facts
         .suspensions
         .for_machine(wait)
         .expect("published callee suspension plan");
+    let wait_blocking = checked
+        .facts
+        .blocking
+        .for_machine(wait)
+        .expect("published callee blocking plan");
     assert_eq!(
         wait_suspension.interface,
         SuspensionInterface::PublishedMaySuspend(true)
     );
     assert_eq!(
-        wait_plan.blocking.interface,
+        wait_blocking.interface,
         BlockingInterface::PublishedMayBlock(true)
     );
     assert!(!wait_suspension.checked_may_suspend);
-    assert!(!wait_plan.blocking.checked_may_block);
+    assert!(!wait_blocking.checked_may_block);
     let wait_reach = checked
         .facts
         .service_reaches
@@ -1881,29 +1881,26 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     );
     assert_eq!(wait_reach.checked_inferred, ServiceReachRowTable::EMPTY_ROW);
 
-    let run_plan = checked
-        .facts
-        .contract_plans
-        .for_machine(run)
-        .expect("caller plan");
     let run_suspension = checked
         .facts
         .suspensions
         .for_machine(run)
         .expect("caller suspension plan");
+    let run_blocking = checked
+        .facts
+        .blocking
+        .for_machine(run)
+        .expect("caller blocking plan");
     assert_eq!(
         run_suspension.interface,
         SuspensionInterface::InternalInferred
     );
-    assert_eq!(
-        run_plan.blocking.interface,
-        BlockingInterface::InternalInferred
-    );
+    assert_eq!(run_blocking.interface, BlockingInterface::InternalInferred);
     // Local calls to checked bodies consume the honest checked summary, not
     // the callee's authored ceiling. `wait` is quiet, so the private caller
     // remains quiet even though `wait` publishes room to suspend and block.
     assert!(!run_suspension.checked_may_suspend);
-    assert!(!run_plan.blocking.checked_may_block);
+    assert!(!run_blocking.checked_may_block);
 
     let run_reach = checked
         .facts

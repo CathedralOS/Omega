@@ -1767,7 +1767,14 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                     .unwrap_or_default(),
             );
             json.push_str(",\n        \"blocking\": ");
-            push_blocking_plan_json(&mut json, contract.blocking);
+            push_blocking_plan_json(
+                &mut json,
+                program
+                    .facts
+                    .blocking
+                    .for_machine(machine.symbol)
+                    .unwrap_or_default(),
+            );
             json.push_str(",\n        \"crashes\": ");
             push_crash_plan_json(&mut json, &contract.crash);
             json.push_str(",\n        \"termination\": ");
@@ -1794,11 +1801,18 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 },
             );
             json.push_str(",\n        \"checked_may_block\": ");
-            json.push_str(if contract.blocking.checked_may_block {
-                "true"
-            } else {
-                "false"
-            });
+            json.push_str(
+                if program
+                    .facts
+                    .blocking
+                    .for_machine(machine.symbol)
+                    .is_some_and(|plan| plan.checked_may_block)
+                {
+                    "true"
+                } else {
+                    "false"
+                },
+            );
             json.push_str(",\n        \"checked_service_reach\": ");
             push_service_row_json(
                 &mut json,
@@ -2950,9 +2964,11 @@ fn machine_blocking_summary(
     {
         summary.direct_may_block |= flow.blocking.direct_may_block;
     }
-    if let Some(contract) = program.facts.contract_plans.for_machine(symbol) {
-        summary.transitive_may_block = contract.blocking.checked_may_block;
-    }
+    summary.transitive_may_block = program
+        .facts
+        .blocking
+        .for_machine(symbol)
+        .is_some_and(|plan| plan.checked_may_block);
     summary
 }
 
@@ -3162,14 +3178,21 @@ mod tests {
             });
         program
             .facts
+            .blocking
+            .machines
+            .push(psi_checked_trees::MachineBlockingFact {
+                machine,
+                plan: BlockingPlan {
+                    checked_may_block,
+                    ..Default::default()
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine,
-                blocking: BlockingPlan {
-                    checked_may_block,
-                    ..Default::default()
-                },
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
                 termination: Default::default(),
@@ -4122,14 +4145,21 @@ mod tests {
             });
         program
             .facts
+            .blocking
+            .machines
+            .push(psi_checked_trees::MachineBlockingFact {
+                machine: symbol,
+                plan: BlockingPlan {
+                    interface: BlockingInterface::PublishedMayBlock(true),
+                    checked_may_block: true,
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine: symbol,
-                blocking: BlockingPlan {
-                    interface: BlockingInterface::PublishedMayBlock(true),
-                    checked_may_block: true,
-                },
                 closed_scalar_values: Default::default(),
                 crash,
                 termination: MachineTerminationPlan {

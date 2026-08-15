@@ -69,6 +69,9 @@ pub(crate) fn build_check_facts(
     // EFX: suspension is published independently from worker blocking and
     // retains public negative guarantees separately from private inference.
     let suspensions = build_suspension_facts(program, &operational);
+    // EFX: worker blocking is published independently from suspension and
+    // retains public negative guarantees separately from private inference.
+    let blocking = build_blocking_facts(program, &operational);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
     let mutation = build_mutation_facts(program);
@@ -79,7 +82,7 @@ pub(crate) fn build_check_facts(
         &service_reaches,
         &synchronous_invocations,
         &suspensions,
-        &operational,
+        &blocking,
         &flow,
         &operators,
         &validation_facts.exact_integer_casts,
@@ -104,10 +107,42 @@ pub(crate) fn build_check_facts(
         service_reaches,
         synchronous_invocations,
         suspensions,
+        blocking,
         qualifications,
         contract_plans,
         carry,
     ))
+}
+
+fn build_blocking_facts(
+    program: &TypedTrees,
+    operational: &OperationalPlan,
+) -> psi_checked_trees::BlockingFacts {
+    let machines = program
+        .machines()
+        .iter()
+        .map(|machine| {
+            let operational_summary = operational
+                .machines()
+                .iter()
+                .find(|summary| summary.symbol == machine.symbol);
+            let publishes_operational_contract =
+                machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
+            psi_checked_trees::MachineBlockingFact {
+                machine: machine.symbol,
+                plan: psi_language_semantics::BlockingPlan {
+                    interface: if publishes_operational_contract || machine.blocks {
+                        psi_language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
+                    } else {
+                        psi_language_semantics::BlockingInterface::InternalInferred
+                    },
+                    checked_may_block: operational_summary
+                        .is_some_and(|summary| summary.transitive_may_block),
+                },
+            }
+        })
+        .collect();
+    psi_checked_trees::BlockingFacts { machines }
 }
 
 fn build_suspension_facts(
@@ -289,7 +324,7 @@ fn build_contract_plans(
     service_reaches: &psi_checked_trees::ServiceReachFacts,
     synchronous_invocations: &psi_checked_trees::SynchronousInvocationFacts,
     suspensions: &psi_checked_trees::SuspensionFacts,
-    operational: &OperationalPlan,
+    blocking: &psi_checked_trees::BlockingFacts,
     flow: &psi_checked_trees::FlowFacts,
     operators: &psi_checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
@@ -314,6 +349,9 @@ fn build_contract_plans(
         let suspension = suspensions
             .for_machine(machine.symbol)
             .expect("every checked machine must publish suspension facts");
+        let blocking = blocking
+            .for_machine(machine.symbol)
+            .expect("every checked machine must publish blocking facts");
         let termination =
             crate::checks::termination::build_checked_termination_plan(program, machine);
         // Slice 2: the declared requires/ensures facts in a CANONICAL,
@@ -402,22 +440,6 @@ fn build_contract_plans(
             false,
         ));
         canonical_facts.sort();
-        let operational_summary = operational
-            .machines()
-            .iter()
-            .find(|summary| summary.symbol == machine.symbol);
-        let publishes_operational_contract =
-            machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
-        let checked_may_block =
-            operational_summary.is_some_and(|summary| summary.transitive_may_block);
-        let blocking = psi_language_semantics::BlockingPlan {
-            interface: if publishes_operational_contract || machine.blocks {
-                psi_language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
-            } else {
-                psi_language_semantics::BlockingInterface::InternalInferred
-            },
-            checked_may_block,
-        };
         let closed_scalar_values = build_closed_scalar_value_contract_plan(program, machine);
         let fingerprint = psi_checked_trees::contract_fingerprint(
             machine.supply_mode,
@@ -432,7 +454,6 @@ fn build_contract_plans(
         );
         machines.push(psi_checked_trees::MachineContractPlan {
             machine: machine.symbol,
-            blocking,
             closed_scalar_values,
             crash,
             termination,

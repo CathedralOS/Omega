@@ -1,3 +1,4 @@
+mod blocking;
 mod carry;
 mod content;
 mod contract_plans;
@@ -11,6 +12,7 @@ mod service_reaches;
 mod suspensions;
 mod synchronous_invocations;
 
+pub use blocking::*;
 pub use carry::*;
 pub use content::*;
 pub use contract_plans::*;
