@@ -166,6 +166,9 @@ A direct partial exact cast followed by a finite nonempty same-target-carrier
 exact-multiply literal chain follows the same rule: the cast and every multiply
 operation are charged separately, while cumulative-product interval proofs add
 no executable work.
+A direct partial exact cast followed by a finite nonempty exact-left-shift
+literal chain also charges the cast and every shift operation separately;
+cumulative-count source-interval proofs add no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

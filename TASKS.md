@@ -261,7 +261,13 @@ Remaining:
   independently landed nonnegative literal factors. Every multiply prefix
   keeps distinct evidence for the target interval divided by its checked
   cumulative product and intersected with the source carrier; zero and one
-  produce a true current-prefix obligation without erasing earlier proofs.
+  produce a true current-prefix obligation without erasing earlier proofs. The
+  direct partial-cast root may also feed a finite nonempty left-associated
+  same-value-carrier exact-left-shift chain with independently landed in-range
+  fixed-native counts whose carriers may differ. Every prefix keeps distinct
+  evidence for the target interval shifted right by its checked cumulative
+  count and intersected with the source carrier; a cumulative count at least
+  the target width admits only the zero root.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
