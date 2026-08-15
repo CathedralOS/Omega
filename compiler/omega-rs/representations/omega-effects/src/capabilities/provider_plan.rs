@@ -894,6 +894,16 @@ impl ProviderPlan {
                             self.schema.trait_name,
                             row.method,
                         ));
+                    } else if self.provider_type.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` table binding has no nominal provider type",
+                            self.name, row.method,
+                        ));
+                    } else if table != &self.provider_type {
+                        errors.push(format!(
+                            "plan `{}` row `{}` table owner `{table}` does not match nominal provider type `{}`",
+                            self.name, row.method, self.provider_type,
+                        ));
                     }
                     if field.is_empty() {
                         errors.push(format!(
@@ -1595,11 +1605,11 @@ mod tests {
             },
             ProviderBinding::VtableSlot { index: 0 },
             ProviderBinding::VtableField {
-                table: "ConsoleTable".to_owned(),
+                table: "StandardConsole".to_owned(),
                 field: "write_line".to_owned(),
             },
             ProviderBinding::TableFunction {
-                table: "ConsoleTable".to_owned(),
+                table: "StandardConsole".to_owned(),
                 field: "write_line".to_owned(),
             },
             ProviderBinding::CheckedAdapter {
@@ -1676,10 +1686,17 @@ mod tests {
             ),
             (
                 ProviderBinding::VtableField {
-                    table: "ConsoleTable".to_owned(),
+                    table: "StandardConsole".to_owned(),
                     field: String::new(),
                 },
                 "table binding has no exact field identity",
+            ),
+            (
+                ProviderBinding::VtableField {
+                    table: "OtherConsole".to_owned(),
+                    field: "write_line".to_owned(),
+                },
+                "table owner `OtherConsole` does not match nominal provider type `StandardConsole`",
             ),
             (
                 ProviderBinding::TableFunction {
@@ -1690,10 +1707,17 @@ mod tests {
             ),
             (
                 ProviderBinding::TableFunction {
-                    table: "ConsoleTable".to_owned(),
+                    table: "StandardConsole".to_owned(),
                     field: String::new(),
                 },
                 "table binding has no exact field identity",
+            ),
+            (
+                ProviderBinding::TableFunction {
+                    table: "OtherConsole".to_owned(),
+                    field: "write_line".to_owned(),
+                },
+                "table owner `OtherConsole` does not match nominal provider type `StandardConsole`",
             ),
             (
                 ProviderBinding::CheckedAdapter {
@@ -1707,6 +1731,27 @@ mod tests {
             assert!(
                 errors.iter().any(|error| error.contains(expected)),
                 "missing `{expected}` in {errors:?}"
+            );
+        }
+
+        for binding in [
+            ProviderBinding::VtableField {
+                table: "StandardConsole".to_owned(),
+                field: "write_line".to_owned(),
+            },
+            ProviderBinding::TableFunction {
+                table: "StandardConsole".to_owned(),
+                field: "write_line".to_owned(),
+            },
+        ] {
+            let mut free_table = plan_with_binding(binding);
+            free_table.provider_type.clear();
+            let errors = free_table.validate_candidate_against_schema();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.contains("table binding has no nominal provider type")),
+                "missing nominal table-owner rejection in {errors:?}"
             );
         }
 
