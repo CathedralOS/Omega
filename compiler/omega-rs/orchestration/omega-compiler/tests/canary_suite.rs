@@ -9730,10 +9730,11 @@ fn runtime_double_indexed_read_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-double-indexed-read-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("double-indexed read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("double-indexed read canary should run");
 
@@ -9760,10 +9761,11 @@ fn runtime_nested_deep_const_prefix_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested deep const-prefix canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested deep const-prefix canary should run");
 
@@ -9786,10 +9788,11 @@ fn runtime_dual_frame_index_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_frame_index_copy_exit");
     let scratch = std::env::temp_dir().join(format!("omega-dual-fi-copy-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("dual frame-index copy canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("dual frame-index copy canary should run");
 
@@ -9812,10 +9815,11 @@ fn runtime_frame_mixed_index_pair_copy_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-frame-mi-pair-copy-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("mixed-index frame pair-copy canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("mixed-index frame pair-copy canary should run");
 
@@ -9838,10 +9842,11 @@ fn runtime_cross_region_indexed_pair_copy_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cross-region indexed-pair canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("cross-region indexed-pair canary should run");
 
@@ -9864,10 +9869,11 @@ fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cross-region double-indexed-pair canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("cross-region double-indexed-pair canary should run");
 
@@ -9890,10 +9896,11 @@ fn constant_nested_index_guard_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("constant nested-index guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("constant nested-index guard canary should run");
 
@@ -9915,10 +9922,11 @@ fn runtime_dual_mixed_index_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_mixed_index_copy_exit");
     let scratch = std::env::temp_dir().join(format!("omega-dual-mi-copy-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("dual mixed-index copy canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("dual mixed-index copy canary should run");
 
@@ -9979,10 +9987,11 @@ fn runtime_slice_element_machine_roundtrip_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_element_machine_roundtrip_exit");
     let scratch = std::env::temp_dir().join(format!("omega-slice-elem-rt-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("slice element machine roundtrip canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("slice element machine roundtrip canary should run");
 
@@ -10005,10 +10014,11 @@ fn runtime_slice_element_runtime_index_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_element_runtime_index_read_exit");
     let scratch = std::env::temp_dir().join(format!("omega-slice-elem-ri-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("slice element runtime index read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("slice element runtime index read canary should run");
 
@@ -46064,6 +46074,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_let_bound_computed_index_exit",
     "collections/runtime_struct_field_operand_matrix_exit",
     "collections/runtime_struct_field_operand_param_exit",
+    "collections/runtime_double_indexed_read_exit",
+    "collections/runtime_nested_deep_const_prefix_exit",
+    "collections/runtime_dual_frame_index_copy_exit",
+    "collections/runtime_frame_mixed_index_pair_copy_exit",
+    "collections/runtime_cross_region_indexed_pair_copy_exit",
+    "collections/runtime_cross_region_double_indexed_pair_copy_exit",
+    "collections/constant_nested_index_guard_exit",
+    "collections/runtime_dual_mixed_index_copy_exit",
+    "slices/runtime_slice_element_machine_roundtrip_exit",
+    "slices/runtime_slice_element_runtime_index_read_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
@@ -46661,6 +46681,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_let_bound_computed_index_exit",
     "collections/runtime_struct_field_operand_matrix_exit",
     "collections/runtime_struct_field_operand_param_exit",
+    "collections/runtime_double_indexed_read_exit",
+    "collections/runtime_nested_deep_const_prefix_exit",
+    "collections/runtime_dual_frame_index_copy_exit",
+    "collections/runtime_frame_mixed_index_pair_copy_exit",
+    "collections/runtime_cross_region_indexed_pair_copy_exit",
+    "collections/runtime_cross_region_double_indexed_pair_copy_exit",
+    "collections/constant_nested_index_guard_exit",
+    "collections/runtime_dual_mixed_index_copy_exit",
+    "slices/runtime_slice_element_machine_roundtrip_exit",
+    "slices/runtime_slice_element_runtime_index_read_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
