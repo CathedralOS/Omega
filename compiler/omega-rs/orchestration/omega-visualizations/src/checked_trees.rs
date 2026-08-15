@@ -276,6 +276,12 @@ pub fn qualification_evidence_manifest_json(
         push_carry_policy_json(&mut json, claim.effective_carry);
         json.push_str(",\n      \"provider_plan\": ");
         push_json_string(&mut json, &plan.name);
+        json.push_str(",\n      \"provider_origin_package\": ");
+        if plan.origin_package.is_empty() {
+            json.push_str("null");
+        } else {
+            push_json_string(&mut json, &plan.origin_package);
+        }
         json.push_str(",\n      \"receipt_identity\": ");
         push_json_string(
             &mut json,
@@ -308,6 +314,12 @@ pub fn qualification_evidence_manifest_json(
         push_carry_policy_json(&mut json, claim.effective_carry);
         json.push_str(",\n      \"provider_plan\": ");
         push_json_string(&mut json, &plan.name);
+        json.push_str(",\n      \"provider_origin_package\": ");
+        if plan.origin_package.is_empty() {
+            json.push_str("null");
+        } else {
+            push_json_string(&mut json, &plan.origin_package);
+        }
         json.push_str(",\n      \"receipt_identity\": ");
         push_json_string(
             &mut json,
@@ -3173,6 +3185,11 @@ mod tests {
     use psi_typed_trees::trait_definition::TraitDefinition;
     use psi_typed_trees::typed_trees::MachineSpecialization;
 
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceEntryAuthorityFlow,
+        ServiceEntryClaim, ServiceMethod, ServiceResultClaim, ServiceSchema,
+    };
+
     fn push_behavior_contract(
         program: &mut CheckedTrees,
         machine: SymbolHandle,
@@ -3680,6 +3697,93 @@ mod tests {
         assert!(json.contains("\"requirement\": null"));
         assert!(json.contains("\"requirement_identity\": null"));
         assert!(json.contains("\"receipt_identity\": \"0x0000000000001234\""));
+    }
+
+    #[test]
+    fn qualification_manifest_retains_provider_origin_outside_plan_identity() {
+        let plan = ProviderPlan {
+            name: "selected::Storage".to_owned(),
+            provider_type: "StorageProvider".to_owned(),
+            target: String::new(),
+            schema: ServiceSchema {
+                trait_name: "Storage".to_owned(),
+                methods: vec![ServiceMethod {
+                    name: "transfer".to_owned(),
+                    requirement_owner: "Storage".to_owned(),
+                    requirement_identity: "Storage::transfer".to_owned(),
+                    parameter_count: 1,
+                    parameter_type_identities: vec!["Token".to_owned()],
+                    entry_claims: vec![ServiceEntryClaim {
+                        parameter_index: 0,
+                        domain: "Token::Granted".to_owned(),
+                        predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+                        effective_carry: CarryPolicy::STRICT,
+                        authority_flow: ServiceEntryAuthorityFlow::Accepts,
+                    }],
+                    has_result: true,
+                    result_type_identity: Some("Token".to_owned()),
+                    result_claims: vec![ServiceResultClaim {
+                        domain: "Token::Issued".to_owned(),
+                        effective_carry: CarryPolicy::STRICT,
+                    }],
+                    service_reach: vec!["Storage".to_owned()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: false,
+                    may_block: false,
+                    terminates_guarantee: false,
+                    calling_plan_fingerprint: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "transfer".to_owned(),
+                requirement_identity: "Storage::transfer".to_owned(),
+                binding: ProviderBinding::CheckedAdapter {
+                    machine: "StorageProvider::transfer".to_owned(),
+                },
+            }],
+            origin_package: "omega::providers::storage".to_owned(),
+        };
+        let plan_identity = plan.identity_fingerprint();
+        let mut relocated = plan.clone();
+        relocated.origin_package = "omega::providers::relocated".to_owned();
+        assert_eq!(
+            relocated.identity_fingerprint(),
+            plan_identity,
+            "provider origin is provenance beside, not part of, plan identity"
+        );
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&plan),
+            std::slice::from_ref(&plan.name),
+        )
+        .expect("complete selected provider plan");
+
+        let json = qualification_evidence_manifest_json(&CheckedTrees::default(), &selected);
+        assert_eq!(json.matches("\"provider_origin_package\"").count(), 2);
+        assert_eq!(
+            json.matches("\"provider_origin_package\": \"omega::providers::storage\"")
+                .count(),
+            2
+        );
+        assert!(json.contains("\"flow\": \"accepts\""));
+        assert!(json.contains("\"flow\": \"returns\""));
+        assert!(json.contains("\"requirement_identity\": \"Storage::transfer\""));
+        assert!(json.contains(&format!("\"receipt_identity\": \"0x{plan_identity:016x}\"")));
+
+        let mut absent = plan.clone();
+        absent.origin_package.clear();
+        let selected_absent = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&absent),
+            std::slice::from_ref(&absent.name),
+        )
+        .expect("selected provider with explicitly absent origin");
+        let absent_json =
+            qualification_evidence_manifest_json(&CheckedTrees::default(), &selected_absent);
+        assert_eq!(
+            absent_json
+                .matches("\"provider_origin_package\": null")
+                .count(),
+            2
+        );
     }
 
     #[test]
