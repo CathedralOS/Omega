@@ -593,6 +593,77 @@ machine Main::exercise(&mut self) {
 }
 
 #[test]
+fn provider_requirement_rows_keep_operational_blast_radius_axes_independent() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-provider-requirement-operational-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary trait Clock { machine tick(); }
+boundary trait Callback { machine call(); }
+boundary trait Pair {
+    machine effectful(callback: &mut Callback)
+    reaches Clock
+    invokes callback;
+    suspends;
+    blocks;
+
+    machine quiet();
+}
+
+machine effectful_leaf(callback: &mut Callback)
+    satisfies Pair::effectful via Binding::VtableSlot(1);
+machine quiet_leaf()
+    satisfies Pair::quiet via Binding::VtableSlot(2);
+
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("operational provider schema should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    let effectful = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Pair [") && line.contains("method: effectful")
+        })
+        .expect("effectful provider requirement row");
+    assert!(effectful.contains("service reach: Callback, Clock, Pair"));
+    assert!(effectful.contains("synchronous invocations: Callback"));
+    assert!(effectful.contains("may suspend: yes"));
+    assert!(effectful.contains("may block: yes"));
+
+    let quiet = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Pair [") && line.contains("method: quiet")
+        })
+        .expect("quiet provider requirement row");
+    assert!(quiet.contains("service reach: Pair"));
+    assert!(quiet.contains("synchronous invocations: none"));
+    assert!(quiet.contains("may suspend: no"));
+    assert!(quiet.contains("may block: no"));
+    assert!(!quiet.contains("Clock"));
+    assert!(!quiet.contains("Callback"));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn routed_qualification_rows_retain_exact_plan_claims_and_provenance() {
     let project = std::env::temp_dir().join(format!(
         "omega-routed-qualification-rows-{}",
