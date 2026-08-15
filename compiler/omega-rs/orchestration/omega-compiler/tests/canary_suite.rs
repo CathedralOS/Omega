@@ -22335,13 +22335,8 @@ fn runtime_guard_narrowed_transition_arg_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_guard_narrowed_transition_arg_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gnta-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guard-narrowed transition arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("guard-narrowed transition arg canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("guard-narrowed transition arg canary should run");
@@ -45402,6 +45397,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "arithmetic/runtime_float_compare_bool_exit",
     "arithmetic/runtime_guard_proven_counter_exit",
+    "arithmetic/runtime_guard_narrowed_transition_arg_exit",
     "structs/aggregate_transition_args_exit",
     "structs/deep_nested_write_paths_exit",
     "core/zii_default_composite_exit",
