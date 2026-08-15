@@ -1,0 +1,87 @@
+// One plan may independently place several whole aggregate fields. The array
+// remains one `Repeated` field and the record remains one `Nested` field;
+// authored entry order does not replace their compiler-issued keys.
+use omega::language::std::console;
+use omega::language::core::layout;
+
+data MultipleAggregateFields { entries: [FieldEntry; 64]; }
+
+machine MultipleAggregateFields::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 20 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 28,
+        size_is_dynamic: false,
+        align: 4,
+    }
+}
+
+data Pair {
+    low: u16;
+    high: u32;
+}
+
+data Samples {
+    values: [u16; 2];
+    pair: Pair;
+}
+
+data MultipleAggregateFieldsView { value: MultipleAggregateFields<Samples>; }
+
+machine make_samples() -> Samples {
+    Samples {
+        values: [0x0201, 0x0403],
+        pair: Pair { low: 0x0605, high: 0x0a090807 },
+    }
+}
+
+data Main {
+    console: Console;
+    bytes: [u8; 28];
+    index: u64;
+    observed_value: u16;
+    observed_high: u32;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut MultipleAggregateFieldsView =
+        &mut self.bytes[0] as &mut MultipleAggregateFieldsView;
+    self.index = 0;
+    view.value.values[self.index] = 0x0201;
+    self.index = 1;
+    view.value.values[self.index] = 0x0403;
+    view.value.pair.low = 0x0605;
+    view.value.pair.high = 0x0a090807;
+    self.observed_value = view.value.values[self.index];
+    self.observed_high = view.value.pair.high;
+    transition self.bytes[0] == 0 && self.bytes[1] == 0
+        && self.bytes[2] == 0 && self.bytes[3] == 0
+        && self.bytes[4] == 5 && self.bytes[5] == 6
+        && self.bytes[6] == 0 && self.bytes[7] == 0
+        && self.bytes[8] == 7 && self.bytes[9] == 8
+        && self.bytes[10] == 9 && self.bytes[11] == 10
+        && self.bytes[12] == 0 && self.bytes[13] == 0
+        && self.bytes[14] == 0 && self.bytes[15] == 0
+        && self.bytes[16] == 0 && self.bytes[17] == 0
+        && self.bytes[18] == 0 && self.bytes[19] == 0
+        && self.bytes[20] == 1 && self.bytes[21] == 2
+        && self.bytes[22] == 3 && self.bytes[23] == 4
+        && self.bytes[24] == 0 && self.bytes[25] == 0
+        && self.bytes[26] == 0 && self.bytes[27] == 0
+        && self.observed_value == 0x0403
+        && self.observed_high == 0x0a090807 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
