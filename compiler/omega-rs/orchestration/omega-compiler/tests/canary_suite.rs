@@ -33503,13 +33503,8 @@ fn runtime_cross_callee_division_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-cross-division-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cross-callee division canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("cross-callee division canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33552,13 +33547,8 @@ fn runtime_cross_callee_let_names_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-cross-callee-lets-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cross-callee let-names canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("cross-callee let-names canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33601,13 +33591,8 @@ fn runtime_nested_value_call_guard_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-nested-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested-guard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33651,13 +33636,8 @@ fn runtime_two_site_struct_result_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-two-site-struct-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("two-site struct result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("two-site struct result canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33700,13 +33680,8 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-same-callee-sites-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("same-callee-sites canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("same-callee-sites canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33841,13 +33816,8 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-shared-slot-straight-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shared-slot straight-line canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shared-slot straight-line canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33981,13 +33951,8 @@ fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("literal-len arm-guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("literal-len arm-guard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34107,13 +34072,8 @@ fn runtime_guarded_effectful_transition_argument_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded effectful transition-argument canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("guarded effectful transition-argument canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34154,13 +34114,8 @@ fn runtime_value_call_nested_entry_call_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-nested-entry-call-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-entry-call canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested-entry-call canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34204,13 +34159,8 @@ fn runtime_value_call_shared_payload_name_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-shared-payload-name-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shared-payload-name canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shared-payload-name canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45890,6 +45840,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_guarded_effectful_transition_argument_exit",
+    "calls/runtime_value_call_literal_len_arm_guard_exit",
+    "calls/runtime_value_call_nested_entry_call_exit",
+    "calls/runtime_value_call_same_callee_sites_exit",
+    "calls/runtime_two_site_struct_result_exit",
+    "calls/runtime_nested_value_call_guard_exit",
+    "calls/runtime_cross_callee_let_names_exit",
+    "calls/runtime_cross_callee_division_exit",
+    "calls/runtime_value_call_shared_payload_name_exit",
+    "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_enum_self_method_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
