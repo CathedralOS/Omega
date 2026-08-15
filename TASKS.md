@@ -125,8 +125,9 @@ Owners:
   non-scalar tiling and mutable views beyond current record/array/slice checks.
   Raw bytes establish no typed fact without a selected validated plan and exact
   field identities. The accepted fixed subset reflects primitive arrays and
-  recursively fixed arrays/records as one `Repeated` or `Nested` field. View
-  paths retain one whole `At` extent; owned materialization also admits an outer
+  recursively fixed arrays/records as whole `Repeated` or `Nested` fields, and
+  one plan may place multiple independently keyed aggregate fields. View paths
+  retain one whole `At` extent; owned materialization also admits an outer
   fixed array tiled by exactly one compiler-sized element `At` at one validated
   constant destination stride. Compiler-derived strides and offsets drive the
   interpreter and all three native target paths. Mutable fact-free byte views
