@@ -1691,8 +1691,61 @@ pub(crate) fn validate_provider_plan_candidates(
                 .iter()
                 .find(|candidate| candidate.name.as_str() == machine.as_str())
             else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{machine}` for `{}::{}` is absent from typed machines",
+                    plan.schema.trait_name, row.method,
+                )));
                 continue;
             };
+            if adapter.attached_data.as_ref().map(|owner| owner.as_str())
+                != Some(plan.provider_type.as_str())
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{machine}` for `{}::{}` belongs to provider `{}`, not selected provider `{}`",
+                    plan.schema.trait_name,
+                    row.method,
+                    adapter
+                        .attached_data
+                        .as_ref()
+                        .map_or("<none>", |owner| owner.as_str()),
+                    plan.provider_type,
+                )));
+                continue;
+            }
+            if adapter.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+                || typed.machine_states(adapter).is_empty()
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{machine}` for `{}::{}` does not name a checked body with an entry state",
+                    plan.schema.trait_name, row.method,
+                )));
+                continue;
+            }
+            let has_exact_conformance = typed
+                .machine_trait_conformances(adapter)
+                .iter()
+                .filter(|conformance| conformance.via.is_none())
+                .filter_map(|conformance| {
+                    let requirement = conformance.requirement.as_ref()?;
+                    let definition = typed
+                        .traits()
+                        .iter()
+                        .find(|definition| definition.symbol == conformance.symbol)?;
+                    Some(satisfied_requirement_identity(
+                        typed,
+                        adapter.name.as_str(),
+                        definition.name.as_str(),
+                        requirement.as_str(),
+                    ))
+                })
+                .any(|identity| identity == row.requirement_identity);
+            if !has_exact_conformance {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{machine}` for `{}::{}` has no exact checked satisfies edge for requirement identity `{}`",
+                    plan.schema.trait_name, row.method, row.requirement_identity,
+                )));
+                continue;
+            }
             let Some(method) = plan.schema.method_for_row(row) else {
                 continue;
             };
@@ -2681,6 +2734,93 @@ mod tests {
             diagnostics[0]
                 .message
                 .contains("has no nominal provider type")
+        );
+    }
+
+    #[test]
+    fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
+        let source = r#"
+            boundary trait Readable {
+                machine read() -> i32;
+            }
+
+            boundary trait OtherBoundary {
+                machine other() -> i32;
+            }
+
+            data Provider {}
+            data OtherProvider {}
+
+            machine Provider::read() -> i32 satisfies Readable::read { 1 }
+            machine Provider::helper() -> i32 { 2 }
+            machine OtherProvider::helper() -> i32 { 3 }
+            machine Provider::external() -> i32
+            satisfies OtherBoundary::other
+            via Binding::CompilerIntrinsic("OtherBoundary::other");
+        "#;
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize adapter ownership fixture");
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("parse adapter ownership fixture");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve adapter ownership fixture");
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type adapter ownership fixture");
+        let plan = derive_satisfies_plans(&syntax, &typed, None)
+            .into_iter()
+            .find(|plan| plan.schema.trait_name == "Readable")
+            .expect("Readable provider plan");
+        assert!(
+            validate_provider_plan_candidates(&typed, std::slice::from_ref(&plan)).is_empty(),
+            "the exact checked provider conformance remains valid"
+        );
+
+        let mut absent = plan.clone();
+        absent.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine: "Provider::absent".to_owned(),
+        };
+        assert!(
+            validate_provider_plan_candidates(&typed, &[absent])
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("is absent from typed machines"))
+        );
+
+        let mut wrong_provider = plan.clone();
+        wrong_provider.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine: "OtherProvider::helper".to_owned(),
+        };
+        assert!(
+            validate_provider_plan_candidates(&typed, &[wrong_provider])
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "belongs to provider `OtherProvider`, not selected provider `Provider`"
+                ))
+        );
+
+        let mut external = plan.clone();
+        external.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine: "Provider::external".to_owned(),
+        };
+        assert!(
+            validate_provider_plan_candidates(&typed, &[external])
+                .iter()
+                .any(|diagnostic| diagnostic
+                    .message
+                    .contains("does not name a checked body with an entry state"))
+        );
+
+        let mut unrelated = plan;
+        unrelated.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine: "Provider::helper".to_owned(),
+        };
+        assert!(
+            validate_provider_plan_candidates(&typed, &[unrelated])
+                .iter()
+                .any(|diagnostic| diagnostic
+                    .message
+                    .contains("has no exact checked satisfies edge for requirement identity"))
         );
     }
 
