@@ -463,12 +463,13 @@ the outer constant-combined safety premise, then checks distinct evidence for
 each operation. Deeper chains, two proof-bearing operands to one operation,
 computed addends, and every other proof-bearing composition remain fenced. One
 separate computed-cast exception accepts a direct fixed-integer parameter
-widened once and then exactly narrowed back to its original carrier. Terminal
-retains the ordered `IntegerWiden` and `IntegerExactCast`; the verifier matches
-the prior widening definition's source and target carriers, reconstructs the
-narrowing obligation as self-proving, and rejects an unrelated computed operand
-or stale proof. Non-round-trip, local, multi-step, and otherwise computed exact
-casts remain fenced.
+widened once, or through exactly one additional wider fixed carrier, and then
+exactly narrowed back to its original carrier. Terminal retains every ordered
+`IntegerWiden` and the `IntegerExactCast`; the verifier follows the one or two
+prior widening definitions, matches every adjacent carrier and the original
+carrier, reconstructs the narrowing obligation as self-proving, and rejects an
+unrelated computed operand or stale proof. Non-round-trip, local, three-or-more
+widening steps, and otherwise computed exact casts remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

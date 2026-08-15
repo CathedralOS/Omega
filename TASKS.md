@@ -202,8 +202,9 @@ Remaining:
   each have a landed constant addend; the verifier reconstructs both safety
   obligations independently from the ordered value definitions. One direct
   fixed-integer parameter may also widen and then exactly narrow back to its
-  original carrier; Terminal retains both operations and independently derives
-  the narrowing obligation from the ordered widening definition.
+  original carrier after one or two widening steps; Terminal retains every
+  operation and independently derives the narrowing obligation from the
+  ordered widening definitions.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

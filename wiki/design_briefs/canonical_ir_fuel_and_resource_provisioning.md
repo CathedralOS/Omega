@@ -149,8 +149,8 @@ same edge charge as a scalar return and no invented value-producing operation.
 Likewise, a retained exact-add result feeding one further exact add charges both
 ordered arithmetic operations and their ordinary value leaves. Reconstructed
 proof composition adds no executable operation and therefore no fuel charge.
-A direct integer widen followed by an exact narrowing back to the original
-carrier likewise charges both retained operations; its verifier-derived
+One or two direct integer widens followed by an exact narrowing back to the
+original carrier likewise charge every retained operation; the verifier-derived
 self-proof adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target

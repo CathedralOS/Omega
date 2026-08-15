@@ -1410,8 +1410,9 @@ enum SharedBooleanRuntimeInput {
 /// independently proved exact leaf. One exact-add result may additionally feed
 /// one same-type exact add when the inner operation has a landed constant
 /// addend and otherwise direct operands, and the other outer operand is a
-/// landed constant. Constants and Boolean equality against a constant add no
-/// new runtime input.
+/// landed constant. A direct fixed-integer parameter may also widen through
+/// one or two carriers before an exact narrowing back to its original carrier.
+/// Constants and Boolean equality against a constant add no new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1694,10 +1695,15 @@ fn shared_roundtrip_exact_cast_runtime_inputs(
     let CheckedScalarExpression::IntegerWiden { operand, .. } = operand else {
         return None;
     };
+    let operand = match operand.as_ref() {
+        CheckedScalarExpression::Parameter { .. } => operand.as_ref(),
+        CheckedScalarExpression::IntegerWiden { operand, .. } => operand.as_ref(),
+        _ => return None,
+    };
     let CheckedScalarExpression::Parameter {
         position,
         primitive_type,
-    } = operand.as_ref()
+    } = operand
     else {
         return None;
     };

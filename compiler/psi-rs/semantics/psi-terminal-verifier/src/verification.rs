@@ -1425,21 +1425,40 @@ fn exact_integer_cast_obligation(
     operand: ScalarTerm,
     semantic_axioms: &[Proposition],
 ) -> Proposition {
-    if semantic_axioms.iter().rev().any(|axiom| {
-        let definition = match axiom {
-            Proposition::Equal(left, right) if left == &operand => right,
-            Proposition::Equal(left, right) if right == &operand => left,
-            _ => return false,
+    let widening_definition = |value: &ScalarTerm| {
+        semantic_axioms.iter().rev().find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == value => Some(right),
+            Proposition::Equal(left, right) if right == value => Some(left),
+            _ => None,
+        })
+    };
+    let roundtrip_origin = widening_definition(&operand).and_then(|definition| {
+        let ScalarTerm::IntegerWiden {
+            source_type: immediate_source,
+            target_type: immediate_target,
+            operand: immediate_operand,
+        } = definition
+        else {
+            return None;
         };
-        matches!(
-            definition,
-            ScalarTerm::IntegerWiden {
-                source_type: original_type,
-                target_type: widened_type,
-                ..
-            } if *original_type == target_type && *widened_type == source_type
-        )
-    }) {
+        if *immediate_target != source_type {
+            return None;
+        }
+        if *immediate_source == target_type {
+            return Some(target_type);
+        }
+        let ScalarTerm::IntegerWiden {
+            source_type: original_type,
+            target_type: intermediate_type,
+            ..
+        } = widening_definition(immediate_operand)?
+        else {
+            return None;
+        };
+        (*intermediate_type == *immediate_source && *original_type == target_type)
+            .then_some(*original_type)
+    });
+    if roundtrip_origin == Some(target_type) {
         return Proposition::Truth;
     }
     let mut bounds = Vec::with_capacity(2);
@@ -3179,6 +3198,71 @@ mod tests {
                 narrow_type,
                 widened,
                 std::slice::from_ref(&definition),
+            ),
+            Proposition::Truth
+        );
+    }
+
+    #[test]
+    fn reconstructs_exactly_two_widens_before_narrowing_to_the_origin() {
+        let narrow_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let middle_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let wide_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+        let deep_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let input = ScalarTerm::value(
+            ValueId::new(1).expect("input"),
+            ScalarType::Integer(narrow_type),
+        );
+        let middle = ScalarTerm::value(
+            ValueId::new(2).expect("middle"),
+            ScalarType::Integer(middle_type),
+        );
+        let widened = ScalarTerm::value(
+            ValueId::new(3).expect("widened"),
+            ScalarType::Integer(wide_type),
+        );
+        let deeply_widened = ScalarTerm::value(
+            ValueId::new(4).expect("deeply widened"),
+            ScalarType::Integer(deep_type),
+        );
+        let middle_definition = Proposition::Equal(
+            middle.clone(),
+            ScalarTerm::integer_widen(narrow_type, middle_type, input).expect("u8 to u16 widening"),
+        );
+        let wide_definition = Proposition::Equal(
+            widened.clone(),
+            ScalarTerm::integer_widen(middle_type, wide_type, middle.clone())
+                .expect("u16 to u32 widening"),
+        );
+        let deep_definition = Proposition::Equal(
+            deeply_widened.clone(),
+            ScalarTerm::integer_widen(wide_type, deep_type, widened.clone())
+                .expect("u32 to u64 widening"),
+        );
+        assert_eq!(
+            exact_integer_cast_obligation(
+                wide_type,
+                narrow_type,
+                widened.clone(),
+                &[middle_definition.clone(), wide_definition.clone()],
+            ),
+            Proposition::Truth
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                wide_type,
+                narrow_type,
+                widened,
+                std::slice::from_ref(&wide_definition),
+            ),
+            Proposition::Truth
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                deep_type,
+                narrow_type,
+                deeply_widened,
+                &[middle_definition, wide_definition, deep_definition],
             ),
             Proposition::Truth
         );
