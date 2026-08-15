@@ -649,6 +649,21 @@ machine Main::exercise(&mut self) {{
     );
     let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
         .expect("machine contract manifest written");
+    let instance_contract_fingerprints = instance_rows
+        .iter()
+        .map(|line| {
+            line.split_once("instance contract: ")
+                .and_then(|(_, rest)| rest.split_once(" --"))
+                .map(|(fingerprint, _)| fingerprint)
+                .expect("generic accepted instance must render its exact checked contract")
+        })
+        .collect::<Vec<_>>();
+    for fingerprint in instance_contract_fingerprints {
+        assert!(
+            manifest.contains(&format!("\"fingerprint\": \"0x{fingerprint}\"")),
+            "the trust instance contract must be present verbatim in the machine-contract manifest:\n{manifest}"
+        );
+    }
     assert!(manifest.contains("\"accepted_template_commitment\": \"admitted\""));
     assert!(manifest.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
     assert!(manifest.contains("\"const_argument_identities\": [\"named(name(1))\"]"));

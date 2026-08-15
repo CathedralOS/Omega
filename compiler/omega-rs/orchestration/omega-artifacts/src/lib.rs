@@ -739,10 +739,11 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.generic_accepted_instances {
             output.push_str(&format!(
-                "- accepted template: {} [{:016x}] -- instance: {:016x} -- type argument identities: {} -- const argument identities: {} -- machine argument contracts: {} -- conformance arguments: {}\n",
+                "- accepted template: {} [{:016x}] -- instance: {:016x} -- instance contract: {:016x} -- type argument identities: {} -- const argument identities: {} -- machine argument contracts: {} -- conformance arguments: {}\n",
                 row.template_commitment,
                 row.template_fingerprint,
                 row.instance_fingerprint,
+                row.instance_contract_fingerprint,
                 if row.type_argument_identities.is_empty() {
                     "none".to_owned()
                 } else {
@@ -2439,6 +2440,10 @@ pub struct TrustGenericAcceptedInstanceRow {
     pub template_commitment: String,
     pub template_fingerprint: u64,
     pub instance_fingerprint: u64,
+    /// Exact normalized checked contract of the specialized machine instance.
+    /// This is independent from the specialization-tuple identity above and
+    /// from every selected static-machine argument contract below.
+    pub instance_contract_fingerprint: u64,
     pub type_argument_identities: Vec<String>,
     pub const_argument_identities: Vec<String>,
     pub machine_argument_contract_fingerprints: Vec<u64>,
@@ -2766,6 +2771,7 @@ mod tests {
                 template_commitment: "admitted".to_owned(),
                 template_fingerprint: 0x1111,
                 instance_fingerprint: 0x2222,
+                instance_contract_fingerprint: 0xaaaa,
                 type_argument_identities: vec!["named(name(Card))".to_owned()],
                 const_argument_identities: vec!["named(name(1))".to_owned()],
                 machine_argument_contract_fingerprints: vec![0x3333],
@@ -2801,6 +2807,7 @@ mod tests {
         assert!(guarded.contains("crash routes: Trap[0x01 | 0x02], Abort[true]"));
         assert!(output.contains("accepted template: admitted [0000000000001111]"));
         assert!(output.contains("instance: 0000000000002222"));
+        assert!(output.contains("instance contract: 000000000000aaaa"));
         assert!(output.contains("type argument identities: named(name(Card))"));
         assert!(output.contains("const argument identities: named(name(1))"));
         assert!(output.contains("machine argument contracts: 0000000000003333"));
