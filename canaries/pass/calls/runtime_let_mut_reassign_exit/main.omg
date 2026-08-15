@@ -1,5 +1,5 @@
 // RUN CANARY (exit 2) + interpreter differential. `let mut` locals
-// (ch3/ch14 spelling, the M2 surface gap #1): a mut local reassigns and
+// (the M2 mutable-local surface gap #1): a mut local reassigns and
 // READS THE NEW VALUE on both engines. The mut flag threads
 // parser -> syntax -> resolved -> typed; mut locals are always
 // slot-backed (never bind-folded) and state-storage always slots them --
