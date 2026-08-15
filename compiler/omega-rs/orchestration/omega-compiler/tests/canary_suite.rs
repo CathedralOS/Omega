@@ -13410,9 +13410,10 @@ fn runtime_newton_sqrt_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_newton_sqrt_exit");
     let scratch = std::env::temp_dir().join(format!("omega-newton-sqrt-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("newton sqrt canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("newton sqrt canary should run");
     assert_eq!(
@@ -13433,9 +13434,10 @@ fn runtime_monte_carlo_pi_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_monte_carlo_pi_exit");
     let scratch = std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("monte carlo pi canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("monte carlo pi canary should run");
     assert_eq!(
@@ -13455,9 +13457,10 @@ fn runtime_gcd_euclid_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_gcd_euclid_exit");
     let scratch = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("gcd euclid canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("gcd euclid canary should run");
     assert_eq!(
@@ -13477,9 +13480,10 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_rpn_evaluator_exit");
     let scratch = std::env::temp_dir().join(format!("omega-rpn-eval-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("rpn evaluator canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("rpn evaluator canary should run");
     assert_eq!(
@@ -13501,9 +13505,10 @@ fn runtime_activity_selection_greedy_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("activity selection canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("activity selection canary should run");
     assert_eq!(
@@ -13524,9 +13529,10 @@ fn runtime_maze_pathfind_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_maze_pathfind_exit");
     let scratch = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("maze pathfind canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("maze pathfind canary should run");
     assert_eq!(
@@ -13553,9 +13559,10 @@ fn runtime_nqueens_backtracking_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nqueens_backtracking_exit");
     let scratch = std::env::temp_dir().join(format!("omega-nqueens-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nqueens backtracking canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nqueens backtracking canary should run");
     assert_eq!(
@@ -13576,9 +13583,10 @@ fn runtime_coin_change_dp_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_coin_change_dp_exit");
     let scratch = std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("coin change dp canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("coin change dp canary should run");
     assert_eq!(
@@ -13599,9 +13607,10 @@ fn runtime_bfs_traversal_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_bfs_traversal_exit");
     let scratch = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bfs traversal canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bfs traversal canary should run");
     assert_eq!(
@@ -13622,9 +13631,10 @@ fn runtime_hash_table_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_hash_table_exit");
     let scratch = std::env::temp_dir().join(format!("omega-hash-table-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("hash table canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("hash table canary should run");
     assert_eq!(
@@ -46054,6 +46064,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_float_nan_comparison_exit",
     "arithmetic/runtime_float_negative_ops_exit",
     "arithmetic/runtime_i64_signed_arithmetic_exit",
+    "arithmetic/runtime_gcd_euclid_exit",
+    "arithmetic/runtime_monte_carlo_pi_exit",
+    "arithmetic/runtime_newton_sqrt_exit",
     "arithmetic/runtime_i64_min_literal_exit",
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "arithmetic/runtime_expression_range_bound_exit",
@@ -46064,6 +46077,13 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_u64_max_literal_exit",
     "arithmetic/runtime_unsigned_high_comparison_exit",
     "constants/runtime_scoped_const_exit",
+    "collections/runtime_activity_selection_greedy_exit",
+    "collections/runtime_bfs_traversal_exit",
+    "collections/runtime_coin_change_dp_exit",
+    "collections/runtime_hash_table_exit",
+    "collections/runtime_maze_pathfind_exit",
+    "collections/runtime_nqueens_backtracking_exit",
+    "collections/runtime_rpn_evaluator_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46516,9 +46536,19 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_i64_min_literal_exit",
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "arithmetic/runtime_expression_range_bound_exit",
+    "arithmetic/runtime_gcd_euclid_exit",
     "arithmetic/runtime_ranged_bitwise_and_mask_exit",
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
+    "arithmetic/runtime_monte_carlo_pi_exit",
+    "arithmetic/runtime_newton_sqrt_exit",
     "arithmetic/runtime_u64_max_literal_exit",
+    "collections/runtime_activity_selection_greedy_exit",
+    "collections/runtime_bfs_traversal_exit",
+    "collections/runtime_coin_change_dp_exit",
+    "collections/runtime_hash_table_exit",
+    "collections/runtime_maze_pathfind_exit",
+    "collections/runtime_nqueens_backtracking_exit",
+    "collections/runtime_rpn_evaluator_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
