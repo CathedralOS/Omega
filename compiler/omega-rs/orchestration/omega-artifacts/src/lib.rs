@@ -674,12 +674,24 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 row.requirement_owner,
                 row.requirement_identity,
                 row.method,
+                if row.service_reach.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.service_reach.join(", ")
+                },
+                if row.synchronous_invocations.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.synchronous_invocations.join(", ")
+                },
+                if row.may_suspend { "yes" } else { "no" },
+                if row.may_block { "yes" } else { "no" },
                 row.provenance,
                 if row.grant_selectors.is_empty() {
                     "none".to_owned()
@@ -2086,6 +2098,12 @@ pub struct TrustProviderRequirementRow {
     pub requirement_owner: String,
     pub requirement_identity: String,
     pub method: String,
+    /// Exact normalized boundary-service reach for this requirement.
+    pub service_reach: Vec<String>,
+    /// Exact normalized direct invocation bindings. This is not reach closure.
+    pub synchronous_invocations: Vec<String>,
+    pub may_suspend: bool,
+    pub may_block: bool,
     pub provenance: String,
     pub grant_selectors: Vec<String>,
     pub standing_warning: bool,
@@ -2434,6 +2452,10 @@ mod tests {
                 requirement_identity:
                     "named-callable(path(Base::enter), parameters(), result(none))".to_owned(),
                 method: "enter".to_owned(),
+                service_reach: vec!["Clock".to_owned(), "Storage".to_owned()],
+                synchronous_invocations: vec!["Callback".to_owned()],
+                may_suspend: true,
+                may_block: false,
                 provenance: "root grant (build.omg)".to_owned(),
                 grant_selectors: vec!["Root".to_owned()],
                 standing_warning: false,
@@ -2452,6 +2474,10 @@ mod tests {
         assert!(output.contains("requirement owner: Base"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
         assert!(output.contains("method: enter"));
+        assert!(output.contains("service reach: Clock, Storage"));
+        assert!(output.contains("synchronous invocations: Callback"));
+        assert!(output.contains("may suspend: yes"));
+        assert!(output.contains("may block: no"));
         assert!(output.contains("root grant (build.omg)"));
         assert!(output.contains("grant selectors: Root"));
         assert!(!output.contains("requirement owner: Root"));
