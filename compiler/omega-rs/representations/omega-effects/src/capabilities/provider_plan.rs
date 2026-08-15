@@ -843,6 +843,74 @@ impl ProviderPlan {
                     self.name, row.method
                 ));
             }
+            match &row.binding {
+                ProviderBinding::Import { library, symbol } => {
+                    if library.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` import has no exact library identity",
+                            self.name, row.method,
+                        ));
+                    }
+                    if symbol.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` import has no exact symbol identity",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::Syscall { .. } => {}
+                ProviderBinding::CompilerIntrinsic { name } => {
+                    if name.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` compiler intrinsic has no exact identity",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::VtableSlot { index } => {
+                    if *index < 0 {
+                        errors.push(format!(
+                            "plan `{}` row `{}` vtable slot index {index} is negative",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::VtableField { table, field }
+                | ProviderBinding::TableFunction { table, field } => {
+                    if table.is_empty() {
+                        errors.push(format!(
+                            "external leaf for `{}::{}` uses a table field without an attached provider data type; declare it as `machine TableType::leaf(...) satisfies {}::{} via Binding::...`",
+                            self.schema.trait_name,
+                            row.method,
+                            self.schema.trait_name,
+                            row.method,
+                        ));
+                    }
+                    if field.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` table binding has no exact field identity",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::CheckedAdapter { machine } => {
+                    if machine.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` checked adapter has no exact machine identity",
+                            self.name, row.method,
+                        ));
+                    }
+                    if self.provider_type.is_empty() {
+                        errors.push(format!(
+                            "checked adapter `{machine}` for `{}::{}` has no nominal provider type; attach it as `machine ProviderType::{machine}(...) satisfies {}::{}` and select that provider for the boundary slot",
+                            self.schema.trait_name,
+                            row.method,
+                            self.schema.trait_name,
+                            row.method,
+                        ));
+                    }
+                }
+            }
         }
         for method in &self.schema.methods {
             let count = self
@@ -1493,6 +1561,146 @@ mod tests {
                 .validate_candidate_against_schema()
                 .iter()
                 .any(|error| error.contains("method with no readable drift name"))
+        );
+    }
+
+    #[test]
+    fn schema_validation_requires_canonical_binding_payloads() {
+        fn plan_with_binding(binding: ProviderBinding) -> ProviderPlan {
+            let mut plan = windows_console_plan();
+            plan.rows[0].binding = binding;
+            plan
+        }
+
+        let valid_bindings = [
+            ProviderBinding::Import {
+                library: "kernel32.dll".to_owned(),
+                symbol: "WriteFile".to_owned(),
+            },
+            ProviderBinding::Syscall { number: 0 },
+            ProviderBinding::CompilerIntrinsic {
+                name: "Console::write_line".to_owned(),
+            },
+            ProviderBinding::VtableSlot { index: 0 },
+            ProviderBinding::VtableField {
+                table: "ConsoleTable".to_owned(),
+                field: "write_line".to_owned(),
+            },
+            ProviderBinding::TableFunction {
+                table: "ConsoleTable".to_owned(),
+                field: "write_line".to_owned(),
+            },
+            ProviderBinding::CheckedAdapter {
+                machine: "write_line_adapter".to_owned(),
+            },
+        ];
+        for binding in valid_bindings {
+            assert!(
+                plan_with_binding(binding)
+                    .validate_candidate_against_schema()
+                    .is_empty(),
+                "every closed binding family accepts its exact canonical payload"
+            );
+        }
+
+        for binding in [
+            ProviderBinding::Import {
+                library: "kernel32.dll".to_owned(),
+                symbol: "WriteFile".to_owned(),
+            },
+            ProviderBinding::Syscall { number: 0 },
+            ProviderBinding::CompilerIntrinsic {
+                name: "Console::write_line".to_owned(),
+            },
+            ProviderBinding::VtableSlot { index: 0 },
+        ] {
+            let mut free = plan_with_binding(binding);
+            free.target.clear();
+            free.provider_type.clear();
+            assert!(
+                free.validate_candidate_against_schema().is_empty(),
+                "irreducible non-table leaves remain valid without a target or nominal provider type"
+            );
+        }
+
+        let corruptions = [
+            (
+                ProviderBinding::Import {
+                    library: String::new(),
+                    symbol: "WriteFile".to_owned(),
+                },
+                "import has no exact library identity",
+            ),
+            (
+                ProviderBinding::Import {
+                    library: "kernel32.dll".to_owned(),
+                    symbol: String::new(),
+                },
+                "import has no exact symbol identity",
+            ),
+            (
+                ProviderBinding::CompilerIntrinsic {
+                    name: String::new(),
+                },
+                "compiler intrinsic has no exact identity",
+            ),
+            (
+                ProviderBinding::VtableSlot { index: -1 },
+                "vtable slot index -1 is negative",
+            ),
+            (
+                ProviderBinding::VtableField {
+                    table: String::new(),
+                    field: "write_line".to_owned(),
+                },
+                "without an attached provider data type",
+            ),
+            (
+                ProviderBinding::VtableField {
+                    table: "ConsoleTable".to_owned(),
+                    field: String::new(),
+                },
+                "table binding has no exact field identity",
+            ),
+            (
+                ProviderBinding::TableFunction {
+                    table: String::new(),
+                    field: "write_line".to_owned(),
+                },
+                "without an attached provider data type",
+            ),
+            (
+                ProviderBinding::TableFunction {
+                    table: "ConsoleTable".to_owned(),
+                    field: String::new(),
+                },
+                "table binding has no exact field identity",
+            ),
+            (
+                ProviderBinding::CheckedAdapter {
+                    machine: String::new(),
+                },
+                "checked adapter has no exact machine identity",
+            ),
+        ];
+        for (binding, expected) in corruptions {
+            let errors = plan_with_binding(binding).validate_candidate_against_schema();
+            assert!(
+                errors.iter().any(|error| error.contains(expected)),
+                "missing `{expected}` in {errors:?}"
+            );
+        }
+
+        let mut free_adapter = plan_with_binding(ProviderBinding::CheckedAdapter {
+            machine: "write_line_adapter".to_owned(),
+        });
+        free_adapter.provider_type.clear();
+        let errors = free_adapter.validate_candidate_against_schema();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("has no nominal provider type")),
+            "missing nominal-provider rejection in {errors:?}"
         );
     }
 }

@@ -1685,30 +1685,6 @@ pub(crate) fn validate_provider_plan_candidates(
                 .map(psi_diagnostics::Diagnostic::error),
         );
         for row in &plan.rows {
-            match &row.binding {
-                ProviderBinding::CheckedAdapter { machine } if plan.provider_type.is_empty() => {
-                    diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                        "checked adapter `{machine}` for `{}::{}` has no nominal provider type; attach it as `machine ProviderType::{machine}(...) satisfies {}::{}` and select that provider for the boundary slot",
-                        plan.schema.trait_name,
-                        row.method,
-                        plan.schema.trait_name,
-                        row.method,
-                    )));
-                }
-                ProviderBinding::VtableField { table, .. }
-                | ProviderBinding::TableFunction { table, .. }
-                    if table.is_empty() =>
-                {
-                    diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                        "external leaf for `{}::{}` uses a table field without an attached provider data type; declare it as `machine TableType::leaf(...) satisfies {}::{} via Binding::...`",
-                        plan.schema.trait_name,
-                        row.method,
-                        plan.schema.trait_name,
-                        row.method,
-                    )));
-                }
-                _ => {}
-            }
             let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
                 continue;
             };
