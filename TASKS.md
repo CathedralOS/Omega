@@ -347,6 +347,13 @@ Remaining:
   every ordered mixed-shift definition; mathematical emptiness reconstructs
   falsehood, while checked interval-arithmetic failure admits nothing. Every
   shift prefix and the cast retain separate mandatory evidence.
+  Conversely, one validator-legal direct partial fixed-native cast may root a
+  finite nonempty same-target-carrier chain containing both exact-left and
+  exact-right shifts. Each left prefix independently replays the ordered
+  canonical post-cast definitions back to the cast, intersects its surviving
+  target interval with the source carrier, and reconstructs source-root bounds;
+  the cast and every shift retain separate evidence. Mathematical emptiness is
+  falsehood, while checked transfer failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

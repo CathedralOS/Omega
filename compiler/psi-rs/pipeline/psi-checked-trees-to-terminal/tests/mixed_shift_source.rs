@@ -28,13 +28,18 @@ const SOURCE: &str = r#"
         signed: i8,
         wide: u16,
         signed_wide: i16,
+        post_signed: i16,
+        post_unsigned: u16,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
         -32i8 <= signed, signed <= 31i8, 0i8 <= signed,
         wide <= 32767u16, wide <= 16383u16, wide <= 63u16,
         -16384i16 <= signed_wide, signed_wide <= 16383i16,
-        0i16 <= signed_wide, signed_wide <= 127i16
+        0i16 <= signed_wide, signed_wide <= 127i16,
+        0i16 <= post_signed, post_signed <= 255i16,
+        post_signed <= 127i16, post_signed <= 63i16,
+        post_unsigned <= 127u16, post_unsigned <= 63u16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -45,6 +50,8 @@ const SOURCE: &str = r#"
             && (((((value << 1i8) >> 2u16) << 3i32) >> 1u64) < 255u8)
             && (((((wide << 1i8) >> 2u16) << 3i32) as u8) < 255u8)
             && ((((signed_wide >> 1u8) << 2i16) as u8) < 255u8)
+            && ((((((post_signed as u8) << 1i8) >> 2u16) << 3i32) < 255u8))
+            && (((((post_unsigned as i8) << 1u8) >> 2i16) < 127i8))
             && enabled
     }
 "#;
@@ -71,6 +78,8 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     };
     let value_parameter = entry.parameters[0].id;
     let wide_parameter = entry.parameters[2].id;
+    let signed_wide_parameter = entry.parameters[3].id;
+    let post_signed_parameter = entry.parameters[4].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -103,7 +112,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        13,
+        15,
     );
     assert_eq!(
         operations
@@ -113,10 +122,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        14,
+        17,
     );
-    assert_eq!(shift_obligations.len(), 27);
-    assert_eq!(proof_obligations.len(), 29);
+    assert_eq!(shift_obligations.len(), 32);
+    assert_eq!(proof_obligations.len(), 36);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -292,6 +301,34 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let mut redirected_post_cast = decode_module(&semantics).expect("decode mixed-shift module");
+    let post_cast = redirected_post_cast
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerExactCast { operand, .. }
+                    if operand == post_signed_parameter
+            )
+        })
+        .expect("post-cast mixed chain retains its direct cast definition");
+    let OperationKind::IntegerExactCast { operand, .. } = &mut post_cast.kind else {
+        unreachable!("selected exact-cast definition")
+    };
+    *operand = signed_wide_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_post_cast,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -309,6 +346,14 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
             },
             TerminalScalarValue::Boolean(enabled),
         ]

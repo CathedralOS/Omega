@@ -522,10 +522,10 @@ mixed-shift definition backward: a prior left shift maps `[a,b]` to
 maps it to `[a*2^k, (b+1)*2^k-1]`; each step intersects the value carrier.
 Empty intervals reject, full intervals are true, and surviving intervals become
 canonical direct-root bounds. Every operation keeps distinct evidence, so a
-later right shift cannot erase an unsafe earlier left prefix. Homogeneous and
-cast-rooted shift families remain on their existing paths. Runtime, computed,
+later right shift cannot erase an unsafe earlier left prefix. Homogeneous shift
+families remain on their existing paths. Runtime, computed,
 negative, out-of-range, address, or non-native counts, mixed value carriers,
-local, block, computed, or cast roots, intervening shells or operations,
+local, block, computed, or nested-cast roots, intervening shells or operations,
 right-associated shapes, malformed, reordered, cyclic, redirected, or stale
 definitions, interval overflow, and stale or missing evidence remain fenced.
 The same mixed-only chain may feed one validator-legal partial fixed-native
@@ -536,6 +536,15 @@ surviving canonical direct-root interval. A mathematically empty preimage is
 canonical falsehood; checked interval-arithmetic failure is no admission.
 Every shift-prefix proof and the cast proof remain distinct, and homogeneous
 shift-to-cast chains continue to use their existing narrower paths.
+Conversely, one validator-legal partial fixed-native cast of a direct machine
+parameter may root the same mixed-only finite chain in the target carrier. For
+each left prefix the verifier walks the shrinking canonical definitions back to
+the cast, applies the same inverse-left and inverse-right transfers, intersects
+the surviving target interval with the source carrier, and emits only canonical
+source-root bounds. The direct cast proof, every left-prefix proof, and every
+right count proof remain independently mandatory. Mathematical emptiness is
+canonical falsehood; checked transfer failure admits no family. Homogeneous
+post-cast shift chains stay on their narrower existing paths.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,

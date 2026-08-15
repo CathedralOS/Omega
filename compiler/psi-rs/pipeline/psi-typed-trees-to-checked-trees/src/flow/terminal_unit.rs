@@ -1593,12 +1593,6 @@ fn shared_integer_runtime_inputs_with_shells(
             };
             collect_direct()
                 .or_else(|| {
-                    shared_exact_mixed_shift_chain_runtime_inputs(
-                        expression,
-                        scalar_parameter_count,
-                    )
-                })
-                .or_else(|| {
                     shared_exact_cast_then_affine_runtime_inputs(expression, scalar_parameter_count)
                 })
                 .or_else(|| {
@@ -1685,6 +1679,18 @@ fn shared_integer_runtime_inputs_with_shells(
                 Some(inputs)
             };
             collect_direct()
+                .or_else(|| {
+                    shared_exact_mixed_shift_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_cast_then_mixed_shift_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
                 .or_else(|| {
                     shared_exact_cast_then_shift_right_runtime_inputs(
                         expression,
@@ -1779,6 +1785,12 @@ fn shared_integer_runtime_inputs_with_shells(
             collect_direct()
                 .or_else(|| {
                     shared_exact_mixed_shift_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_cast_then_mixed_shift_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -3468,12 +3480,95 @@ fn shared_exact_mixed_shift_chain_runtime_inputs(
     }
 }
 
+fn shared_exact_cast_then_mixed_shift_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut value_type = None;
+    let mut saw_left = false;
+    let mut saw_right = false;
+    loop {
+        let (kind, primitive_type, left, right) = match expression {
+            CheckedScalarExpression::IntegerBinary {
+                kind: kind @ CheckedIntegerBinaryKind::ExactShiftLeft,
+                primitive_type,
+                left,
+                right,
+            }
+            | CheckedScalarExpression::IntegerBinary {
+                kind: kind @ CheckedIntegerBinaryKind::ExactShiftRight,
+                primitive_type,
+                left,
+                right,
+            } => (kind, primitive_type, left, right),
+            _ => return None,
+        };
+        if value_type.is_some_and(|value_type| value_type != *primitive_type)
+            || landed_exact_shift_literal_count(*primitive_type, right).is_none()
+        {
+            return None;
+        }
+        value_type = Some(*primitive_type);
+        saw_left |= *kind == CheckedIntegerBinaryKind::ExactShiftLeft;
+        saw_right |= *kind == CheckedIntegerBinaryKind::ExactShiftRight;
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactShiftLeft | CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target_type,
+                operand,
+                ..
+            } if saw_left && saw_right && Some(*cast_target_type) == value_type => {
+                let CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: source_type,
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return (matches!(
+                    source_type,
+                    PrimitiveType::I8
+                        | PrimitiveType::I16
+                        | PrimitiveType::I32
+                        | PrimitiveType::I64
+                        | PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                ) && *position < scalar_parameter_count)
+                    .then(|| {
+                        BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                    });
+            }
+            _ => return None,
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn exact_mixed_shift_chain_runtime_parameter_positions_for_test(
     expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
 ) -> Option<Vec<usize>> {
     shared_exact_mixed_shift_chain_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn exact_cast_then_mixed_shift_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_cast_then_mixed_shift_runtime_inputs(expression, scalar_parameter_count)?
         .into_iter()
         .map(|input| match input {
             SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),

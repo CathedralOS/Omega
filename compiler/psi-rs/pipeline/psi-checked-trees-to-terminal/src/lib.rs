@@ -11203,6 +11203,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_cast_then_mixed_shift_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_shift_right_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_right_chain_runtime_parameters(expression))
         }
@@ -11239,6 +11240,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_cast_then_mixed_shift_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_shift_left_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_left_chain_runtime_parameters(expression))
         }
@@ -12462,6 +12464,63 @@ fn shared_exact_mixed_shift_chain_runtime_parameters(
                 return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                     *position,
                 )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_cast_then_mixed_shift_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut value_type = None;
+    let mut saw_left = false;
+    let mut saw_right = false;
+    loop {
+        let (kind, integer_type, left, right) = match expression {
+            LoweredDirectExpression::IntegerBinary {
+                kind: kind @ LoweredIntegerBinaryKind::ExactShiftLeft,
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            }
+            | LoweredDirectExpression::IntegerBinary {
+                kind: kind @ LoweredIntegerBinaryKind::ExactShiftRight,
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            } => (kind, integer_type, left, right),
+            _ => return None,
+        };
+        if !native_fixed_integer_type(*integer_type)
+            || value_type.is_some_and(|value_type| value_type != *integer_type)
+            || landed_exact_shift_literal_count(*integer_type, right).is_none()
+        {
+            return None;
+        }
+        value_type = Some(*integer_type);
+        saw_left |= *kind == LoweredIntegerBinaryKind::ExactShiftLeft;
+        saw_right |= *kind == LoweredIntegerBinaryKind::ExactShiftRight;
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactShiftLeft | LoweredIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if saw_left && saw_right && Some(*cast_target_type) == value_type => {
+                let LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type: ScalarType::Integer(source_type),
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return native_fixed_integer_type(*source_type).then(|| {
+                    BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                });
             }
             _ => return None,
         }

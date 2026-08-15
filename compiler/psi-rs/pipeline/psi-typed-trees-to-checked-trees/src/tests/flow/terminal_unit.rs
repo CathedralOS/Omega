@@ -4,6 +4,7 @@ use crate::flow::{
     exact_affine_chain_runtime_parameter_positions_for_test,
     exact_cast_then_affine_runtime_parameter_positions_for_test,
     exact_cast_then_divide_remainder_runtime_parameter_positions_for_test,
+    exact_cast_then_mixed_shift_runtime_parameter_positions_for_test,
     exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
@@ -2070,6 +2071,69 @@ fn exact_mixed_shift_classifier_accepts_finite_ordered_alternation() {
     assert_eq!(
         exact_mixed_shift_chain_runtime_parameter_positions_for_test(&alternating, 1),
         Some(vec![0]),
+    );
+    let partial_cast = CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(parameter(0, PrimitiveType::I16)),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let post_cast_alternating = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            shift(
+                CheckedIntegerBinaryKind::ExactShiftLeft,
+                PrimitiveType::U8,
+                partial_cast.clone(),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+            ),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_then_mixed_shift_runtime_parameter_positions_for_test(&post_cast_alternating, 1,),
+        Some(vec![0]),
+    );
+    let post_cast_left_then_right = shift(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: PrimitiveType::U8,
+                operand: Box::new(parameter(0, PrimitiveType::I16)),
+                range: psi_checked_trees::CheckedIntegerRange::default(),
+            },
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_cast_then_mixed_shift_runtime_parameter_positions_for_test(
+            &post_cast_left_then_right,
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let homogeneous_post_cast = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            partial_cast,
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_then_mixed_shift_runtime_parameter_positions_for_test(&homogeneous_post_cast, 1,),
+        None,
+        "homogeneous post-cast shifts stay on their existing classifier paths",
     );
     assert_eq!(
         exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test(
@@ -5450,7 +5514,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "exact_divide_feeds_shift_right_chain_integer_comparison_convergence",
         "right_associated_exact_shift_right_integer_comparison_convergence",
         "widened_exact_shift_right_chain_integer_comparison_convergence",
-        "exact_shift_left_feeds_shift_right_chain_integer_comparison_convergence",
     ] {
         let fenced_shift_right_chain = checked
             .facts
@@ -5468,6 +5531,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 .is_none()
         );
     }
+    let mixed_shift_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_shift_left_feeds_shift_right_chain_integer_comparison_convergence",
+        ))
+        .expect("the left-then-right exact-shift chain retains its scalar-return plan");
+    assert!(mixed_shift_chain.shared_boolean_convergence.is_some());
     for carrier in ["u8", "u16", "u32", "i8", "i16", "i32", "i64"] {
         let machine = format!("exact_shift_left_chain_{carrier}_integer_comparison_convergence");
         let shift_left_chain = checked

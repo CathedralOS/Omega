@@ -213,6 +213,10 @@ through the prior canonical mixed-shift definitions adds no executable work.
 When that mixed chain feeds a partial exact cast, the cast is charged in
 addition to every retained shift; replay of the target/source interval through
 the ordered mixed definitions adds no executable work.
+The converse mixed-only family charges one direct partial exact cast and every
+retained post-cast shift separately. Replaying each left prefix through the
+ordered target-carrier definitions and intersecting with the source carrier is
+verifier work and adds no executable fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
