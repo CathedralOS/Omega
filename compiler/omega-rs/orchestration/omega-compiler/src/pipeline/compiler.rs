@@ -491,7 +491,7 @@ impl Compiler {
                 &selected_provider_plans,
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        crate::pipeline::trust_lockfile::enforce_trust_lockfile(
+        let prepared_trust_lock = crate::pipeline::trust_lockfile::prepare_trust_lockfile(
             &self.options,
             &typed,
             &build_config.grants,
@@ -518,6 +518,10 @@ impl Compiler {
         )?;
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        crate::pipeline::trust_lockfile::enforce_trust_lockfile(
+            prepared_trust_lock,
+            checked.program.as_ref(),
+        )?;
         let selected_provider_plan_facts =
             crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
                 Arc::get_mut(&mut checked.program)

@@ -7,16 +7,31 @@
 //! RECEIPTS -- one row per root grant, `<fnv1a hex>  <commitment>` -- and
 //! lives beside the project's build.omg (`omega.lock`, machine-written; it
 //! must persist ACROSS builds to see drift). A project with no grants gets
-//! no lockfile. The hash is FNV-1a over the commitment's rendered statement
-//! (a domain grant hashes the domain's name + rendered facts; an
-//! accepted-fact grant hashes its path until boundary-machine statements
-//! carry bodies) -- implemented inline so the hash never varies across Rust
-//! releases. Re-approval v1: delete the stale row (or the file); the error
-//! names it. The `defer`-tooling item owns the one-command re-approve UX.
+//! no lockfile. Domains and unmatched grants retain their FNV-1a statement
+//! identity; provider plans retain selected-plan identity; generic accepted
+//! axioms retain universal template identity; and non-generic accepted axioms
+//! defer to the exact checked machine-contract fingerprint. Re-approval v1:
+//! delete the stale row (or the file); the error names it. The `defer`-tooling
+//! item owns the one-command re-approve UX.
 
 use crate::pipeline::compile_options::CompileOptions;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
+
+pub(super) struct PreparedTrustLock {
+    lock_path: Option<std::path::PathBuf>,
+    rows: Vec<PreparedTrustReceipt>,
+}
+
+struct PreparedTrustReceipt {
+    commitment: String,
+    identity: PreparedTrustIdentity,
+}
+
+enum PreparedTrustIdentity {
+    Ready(u64),
+    AcceptedMachine(psi_symbols::SymbolHandle),
+}
 
 fn fnv1a(text: &str) -> u64 {
     let mut hash: u64 = 0xcbf29ce484222325;
@@ -27,7 +42,7 @@ fn fnv1a(text: &str) -> u64 {
     hash
 }
 
-fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
+fn domain_commitment_statement(typed: &TypedTrees, grant: &str) -> Option<(String, String)> {
     for domain in typed.domain_definitions() {
         if !domain.semantic_id.is_valid() {
             continue;
@@ -46,68 +61,45 @@ fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
                     statement.push_str(&typed.expression_table.display_name(*expression));
                 }
             }
-            return (
+            return Some((
                 format!("domain introduction: {}", domain.name.as_str()),
                 statement,
-            );
+            ));
         }
     }
-    // An ACCEPTED machine (bodyless boundary axiom, GR6d): the receipt
-    // hashes the axiom's rendered ensures -- the statement the grant
-    // covers; editing the claim under a grant is drift.
-    for machine in typed.machines() {
-        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::Accepted {
-            continue;
-        }
-        let leaf = machine
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or(machine.name.as_str());
-        if grant != machine.name.as_str() && grant != leaf {
-            continue;
-        }
-        let mut statement = format!("boundary machine {}", machine.name.as_str());
-        for contract in typed.machine_contracts(machine) {
-            if !matches!(
-                contract.kind,
-                psi_typed_trees::signature::SignatureContractKind::Ensures
-            ) {
-                continue;
-            }
-            for fact in typed.proof_facts.span_or_empty(contract.facts) {
-                if let psi_typed_trees::domain::ProofFact::Expression(expression) = fact {
-                    statement.push_str("; ensures ");
-                    statement.push_str(&typed.expression_table.display_name(*expression));
-                }
-            }
-        }
-        return (
-            format!("accepted fact: {}", machine.name.as_str()),
-            statement,
-        );
+    None
+}
+
+fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
+    if let Some(domain) = domain_commitment_statement(typed, grant) {
+        return domain;
     }
     (format!("accepted fact: {grant}"), grant.to_owned())
 }
 
-pub(super) fn enforce_trust_lockfile(
+pub(super) fn prepare_trust_lockfile(
     options: &CompileOptions,
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<PreparedTrustLock, Vec<Diagnostic>> {
     if root_grants.is_empty() {
-        return Ok(());
+        return Ok(PreparedTrustLock {
+            lock_path: None,
+            rows: Vec::new(),
+        });
     }
     let Some(project_dir) = options.root_path.parent() else {
-        return Ok(());
+        return Ok(PreparedTrustLock {
+            lock_path: None,
+            rows: Vec::new(),
+        });
     };
     let lock_path = project_dir.join("omega.lock");
 
     // Current receipts.
-    let mut rows: Vec<(String, u64)> = Vec::new();
+    let mut rows: Vec<PreparedTrustReceipt> = Vec::new();
     for grant in root_grants {
         // A grant naming a DERIVED PROVIDER PLAN (by plan name or boundary
         // slot) pins the SELECTED plan's NORMALIZED IDENTITY. Slot grants use
@@ -125,8 +117,11 @@ pub(super) fn enforce_trust_lockfile(
             } else {
                 format!("provider slot: {}", plan.schema.trait_name)
             };
-            if !rows.iter().any(|(existing, _)| *existing == commitment) {
-                rows.push((commitment, plan.identity_fingerprint()));
+            if !rows.iter().any(|row| row.commitment == commitment) {
+                rows.push(PreparedTrustReceipt {
+                    commitment,
+                    identity: PreparedTrustIdentity::Ready(plan.identity_fingerprint()),
+                });
             }
             continue;
         }
@@ -136,27 +131,69 @@ pub(super) fn enforce_trust_lockfile(
         // includes its machine-parameter requirements, so changing a `where
         // machine` contract drifts the existing receipt before any instance
         // can reuse it.
-        if let Some(machine) = typed.machines().iter().find(|machine| {
+        let accepted_machine = typed.machines().iter().find(|machine| {
             machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
                 && (grant == machine.name.as_str()
                     || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
-        }) && let Some(identity) =
+        });
+        if let Some((machine, identity)) = accepted_machine.and_then(|machine| {
             psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
                 typed,
                 machine.symbol,
             )
-        {
+            .map(|identity| (machine, identity))
+        }) {
             let commitment = format!("accepted fact: {}", machine.name.as_str());
-            if !rows.iter().any(|(existing, _)| *existing == commitment) {
-                rows.push((commitment, identity));
+            if !rows.iter().any(|row| row.commitment == commitment) {
+                rows.push(PreparedTrustReceipt {
+                    commitment,
+                    identity: PreparedTrustIdentity::Ready(identity),
+                });
+            }
+            continue;
+        }
+        if let Some((commitment, statement)) = domain_commitment_statement(typed, grant) {
+            if !rows.iter().any(|row| row.commitment == commitment) {
+                rows.push(PreparedTrustReceipt {
+                    commitment,
+                    identity: PreparedTrustIdentity::Ready(fnv1a(&statement)),
+                });
+            }
+            continue;
+        }
+        if let Some(machine) = accepted_machine {
+            let commitment = format!("accepted fact: {}", machine.name.as_str());
+            if !rows.iter().any(|row| row.commitment == commitment) {
+                rows.push(PreparedTrustReceipt {
+                    commitment,
+                    identity: PreparedTrustIdentity::AcceptedMachine(machine.symbol),
+                });
             }
             continue;
         }
         let (commitment, statement) = commitment_statement(typed, grant);
-        if !rows.iter().any(|(existing, _)| *existing == commitment) {
-            rows.push((commitment, fnv1a(&statement)));
+        if !rows.iter().any(|row| row.commitment == commitment) {
+            rows.push(PreparedTrustReceipt {
+                commitment,
+                identity: PreparedTrustIdentity::Ready(fnv1a(&statement)),
+            });
         }
     }
+
+    Ok(PreparedTrustLock {
+        lock_path: Some(lock_path),
+        rows,
+    })
+}
+
+pub(super) fn enforce_trust_lockfile(
+    prepared: PreparedTrustLock,
+    checked: &psi_checked_trees::CheckedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(lock_path) = prepared.lock_path else {
+        return Ok(());
+    };
+    let rows = resolve_receipts(prepared.rows, checked)?;
 
     // Drift check against the existing lock.
     if let Ok(existing) = std::fs::read_to_string(&lock_path) {
@@ -191,4 +228,55 @@ pub(super) fn enforce_trust_lockfile(
             lock_path.display()
         ))]
     })
+}
+
+fn resolve_receipts(
+    rows: Vec<PreparedTrustReceipt>,
+    checked: &psi_checked_trees::CheckedTrees,
+) -> Result<Vec<(String, u64)>, Vec<Diagnostic>> {
+    rows.into_iter()
+        .map(|row| {
+            let identity = match row.identity {
+                PreparedTrustIdentity::Ready(identity) => identity,
+                PreparedTrustIdentity::AcceptedMachine(machine) => checked
+                    .facts
+                    .contract_plans
+                    .for_machine(machine)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "accepted trust receipt `{}` has no exact checked machine contract plan",
+                            row.commitment
+                        ))]
+                    })?
+                    .fingerprint,
+            };
+            Ok((row.commitment, identity))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PreparedTrustIdentity, PreparedTrustReceipt, resolve_receipts};
+
+    #[test]
+    fn deferred_accepted_receipt_fails_closed_without_exact_checked_plan() {
+        let commitment = "accepted fact: admitted".to_owned();
+        let result = resolve_receipts(
+            vec![PreparedTrustReceipt {
+                commitment: commitment.clone(),
+                identity: PreparedTrustIdentity::AcceptedMachine(
+                    psi_symbols::SymbolHandle::from_arena_index(1),
+                ),
+            }],
+            &psi_checked_trees::CheckedTrees::default(),
+        );
+
+        let diagnostics = result.expect_err("missing exact checked plan must fail closed");
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message.as_str(),
+            "accepted trust receipt `accepted fact: admitted` has no exact checked machine contract plan"
+        );
+    }
 }
