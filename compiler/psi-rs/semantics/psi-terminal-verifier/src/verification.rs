@@ -182,12 +182,23 @@ fn validate_evidence_producer_provenance(
         .map(|lane| (lane.machine, lane.term))
         .collect::<BTreeSet<_>>();
     let mut unmatched_ensures = BTreeMap::<_, usize>::new();
+    let package_outputs = module
+        .evidence_package_invocations
+        .iter()
+        .map(|invocation| invocation.output)
+        .collect::<BTreeSet<_>>();
     for lane in &module.evidence_contract_lanes {
         if lane.kind == EvidenceContractLaneKind::Ensures
             && !required.contains(&(lane.machine, lane.term))
+            && !package_outputs.contains(&lane.term)
         {
             *unmatched_ensures.entry(lane.term).or_default() += 1;
         }
+    }
+    for invocation in &module.evidence_package_invocations {
+        unmatched_ensures
+            .entry(invocation.callee_output)
+            .or_insert(1);
     }
 
     let mut previous_id = None;

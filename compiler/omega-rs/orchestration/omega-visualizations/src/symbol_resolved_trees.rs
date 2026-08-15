@@ -908,6 +908,11 @@ fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> Stri
             call.target.as_str(),
             symbol_label(call.target_symbol)
         ),
+        Statement::EvidencePackageDestructure(package) => format!(
+            "evidence package {}: {}",
+            package.output_field.as_str(),
+            package.binding.as_str()
+        ),
         Statement::Expression(_) => "expression".to_owned(),
         Statement::LocalData(local) => format!(
             "local {}\nsymbol: {}",

@@ -97,6 +97,19 @@ pub(super) fn assign_statement_symbols(
                     resolve_static_machine_argument_symbol(symbols, machine.symbol, &argument.path);
             }
         }
+        psi_symbol_resolved_trees::statement::Statement::EvidencePackageDestructure(binding) => {
+            binding.machine_symbol = machine.symbol;
+            binding.state_symbol = state_symbol;
+            assign_statement_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                binding.call,
+            );
+        }
         psi_symbol_resolved_trees::statement::Statement::Expression(expression) => {
             assign_statement_expression_symbols(
                 symbols,

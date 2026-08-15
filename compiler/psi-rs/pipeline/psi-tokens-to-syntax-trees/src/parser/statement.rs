@@ -1313,6 +1313,56 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
     Some((HandleSpan::from_parts(marker, count), rest))
 }
 
+/// Chapter-10 generated proof-package destructuring:
+/// `let { output_field: binding } = producer();`.
+///
+/// The first rung is intentionally one-field and call-only. It remains a
+/// dedicated erased statement so the call is evaluated once and the generic
+/// place-only record destructure cannot manufacture Unit locals for it.
+pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Option<(
+    HandleSpan<psi_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
+    use psi_syntax_trees::expression::ExpressionNode;
+    use psi_syntax_trees::statement::TableEvidencePackageDestructure;
+
+    let mut rest = input.take_keyword(KeywordKind::Let, "let").ok()?;
+    rest = rest
+        .take_punctuation(PunctuationKind::LeftBrace, "{")
+        .ok()?;
+    let (output_field, next) = rest.take_identifier().ok()?;
+    rest = next.take_punctuation(PunctuationKind::Colon, ":").ok()?;
+    let (binding, next) = rest.take_identifier().ok()?;
+    rest = next
+        .take_punctuation(PunctuationKind::RightBrace, "}")
+        .ok()?;
+    rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
+    let (call, next) = parse_expression_handle(syntax_trees, rest).ok()?;
+    if !matches!(
+        syntax_trees.expressions.expression(call),
+        ExpressionNode::Call(_)
+    ) {
+        return None;
+    }
+    rest = next
+        .take_punctuation(PunctuationKind::Semicolon, ";")
+        .ok()?;
+    let statement = syntax_trees.statements.insert(
+        psi_syntax_trees::statement::StatementNode::EvidencePackageDestructure(
+            TableEvidencePackageDestructure {
+                output_field,
+                binding,
+                call,
+            },
+        ),
+    );
+    let statement = syntax_trees.items.append_statement_handle(statement);
+    Some((HandleSpan::from_parts(statement, 1), rest))
+}
+
 pub(super) fn try_parse_atomic_fetch_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

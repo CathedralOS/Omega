@@ -89,6 +89,9 @@ fn scan_statement(
             }
             Ok(())
         }
+        StatementNode::EvidencePackageDestructure(package) => {
+            scan_expression(program, package.call, false)
+        }
         StatementNode::Expression(expression) => scan_expression(program, *expression, false),
         StatementNode::LocalData(local_data) => {
             scan_expression(program, local_data.initial_value, false)

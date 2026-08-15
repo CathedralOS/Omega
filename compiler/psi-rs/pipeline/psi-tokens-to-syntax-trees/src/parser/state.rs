@@ -3,7 +3,7 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::{
     parse_asm_block_statement_handles, parse_statement_handle,
     try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_let, try_parse_atomic_swap_let,
-    try_parse_destructure_let,
+    try_parse_destructure_let, try_parse_evidence_package_destructure,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -99,6 +99,16 @@ pub(super) fn parse_state<'tokens, 'source>(
         // RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18):
         // `let { x, y as h, z as _ } = place;` expands to the marker +
         // per-field lets.
+        } else if let Some((new_statements, rest)) =
+            try_parse_evidence_package_destructure(syntax_trees, input)
+        {
+            if statement_count == 0 {
+                statement_start = new_statements.start();
+            }
+            statement_count = statement_count
+                .checked_add(new_statements.count())
+                .expect("state statement span count overflow");
+            input = rest;
         } else if let Some((new_statements, rest)) = try_parse_destructure_let(syntax_trees, input)
         {
             if statement_count == 0 {

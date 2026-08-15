@@ -105,6 +105,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -1522,6 +1523,7 @@ fn effect_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -1696,6 +1698,7 @@ fn unit_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -1746,6 +1749,7 @@ fn nominal_affine_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -2690,6 +2694,7 @@ fn partial_affine_field_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![caller, callee],
     }
 }

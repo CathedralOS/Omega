@@ -1006,6 +1006,15 @@ impl SyntaxTrees {
                 operational_acknowledgement: call.operational_acknowledgement,
                 discards_result: call.discards_result,
             }),
+            StatementNode::EvidencePackageDestructure(binding) => {
+                StatementNode::EvidencePackageDestructure(
+                    crate::statement::TableEvidencePackageDestructure {
+                        output_field: binding.output_field.clone(),
+                        binding: binding.binding.clone(),
+                        call: self.copy_expression_handle(other, binding.call),
+                    },
+                )
+            }
             StatementNode::Expression(value) => {
                 StatementNode::Expression(self.copy_expression_handle(other, *value))
             }

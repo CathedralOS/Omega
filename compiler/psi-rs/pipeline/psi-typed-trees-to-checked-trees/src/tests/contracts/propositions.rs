@@ -392,6 +392,274 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
 }
 
 #[test]
+fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce()
+        ensures outgoing: ready()
+        {
+            outgoing = ConcreteEvidence;
+        }
+
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { outgoing: local } = produce();
+            relayed = local;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("the first proof-only generated package rung should check");
+    let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
+        panic!("one typed evidence-package invocation expected")
+    };
+    assert_eq!(typed_invocation.output_field.as_str(), "outgoing");
+    assert_eq!(typed_invocation.binding.as_str(), "local");
+    let invocation = checked
+        .facts
+        .proof
+        .evidence_package_invocations
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked evidence-package invocation expected");
+    assert_ne!(invocation.output, invocation.callee_output);
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(invocation.output)
+            .name,
+        "local"
+    );
+    let relay = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("relay machine");
+    assert!(checked.machine_states(relay)[0].statement_nodes.is_empty());
+    let forwarding = checked
+        .facts
+        .proof
+        .evidence_forwardings
+        .iter()
+        .find_map(|(_, forwarding)| {
+            (forwarding.machine_symbol == relay.symbol).then_some(forwarding)
+        })
+        .expect("relay output forwarding");
+    let psi_checked_trees::EvidenceAssignmentSource::Forwarded { term } = forwarding.source else {
+        panic!("the caller-local package evidence must forward by exact term identity")
+    };
+    assert_eq!(term, invocation.output);
+}
+
+#[test]
+fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce()
+        ensures outgoing: ready()
+        {
+            outgoing = ConcreteEvidence;
+        }
+
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { invented: local } = produce();
+            relayed = local;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a generated package field cannot be forged");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has field `outgoing`, not `invented`")
+    }));
+}
+
+#[test]
+fn generated_output_package_rejects_a_runtime_result_callee() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce() -> i32
+        ensures outgoing: ready()
+        {
+            outgoing = ConcreteEvidence;
+            1
+        }
+
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { outgoing: local } = produce();
+            relayed = local;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("runtime payloads remain outside the first generated package rung");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("is limited to a concrete one-state, zero-argument, proof-only machine")
+    }));
+}
+
+#[test]
+fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine touch() {}
+
+        machine produce()
+        ensures outgoing: ready()
+        {
+            touch();
+            outgoing = ConcreteEvidence;
+        }
+
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { outgoing: local } = produce();
+            relayed = local;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("erasing a package call must not erase runtime work");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("is limited to a concrete one-state, zero-argument, proof-only machine")
+    }));
+}
+
+#[test]
+fn generated_output_package_binding_is_not_visible_to_its_own_call() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce()
+        requires incoming: ready()
+        ensures outgoing: ready()
+        {
+            outgoing = incoming;
+        }
+
+        machine relay()
+        ensures relayed: ready()
+        {
+            let { outgoing: local } = produce(; local);
+            relayed = local;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a newly bound package term cannot feed its own invocation");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("cannot require input evidence")
+                || diagnostic
+                    .message
+                    .contains("unknown incoming evidence term `local`")
+                || diagnostic.message.contains("proof-only machine")
+        }),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn generated_output_package_is_not_visible_before_its_binding() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce()
+        ensures outgoing: ready()
+        {
+            outgoing = ConcreteEvidence;
+        }
+
+        machine relay()
+        ensures relayed: ready()
+        {
+            relayed = local;
+            let { outgoing: local } = produce();
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a future generated package output cannot flow backwards");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("local") || diagnostic.message.contains("relayed")
+        }),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn generated_output_package_term_must_be_forwarded_exactly_once() {
+    let unused = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
+        machine relay() { let { outgoing: local } = produce(); }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(unused))
+        .expect_err("an unused fresh package term is outside the first rung");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must be forwarded exactly once; found 0 uses")
+    }));
+
+    let duplicated = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
+        machine relay()
+        ensures first: ready()
+        ensures second: ready()
+        {
+            let { outgoing: local } = produce();
+            first = local;
+            second = local;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(duplicated))
+        .expect_err("duplicating a fresh package term is outside the first rung");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must be forwarded exactly once; found 2 uses")
+    }));
+}
+
+#[test]
 fn explicit_subjectless_conformance_introduces_named_evidence() {
     let source = r#"
         trait Evidence {

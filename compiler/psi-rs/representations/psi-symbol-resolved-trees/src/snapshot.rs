@@ -551,6 +551,11 @@ pub enum StatementSnapshot {
         acknowledges_suspend: bool,
         acknowledges_block: bool,
     },
+    EvidencePackageDestructure {
+        output_field: String,
+        binding: String,
+        call: ExpressionSnapshot,
+    },
     Expression {
         value: ExpressionSnapshot,
     },
@@ -1323,6 +1328,13 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
+        Statement::EvidencePackageDestructure(package) => {
+            StatementSnapshot::EvidencePackageDestructure {
+                output_field: package.output_field.to_string(),
+                binding: package.binding.to_string(),
+                call: statement_expression_snapshot(program, package.call),
+            }
+        }
         Statement::Expression(expression) => StatementSnapshot::Expression {
             value: statement_expression_snapshot(program, *expression),
         },

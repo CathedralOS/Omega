@@ -179,6 +179,22 @@ fn lower_statement_node(
             }));
             Ok(hoisted)
         }
+        syntax::statement::StatementNode::EvidencePackageDestructure(binding) => {
+            let call = lower_statement_expression(lowerer, syntax_trees, binding.call)?;
+            lowerer
+                .current_evidence_term_names
+                .push(binding.binding.as_str().to_owned());
+            Ok(vec![Statement::EvidencePackageDestructure(
+                psi_symbol_resolved_trees::statement::EvidencePackageDestructure {
+                    machine_symbol: SymbolHandle::invalid(),
+                    state_symbol: SymbolHandle::invalid(),
+                    statement_index,
+                    output_field: crate::name::lower_name(&binding.output_field),
+                    binding: crate::name::lower_name(&binding.binding),
+                    call,
+                },
+            )])
+        }
         syntax::statement::StatementNode::Expression(expression) => {
             // A bare trailing expression is a VALUE machine's implicit return
             // (`state go(..) -> i64 { ..; self.buf[j] as i64 }`). Its

@@ -229,6 +229,52 @@ fn validate_evidence_contract_lanes(
                 kind: lane.kind,
             })?;
     }
+    let mut next_package_ordinals = BTreeMap::new();
+    for invocation in &module.evidence_package_invocations {
+        let expected = next_package_ordinals
+            .entry(invocation.caller)
+            .or_insert(0_u32);
+        if invocation.ordinal != *expected {
+            return Err(ModuleError::NonCanonicalEvidencePackageInvocation {
+                caller: invocation.caller,
+                ordinal: invocation.ordinal,
+            });
+        }
+        *expected =
+            expected
+                .checked_add(1)
+                .ok_or(ModuleError::NonCanonicalEvidencePackageInvocation {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                })?;
+        if !machines.contains_key(&invocation.caller) {
+            return Err(ModuleError::UnknownEvidenceContractMachine(
+                invocation.caller,
+            ));
+        }
+        let Some(callee_output) = terms.get(&invocation.callee_output) else {
+            return Err(ModuleError::UnknownEvidenceContractTerm(
+                invocation.callee_output,
+            ));
+        };
+        let Some(output) = terms.get(&invocation.output) else {
+            return Err(ModuleError::UnknownEvidenceContractTerm(invocation.output));
+        };
+        if invocation.callee_output == invocation.output
+            || callee_output.proposition != output.proposition
+            || callee_output.interface != output.interface
+            || invocation.target_machine_identity.is_empty()
+            || invocation.output_position != 0
+            || invocation.output_field.is_empty()
+            || invocation.output_field == "value"
+        {
+            return Err(ModuleError::InvalidEvidencePackageInvocation {
+                caller: invocation.caller,
+                ordinal: invocation.ordinal,
+            });
+        }
+        used_terms.extend([invocation.callee_output, invocation.output]);
+    }
     if let Some(term) = terms
         .keys()
         .find(|term| !used_terms.contains(term))
@@ -6671,6 +6717,14 @@ pub enum ModuleError {
     InvalidEvidenceOutputField(MachineId),
     ReservedEvidenceOutputField(MachineId),
     DuplicateEvidenceOutputField(MachineId),
+    NonCanonicalEvidencePackageInvocation {
+        caller: MachineId,
+        ordinal: u32,
+    },
+    InvalidEvidencePackageInvocation {
+        caller: MachineId,
+        ordinal: u32,
+    },
     OrphanEvidenceTerm(EvidenceTermId),
     EmptyPropositionIdentity,
     DuplicateMachine(MachineId),

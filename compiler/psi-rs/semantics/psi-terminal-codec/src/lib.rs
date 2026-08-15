@@ -37,18 +37,19 @@ use psi_terminal::{
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, OperationResult, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
-    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidenceTermDeclaration, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
+    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
+    ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
@@ -122,6 +123,11 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "structural types by StructuralTypeId",
+        ));
+    }
+    if !strictly_increasing(module.evidence_package_invocations.iter()) {
+        return Err(CodecError::NonCanonicalOrder(
+            "evidence package invocations by caller and ordinal",
         ));
     }
     for declaration in &module.structural_types {
@@ -1410,6 +1416,22 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
         if let Some(field) = &lane.output_field {
             writer.string("evidence output field", field)?;
         }
+    }
+    writer.len(
+        "evidence package invocations",
+        module.evidence_package_invocations.len(),
+    )?;
+    for invocation in &module.evidence_package_invocations {
+        writer.id(invocation.caller);
+        writer.u32(invocation.ordinal);
+        writer.string(
+            "evidence package target machine identity",
+            &invocation.target_machine_identity,
+        )?;
+        writer.u32(invocation.output_position);
+        writer.string("evidence package output field", &invocation.output_field)?;
+        writer.id(invocation.callee_output);
+        writer.id(invocation.output);
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -3039,6 +3061,17 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
                 .transpose()?,
         })
     })?;
+    let evidence_package_invocations = decode_counted(reader, |reader| {
+        Ok(EvidencePackageInvocation {
+            caller: reader.id("MachineId")?,
+            ordinal: reader.u32()?,
+            target_machine_identity: reader.string("evidence package target machine identity")?,
+            output_position: reader.u32()?,
+            output_field: reader.string("evidence package output field")?,
+            callee_output: reader.id("EvidenceTermId")?,
+            output: reader.id("EvidenceTermId")?,
+        })
+    })?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -3056,6 +3089,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         proposition_applications,
         evidence_terms,
         evidence_contract_lanes,
+        evidence_package_invocations,
         machines,
     })
 }

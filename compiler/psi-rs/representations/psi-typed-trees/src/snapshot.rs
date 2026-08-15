@@ -33,6 +33,8 @@ pub struct TypedTreesSnapshot {
     pub tables: TypedTableSnapshot,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub evidence_package_invocations: Vec<EvidencePackageInvocationSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -40,10 +42,22 @@ pub struct EvidenceForwardingSnapshot {
     pub machine_symbol: u32,
     pub state_symbol: u32,
     pub statement_index: usize,
+    pub source_statement_index: usize,
     pub target: String,
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_conformance: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EvidencePackageInvocationSnapshot {
+    pub machine_symbol: u32,
+    pub state_symbol: u32,
+    pub statement_index: usize,
+    pub source_statement_index: usize,
+    pub output_field: String,
+    pub binding: String,
+    pub call: ExpressionSnapshot,
 }
 
 impl TypedTreesSnapshot {
@@ -121,11 +135,25 @@ impl TypedTreesSnapshot {
                     machine_symbol: forwarding.machine_symbol.arena_index(),
                     state_symbol: forwarding.state_symbol.arena_index(),
                     statement_index: forwarding.statement_index,
+                    source_statement_index: forwarding.source_statement_index,
                     target: forwarding.target.to_string(),
                     source: forwarding.source.to_string(),
                     source_conformance: forwarding
                         .source_conformance
                         .map(|symbol| symbol.arena_index()),
+                })
+                .collect(),
+            evidence_package_invocations: program
+                .evidence_package_invocations
+                .iter()
+                .map(|package| EvidencePackageInvocationSnapshot {
+                    machine_symbol: package.machine_symbol.arena_index(),
+                    state_symbol: package.state_symbol.arena_index(),
+                    statement_index: package.statement_index,
+                    source_statement_index: package.source_statement_index,
+                    output_field: package.output_field.to_string(),
+                    binding: package.binding.to_string(),
+                    call: expression_snapshot(program, package.call),
                 })
                 .collect(),
         }

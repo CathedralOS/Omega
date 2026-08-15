@@ -43,6 +43,9 @@ pub(crate) fn lower_statement_node(
         resolved::statement::StatementNode::Call(call) => Ok(
             typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
         ),
+        resolved::statement::StatementNode::EvidencePackageDestructure(_) => {
+            unreachable!("evidence packages are classified out before runtime statement lowering")
+        }
         resolved::statement::StatementNode::Expression(expression) => {
             Ok(typed::statement::StatementNode::Expression(
                 lower_statement_expression(lowerer, *expression)?,

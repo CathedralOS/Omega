@@ -452,6 +452,11 @@ fn count_statement_node(
                 count_expression_handle(expressions, *argument, counts);
             }
         }
+        StatementNode::EvidencePackageDestructure(package) => {
+            count_declaration_name(&package.output_field, counts);
+            count_declaration_name(&package.binding, counts);
+            count_expression_handle(expressions, package.call, counts);
+        }
         StatementNode::Expression(expression) => {
             count_expression_handle(expressions, *expression, counts)
         }

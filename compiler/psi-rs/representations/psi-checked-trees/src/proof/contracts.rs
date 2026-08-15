@@ -143,6 +143,22 @@ pub struct EvidenceForwardingFact {
     pub source: EvidenceAssignmentSource,
 }
 
+/// One proof-only call whose single generated output field is bound to a
+/// fresh caller-local evidence term. `callee_output` is the published lane
+/// declaration; `output` is the distinct term introduced by this invocation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EvidencePackageInvocationFact {
+    pub caller_machine_symbol: SymbolHandle,
+    pub caller_state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub source_statement_index: usize,
+    pub target_machine_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub output_position: usize,
+    pub callee_output: Handle<CheckedEvidenceTerm>,
+    pub output: Handle<CheckedEvidenceTerm>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContractCallFact {
     pub caller_machine_symbol: SymbolHandle,
