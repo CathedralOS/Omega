@@ -16,6 +16,8 @@ const RECORD_CANARY: &str = "layouts/runtime_plan_laid_tiled_record_array_view_e
 const NESTED_ARRAY_CANARY: &str = "layouts/runtime_plan_laid_tiled_nested_array_view_exit";
 const RECORD_NESTED_ARRAY_CANARY: &str =
     "layouts/runtime_plan_laid_tiled_record_nested_array_view_exit";
+const MULTIPLE_AGGREGATE_FIELDS_CANARY: &str =
+    "layouts/runtime_plan_laid_multiple_aggregate_fields_view_exit";
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -133,6 +135,14 @@ fn gapped_record_nested_array_outer_array_interprets_runs_natively_and_cross_com
     assert_runtime_canary(
         RECORD_NESTED_ARRAY_CANARY,
         "plan-laid-gapped-record-nested-array",
+    );
+}
+
+#[test]
+fn multiple_whole_aggregate_fields_interpret_run_natively_and_cross_compile() {
+    assert_runtime_canary(
+        MULTIPLE_AGGREGATE_FIELDS_CANARY,
+        "plan-laid-multiple-aggregate-fields",
     );
 }
 
@@ -339,5 +349,105 @@ fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
     )
     .expect_err("a wrong nested record identity must reject before destination mutation");
     assert!(error.0.contains("does not match `Cell`"));
+    assert_eq!(unchanged, [0x5a; 28]);
+}
+
+#[test]
+fn multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically() {
+    let canary = repo_root()
+        .join("canaries/pass")
+        .join(MULTIPLE_AGGREGATE_FIELDS_CANARY);
+    let host = omega_target::TargetProfile::host();
+    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
+        .expect("multiple-aggregate-fields canary should reach checked trees");
+    let layout = compute_layout_plan(&checked.typed, "MultipleAggregateFields::plan", "Samples")
+        .expect("multiple whole aggregate fields should validate");
+
+    let mut little = [0xa5; 28];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("multiple whole aggregate fields should materialize little-endian");
+    assert_eq!(
+        little,
+        [
+            0, 0, 0, 0, 5, 6, 0, 0, 7, 8, 9, 10, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0,
+        ]
+    );
+
+    let mut big = [0xa5; 28];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("multiple whole aggregate fields should materialize big-endian");
+    assert_eq!(
+        big,
+        [
+            0, 0, 0, 0, 6, 5, 0, 0, 10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 4, 3, 0, 0, 0, 0,
+        ]
+    );
+
+    let valid_values = BuildTimeValue::Array(vec![
+        BuildTimeValue::Int(0x0201.into()),
+        BuildTimeValue::Int(0x0403.into()),
+    ]);
+    let wrong_nested_record = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![
+            ("values".to_owned(), valid_values.clone()),
+            (
+                "pair".to_owned(),
+                BuildTimeValue::Struct {
+                    type_name: "Samples".to_owned(),
+                    fields: vec![
+                        ("low".to_owned(), BuildTimeValue::Int(0x0605.into())),
+                        ("high".to_owned(), BuildTimeValue::Int(0x0a090807.into())),
+                    ],
+                },
+            ),
+        ],
+    };
+    let mut unchanged = [0x5a; 28];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &wrong_nested_record,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a wrong second aggregate identity must reject before any field commits");
+    assert!(error.0.contains("does not match `Pair`"));
+    assert_eq!(unchanged, [0x5a; 28]);
+
+    let missing_nested_record = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![("values".to_owned(), valid_values)],
+    };
+    let mut unchanged = [0x5a; 28];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &missing_nested_record,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a missing aggregate field must reject before any field commits");
+    assert!(
+        error.0.contains("has 1 fields, expected 2"),
+        "unexpected missing-field diagnostic: {}",
+        error.0
+    );
     assert_eq!(unchanged, [0x5a; 28]);
 }
