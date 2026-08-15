@@ -1,11 +1,14 @@
 //! GR5/GR6 (the chapter-10 carrier's report surface): one trust-report row per
-//! admitted semantic commitment, plus exact routed qualification rows copied
-//! from normalized provider schemas. Domain introductions, accepted facts,
-//! provider plans, and their qualification blast radius retain root-grant or
-//! dev-active provenance; the latter carries a standing warning.
+//! admitted semantic commitment, plus exact provider-requirement and routed
+//! qualification rows copied from normalized provider plans. Domain
+//! introductions, accepted facts, provider plans, and their requirement blast
+//! radius retain root-grant or dev-active provenance; the latter carries a
+//! standing warning.
 
 use crate::pipeline::compile_options::CompileOptions;
-use omega_artifacts::{ArtifactWriter, TrustQualificationRow, TrustReport, TrustReportRow};
+use omega_artifacts::{
+    ArtifactWriter, TrustProviderRequirementRow, TrustQualificationRow, TrustReport, TrustReportRow,
+};
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
@@ -60,6 +63,26 @@ pub(super) fn write_trust_report(
             provenance: provenance.to_owned(),
             standing_warning: !granted,
         });
+        for row in &plan.rows {
+            let method = plan
+                .schema
+                .methods
+                .iter()
+                .find(|method| plan.schema.row_binds_method(row, method))
+                .expect("validated provider rows bind one exact schema requirement");
+            report
+                .provider_requirements
+                .push(TrustProviderRequirementRow {
+                    provider_plan: plan.name.clone(),
+                    provider_plan_fingerprint: plan.identity_fingerprint(),
+                    requirement_owner: method.requirement_owner.clone(),
+                    requirement_identity: row.requirement_identity.clone(),
+                    method: row.method.clone(),
+                    provenance: provenance.to_owned(),
+                    grant_selectors: grant_selectors.clone(),
+                    standing_warning: !granted,
+                });
+        }
         for method in &plan.schema.methods {
             for claim in &method.entry_claims {
                 report.qualifications.push(TrustQualificationRow {

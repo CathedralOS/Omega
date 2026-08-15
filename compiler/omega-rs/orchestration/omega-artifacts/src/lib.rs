@@ -667,6 +667,31 @@ impl ArtifactWriter {
             }
             output.push('\n');
         }
+        output.push_str("\n## Provider requirements\n\n");
+        output.push_str(&format!(
+            "provider requirements: {}\n\n",
+            trust_report.provider_requirements.len()
+        ));
+        for row in &trust_report.provider_requirements {
+            output.push_str(&format!(
+                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- {} -- grant selectors: {}",
+                row.provider_plan,
+                row.provider_plan_fingerprint,
+                row.requirement_owner,
+                row.requirement_identity,
+                row.method,
+                row.provenance,
+                if row.grant_selectors.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.grant_selectors.join(", ")
+                },
+            ));
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants its provider plan]");
+            }
+            output.push('\n');
+        }
         output.push_str("\n## Routed qualifications\n\n");
         output.push_str(&format!(
             "routed qualifications: {}\n\n",
@@ -2049,6 +2074,23 @@ pub struct TrustReportRow {
     pub standing_warning: bool,
 }
 
+/// One exact requirement supplied by a normalized provider-plan row.
+///
+/// This is the claim-free provider blast-radius carrier: readable names remain
+/// separate from canonical overload identity, and admission provenance is
+/// copied rather than inferred from the requirement or schema spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustProviderRequirementRow {
+    pub provider_plan: String,
+    pub provider_plan_fingerprint: u64,
+    pub requirement_owner: String,
+    pub requirement_identity: String,
+    pub method: String,
+    pub provenance: String,
+    pub grant_selectors: Vec<String>,
+    pub standing_warning: bool,
+}
+
 /// One exact routed qualification carried by a normalized provider plan.
 ///
 /// These rows keep the durable trust artifact at least as specific as the
@@ -2083,6 +2125,7 @@ pub struct TrustQualificationRow {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustReport {
     pub rows: Vec<TrustReportRow>,
+    pub provider_requirements: Vec<TrustProviderRequirementRow>,
     pub qualifications: Vec<TrustQualificationRow>,
 }
 
@@ -2320,9 +2363,9 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
-        ArtifactWriter, TrustQualificationRow, TrustReport, WireFieldRelevance,
-        WireFieldReportEntry, build_backend_surface_report, external_root_records_manifest_json,
-        push_wire_field_table, value_placement_json,
+        ArtifactWriter, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
+        WireFieldRelevance, WireFieldReportEntry, build_backend_surface_report,
+        external_root_records_manifest_json, push_wire_field_table, value_placement_json,
     };
 
     #[test]
@@ -2339,6 +2382,7 @@ mod tests {
         let writer = ArtifactWriter::new(&root).expect("artifact writer");
         let report = TrustReport {
             rows: Vec::new(),
+            provider_requirements: Vec::new(),
             qualifications: vec![TrustQualificationRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
                 provider_plan_fingerprint: 0x1234,
@@ -2366,6 +2410,52 @@ mod tests {
         assert!(output.contains("requirement owner: Base"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
         assert!(!output.contains("requirement owner: Root"));
+        std::fs::remove_dir_all(root).expect("remove test artifact directory");
+    }
+
+    #[test]
+    fn trust_report_keeps_claim_free_provider_requirement_blast_radius_exact() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-trust-provider-requirement-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let writer = ArtifactWriter::new(&root).expect("artifact writer");
+        let report = TrustReport {
+            rows: Vec::new(),
+            provider_requirements: vec![TrustProviderRequirementRow {
+                provider_plan: "RootProvider::satisfies::Root".to_owned(),
+                provider_plan_fingerprint: 0x1234,
+                requirement_owner: "Base".to_owned(),
+                requirement_identity:
+                    "named-callable(path(Base::enter), parameters(), result(none))".to_owned(),
+                method: "enter".to_owned(),
+                provenance: "root grant (build.omg)".to_owned(),
+                grant_selectors: vec!["Root".to_owned()],
+                standing_warning: false,
+            }],
+            qualifications: Vec::new(),
+        };
+
+        writer
+            .write_trust_report(&report)
+            .expect("trust report output");
+        let output =
+            std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
+
+        assert!(output.contains("provider requirements: 1"));
+        assert!(output.contains("provider plan: RootProvider::satisfies::Root [0000000000001234]"));
+        assert!(output.contains("requirement owner: Base"));
+        assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
+        assert!(output.contains("method: enter"));
+        assert!(output.contains("root grant (build.omg)"));
+        assert!(output.contains("grant selectors: Root"));
+        assert!(!output.contains("requirement owner: Root"));
+        assert!(!output.contains("STANDING WARNING"));
         std::fs::remove_dir_all(root).expect("remove test artifact directory");
     }
 
