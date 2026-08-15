@@ -1,1 +1,1 @@
-transition guard comparison has no runtime lowering
+reached emission as an unclassified zero-width row
