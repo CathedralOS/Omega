@@ -739,7 +739,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.generic_accepted_instances {
             output.push_str(&format!(
-                "- accepted template: {} [{:016x}] -- instance: {:016x} -- machine argument contracts: {}\n",
+                "- accepted template: {} [{:016x}] -- instance: {:016x} -- machine argument contracts: {} -- conformance arguments: {}\n",
                 row.template_commitment,
                 row.template_fingerprint,
                 row.instance_fingerprint,
@@ -747,6 +747,15 @@ impl ArtifactWriter {
                     "none".to_owned()
                 } else {
                     row.machine_argument_contract_fingerprints
+                        .iter()
+                        .map(|fingerprint| format!("{fingerprint:016x}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+                if row.conformance_argument_fingerprints.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.conformance_argument_fingerprints
                         .iter()
                         .map(|fingerprint| format!("{fingerprint:016x}"))
                         .collect::<Vec<_>>()
@@ -2406,6 +2415,7 @@ pub struct TrustGenericAcceptedInstanceRow {
     pub template_fingerprint: u64,
     pub instance_fingerprint: u64,
     pub machine_argument_contract_fingerprints: Vec<u64>,
+    pub conformance_argument_fingerprints: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -2653,9 +2663,10 @@ mod tests {
 
     use super::{
         ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
-        TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
-        TrustReportRow, WireFieldRelevance, WireFieldReportEntry, build_backend_surface_report,
-        external_root_records_manifest_json, push_wire_field_table, value_placement_json,
+        TrustGenericAcceptedInstanceRow, TrustProviderRealization, TrustProviderRequirementRow,
+        TrustQualificationRow, TrustReport, TrustReportRow, WireFieldRelevance,
+        WireFieldReportEntry, build_backend_surface_report, external_root_records_manifest_json,
+        push_wire_field_table, value_placement_json,
     };
 
     #[test]
@@ -2724,6 +2735,13 @@ mod tests {
                     standing_warning: false,
                 },
             ],
+            generic_accepted_instances: vec![TrustGenericAcceptedInstanceRow {
+                template_commitment: "admitted".to_owned(),
+                template_fingerprint: 0x1111,
+                instance_fingerprint: 0x2222,
+                machine_argument_contract_fingerprints: vec![0x3333],
+                conformance_argument_fingerprints: vec![0x4444],
+            }],
             ..Default::default()
         };
 
@@ -2752,6 +2770,10 @@ mod tests {
         assert!(accepted.contains("termination guarantee: no"));
         assert!(accepted.contains("crash routes: none"));
         assert!(guarded.contains("crash routes: Trap[0x01 | 0x02], Abort[true]"));
+        assert!(output.contains("accepted template: admitted [0000000000001111]"));
+        assert!(output.contains("instance: 0000000000002222"));
+        assert!(output.contains("machine argument contracts: 0000000000003333"));
+        assert!(output.contains("conformance arguments: 0000000000004444"));
         assert!(!domain.contains("service reach:"));
         assert!(!domain.contains("synchronous invocations:"));
         assert!(!domain.contains("may suspend:"));
