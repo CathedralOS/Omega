@@ -300,7 +300,11 @@ Remaining:
   `A * parameter + B` with checked nonnegative `A` and checked signed `B`, then
   derives the carrier preimage; constant prefixes are true or false from `B`
   alone. A later zero factor or offset cancellation cannot erase an earlier
-  proof.
+  proof. The same unified mixed affine chain may now feed one validator-legal
+  partial fixed-native exact cast. The cast independently reconstructs the
+  target interval through `(A, B)` and intersects it with the source carrier;
+  `A == 0` decides only the cast from target representability of `B`, while all
+  earlier arithmetic-prefix evidence remains mandatory.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
@@ -544,8 +548,12 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6:** connect progress-profile grants and receipts without putting
-  private ranking witnesses into public identity.
+- **TPR4/TPR6 — design blocked on owner Q16.** Choose how an ordinary domain or
+  routed requirement is classified and attached as a progress premise before
+  connecting progress-profile grants and receipts. Generic routed/domain
+  requirements must not be treated as progress merely because they are
+  predicate-free or provider-backed; private ranking witnesses remain outside
+  public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows. The
   retained selected-provider rows already bind exact plan, overload, grant,
   subject, authority-flow, semantic-domain, carry, predicate, and root-selector
