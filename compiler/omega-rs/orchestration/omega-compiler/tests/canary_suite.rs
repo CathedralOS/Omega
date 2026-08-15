@@ -42917,13 +42917,8 @@ fn runtime_utf16_literal_exit_canary_runs() {
     let canary = pass_canary("text/runtime_utf16_literal_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-utf16-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf16 literal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf16 literal canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("utf16 literal canary should run");
@@ -46028,6 +46023,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "range/runtime_guarded_runtime_index_increment_exit",
     "text/runtime_bounded_carrier_byte_write_exit",
     "text/runtime_carrier_byte_write_width_coercion",
+    "text/runtime_utf16_literal_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
@@ -46604,6 +46600,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "range/runtime_guarded_runtime_index_increment_exit",
     "text/runtime_bounded_carrier_byte_write_exit",
     "text/runtime_carrier_byte_write_width_coercion",
+    "text/runtime_utf16_literal_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
