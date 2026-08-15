@@ -646,6 +646,10 @@ fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
         })
         .expect("weigh specialization");
     assert_eq!(specialization.type_arguments, ["Light"]);
+    assert_eq!(
+        specialization.type_argument_identities,
+        ["named(name(Light))"]
+    );
 }
 
 #[test]
@@ -1964,6 +1968,14 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
     assert_ne!(specializations[0].instance, specializations[1].instance);
     assert_eq!(specializations[0].const_arguments, ["1"]);
     assert_eq!(specializations[1].const_arguments, ["2"]);
+    assert_eq!(
+        specializations[0].const_argument_identities,
+        ["named(name(1))"]
+    );
+    assert_eq!(
+        specializations[1].const_argument_identities,
+        ["named(name(2))"]
+    );
     assert_ne!(
         specializations[0].fingerprint,
         specializations[1].fingerprint

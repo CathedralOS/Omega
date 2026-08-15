@@ -394,6 +394,12 @@ pub(super) fn write_trust_report(
                             template_commitment: template_commitment.clone(),
                             template_fingerprint: specialization.template_contract_fingerprint,
                             instance_fingerprint: specialization.fingerprint,
+                            type_argument_identities: specialization
+                                .type_argument_identities
+                                .clone(),
+                            const_argument_identities: specialization
+                                .const_argument_identities
+                                .clone(),
                             machine_argument_contract_fingerprints: specialization
                                 .machine_argument_contract_fingerprints
                                 .clone(),

@@ -2052,6 +2052,8 @@ fn clone_specialized_machine(
             instance: instance_symbol,
             type_arguments,
             const_arguments,
+            type_argument_identities: type_identities,
+            const_argument_identities: const_identities,
             machine_arguments: candidate
                 .machine_bindings
                 .iter()
@@ -3147,6 +3149,13 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .join("::")
         })
         .collect();
+    let fingerprint = specialization_fingerprint(
+        &candidate.template_name,
+        &type_identities,
+        &const_identities,
+        &machine_paths,
+        &evidence_paths,
+    );
     program
         .machine_specializations
         .push(psi_typed_trees::typed_trees::MachineSpecialization {
@@ -3154,6 +3163,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             instance: candidate.template_symbol,
             type_arguments: type_arguments.clone(),
             const_arguments,
+            type_argument_identities: type_identities,
+            const_argument_identities: const_identities,
             machine_arguments,
             conformance_arguments: candidate
                 .evidence_bindings
@@ -3164,13 +3175,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             accepted_template_commitment,
             machine_argument_contract_fingerprints: Vec::new(),
             conformance_argument_fingerprints: Vec::new(),
-            fingerprint: specialization_fingerprint(
-                &candidate.template_name,
-                &type_identities,
-                &const_identities,
-                &machine_paths,
-                &evidence_paths,
-            ),
+            fingerprint,
         });
 
     for ((parameter_symbol, parameter_name), binding) in candidate

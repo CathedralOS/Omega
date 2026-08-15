@@ -2161,6 +2161,10 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         push_json_strings(&mut json, &specialization.type_arguments);
         json.push_str("],\n      \"const_arguments\": [");
         push_json_strings(&mut json, &specialization.const_arguments);
+        json.push_str("],\n      \"type_argument_identities\": [");
+        push_json_strings(&mut json, &specialization.type_argument_identities);
+        json.push_str("],\n      \"const_argument_identities\": [");
+        push_json_strings(&mut json, &specialization.const_argument_identities);
         json.push_str("],\n      \"machine_argument_contract_fingerprints\": [");
         for (identity_index, identity) in specialization
             .machine_argument_contract_fingerprints
@@ -4454,7 +4458,9 @@ mod tests {
                 template: symbol,
                 instance: symbol,
                 type_arguments: vec!["Card".to_owned()],
-                const_arguments: Vec::new(),
+                const_arguments: vec!["1".to_owned()],
+                type_argument_identities: vec!["named(name(Card))".to_owned()],
+                const_argument_identities: vec!["named(name(1))".to_owned()],
                 machine_arguments: vec![SymbolHandle::from_arena_index(8)],
                 conformance_arguments: Vec::new(),
                 template_contract_fingerprint: 0x1111,
@@ -4468,6 +4474,10 @@ mod tests {
         assert!(json.contains("\"template\": \"accepted_map\""));
         assert!(json.contains("\"accepted_template_commitment\": \"accepted_map\""));
         assert!(json.contains("\"template_contract_fingerprint\": \"0x0000000000001111\""));
+        assert!(json.contains("\"type_arguments\": [\"Card\"]"));
+        assert!(json.contains("\"const_arguments\": [\"1\"]"));
+        assert!(json.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
+        assert!(json.contains("\"const_argument_identities\": [\"named(name(1))\"]"));
         assert!(
             json.contains("\"machine_argument_contract_fingerprints\": [\"0x0000000000002222\"]")
         );
