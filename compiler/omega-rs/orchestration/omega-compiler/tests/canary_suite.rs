@@ -18766,10 +18766,11 @@ fn runtime_chained_string_append_exit_canary_runs() {
         "omega-chained-string-append-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("chained bounded-carrier append canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("chained string append canary should run");
 
@@ -18798,10 +18799,11 @@ fn runtime_string_append_in_place_exit_canary_runs() {
         "omega-string-append-in-place-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("descriptor text append-in-place canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("descriptor text append-in-place canary should run");
     assert_eq!(
@@ -21487,13 +21489,8 @@ fn runtime_shift_count_domain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shiftdom-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shift count domain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shift count domain canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("shift count domain canary should run");
@@ -21532,13 +21529,8 @@ fn runtime_shift_atwidth_signed_modular_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlatw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("at-width modular shl canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("at-width modular shl canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("at-width modular shl canary should run");
@@ -21558,13 +21550,8 @@ fn runtime_shift_right_atwidth_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shratw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("at-width shr canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("at-width shr canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("at-width shr canary should run");
@@ -21665,13 +21652,8 @@ fn runtime_sat_min_idiom_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-minidm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("MIN idiom canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("MIN idiom canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("MIN idiom canary should run");
@@ -21690,13 +21672,8 @@ fn runtime_shl_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shl_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlsat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating shl canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("saturating shl canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("saturating shl canary should run");
@@ -21744,13 +21721,8 @@ fn runtime_shift_subword_masked_count_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shsubw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sub-word masked-count canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sub-word masked-count canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("sub-word masked-count canary should run");
@@ -35240,20 +35212,14 @@ fn runtime_mutable_struct_carrier_field_copy_concat_exit_canary_runs() {
 #[test]
 fn runtime_local_struct_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-struct-string-field-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime local struct string field concat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime local struct string field concat canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -35273,20 +35239,14 @@ fn runtime_local_struct_string_field_concat_exit_canary_runs() {
 #[test]
 fn runtime_string_stored_suffix_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_stored_suffix_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-string-stored-suffix-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime string stored-suffix canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime string stored-suffix canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -46095,6 +46055,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "arithmetic/runtime_shift_count_domain_exit",
+    "arithmetic/runtime_shift_atwidth_signed_modular_exit",
+    "arithmetic/runtime_shift_subword_masked_count_exit",
+    "arithmetic/runtime_shl_saturating_exit",
+    "arithmetic/runtime_shift_right_atwidth_exit",
+    "arithmetic/runtime_sat_min_idiom_exit",
+    "text/runtime_chained_string_append_exit",
+    "text/runtime_string_append_in_place_exit",
+    "text/runtime_local_struct_string_field_concat_exit",
+    "text/runtime_string_stored_suffix_exit",
     "calls/bool_value_call_return_exit",
     "calls/struct_literal_transition_arg_exit",
     "slices/runtime_indexed_element_copy_write_exit",
