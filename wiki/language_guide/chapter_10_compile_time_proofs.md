@@ -209,21 +209,40 @@ fields; adding or renaming one is likewise breaking.
 
 A machine with named `ensures` clauses conceptually returns a compiler-generated
 nominal output package whose concrete type cannot be written in source. The
-implemented first rung is deliberately narrower: a concrete, one-state,
-zero-argument checked machine with no runtime result, input evidence, runtime
-statements, or guarded outputs may publish exactly one named `ensures` field.
-Its call must be destructured immediately with the approved colon form, and the
-fresh local evidence term must be forwarded exactly once:
+implemented immediate rung accepts a concrete, one-state, zero-argument checked
+machine with no named `requires`, evidence arguments, or guarded outputs. Its
+complete nonempty set of named `ensures` fields must be destructured with the
+colon form. Source field order may vary; every fresh local evidence term must be
+forwarded exactly once:
 
 ```omega
-let { outgoing: local } = produce();
-result = local;
+let { second: local_second, first: local_first } = produce();
+result_first = local_first;
+result_second = local_second;
 ```
 
-The binding is proof-only: it creates no `Unit` local, runtime operation, or
-fuel charge. The terminal artifact retains a dense invocation row joining the
-callee declaration to a distinct caller-local term; codec and verifier reject
-identity, interface, ordering, or freshness drift.
+When the callee has no runtime result or runtime statements, the binding is
+proof-only: it creates no `Unit` local, runtime operation, or fuel charge. The
+same immediate form accepts one ordinary scalar result through the reserved
+contextual field `value`:
+
+```omega
+let {
+    proof: local_proof,
+    value: local_value
+} = produce_value();
+result_proof = local_proof;
+local_value
+```
+
+That call executes exactly once. `local_value` is an ordinary immutable caller
+local with the callee's exact scalar result type; it is not an evidence term.
+The evidence fields still erase. Runtime effects, crashes, and fuel are exactly
+those of the ordinary call and callee body. Checked Psi joins the package group
+to the exact ordinary call site, and terminal Psi retains its canonical scalar
+`Call` operation ID and callee. Codec and verification reject identity,
+interface, ordering, freshness, result-shape, caller, operation-kind, or callee
+drift.
 
 The complete package model remains pending. Its identity will derive from the
 machine, runtime result, named evidence fields, propositions, and outcome
@@ -239,7 +258,8 @@ use(division.value);
 consume(division.nonzero_evidence);
 ```
 
-They may also destructure packages containing runtime or multiple fields:
+The immediate form already destructures scalar runtime values and multiple
+unconditional evidence fields:
 
 ```omega
 let {
@@ -248,15 +268,16 @@ let {
 } = divide(numerator, denominator);
 ```
 
-Those broader retained, projected, multi-field, runtime-`value`, guarded,
-generic, and explicit-discard forms are not implemented by the first rung.
+Retained, projected, guarded, generic, and explicit-discard forms remain
+pending.
 `value` is the reserved contextual field for an ordinary runtime result. Named
 evidence fields erase, so the package has the runtime representation of
 `value`; a proof-only package has zero runtime layout. There is no implicit
-coercion from the package to `value`. Every evidence field in a destructured
-shape must be bound or explicitly written `_`, and ordinary multiplicity rules
-reject discarding linear evidence. No rest pattern silently discards present or
-future proof fields.
+coercion from the package to `value`. Every field in the implemented immediate
+shape must be bound. Explicit `_` discard is design-blocked on
+`OWNER_QUESTIONS.md` Q13 because evidence-term multiplicity has no approved
+source/default rule yet; no rest pattern silently discards present or future
+proof fields.
 
 Outcome-specific evidence is a field only of the outcome where its `ensures`
 guard applies:

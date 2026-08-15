@@ -53,7 +53,28 @@ pub(super) fn check_exit_ensures(
                     .is_none_or(|domain| !domain.predicate_body.is_present() || proved),
                 _ => true,
             };
-            let satisfied = proved || (authorized_route && route_predicates_satisfied);
+            // Named witness-bearing `ensures` lanes are discharged by the
+            // separate evidence-forwarding proof pass. That pass validates
+            // exact term identity, proposition/interface agreement,
+            // single-assignment, and definite assignment on every exit; the
+            // ordinary semantic prover has no runtime witness fact to consume.
+            let evidence_assignment = match fact.payload {
+                psi_facts::FactPayload::ContractPropositionApplication {
+                    fact: source_fact,
+                    ..
+                } => facts.proof.contract_facts.iter().any(|(_, contract)| {
+                    contract.kind == psi_checked_trees::ContractProofFactKind::Ensures
+                        && contract.owner
+                            == (psi_checked_trees::ContractProofFactOwner::Machine {
+                                machine_symbol: state_flow.machine_symbol,
+                            })
+                        && contract.fact == source_fact
+                        && contract.evidence_term.is_some()
+                }),
+                _ => false,
+            };
+            let satisfied =
+                proved || evidence_assignment || (authorized_route && route_predicates_satisfied);
 
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(

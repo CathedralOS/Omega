@@ -55,6 +55,8 @@ pub struct EvidencePackageInvocationSnapshot {
     pub state_symbol: u32,
     pub statement_index: usize,
     pub source_statement_index: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_call_statement_index: Option<usize>,
     pub bindings: Vec<(String, String)>,
     pub call: ExpressionSnapshot,
 }
@@ -150,6 +152,7 @@ impl TypedTreesSnapshot {
                     state_symbol: package.state_symbol.arena_index(),
                     statement_index: package.statement_index,
                     source_statement_index: package.source_statement_index,
+                    runtime_call_statement_index: package.runtime_call_statement_index,
                     bindings: package
                         .bindings
                         .iter()

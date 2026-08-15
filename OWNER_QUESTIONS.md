@@ -226,3 +226,22 @@ may be inferred from the expected subject and trait application; and define how
 lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
+
+## Q13 — Erased evidence-term multiplicity
+
+Named `requires` and `ensures` clauses expose erased evidence terms, and an
+output-package pattern may eventually write `_` for a field it explicitly
+discards. The settled guide says evidence retains ordinary multiplicity and
+that linear evidence may not be discarded, but no approved source or
+derivation rule assigns a multiplicity to an evidence term. The current
+checked and terminal carriers retain proposition, interface, lane, and term
+identity without a multiplicity field.
+
+Choose where an evidence term's multiplicity originates: the proposition
+declaration, its carrierless evidence interface, each named contract binding,
+the selected producer conformance, or another explicit declaration. The
+decision must state the default, require compatible multiplicity when terms
+are forwarded through `requires`/`ensures` lanes and generated output
+packages, and define exactly when `_` is a legal discharge. Erasure must remain
+independent of multiplicity, and neither producer choice nor runtime layout
+may silently weaken exact-use evidence into discardable evidence.

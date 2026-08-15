@@ -258,6 +258,45 @@ fn validate_evidence_contract_lanes(
                 ordinal: invocation.ordinal,
             });
         }
+        match (invocation.runtime_value, invocation.runtime_call) {
+            (None, None) => {}
+            (Some(runtime_value), Some(runtime_call)) => {
+                let caller = machines
+                    .get(&invocation.caller)
+                    .expect("the package caller was validated above");
+                let mut matching_operations = caller
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| operation.id == runtime_call.operation);
+                let Some(operation) = matching_operations.next() else {
+                    return Err(ModuleError::InvalidEvidencePackageInvocation {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    });
+                };
+                if matching_operations.next().is_some()
+                    || !matches!(
+                        (&operation.result, &operation.kind),
+                        (
+                            psi_terminal::OperationResult::Scalar(result),
+                            psi_terminal::OperationKind::Call { callee, .. }
+                        ) if result.scalar_type == runtime_value && *callee == runtime_call.callee
+                    )
+                {
+                    return Err(ModuleError::InvalidEvidencePackageInvocation {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    });
+                }
+            }
+            _ => {
+                return Err(ModuleError::InvalidEvidencePackageInvocation {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                });
+            }
+        }
         let mut fields = BTreeSet::new();
         let mut callee_terms = BTreeSet::new();
         let mut output_terms = BTreeSet::new();

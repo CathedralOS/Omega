@@ -106,8 +106,9 @@ pub struct TerminalModule {
     /// Strictly ordered erased machine-contract lane rows. These reference
     /// term vocabulary identities and have no runtime representation.
     pub evidence_contract_lanes: Vec<EvidenceContractLane>,
-    /// Canonical proof-only invocations that introduce fresh caller-local
-    /// evidence from a generated output package.
+    /// Canonical immediate invocations that introduce fresh caller-local
+    /// evidence from a generated output package. Runtime-value packages retain
+    /// their exact ordinary scalar call operation.
     pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
     pub machines: Vec<TerminalMachine>,
 }
@@ -382,8 +383,19 @@ pub struct EvidencePackageInvocation {
     pub ordinal: u32,
     /// Canonical checked callable identity, never a diagnostic display path.
     pub target_machine_identity: String,
+    /// Declared runtime payload shape, independent of the operation link so a
+    /// missing or spurious link is verifier-visible. `None` is proof-only.
+    pub runtime_value: Option<ScalarType>,
+    /// Exact canonical ordinary call which produced `runtime_value`.
+    pub runtime_call: Option<EvidencePackageRuntimeCall>,
     /// Complete canonical generated-package field set, ordered by callee lane.
     pub outputs: Vec<EvidencePackageOutputBinding>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidencePackageRuntimeCall {
+    pub operation: OperationId,
+    pub callee: MachineId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

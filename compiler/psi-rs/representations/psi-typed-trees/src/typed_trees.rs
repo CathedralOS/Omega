@@ -54,8 +54,9 @@ pub struct TypedTrees {
     /// Exact owner identity and authored names for erased evidence forwarding;
     /// checked lowering binds both names to checked evidence-term handles.
     pub evidence_forwardings: Vec<EvidenceForwarding>,
-    /// Proof-only calls whose generated output package is destructured
-    /// immediately. These are deliberately absent from runtime statements.
+    /// Calls whose generated output package is destructured immediately. The
+    /// group itself is proof metadata; a contextual scalar `value` separately
+    /// names its corresponding ordinary runtime local/call statement.
     pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
 }
 
@@ -78,6 +79,9 @@ pub struct EvidencePackageInvocation {
     pub statement_index: usize,
     /// Pre-erasure coordinate used only to normalize other erased metadata.
     pub source_statement_index: usize,
+    /// Exact runtime local statement synthesized for a contextual `value`
+    /// field. Proof-only packages have no runtime statement.
+    pub runtime_call_statement_index: Option<usize>,
     pub bindings: Box<[EvidencePackageBinding]>,
     pub call: crate::expression::ExpressionHandle,
 }

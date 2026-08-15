@@ -181,13 +181,18 @@ fn lower_statement_node(
         }
         syntax::statement::StatementNode::EvidencePackageDestructure(binding) => {
             let call = lower_statement_expression(lowerer, syntax_trees, binding.call)?;
+            let runtime_value = binding.bindings.iter().find(|binding| {
+                binding.output_field.as_str() == "value" && binding.binding.as_str() != "_"
+            });
             let bindings = binding
                 .bindings
                 .iter()
                 .map(|binding| {
-                    lowerer
-                        .current_evidence_term_names
-                        .push(binding.binding.as_str().to_owned());
+                    if binding.output_field.as_str() != "value" {
+                        lowerer
+                            .current_evidence_term_names
+                            .push(binding.binding.as_str().to_owned());
+                    }
                     psi_symbol_resolved_trees::statement::EvidencePackageBinding {
                         output_field: crate::name::lower_name(&binding.output_field),
                         binding: crate::name::lower_name(&binding.binding),
@@ -195,7 +200,23 @@ fn lower_statement_node(
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice();
-            Ok(vec![Statement::EvidencePackageDestructure(
+            let mut lowered = Vec::with_capacity(usize::from(runtime_value.is_some()) + 1);
+            if let Some(runtime_value) = runtime_value {
+                // `value` is the sole runtime representation of the generated
+                // package. Reusing this exact resolved call handle in the
+                // erased metadata does not execute it twice; only this ordinary
+                // local enters the typed runtime statement stream.
+                lowered.push(Statement::LocalData(LocalData {
+                    symbol: SymbolHandle::invalid(),
+                    name: crate::name::lower_name(&runtime_value.binding),
+                    storage: LocalDataStorage {
+                        type_reference: TypeReference::Unit,
+                        initial_value: call,
+                        is_mutable: false,
+                    },
+                }));
+            }
+            lowered.push(Statement::EvidencePackageDestructure(
                 psi_symbol_resolved_trees::statement::EvidencePackageDestructure {
                     machine_symbol: SymbolHandle::invalid(),
                     state_symbol: SymbolHandle::invalid(),
@@ -203,7 +224,8 @@ fn lower_statement_node(
                     bindings,
                     call,
                 },
-            )])
+            ));
+            Ok(lowered)
         }
         syntax::statement::StatementNode::Expression(expression) => {
             // A bare trailing expression is a VALUE machine's implicit return
