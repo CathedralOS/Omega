@@ -674,7 +674,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -687,6 +687,7 @@ impl ArtifactWriter {
                 } else {
                     row.target.as_str()
                 },
+                row.service_schema,
                 row.calling_plan_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
                 if row.selected { "yes" } else { "no" },
@@ -725,7 +726,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -738,6 +739,7 @@ impl ArtifactWriter {
                 } else {
                     row.target.as_str()
                 },
+                row.service_schema,
                 row.calling_plan_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
                 if row.selected { "yes" } else { "no" },
@@ -2126,6 +2128,8 @@ pub struct TrustProviderRequirementRow {
     pub provider_type: String,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
+    /// Exact selected boundary-service schema identity.
+    pub service_schema: String,
     /// Exact evaluated calling contract identity, when the requirement has one.
     pub calling_plan_fingerprint: Option<u64>,
     pub selected: bool,
@@ -2191,6 +2195,8 @@ pub struct TrustQualificationRow {
     pub provider_type: String,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
+    /// Exact selected boundary-service schema identity.
+    pub service_schema: String,
     /// Exact evaluated calling contract identity, when the requirement has one.
     pub calling_plan_fingerprint: Option<u64>,
     pub selected: bool,
@@ -2483,6 +2489,7 @@ mod tests {
                 provider_plan_fingerprint: 0x1234,
                 provider_type: "RootProvider".to_owned(),
                 target: "windows_x64".to_owned(),
+                service_schema: "Root".to_owned(),
                 calling_plan_fingerprint: Some(0xfeed),
                 selected: false,
                 requirement_owner: "Base".to_owned(),
@@ -2509,6 +2516,7 @@ mod tests {
         assert!(output.contains("requirement owner: Base"));
         assert!(output.contains("provider type: RootProvider"));
         assert!(output.contains("target: windows_x64"));
+        assert!(output.contains("service schema: Root"));
         assert!(output.contains("calling plan: 000000000000feed"));
         assert!(output.contains("selected: no"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
@@ -2535,6 +2543,7 @@ mod tests {
                 provider_plan_fingerprint: 0x1234,
                 provider_type: String::new(),
                 target: String::new(),
+                service_schema: "Root".to_owned(),
                 calling_plan_fingerprint: None,
                 selected: true,
                 requirement_owner: "Base".to_owned(),
@@ -2563,6 +2572,7 @@ mod tests {
         assert!(output.contains("provider plan: RootProvider::satisfies::Root [0000000000001234]"));
         assert!(output.contains("provider type: <free external>"));
         assert!(output.contains("target: <all>"));
+        assert!(output.contains("service schema: Root"));
         assert!(output.contains("calling plan: <none>"));
         assert!(output.contains("selected: yes"));
         assert!(output.contains("requirement owner: Base"));
