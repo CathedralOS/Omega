@@ -479,6 +479,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic >> signed_divisor) < 4i8)
             && ((((small >> 1i8) >> 2u16) >> 0i32) < 2u8)
             && ((((small << 1i8) << 2u16) << 0i32) < 255u8)
+            && (((((small << 1i8) << 2u16) << 0i32) as i8) < 127i8)
+            && (((small << 0i8) as i8) < 127i8)
             && ((small << 1u8) < 11u8)
             && ((small << count) < 29u8)
             && ((small << signed_count) < 255u8)
@@ -3993,6 +3995,130 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let (shift_left_then_cast_obligations, shift_left_then_cast_middle_count) = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerShiftLeft {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(count, i32_type, IntegerValue::Signed(0)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftLeft {
+                value: middle_value,
+                count: middle_count,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(middle_count, u16_type, IntegerValue::Unsigned(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_value)
+            })?;
+            let OperationKind::ExactIntegerShiftLeft {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_value == entry.parameters[1].id
+                && is_integer_constant(inner_count, i8_type, IntegerValue::Signed(1)))
+            .then_some((
+                [
+                    inner_obligation,
+                    middle_obligation,
+                    outer_obligation,
+                    cast_obligation,
+                ],
+                middle_count,
+            ))
+        })
+        .expect("one heterogeneous finite exact-left-shift chain feeds a partial exact cast");
+    let zero_shift_then_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let shift = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerShiftLeft {
+                value,
+                count,
+                obligation: shift_obligation,
+            } = shift.kind
+            else {
+                return None;
+            };
+            (value == entry.parameters[1].id
+                && is_integer_constant(count, i8_type, IntegerValue::Signed(0)))
+            .then_some([shift_obligation, cast_obligation])
+        })
+        .expect("one zero-count exact-left-shift retains an independent following cast");
+    for obligations in [
+        shift_left_then_cast_obligations.as_slice(),
+        zero_shift_then_cast_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            let operation = operations
+                .iter()
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::IntegerExactCast {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerShiftLeft {
+                            obligation: candidate,
+                            ..
+                        } if candidate == *obligation
+                    )
+                })
+                .expect("pre-cast shift-left obligation retains its exact operation");
+            assert_eq!(
+                TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+                1
+            );
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
     assert!(entry.blocks.iter().any(|block| {
         block
             .operations
@@ -5151,6 +5277,25 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == cast_then_shift_left_obligation
         ));
     }
+    for shift_left_then_cast_obligation in shift_left_then_cast_obligations
+        .into_iter()
+        .chain(zero_shift_then_cast_obligations)
+    {
+        let mut missing_shift_left_then_cast_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_shift_left_then_cast_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != shift_left_then_cast_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_shift_left_then_cast_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == shift_left_then_cast_obligation
+        ));
+    }
     let mut missing_widen_exact_subtract_proof =
         decode_proof_bundle(&proof).expect("decode shared proof");
     missing_widen_exact_subtract_proof
@@ -5464,6 +5609,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if cast_then_shift_left_obligations.contains(&obligation)
+    ));
+    let mut changed_shift_left_then_cast_count =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_shift_left_count = changed_shift_left_then_cast_count
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id)
+                == Some(shift_left_then_cast_middle_count)
+        })
+        .expect("pre-cast shift-left middle landed count operation");
+    changed_shift_left_count.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(3),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_shift_left_then_cast_count,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if shift_left_then_cast_obligations.contains(&obligation)
     ));
     let mut changed_nested_widen_subtract_bound =
         decode_module(&semantics).expect("decode shared semantics");

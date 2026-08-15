@@ -257,7 +257,16 @@ Remaining:
   cumulative product to reconstruct the inverse target interval and intersect
   it with the source carrier. Product zero makes only the cast obligation true,
   product one uses the ordinary target/source intersection, and larger products
-  divide the signed or unsigned target bounds without erasing earlier proofs.
+  divide the signed or unsigned target bounds without erasing earlier proofs. A
+  validator-legal partial fixed-native cast may likewise consume a finite
+  nonempty left-associated same-source-carrier exact-left-shift chain rooted at
+  a direct machine parameter, with independently landed legal fixed-native
+  counts whose carriers may differ. Every shift prefix keeps its own evidence;
+  the cast uses the checked cumulative count to shift the target interval right
+  and intersect it with the source carrier. Count zero uses the ordinary
+  target/source intersection, a sub-source-width count uses signed or unsigned
+  inverse target bounds, and a source-width-or-larger count makes only the cast
+  true because any successfully produced exact source result is zero.
   Conversely, one
   validator-legal partial fixed-native cast of a direct parameter may root a
   finite nonempty left-associated same-target-carrier exact-add/subtract chain

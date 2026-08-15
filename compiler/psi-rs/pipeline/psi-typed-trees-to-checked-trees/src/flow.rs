@@ -38,6 +38,8 @@ pub(crate) use terminal_unit::exact_multiply_chain_cast_runtime_parameter_positi
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_offset_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_shift_left_chain_cast_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_shift_left_chain_runtime_parameter_positions_for_test;
 mod transfers;
 

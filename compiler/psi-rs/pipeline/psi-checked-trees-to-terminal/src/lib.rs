@@ -11245,6 +11245,9 @@ fn shared_integer_runtime_parameters_with_shells(
         } if proof_shell_allowed => {
             shared_roundtrip_exact_cast_runtime_parameters(*scalar_type, operand)
                 .or_else(|| {
+                    shared_exact_shift_left_chain_cast_runtime_parameters(*scalar_type, operand)
+                })
+                .or_else(|| {
                     shared_exact_multiply_chain_cast_runtime_parameters(*scalar_type, operand)
                 })
                 .or_else(|| {
@@ -11365,6 +11368,52 @@ fn shared_exact_multiply_chain_cast_runtime_parameters(
                 position,
                 scalar_type: ScalarType::Integer(root_type),
             } if *root_type == *integer_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_shift_left_chain_cast_runtime_parameters(
+    target_type: ScalarType,
+    mut operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_type else {
+        return None;
+    };
+    if !native_fixed_integer_type(target_type) {
+        return None;
+    }
+    let mut chain_type = None;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+            scalar_type: ScalarType::Integer(value_type),
+            left,
+            right,
+        } = operand
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*value_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *value_type)
+            || !safe_exact_shift_landed_literal_count(*value_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*value_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+                ..
+            } => operand = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == *value_type => {
                 return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                     *position,
                 )]));

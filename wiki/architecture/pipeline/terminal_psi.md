@@ -554,7 +554,26 @@ intersection is false. Literal-left or right-associated shapes, runtime,
 computed, negative, or mistyped factors, mixed carriers, local or block roots,
 intervening operations or casts, non-native or invalid casts, malformed or stale
 definitions, cumulative-product overflow, and stale or missing evidence remain
-fenced. A later zero cannot erase an earlier multiply proof. Conversely, one
+fenced. A later zero cannot erase an earlier multiply proof. A fourth
+computed-cast exception accepts one validator-legal partial fixed-native exact
+cast whose operand is a finite nonempty left-associated same-source-carrier
+exact-left-shift chain rooted at one direct machine parameter. Every right
+operand is an independently landed legal fixed-native count, and count carriers
+may differ. The verifier follows only prior canonical shrinking-prefix
+definitions, checked-adds the counts, maps the target interval right by the
+cumulative count, and intersects it with the source carrier without importing
+any shift-prefix evidence. Count zero uses the ordinary target/source
+intersection. A positive count below the source width reconstructs
+`[0, MAX >> count]` for an unsigned target or
+`[ceil(MIN / 2^count), floor(MAX / 2^count)]` for a signed target before the
+source intersection. At or above the source width, the cast alone is true
+because any successfully produced exact source result is zero; every shift
+prefix still retains its independent carrier-safety or zero-root proof.
+Runtime, computed, negative, out-of-range, address, or non-native counts,
+right-associated shapes, mixed value carriers, local or block roots,
+intervening operations or casts, non-native or invalid casts, malformed or
+stale definitions, cumulative-count overflow, and stale or missing evidence
+remain fenced. Conversely, one
 validator-legal partial fixed-native exact cast of a direct machine parameter
 may root a finite
 nonempty left-associated same-target-carrier exact-add/subtract chain. The cast

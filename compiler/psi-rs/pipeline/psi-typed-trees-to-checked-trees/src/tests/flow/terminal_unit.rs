@@ -6,6 +6,7 @@ use crate::flow::{
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
+    exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
 };
 use psi_checked_trees::{
@@ -1719,6 +1720,137 @@ fn exact_cast_then_shift_left_classifier_accepts_one_finite_heterogeneous_litera
 }
 
 #[test]
+fn shift_left_chain_exact_cast_classifier_accepts_one_finite_heterogeneous_literal_chain() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let shift = |value_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactShiftLeft,
+        primitive_type: value_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let one = shift(
+        PrimitiveType::U16,
+        parameter(0, PrimitiveType::U16),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &one,
+            1,
+        ),
+        Some(vec![0])
+    );
+    let heterogeneous = shift(
+        PrimitiveType::U16,
+        shift(
+            PrimitiveType::U16,
+            one,
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(0i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &heterogeneous,
+            1,
+        ),
+        Some(vec![0])
+    );
+
+    let runtime_count = shift(
+        PrimitiveType::U16,
+        parameter(0, PrimitiveType::U16),
+        parameter(0, PrimitiveType::U16),
+    );
+    assert_eq!(
+        exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &runtime_count,
+            1,
+        ),
+        None
+    );
+    for count in [-1i64, 16i64] {
+        let invalid_count = shift(
+            PrimitiveType::U16,
+            parameter(0, PrimitiveType::U16),
+            literal(count, psi_numerics::literals::LandedIntegerType::I16),
+        );
+        assert_eq!(
+            exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+                PrimitiveType::U8,
+                &invalid_count,
+                1,
+            ),
+            None
+        );
+    }
+    let mismatched_value_carrier = shift(
+        PrimitiveType::U16,
+        shift(
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    assert_eq!(
+        exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &mismatched_value_carrier,
+            1,
+        ),
+        None
+    );
+    let right_associated = shift(
+        PrimitiveType::U16,
+        parameter(0, PrimitiveType::U16),
+        shift(
+            PrimitiveType::U16,
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+    );
+    assert_eq!(
+        exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &right_associated,
+            1,
+        ),
+        None
+    );
+    let local_root = shift(
+        PrimitiveType::U16,
+        CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type: PrimitiveType::U16,
+        },
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &local_root,
+            1,
+        ),
+        None
+    );
+}
+
+#[test]
 fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     let checked = checked(
         r#"
@@ -3009,6 +3141,60 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         requires input <= 127u8, input <= 63u8, input <= 15u8
         {
             let staged: bool = ((((input as i8) << 1u16) << 2i32) < 127i8) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_then_cast_u16_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 32767u16, input <= 8191u16, input <= 31u16
+        {
+            let staged: bool = (((((input << 1i8) << 2u16) << 0i32) as u8) < 255u8) && enabled;
+            staged
+        }
+        machine Root::width_exact_shift_left_chain_then_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 15u8, input <= 0u8
+        {
+            let staged: bool = ((((input << 4u8) << 4i8) as i8) < 127i8) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_then_cast_i16_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: i16,
+            enabled: bool
+        ) -> bool
+        requires -16384i16 <= input, input <= 16383i16,
+            -4096i16 <= input, input <= 4095i16,
+            -16i16 <= input, input <= 15i16
+        {
+            let staged: bool = ((((input << 1u16) << 2i32) as i8) < 127i8) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_then_cast_i8_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -64i8 <= input, input <= 63i8,
+            -16i8 <= input, input <= 15i8,
+            0i8 <= input, input <= 31i8
+        {
+            let staged: bool = ((((input << 1i8) << 2u16) as u8) < 255u8) && enabled;
+            staged
+        }
+        machine Root::exact_shift_left_chain_then_cast_u8_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 127u8, input <= 31u8, input <= 15u8
+        {
+            let staged: bool = ((((input << 1u16) << 2i32) as i8) < 127i8) && enabled;
             staged
         }
         machine Root::runtime_count_exact_shift_left_chain_integer_comparison_convergence(
@@ -4422,6 +4608,27 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             });
         assert!(
             cast_then_shift_left_chain
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
+    for machine in [
+        "exact_shift_left_chain_then_cast_u16_to_u8_integer_comparison_convergence",
+        "width_exact_shift_left_chain_then_cast_integer_comparison_convergence",
+        "exact_shift_left_chain_then_cast_i16_to_i8_integer_comparison_convergence",
+        "exact_shift_left_chain_then_cast_i8_to_u8_integer_comparison_convergence",
+        "exact_shift_left_chain_then_cast_u8_to_i8_integer_comparison_convergence",
+    ] {
+        let shift_left_chain_then_cast = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!("pre-cast exact-left-shift chain `{machine}` retains its scalar-return plan")
+            });
+        assert!(
+            shift_left_chain_then_cast
                 .shared_boolean_convergence
                 .is_some()
         );
