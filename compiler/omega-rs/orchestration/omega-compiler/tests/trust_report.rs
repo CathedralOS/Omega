@@ -572,6 +572,22 @@ machine Main::exercise(&mut self) {
         plan_row.contains("own-package (dev-active)") && plan_row.contains("STANDING WARNING"),
         "an ungranted plan is dev-active with the warning:\n{report}"
     );
+    assert!(
+        report.contains("provider requirements: 1"),
+        "the claim-free plan must still publish its exact requirement blast radius:\n{report}"
+    );
+    let requirement_row = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Flags [")
+                && line.contains("requirement identity:")
+        })
+        .expect("exact claim-free provider requirement row");
+    assert!(requirement_row.contains("requirement owner: Flags"));
+    assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
+    assert!(requirement_row.contains("method: open_read"));
+    assert!(requirement_row.contains("grant selectors: none"));
+    assert!(requirement_row.contains("STANDING WARNING"));
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -937,6 +953,27 @@ machine Main::exercise(&mut self) {}
         .expect("second candidate row");
     assert!(first.contains("own-package (dev-active)") && first.contains("STANDING WARNING"));
     assert!(second.contains("root grant (build.omg)") && !second.contains("STANDING WARNING"));
+    let first_requirement = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: FirstProvider::satisfies::Pair [")
+                && line.contains("requirement identity:")
+        })
+        .expect("first candidate requirement row");
+    let second_requirement = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: SecondProvider::satisfies::Pair [")
+                && line.contains("requirement identity:")
+        })
+        .expect("selected requirement row");
+    assert!(first_requirement.contains("requirement owner: Pair"));
+    assert!(first_requirement.contains("grant selectors: none"));
+    assert!(first_requirement.contains("STANDING WARNING"));
+    assert!(second_requirement.contains("requirement owner: Pair"));
+    assert!(second_requirement.contains("grant selectors: Pair"));
+    assert!(second_requirement.contains("root grant (build.omg)"));
+    assert!(!second_requirement.contains("STANDING WARNING"));
 
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
     assert!(lock.contains("provider slot: Pair"));
