@@ -1,6 +1,6 @@
-// Chapter 19 "Stable Representation": a declaration may request a stable native
-// layout with `repr native` so outside code can observe field layout. The `repr`
-// modifier is documented as provisional and is not yet parsed.
+// Chapter 20 "Stable Representation": a declaration may request a stable native
+// layout with `repr native` so outside code can observe field layout. The parser
+// accepts this provisional spelling and applies the compiler's native layout.
 
 repr native
 data WinHandle {
