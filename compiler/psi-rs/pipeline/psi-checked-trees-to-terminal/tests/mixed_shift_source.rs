@@ -22,9 +22,19 @@ const SOURCE: &str = r#"
 
     data Root {}
 
-    machine Root::measure(token: Token, value: u8, signed: i8, enabled: bool) -> bool
+    machine Root::measure(
+        token: Token,
+        value: u8,
+        signed: i8,
+        wide: u16,
+        signed_wide: i16,
+        enabled: bool
+    ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
-        -32i8 <= signed, signed <= 31i8, 0i8 <= signed
+        -32i8 <= signed, signed <= 31i8, 0i8 <= signed,
+        wide <= 32767u16, wide <= 16383u16, wide <= 63u16,
+        -16384i16 <= signed_wide, signed_wide <= 16383i16,
+        0i16 <= signed_wide, signed_wide <= 127i16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -33,6 +43,8 @@ const SOURCE: &str = r#"
             && (((((value >> 7i8) >> 1u16) << 7i32) << 7u64) < 255u8)
             && (((value << 1i8) >> 2u16) < 255u8)
             && (((((value << 1i8) >> 2u16) << 3i32) >> 1u64) < 255u8)
+            && (((((wide << 1i8) >> 2u16) << 3i32) as u8) < 255u8)
+            && ((((signed_wide >> 1u8) << 2i16) as u8) < 255u8)
             && enabled
     }
 "#;
@@ -58,6 +70,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         panic!("mixed-shift entry retains its nominal cleanup root")
     };
     let value_parameter = entry.parameters[0].id;
+    let wide_parameter = entry.parameters[2].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -73,6 +86,15 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             _ => None,
         })
         .collect::<Vec<_>>();
+    let proof_obligations = operations
+        .iter()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::IntegerExactCast { obligation, .. }
+            | OperationKind::ExactIntegerShiftLeft { obligation, .. }
+            | OperationKind::ExactIntegerShiftRight { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
         operations
             .iter()
@@ -81,7 +103,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        11,
+        13,
     );
     assert_eq!(
         operations
@@ -91,11 +113,12 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        11,
+        14,
     );
-    assert_eq!(shift_obligations.len(), 22);
-    for (index, obligation) in shift_obligations.iter().enumerate() {
-        assert!(!shift_obligations[index + 1..].contains(obligation));
+    assert_eq!(shift_obligations.len(), 27);
+    assert_eq!(proof_obligations.len(), 29);
+    for (index, obligation) in proof_obligations.iter().enumerate() {
+        assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == *obligation
                 && matches!(evidence.route, EvidenceRoute::CertificateDerived(_))
@@ -124,7 +147,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         lowered.proof_bundle,
     );
 
-    for obligation in &shift_obligations {
+    for obligation in &proof_obligations {
         let mut missing = decode_proof_bundle(&proof).expect("decode mixed-shift proof");
         missing
             .evidence
@@ -169,7 +192,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             &AdmissionProfile::default(),
         ),
         Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
-            if shift_obligations.contains(&obligation)
+            if proof_obligations.contains(&obligation)
     ));
 
     let mut stale_definition = decode_module(&semantics).expect("decode mixed-shift module");
@@ -214,7 +237,59 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             &AdmissionProfile::default(),
         ),
         Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
-            if shift_obligations.contains(&obligation)
+            if proof_obligations.contains(&obligation)
+    ));
+
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 count type");
+    let mut stale_cast_chain = decode_module(&semantics).expect("decode mixed-shift module");
+    let landed_threes = stale_cast_chain
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            (matches!(
+                operation.kind,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Signed(3),
+                }
+            ) && operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.scalar_type == ScalarType::Integer(i32_type)))
+            .then(|| operation.result.scalar().map(|result| result.id))
+            .flatten()
+        })
+        .collect::<Vec<_>>();
+    let redirected_cast_chain = stale_cast_chain
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.scalar_type == ScalarType::Integer(u16_type))
+                && matches!(
+                    operation.kind,
+                    OperationKind::ExactIntegerShiftLeft { count, .. }
+                        if landed_threes.contains(&count)
+                )
+        })
+        .expect("mixed-shift cast retains its outer 3i32 exact-left definition");
+    let OperationKind::ExactIntegerShiftLeft { value, .. } = &mut redirected_cast_chain.kind else {
+        unreachable!("selected exact-left definition")
+    };
+    *value = wide_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &stale_cast_chain,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
     ));
 
     let scalar_arguments = |enabled| {
@@ -225,6 +300,14 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(2),
             },
             TerminalScalarValue::Boolean(enabled),

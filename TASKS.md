@@ -341,6 +341,12 @@ Remaining:
   definitions, intersecting the carrier after each inverse left or right step;
   every right proof remains its own legal-count proposition. No prior shift
   proof supplies authority, so later right shifts cannot erase unsafe prefixes.
+  The same finite mixed exact-shift chain may now feed one validator-legal
+  partial fixed-native exact cast. The cast starts from the target/source
+  carrier intersection and independently maps that interval backward through
+  every ordered mixed-shift definition; mathematical emptiness reconstructs
+  falsehood, while checked interval-arithmetic failure admits nothing. Every
+  shift prefix and the cast retain separate mandatory evidence.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

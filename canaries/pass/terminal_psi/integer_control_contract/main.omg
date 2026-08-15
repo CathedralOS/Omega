@@ -1692,6 +1692,18 @@ requires value <= 127u8, value <= 63u8
     (((((value << 1i8) >> 2u16) << 3i32) >> 1u64) < 255u8) && enabled
 }
 
+machine terminal_exact_mixed_shift_cast_unsigned(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 16383u16, value <= 63u16
+{
+    (((((value << 1i8) >> 2u16) << 3i32) as u8) < 255u8) && enabled
+}
+
+machine terminal_exact_mixed_shift_cast_cross_sign(value: i16, enabled: bool) -> bool
+requires -16384i16 <= value, value <= 16383i16, 0i16 <= value, value <= 127i16
+{
+    ((((value >> 1u8) << 2i16) as u8) < 255u8) && enabled
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

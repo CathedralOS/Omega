@@ -1454,6 +1454,15 @@ fn exact_integer_cast_obligation(
     ) {
         return obligation;
     }
+    if let Some(obligation) = exact_integer_mixed_shift_chain_cast_obligation(
+        source_type,
+        target_type,
+        operand.clone(),
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     if let Some(obligation) = exact_integer_shift_right_chain_cast_obligation(
         source_type,
         target_type,
@@ -1578,6 +1587,100 @@ fn exact_integer_cast_obligation(
         1 => bounds.pop().expect("one exact-cast bound exists"),
         _ => Proposition::Conjunction(bounds),
     }
+}
+
+fn exact_integer_mixed_shift_chain_cast_obligation(
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if source_type.is_address()
+        || target_type.is_address()
+        || !matches!(source_type.bits(), 8 | 16 | 32 | 64)
+        || !matches!(target_type.bits(), 8 | 16 | 32 | 64)
+        || source_type == target_type
+        || source_type.can_widen_to(target_type)
+        || !source_type.can_exact_cast_to(target_type)
+    {
+        return None;
+    }
+    let source_interval = fixed_integer_type_interval(source_type)?;
+    let target_interval = fixed_integer_type_interval(target_type)?;
+    let minimum = source_interval.0.max(target_interval.0);
+    let maximum = source_interval.1.min(target_interval.1);
+    if minimum > maximum {
+        return Some(Proposition::Falsehood);
+    }
+    let mut interval = (minimum, maximum);
+    let mut prior_axiom_count = semantic_axioms.len();
+    let mut saw_left = false;
+    let mut saw_right = false;
+    for _ in 0..=prior_axiom_count {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })?;
+        let (nested_value, count_type, count) = match definition {
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                value,
+                count,
+            } if *value_type == source_type => {
+                saw_left = true;
+                (value, *count_type, count)
+            }
+            ScalarTerm::ExactIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
+            } if *value_type == source_type => {
+                saw_right = true;
+                (value, *count_type, count)
+            }
+            _ => return None,
+        };
+        let count = landed_exact_shift_count(
+            source_type,
+            count_type,
+            count,
+            semantic_axioms,
+            definition_index,
+        )?;
+        interval =
+            match exact_integer_mixed_shift_preimage(source_type, interval, definition, count) {
+                Ok(Some(interval)) => interval,
+                Ok(None) => return Some(Proposition::Falsehood),
+                Err(()) => return None,
+            };
+        value = (**nested_value).clone();
+        prior_axiom_count = definition_index;
+        if saw_left
+            && saw_right
+            && matches!(
+                &value,
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(root_type),
+                } if *root_type == source_type && machine_parameter_values.contains(id)
+            )
+        {
+            return Some(exact_integer_source_interval_obligation(
+                source_type,
+                value,
+                interval.0,
+                interval.1,
+            ));
+        }
+    }
+    None
 }
 
 fn exact_integer_shift_obligation(
@@ -1745,13 +1848,15 @@ fn exact_integer_mixed_shift_chain_obligation(
                     semantic_axioms,
                     definition_index,
                 )?;
-                let Some(mapped) = exact_integer_mixed_shift_preimage(
+                let mapped = match exact_integer_mixed_shift_preimage(
                     value_type,
                     interval,
                     definition,
                     nested_count,
-                ) else {
-                    return Some(Proposition::Falsehood);
+                ) {
+                    Ok(Some(mapped)) => mapped,
+                    Ok(None) => return Some(Proposition::Falsehood),
+                    Err(()) => return None,
                 };
                 interval = mapped;
                 value = (**nested_value).clone();
@@ -1770,13 +1875,15 @@ fn exact_integer_mixed_shift_chain_obligation(
                     semantic_axioms,
                     definition_index,
                 )?;
-                let Some(mapped) = exact_integer_mixed_shift_preimage(
+                let mapped = match exact_integer_mixed_shift_preimage(
                     value_type,
                     interval,
                     definition,
                     nested_count,
-                ) else {
-                    return Some(Proposition::Falsehood);
+                ) {
+                    Ok(Some(mapped)) => mapped,
+                    Ok(None) => return Some(Proposition::Falsehood),
+                    Err(()) => return None,
                 };
                 interval = mapped;
                 value = (**nested_value).clone();
@@ -1833,12 +1940,12 @@ fn exact_integer_mixed_shift_preimage(
     interval: (i128, i128),
     definition: &ScalarTerm,
     count: u128,
-) -> Option<(i128, i128)> {
-    let count = u32::try_from(count).ok()?;
+) -> Result<Option<(i128, i128)>, ()> {
+    let count = u32::try_from(count).map_err(|_| ())?;
     if count >= u32::from(value_type.bits()) {
-        return None;
+        return Err(());
     }
-    let scale = 1_i128.checked_shl(count)?;
+    let scale = 1_i128.checked_shl(count).ok_or(())?;
     let mapped = match definition {
         ScalarTerm::ExactIntegerShiftLeft { .. } => {
             let minimum =
@@ -1848,32 +1955,42 @@ fn exact_integer_mixed_shift_preimage(
         }
         ScalarTerm::ExactIntegerShiftRight { .. } => match value_type.sign() {
             IntegerSign::Signed => (
-                interval.0.checked_mul(scale)?,
+                interval.0.checked_mul(scale).ok_or(())?,
                 interval
                     .1
-                    .checked_add(1)?
-                    .checked_mul(scale)?
-                    .checked_sub(1)?,
+                    .checked_add(1)
+                    .ok_or(())?
+                    .checked_mul(scale)
+                    .ok_or(())?
+                    .checked_sub(1)
+                    .ok_or(())?,
             ),
             IntegerSign::Unsigned => {
                 let minimum = u128::try_from(interval.0)
-                    .ok()?
-                    .checked_mul(scale as u128)?;
+                    .map_err(|_| ())?
+                    .checked_mul(scale as u128)
+                    .ok_or(())?;
                 let maximum = u128::try_from(interval.1)
-                    .ok()?
-                    .checked_add(1)?
-                    .checked_mul(scale as u128)?
-                    .checked_sub(1)?;
-                (i128::try_from(minimum).ok()?, i128::try_from(maximum).ok()?)
+                    .map_err(|_| ())?
+                    .checked_add(1)
+                    .ok_or(())?
+                    .checked_mul(scale as u128)
+                    .ok_or(())?
+                    .checked_sub(1)
+                    .ok_or(())?;
+                (
+                    i128::try_from(minimum).map_err(|_| ())?,
+                    i128::try_from(maximum).map_err(|_| ())?,
+                )
             }
         },
-        _ => return None,
+        _ => return Err(()),
     };
-    let carrier_minimum = integer_value_as_i128(value_type.minimum_value())?;
-    let carrier_maximum = integer_value_as_i128(value_type.maximum_value())?;
+    let carrier_minimum = integer_value_as_i128(value_type.minimum_value()).ok_or(())?;
+    let carrier_maximum = integer_value_as_i128(value_type.maximum_value()).ok_or(())?;
     let minimum = mapped.0.max(carrier_minimum);
     let maximum = mapped.1.min(carrier_maximum);
-    (minimum <= maximum).then_some((minimum, maximum))
+    Ok((minimum <= maximum).then_some((minimum, maximum)))
 }
 
 fn exact_integer_cast_then_shift_left_chain_obligation(
@@ -9938,8 +10055,139 @@ mod tests {
                 .expect("unsigned right shape"),
                 4,
             ),
-            Some((0, 255)),
+            Ok(Some((0, 255))),
             "a right-shift preimage clips to the source carrier",
+        );
+    }
+
+    #[test]
+    fn exact_mixed_shift_chain_cast_reconstructs_unsigned_and_cross_sign_preimages() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 source");
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 target");
+        let i8_count = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let u16_count = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+        let i32_count = IntegerType::new(IntegerSign::Signed, 32).expect("i32 count");
+        let root_id = ValueId::new(321).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let left_one = ScalarTerm::value(
+            ValueId::new(322).expect("left one"),
+            ScalarType::Integer(source_type),
+        );
+        let right_two = ScalarTerm::value(
+            ValueId::new(323).expect("right two"),
+            ScalarType::Integer(source_type),
+        );
+        let left_three = ScalarTerm::value(
+            ValueId::new(324).expect("left three"),
+            ScalarType::Integer(source_type),
+        );
+        let one = ScalarTerm::integer(i8_count, IntegerValue::Signed(1)).expect("1i8");
+        let two = ScalarTerm::integer(u16_count, IntegerValue::Unsigned(2)).expect("2u16");
+        let three = ScalarTerm::integer(i32_count, IntegerValue::Signed(3)).expect("3i32");
+        let definitions = vec![
+            Proposition::Equal(
+                left_one.clone(),
+                ScalarTerm::exact_integer_shift_left(source_type, i8_count, root.clone(), one)
+                    .expect("root << 1"),
+            ),
+            Proposition::Equal(
+                right_two.clone(),
+                ScalarTerm::exact_integer_shift_right(source_type, u16_count, left_one, two)
+                    .expect("(root << 1) >> 2"),
+            ),
+            Proposition::Equal(
+                left_three.clone(),
+                ScalarTerm::exact_integer_shift_left(source_type, i32_count, right_two, three)
+                    .expect("((root << 1) >> 2) << 3"),
+            ),
+        ];
+        let maximum = ScalarTerm::integer(source_type, IntegerValue::Unsigned(63)).expect("63u16");
+        assert_eq!(
+            exact_integer_mixed_shift_chain_cast_obligation(
+                source_type,
+                target_type,
+                left_three,
+                &definitions,
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::LessOrEqual(root.clone(), maximum)),
+        );
+
+        let signed_source = IntegerType::new(IntegerSign::Signed, 16).expect("i16 source");
+        let signed_root_id = ValueId::new(325).expect("signed root");
+        let signed_root = ScalarTerm::value(signed_root_id, ScalarType::Integer(signed_source));
+        let signed_right = ScalarTerm::value(
+            ValueId::new(326).expect("signed right"),
+            ScalarType::Integer(signed_source),
+        );
+        let signed_left = ScalarTerm::value(
+            ValueId::new(327).expect("signed left"),
+            ScalarType::Integer(signed_source),
+        );
+        let signed_definitions = vec![
+            Proposition::Equal(
+                signed_right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    signed_source,
+                    i8_count,
+                    signed_root.clone(),
+                    ScalarTerm::integer(i8_count, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("signed root >> 1"),
+            ),
+            Proposition::Equal(
+                signed_left.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    signed_source,
+                    u16_count,
+                    signed_right,
+                    ScalarTerm::integer(u16_count, IntegerValue::Unsigned(2)).expect("2u16"),
+                )
+                .expect("(signed root >> 1) << 2"),
+            ),
+        ];
+        let minimum = ScalarTerm::integer(signed_source, IntegerValue::Signed(0)).expect("0i16");
+        let maximum =
+            ScalarTerm::integer(signed_source, IntegerValue::Signed(127)).expect("127i16");
+        assert_eq!(
+            exact_integer_mixed_shift_chain_cast_obligation(
+                signed_source,
+                target_type,
+                signed_left,
+                &signed_definitions,
+                &BTreeSet::from([signed_root_id]),
+            ),
+            Some(canonical_conjunction(vec![
+                Proposition::LessOrEqual(minimum, signed_root.clone()),
+                Proposition::LessOrEqual(signed_root, maximum),
+            ])),
+        );
+    }
+
+    #[test]
+    fn exact_mixed_shift_preimage_distinguishes_empty_from_arithmetic_failure() {
+        let value_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 count");
+        let one = ScalarTerm::integer(count_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let value = ScalarTerm::integer(value_type, IntegerValue::Signed(0)).expect("0i64");
+        let left = ScalarTerm::exact_integer_shift_left(
+            value_type,
+            count_type,
+            value.clone(),
+            one.clone(),
+        )
+        .expect("left shape");
+        assert_eq!(
+            exact_integer_mixed_shift_preimage(value_type, (1, 1), &left, 1),
+            Ok(None),
+            "a mathematically empty inverse interval is an ordinary false proposition",
+        );
+        let right = ScalarTerm::exact_integer_shift_right(value_type, count_type, value, one)
+            .expect("right shape");
+        assert_eq!(
+            exact_integer_mixed_shift_preimage(value_type, (i128::MAX, i128::MAX), &right, 1),
+            Err(()),
+            "checked interval arithmetic failure is not admitted as a false proposition",
         );
     }
 

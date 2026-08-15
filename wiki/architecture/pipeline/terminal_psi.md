@@ -528,6 +528,14 @@ negative, out-of-range, address, or non-native counts, mixed value carriers,
 local, block, computed, or cast roots, intervening shells or operations,
 right-associated shapes, malformed, reordered, cyclic, redirected, or stale
 definitions, interval overflow, and stale or missing evidence remain fenced.
+The same mixed-only chain may feed one validator-legal partial fixed-native
+exact cast. The cast proof starts from the intersection of the target and
+source carriers, then walks every canonical mixed-shift definition backward
+with the same inverse-left and inverse-right transfers. It emits only the
+surviving canonical direct-root interval. A mathematically empty preimage is
+canonical falsehood; checked interval-arithmetic failure is no admission.
+Every shift-prefix proof and the cast proof remain distinct, and homogeneous
+shift-to-cast chains continue to use their existing narrower paths.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,

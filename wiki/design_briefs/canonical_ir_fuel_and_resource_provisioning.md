@@ -210,6 +210,9 @@ runtime-divisor proposition adds no executable work.
 A finite mixed exact-left/exact-right chain also charges every retained shift
 and ordinary value leaf. Verifier replay of each left prefix's safe interval
 through the prior canonical mixed-shift definitions adds no executable work.
+When that mixed chain feeds a partial exact cast, the cast is charged in
+addition to every retained shift; replay of the target/source interval through
+the ordered mixed definitions adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
