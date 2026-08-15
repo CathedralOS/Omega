@@ -20,6 +20,7 @@ pub(super) fn write_trust_report(
     selected_provider_plans: &[String],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut report = TrustReport::default();
+    let mut recognized_provider_grants = Vec::new();
     // PRV3: derived provider plans -- one row each, dev-active with the
     // standing warning until the final build grants the plan by name (or
     // its trait leaf), fingerprint shown so drift is visible at a glance.
@@ -37,6 +38,11 @@ pub(super) fn write_trust_report(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        for selector in &grant_selectors {
+            if !recognized_provider_grants.contains(selector) {
+                recognized_provider_grants.push(selector.clone());
+            }
+        }
         let granted = !grant_selectors.is_empty();
         let provenance = if granted {
             "root grant (build.omg)"
@@ -184,9 +190,9 @@ pub(super) fn write_trust_report(
             standing_warning: !granted,
         });
     }
-    // Grants naming anything other than a declared domain OR an accepted
-    // machine surface as bare accepted-fact rows (the report shows every
-    // grant, private or public).
+    // Grants naming anything other than a declared domain, an accepted
+    // machine, or an already-reported selected provider plan surface as bare
+    // accepted-fact rows (the report shows every grant, private or public).
     for grant in root_grants {
         let names_domain = typed.domain_definitions().iter().any(|domain| {
             grant == domain.name.as_str()
@@ -197,7 +203,8 @@ pub(super) fn write_trust_report(
                 && (grant == machine.name.as_str()
                     || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
         });
-        if !names_domain && !names_accepted {
+        let names_selected_provider = recognized_provider_grants.contains(grant);
+        if !names_domain && !names_accepted && !names_selected_provider {
             report.rows.push(TrustReportRow {
                 commitment: format!("accepted fact: {grant}"),
                 provenance: "root grant (build.omg)".to_owned(),
