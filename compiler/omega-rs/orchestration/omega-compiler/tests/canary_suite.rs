@@ -21841,13 +21841,8 @@ fn deep_nested_write_paths_exit_canary_runs() {
     let canary = pass_canary("structs/deep_nested_write_paths_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-deepw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("deep nested write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("deep nested write canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("deep nested write canary should run");
@@ -45466,6 +45461,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "arithmetic/runtime_float_compare_bool_exit",
     "structs/aggregate_transition_args_exit",
+    "structs/deep_nested_write_paths_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
