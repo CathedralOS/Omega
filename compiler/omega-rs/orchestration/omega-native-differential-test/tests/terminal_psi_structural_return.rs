@@ -904,7 +904,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && (((small as u16) as u8) < 6u8)
                 && (((((small as u16) as u32) as u64) as u8) < 7u8)
                 && ((small + 1u8) < 6u8)
-                && (((small + 1u8) + 1u8) < 7u8)
+                && ((((small + 1u8) + 1u8) + 1u8) < 8u8)
                 && ((~(small + 3u8)) < 255u8)
                 && (((small - 3u8) as u16) < 255u16)
                 && ((15u8 & (small * 2u8)) < 16u8)

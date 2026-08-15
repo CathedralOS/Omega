@@ -11137,31 +11137,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct(left, right)
-                .or_else(|| {
-                    if !matches!(
-                        right.as_ref(),
-                        LoweredDirectExpression::IntegerLiteral { .. }
-                    ) {
-                        return None;
-                    }
-                    let mut parameters = shared_direct_exact_add_runtime_parameters(left)?;
-                    parameters.extend(shared_integer_runtime_parameters_with_shells(
-                        right, 0, false,
-                    )?);
-                    Some(parameters)
-                })
-                .or_else(|| {
-                    if !matches!(
-                        left.as_ref(),
-                        LoweredDirectExpression::IntegerLiteral { .. }
-                    ) {
-                        return None;
-                    }
-                    let mut parameters =
-                        shared_integer_runtime_parameters_with_shells(left, 0, false)?;
-                    parameters.extend(shared_direct_exact_add_runtime_parameters(right)?);
-                    Some(parameters)
-                })
+                .or_else(|| shared_exact_add_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind:
@@ -11253,32 +11229,64 @@ fn shared_roundtrip_exact_cast_runtime_parameters(
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
-fn shared_direct_exact_add_runtime_parameters(
-    expression: &LoweredDirectExpression,
+fn shared_exact_add_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    let LoweredDirectExpression::IntegerBinary {
-        kind: LoweredIntegerBinaryKind::ExactAdd,
-        left,
-        right,
-        ..
-    } = expression
-    else {
-        return None;
-    };
-    if !matches!(
-        left.as_ref(),
-        LoweredDirectExpression::IntegerLiteral { .. }
-    ) && !matches!(
-        right.as_ref(),
-        LoweredDirectExpression::IntegerLiteral { .. }
-    ) {
-        return None;
+    let mut chain_type = None;
+    let mut saw_nested_add = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactAdd,
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *scalar_type) {
+            return None;
+        }
+        chain_type = Some(*scalar_type);
+        let left_is_literal = matches!(
+            left.as_ref(),
+            LoweredDirectExpression::IntegerLiteral { .. }
+        );
+        let right_is_literal = matches!(
+            right.as_ref(),
+            LoweredDirectExpression::IntegerLiteral { .. }
+        );
+        match (left.as_ref(), right.as_ref()) {
+            (
+                nested @ LoweredDirectExpression::IntegerBinary {
+                    kind: LoweredIntegerBinaryKind::ExactAdd,
+                    ..
+                },
+                _,
+            ) if right_is_literal => {
+                saw_nested_add = true;
+                expression = nested;
+            }
+            (
+                _,
+                nested @ LoweredDirectExpression::IntegerBinary {
+                    kind: LoweredIntegerBinaryKind::ExactAdd,
+                    ..
+                },
+            ) if left_is_literal => {
+                saw_nested_add = true;
+                expression = nested;
+            }
+            _ if saw_nested_add && (left_is_literal || right_is_literal) => {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                return Some(parameters);
+            }
+            _ => return None,
+        }
     }
-    let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
-    parameters.extend(shared_integer_runtime_parameters_with_shells(
-        right, 0, false,
-    )?);
-    Some(parameters)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

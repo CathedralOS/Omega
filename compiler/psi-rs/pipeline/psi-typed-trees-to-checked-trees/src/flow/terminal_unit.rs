@@ -1552,43 +1552,9 @@ fn shared_integer_runtime_inputs_with_shells(
                 )?);
                 Some(inputs)
             };
-            collect_direct(left, right)
-                .or_else(|| {
-                    if !matches!(
-                        right.as_ref(),
-                        CheckedScalarExpression::IntegerLiteral { .. }
-                    ) {
-                        return None;
-                    }
-                    let mut inputs =
-                        shared_direct_exact_add_runtime_inputs(left, scalar_parameter_count)?;
-                    inputs.extend(shared_integer_runtime_inputs_with_shells(
-                        right,
-                        scalar_parameter_count,
-                        0,
-                        false,
-                    )?);
-                    Some(inputs)
-                })
-                .or_else(|| {
-                    if !matches!(
-                        left.as_ref(),
-                        CheckedScalarExpression::IntegerLiteral { .. }
-                    ) {
-                        return None;
-                    }
-                    let mut inputs = shared_integer_runtime_inputs_with_shells(
-                        left,
-                        scalar_parameter_count,
-                        0,
-                        false,
-                    )?;
-                    inputs.extend(shared_direct_exact_add_runtime_inputs(
-                        right,
-                        scalar_parameter_count,
-                    )?);
-                    Some(inputs)
-                })
+            collect_direct(left, right).or_else(|| {
+                shared_exact_add_chain_runtime_inputs(expression, scalar_parameter_count)
+            })
         }
         CheckedScalarExpression::IntegerBinary {
             kind:
@@ -1710,37 +1676,73 @@ fn shared_roundtrip_exact_cast_runtime_inputs(
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
-fn shared_direct_exact_add_runtime_inputs(
-    expression: &CheckedScalarExpression,
+fn shared_exact_add_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    let CheckedScalarExpression::IntegerBinary {
-        kind: CheckedIntegerBinaryKind::ExactAdd,
-        left,
-        right,
-        ..
-    } = expression
-    else {
-        return None;
-    };
-    if !matches!(
-        left.as_ref(),
-        CheckedScalarExpression::IntegerLiteral { .. }
-    ) && !matches!(
-        right.as_ref(),
-        CheckedScalarExpression::IntegerLiteral { .. }
-    ) {
-        return None;
+    let mut chain_type = None;
+    let mut saw_nested_add = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactAdd,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type) {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        let left_is_literal = matches!(
+            left.as_ref(),
+            CheckedScalarExpression::IntegerLiteral { .. }
+        );
+        let right_is_literal = matches!(
+            right.as_ref(),
+            CheckedScalarExpression::IntegerLiteral { .. }
+        );
+        match (left.as_ref(), right.as_ref()) {
+            (
+                nested @ CheckedScalarExpression::IntegerBinary {
+                    kind: CheckedIntegerBinaryKind::ExactAdd,
+                    ..
+                },
+                _,
+            ) if right_is_literal => {
+                saw_nested_add = true;
+                expression = nested;
+            }
+            (
+                _,
+                nested @ CheckedScalarExpression::IntegerBinary {
+                    kind: CheckedIntegerBinaryKind::ExactAdd,
+                    ..
+                },
+            ) if left_is_literal => {
+                saw_nested_add = true;
+                expression = nested;
+            }
+            _ if saw_nested_add && (left_is_literal || right_is_literal) => {
+                let mut inputs = shared_integer_runtime_inputs_with_shells(
+                    left,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?;
+                inputs.extend(shared_integer_runtime_inputs_with_shells(
+                    right,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?);
+                return Some(inputs);
+            }
+            _ => return None,
+        }
     }
-    let mut inputs =
-        shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
-    inputs.extend(shared_integer_runtime_inputs_with_shells(
-        right,
-        scalar_parameter_count,
-        0,
-        false,
-    )?);
-    Some(inputs)
 }
 
 fn is_bounded_scalar_nominal_cleanup_target(

@@ -197,10 +197,10 @@ Remaining:
   convergence. Integer leaves retain the documented policy arithmetic, casts,
   shifts, division/remainder, exact-operation evidence, bounded nesting, and
   independent exact leaves in distinct proof-free subtrees across interpreter
-  and every native target. One bounded same-carrier exact-add result may now
-  feed one further exact add when the inner operation and the outer sibling
-  each have a landed constant addend; the verifier reconstructs both safety
-  obligations independently from the ordered value definitions. One direct
+  and every native target. A finite same-carrier exact-add chain may have a
+  direct machine-parameter root when every non-chain sibling is a landed
+  literal constant; the verifier walks the ordered definitions and reconstructs
+  every retained operation's safety obligation independently. One direct
   fixed-integer parameter may also pass through a finite chain of valid
   widenings and then exactly narrow back to its original carrier; Terminal
   retains every operation and independently derives the narrowing obligation

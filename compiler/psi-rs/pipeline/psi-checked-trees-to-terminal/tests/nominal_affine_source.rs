@@ -446,7 +446,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && (((small as u16) as u8) < 6u8)
             && (((((small as u16) as u32) as u64) as u8) < 7u8)
             && ((small + 1u8) < 6u8)
-            && (((small + 1u8) + 1u8) < 7u8)
+            && ((((small + 1u8) + 1u8) + 1u8) < 8u8)
             && ((~(small + 3u8)) < 255u8)
             && (((small - 3u8) as u16) < 255u16)
             && ((15u8 & (small * 2u8)) < 16u8)
@@ -2806,7 +2806,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         })
     };
-    let (nested_inner_add_obligation, nested_outer_add_obligation, outer_addend) = operations
+    let (nested_add_obligations, middle_addend, outer_addend) = operations
         .iter()
         .find_map(|outer| {
             let OperationKind::ExactIntegerAdd {
@@ -2820,8 +2820,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             if !is_u8_one(right) {
                 return None;
             }
-            let inner = operations.iter().find(|candidate| {
+            let middle = operations.iter().find(|candidate| {
                 candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_u8_one(middle_right) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
             })?;
             let OperationKind::ExactIntegerAdd {
                 left: inner_left,
@@ -2832,13 +2846,16 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 return None;
             };
             (inner_left == entry.parameters[1].id && is_u8_one(inner_right)).then_some((
-                inner_obligation,
-                outer_obligation,
+                [inner_obligation, middle_obligation, outer_obligation],
+                middle_right,
                 right,
             ))
         })
-        .expect("one exact-add result feeds a second exact-add operation");
-    for obligation in [nested_inner_add_obligation, nested_outer_add_obligation] {
+        .expect("a finite three-operation exact-add chain is retained");
+    assert_ne!(nested_add_obligations[0], nested_add_obligations[1]);
+    assert_ne!(nested_add_obligations[1], nested_add_obligations[2]);
+    assert_ne!(nested_add_obligations[0], nested_add_obligations[2]);
+    for obligation in nested_add_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
@@ -3350,31 +3367,45 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == exact_add_obligation
     ));
-    let mut missing_inner_add_proof = decode_proof_bundle(&proof).expect("decode shared proof");
-    missing_inner_add_proof
-        .evidence
-        .retain(|evidence| evidence.obligation != nested_inner_add_obligation);
+    for nested_add_obligation in nested_add_obligations {
+        let mut missing_nested_add_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_nested_add_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != nested_add_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_nested_add_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == nested_add_obligation
+        ));
+    }
+    let mut changed_middle_addend = decode_module(&semantics).expect("decode shared semantics");
+    let changed_addend = changed_middle_addend
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(middle_addend)
+        })
+        .expect("middle exact-add landed addend operation");
+    changed_addend.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(2),
+    };
     assert!(matches!(
         psi_terminal_verifier::verify_module(
-            &decode_module(&semantics).expect("decode shared semantics"),
-            &missing_inner_add_proof,
+            &changed_middle_addend,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
             &AdmissionProfile::default(),
         ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
-            if obligation == nested_inner_add_obligation
-    ));
-    let mut missing_outer_add_proof = decode_proof_bundle(&proof).expect("decode shared proof");
-    missing_outer_add_proof
-        .evidence
-        .retain(|evidence| evidence.obligation != nested_outer_add_obligation);
-    assert!(matches!(
-        psi_terminal_verifier::verify_module(
-            &decode_module(&semantics).expect("decode shared semantics"),
-            &missing_outer_add_proof,
-            &AdmissionProfile::default(),
-        ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
-            if obligation == nested_outer_add_obligation
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == nested_add_obligations[1]
     ));
     let mut changed_outer_addend = decode_module(&semantics).expect("decode shared semantics");
     let changed_addend = changed_outer_addend
@@ -3398,7 +3429,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
             obligation,
             ..
-        }) if obligation == nested_outer_add_obligation
+        }) if obligation == nested_add_obligations[2]
     ));
     let mut changed_add_bound = decode_module(&semantics).expect("decode shared semantics");
     let changed_entry = changed_add_bound.entry;
@@ -3857,6 +3888,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_bitwise_add_obligation
+            || obligation == nested_add_obligations[2]
     ));
     let nested_widen_subtract_obligation = widen_exact_subtract_obligations[0];
     let mut missing_nested_widen_subtract_proof =
@@ -4443,7 +4475,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small < 6
                     && small < 7
                     && small + 1 < 6
-                    && small + 1 + 1 < 7
+                    && small + 1 + 1 + 1 < 8
                     && (!(small + 3) & u128::from(u8::MAX)) < 255
                     && small - 3 < 255
                     && (15 & (small * 2)) < 16
