@@ -12792,18 +12792,12 @@ fn runtime_f32_local_arithmetic_exit_canary_runs() {
     // (`let n: i32 = c as i32`). Exits 70 only when add/sub/mul/div, an f32 `<`
     // compare, and the f32->i32 cast all evaluate correctly.
     let canary = pass_canary("expressions/runtime_f32_local_arithmetic_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-f32-local-arith-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32 local arithmetic canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("f32 local arithmetic canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
