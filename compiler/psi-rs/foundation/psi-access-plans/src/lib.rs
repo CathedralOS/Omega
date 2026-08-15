@@ -1982,6 +1982,69 @@ impl<'extent> PlacementRejection<'extent> {
     }
 }
 
+/// One accepted whole-range placement admission that retains the exact owned
+/// Extent checked against provider supply.
+///
+/// This is permission to establish placed content, not evidence that content
+/// already exists. A later explicit Stable initialize/validate/adopt or
+/// External adopt route must consume this carrier. Withdrawing it therefore
+/// returns only the original granted Extent and establishes no `Vacant` fact.
+#[derive(Debug)]
+#[must_use = "an owned placement admission retains linear Extent authority"]
+pub struct OwnedPlacementAdmission {
+    identity: PlacementAdmissionId,
+    placement_plan: ValidatedPlacementPlan,
+    profile_receipt: ResourceProfileReceiptId,
+    resources: PlacementResourceCompatibility,
+    extent: Extent,
+}
+
+impl OwnedPlacementAdmission {
+    pub const fn identity(&self) -> PlacementAdmissionId {
+        self.identity
+    }
+
+    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+        self.profile_receipt
+    }
+
+    pub const fn resources(&self) -> &PlacementResourceCompatibility {
+        &self.resources
+    }
+
+    pub const fn extent(&self) -> &Extent {
+        &self.extent
+    }
+
+    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
+        &self.placement_plan
+    }
+
+    /// Cancel permission-only admission without claiming content
+    /// establishment, destruction, vacancy, or allocator release.
+    pub fn withdraw(self) -> Extent {
+        self.extent
+    }
+}
+
+/// Failed owned admission returns the exact moved Extent rather than losing
+/// or reconstructing its authority account.
+#[derive(Debug)]
+pub struct OwnedPlacementRejection {
+    extent: Extent,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl OwnedPlacementRejection {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (Extent, AccessPlanDiagnostic) {
+        (self.extent, self.diagnostic)
+    }
+}
+
 /// A plan-qualified interpretation of one borrowed concrete range.
 #[derive(Debug)]
 pub struct PlacedView<'extent> {
@@ -2438,6 +2501,36 @@ pub fn admit_placement<'extent>(
             loan,
         }),
         Err(diagnostic) => Err(PlacementRejection { loan, diagnostic }),
+    }
+}
+
+/// Admit one complete owned Extent without manufacturing an owned loan or a
+/// second authority root.
+///
+/// Validation borrows the full range only for the duration of the check. The
+/// accepted carrier then retains the original Extent; rejection returns that
+/// same value with its sealed origin and lineage unchanged.
+pub fn admit_owned_placement(
+    identity: PlacementAdmissionId,
+    extent: Extent,
+    plan: &ValidatedPlacementPlan,
+    profile: &AdmittedResourceProfile,
+) -> Result<OwnedPlacementAdmission, OwnedPlacementRejection> {
+    let validation = match extent.loan(0, extent.length()) {
+        Ok(loan) => validate_placement_admission(&loan, plan, profile),
+        Err(diagnostic) => Err(AccessPlanDiagnostic(format!(
+            "owned extent could not produce its internal whole-range loan: {diagnostic}"
+        ))),
+    };
+    match validation {
+        Ok(resources) => Ok(OwnedPlacementAdmission {
+            identity,
+            placement_plan: plan.clone(),
+            profile_receipt: profile.receipt,
+            resources,
+            extent,
+        }),
+        Err(diagnostic) => Err(OwnedPlacementRejection { extent, diagnostic }),
     }
 }
 
@@ -3863,6 +3956,21 @@ mod tests {
         .expect("admitted UART resource profile")
     }
 
+    fn uart_resource_profile_for_extent(
+        extent: &Extent,
+        reach: &BoundaryReach,
+    ) -> AdmittedResourceProfile {
+        ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(71).expect("profile receipt"),
+            extent,
+            extent_rights(&[3]),
+            reach.clone(),
+        )
+        .expect("UART resource-profile grant")
+        .admit(uart_resource_profile_data(extent.length(), reach))
+        .expect("admitted UART resource profile")
+    }
+
     fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourceProfile {
         ResourceProfile {
             regions: vec![ResourceRegion {
@@ -3896,6 +4004,59 @@ mod tests {
             plan,
             &resources,
         )
+    }
+
+    #[test]
+    fn owned_admission_retains_and_withdraws_the_exact_extent() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0x7000, 12, 72);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let profile = uart_resource_profile_for_extent(&extent, &uart_reach());
+
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(73).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned whole-range placement admission");
+        assert_eq!(admission.identity().normalized_identity(), 73);
+        assert_eq!(admission.extent().base(), 0x7000);
+        assert_eq!(admission.extent().length(), 12);
+        assert_eq!(admission.extent().origin(), origin);
+        assert_eq!(admission.extent().lineage_root(), lineage);
+        assert_eq!(admission.placement_plan().identity(), plan.identity());
+
+        let returned = admission.withdraw();
+        assert_eq!(returned.base(), 0x7000);
+        assert_eq!(returned.length(), 12);
+        assert_eq!(returned.origin(), origin);
+        assert_eq!(returned.lineage_root(), lineage);
+    }
+
+    #[test]
+    fn owned_admission_rejection_returns_the_exact_extent() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0x7100, 8, 74);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let profile = uart_resource_profile_for_extent(&extent, &uart_reach());
+
+        let rejection = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(75).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect_err("the complete placement must fit the owned extent");
+        assert!(rejection.diagnostic().0.contains("exceeds"));
+        let (returned, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains("exceeds"));
+        assert_eq!(returned.base(), 0x7100);
+        assert_eq!(returned.length(), 8);
+        assert_eq!(returned.origin(), origin);
+        assert_eq!(returned.lineage_root(), lineage);
     }
 
     #[test]
