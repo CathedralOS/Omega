@@ -2,17 +2,17 @@
 //! SEMANTIC CONTRACT, independent of syntax and lowering -- component
 //! manifests, proof artifacts, provider admission, and hot-swap checks
 //! reference this identity, never re-derived booleans. The checked public
-//! surface carries supply mode, canonical service reach, operational ceilings,
-//! normalized crash-route buckets, and the termination guarantee plus a
-//! deterministic fingerprint over them.
+//! axes publish independently; this carrier retains the remaining contract
+//! plans plus their deterministic fingerprint, which still incorporates the
+//! published supply and canonical service reach.
 //! Prover-independence (acceptance 8: a stronger prover cannot change an
 //! exported contract ID) holds BY CONSTRUCTION: only declared/published
 //! halves enter the fingerprint, never inferred rows or witnesses.
 
 use psi_language_semantics::{
-    BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachPlan, SuspensionInterface,
-    SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
-    TerminationGuarantee, TerminationInterface,
+    BlockingInterface, BlockingPlan, MachineSupplyMode, SuspensionInterface, SuspensionPlan,
+    SynchronousInvocationInterface, SynchronousInvocationPlan, TerminationGuarantee,
+    TerminationInterface,
 };
 use psi_numerics::literals::IntegerLiteral;
 use psi_symbols::SymbolHandle;
@@ -989,8 +989,6 @@ impl MachineContractPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
-    /// EFX: the durable symbol-resolved service contract.
-    pub service_reach: ServiceReachPlan,
     /// Direct synchronous boundary edges, kept separate from service reach.
     pub synchronous_invocation: SynchronousInvocationPlan,
     /// Independent authored/inferred operational axes.

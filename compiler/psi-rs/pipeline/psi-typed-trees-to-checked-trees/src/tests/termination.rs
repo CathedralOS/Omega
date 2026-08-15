@@ -1856,8 +1856,12 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     );
     assert!(!wait_plan.suspension.checked_may_suspend);
     assert!(!wait_plan.blocking.checked_may_block);
-    let ServiceReachInterface::PublishedCeiling(wait_ceiling) = wait_plan.service_reach.interface
-    else {
+    let wait_reach = checked
+        .facts
+        .service_reaches
+        .plan_for_machine(wait)
+        .expect("published callee service plan");
+    let ServiceReachInterface::PublishedCeiling(wait_ceiling) = wait_reach.interface else {
         panic!("wait should publish its authored service ceiling");
     };
     let clock = checked
@@ -1870,10 +1874,7 @@ fn operational_plans_are_independent_from_service_reach_rows() {
         checked.facts.service_reaches.rows.services(wait_ceiling),
         &[clock]
     );
-    assert_eq!(
-        wait_plan.service_reach.checked_inferred,
-        ServiceReachRowTable::EMPTY_ROW
-    );
+    assert_eq!(wait_reach.checked_inferred, ServiceReachRowTable::EMPTY_ROW);
 
     let run_plan = checked
         .facts

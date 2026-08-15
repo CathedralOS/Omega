@@ -877,11 +877,7 @@ fn build_boundary_scalar_return_machine(
         boundary_call,
         result_type,
         return_statement_ordinal,
-        contract_service_reach: facts
-            .contract_plans
-            .for_machine(machine.symbol)?
-            .service_reach
-            .clone(),
+        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
     })
 }
@@ -4175,7 +4171,7 @@ fn build_boundary_machine(
         result_type,
         domain_requirements,
         contract_fingerprint: contract.fingerprint,
-        contract_service_reach: contract.service_reach.clone(),
+        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
     })
 }
@@ -4378,7 +4374,7 @@ fn build_checked_machine(
         entry_claims,
         body_qualifications,
         contract_fingerprint: contract.fingerprint,
-        contract_service_reach: contract.service_reach.clone(),
+        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
         operations,
     })
@@ -4482,7 +4478,10 @@ fn build_nominal_affine_unit_cleanup_machine(
             .span_or_empty(state_flow.calls)
             .is_empty()
         || !service_reach_is_empty(facts, state_flow.service_reach)
-        || !service_reach_plan_is_empty(facts, contract.service_reach)
+        || !service_reach_plan_is_empty(
+            facts,
+            facts.service_reaches.plan_for_machine(machine.symbol)?,
+        )
         || !source_parameters
             .iter()
             .all(|parameter| has_exact_root_affine_discard(facts, machine, state, parameter))
@@ -4680,7 +4679,7 @@ fn build_nominal_affine_unit_cleanup_machine(
             entry_claims: Vec::new(),
             body_qualifications: Vec::new(),
             contract_fingerprint: contract.fingerprint,
-            contract_service_reach: contract.service_reach.clone(),
+            contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach.clone(),
             operations: vec![CheckedUnitEffectOperationPlan::ReturnUnit {
                 statement_index: 0,
@@ -5449,7 +5448,10 @@ fn build_partial_affine_unit_cleanup_machine(
         return None;
     }
     if contract.closed_scalar_values.has_other_clauses()
-        || !service_reach_plan_is_empty(facts, contract.service_reach)
+        || !service_reach_plan_is_empty(
+            facts,
+            facts.service_reaches.plan_for_machine(machine.symbol)?,
+        )
     {
         return None;
     }
@@ -5468,7 +5470,7 @@ fn build_partial_affine_unit_cleanup_machine(
             entry_claims,
             body_qualifications: Vec::new(),
             contract_fingerprint: contract.fingerprint,
-            contract_service_reach: contract.service_reach.clone(),
+            contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach.clone(),
             operations,
         },

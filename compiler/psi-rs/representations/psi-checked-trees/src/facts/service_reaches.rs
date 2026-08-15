@@ -27,6 +27,20 @@ impl ServiceReachFacts {
         self.machines().iter().find(|fact| fact.machine == machine)
     }
 
+    /// Project one machine's complete normalized service contract from its
+    /// independently published reach facts. Public empty and private empty
+    /// remain distinct through the retained interface discriminator.
+    pub fn plan_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<psi_language_semantics::ServiceReachPlan> {
+        self.for_machine(machine)
+            .map(|fact| psi_language_semantics::ServiceReachPlan {
+                interface: fact.interface,
+                checked_inferred: fact.inferred_transitive,
+            })
+    }
+
     pub fn states_for(&self, machine: &MachineServiceReachRows) -> &[StateServiceReachRows] {
         self.states.span_or_empty(machine.states)
     }
@@ -73,4 +87,55 @@ pub struct CallServiceReachRows {
     pub target_machine: SymbolHandle,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owner_projection_preserves_public_empty_and_missing_distinctions() {
+        let published = SymbolHandle::from_arena_index(1);
+        let internal = SymbolHandle::from_arena_index(2);
+        let unknown = SymbolHandle::from_arena_index(3);
+        let mut facts = ServiceReachFacts::default();
+        facts.machines.append_to_span(
+            &mut facts.root_machines,
+            MachineServiceReachRows {
+                machine: published,
+                interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
+                    ServiceReachRowTable::EMPTY_ROW,
+                ),
+                inferred_transitive: ServiceReachRowTable::EMPTY_ROW,
+                ..Default::default()
+            },
+        );
+        facts.machines.append_to_span(
+            &mut facts.root_machines,
+            MachineServiceReachRows {
+                machine: internal,
+                interface: psi_language_semantics::ServiceReachInterface::InternalInferred,
+                inferred_transitive: ServiceReachRowTable::EMPTY_ROW,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(
+            facts.plan_for_machine(published),
+            Some(psi_language_semantics::ServiceReachPlan {
+                interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
+                    ServiceReachRowTable::EMPTY_ROW,
+                ),
+                checked_inferred: ServiceReachRowTable::EMPTY_ROW,
+            })
+        );
+        assert_eq!(
+            facts.plan_for_machine(internal),
+            Some(psi_language_semantics::ServiceReachPlan {
+                interface: psi_language_semantics::ServiceReachInterface::InternalInferred,
+                checked_inferred: ServiceReachRowTable::EMPTY_ROW,
+            })
+        );
+        assert_eq!(facts.plan_for_machine(unknown), None);
+    }
 }

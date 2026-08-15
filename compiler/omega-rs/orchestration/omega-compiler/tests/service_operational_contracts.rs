@@ -185,6 +185,11 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .service_reaches
         .for_machine(machine.symbol)
         .expect("run_impl service reach");
+    let service_plan = checked
+        .facts
+        .service_reaches
+        .plan_for_machine(machine.symbol)
+        .expect("run_impl service plan");
     let published_services = match contract_reach.interface {
         psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => checked
             .facts
@@ -207,9 +212,9 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
             panic!("provider contract must publish its service ceiling")
         }
     };
-    assert_eq!(contract.service_reach.interface, contract_reach.interface);
+    assert_eq!(service_plan.interface, contract_reach.interface);
     assert_eq!(
-        contract.service_reach.checked_inferred,
+        service_plan.checked_inferred,
         contract_reach.inferred_transitive
     );
     assert_eq!(published_services, ["Clock", "Storage"]);
