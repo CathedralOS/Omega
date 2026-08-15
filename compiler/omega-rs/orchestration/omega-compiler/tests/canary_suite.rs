@@ -18159,13 +18159,8 @@ fn finite_core_domain_range_discharge_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-finite-domain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("Finite core-domain canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("Finite core-domain canary should compile natively");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45565,6 +45560,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "float/f32_chain_per_op_rounding_exit",
     "float/f32_per_operation_rounding_exit",
     "float/anonymous_exact_rat_const_exit",
+    "float/finite_core_domain_range_discharge",
     "float/runtime_std_is_finite_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
