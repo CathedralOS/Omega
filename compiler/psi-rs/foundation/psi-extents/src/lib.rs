@@ -99,6 +99,18 @@ normalized_extent_identity!(ExtentQualificationId, "extent-qualification");
 normalized_extent_identity!(ExtentCompilerProvisionId, "extent-compiler-provision");
 normalized_extent_identity!(ExtentLocalOwnerId, "extent-local-owner");
 normalized_extent_identity!(ExtentSealedDeclarationId, "extent-sealed-declaration");
+normalized_extent_identity!(
+    ExtentContentInterpretationId,
+    "extent-content-interpretation"
+);
+normalized_extent_identity!(
+    ExtentContentValidityReceiptId,
+    "extent-content-validity-receipt"
+);
+normalized_extent_identity!(
+    ExtentContentCustodyReceiptId,
+    "extent-content-custody-receipt"
+);
 
 use std::collections::BTreeSet;
 
@@ -434,6 +446,69 @@ pub struct ExtentRootGrant {
     era: MappingEraId,
 }
 
+/// One-shot provider evidence that an exact freshly introduced Extent already
+/// contains valid content under one normalized interpretation and that
+/// custody of that content transfers with the Extent.
+///
+/// This grant is deliberately non-`Clone` and can only be emitted while
+/// consuming a provider-issued [`ExtentRootGrant`]. Compiler-provisioned local
+/// capacity cannot acquire provider content validity through this route.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ProviderExistingContentGrant {
+    origin: ExtentRootOrigin,
+    lineage_root: ExtentLineageId,
+    base: u64,
+    length: u64,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    era: MappingEraId,
+    interpretation: ExtentContentInterpretationId,
+    validity_receipt: ExtentContentValidityReceiptId,
+    custody_receipt: ExtentContentCustodyReceiptId,
+}
+
+impl ProviderExistingContentGrant {
+    pub const fn origin(&self) -> ExtentRootOrigin {
+        self.origin
+    }
+
+    pub const fn lineage_root(&self) -> ExtentLineageId {
+        self.lineage_root
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.base
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.length
+    }
+
+    pub const fn address_space(&self) -> AddressSpaceId {
+        self.address_space
+    }
+
+    pub const fn provenance(&self) -> ExtentProvenanceId {
+        self.provenance
+    }
+
+    pub const fn era(&self) -> MappingEraId {
+        self.era
+    }
+
+    pub const fn interpretation(&self) -> ExtentContentInterpretationId {
+        self.interpretation
+    }
+
+    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
+        self.validity_receipt
+    }
+
+    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
+        self.custody_receipt
+    }
+}
+
 /// Runtime geometry whose source-language `no_wrap(base, length)` predicate
 /// has already been checked in proof-level (non-wrapping) arithmetic.
 ///
@@ -520,6 +595,53 @@ impl ExtentRootGrant {
             }
         };
         Ok(self.mint_validated(geometry))
+    }
+
+    /// Consume one provider-issued root grant into both its exact Extent and
+    /// one-shot existing-content authority.
+    ///
+    /// The interpretation identity is provider-admitted input here; its
+    /// consumer must compare it with the actual normalized placement selected
+    /// for the Extent. Failure returns the complete root grant for retry.
+    pub fn mint_provider_existing_content(
+        self,
+        base: u64,
+        length: u64,
+        interpretation: ExtentContentInterpretationId,
+        validity_receipt: ExtentContentValidityReceiptId,
+        custody_receipt: ExtentContentCustodyReceiptId,
+    ) -> Result<(Extent, ProviderExistingContentGrant), ExistingContentMintError> {
+        let geometry = match ValidatedExtentGeometry::check(base, length) {
+            Ok(geometry) => geometry,
+            Err(diagnostic) => {
+                return Err(ExistingContentMintError {
+                    grant: self,
+                    diagnostic,
+                });
+            }
+        };
+        if !matches!(self.origin, ExtentRootOrigin::ProviderIssued(_)) {
+            return Err(ExistingContentMintError {
+                grant: self,
+                diagnostic: ExtentDiagnostic(
+                    "compiler-provisioned roots cannot issue provider existing-content evidence"
+                        .into(),
+                ),
+            });
+        }
+        let content = ProviderExistingContentGrant {
+            origin: self.origin,
+            lineage_root: self.lineage,
+            base: geometry.base,
+            length: geometry.length,
+            address_space: self.address_space,
+            provenance: self.provenance,
+            era: self.era,
+            interpretation,
+            validity_receipt,
+            custody_receipt,
+        };
+        Ok((self.mint_validated(geometry), content))
     }
 
     /// Consume admitted authority for geometry whose `no_wrap` obligation was
@@ -1508,6 +1630,22 @@ pub struct MintError {
     diagnostic: ExtentDiagnostic,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExistingContentMintError {
+    grant: ExtentRootGrant,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl ExistingContentMintError {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_grant(self) -> ExtentRootGrant {
+        self.grant
+    }
+}
+
 impl MintError {
     pub const fn diagnostic(&self) -> &ExtentDiagnostic {
         &self.diagnostic
@@ -1920,6 +2058,47 @@ mod tests {
         assert!(error.diagnostic().0.contains("overflows"));
         let extent = error.into_grant().mint(0, 64).expect("retry valid mint");
         assert_eq!(extent.length(), 64);
+    }
+
+    #[test]
+    fn provider_root_mints_exact_existing_content_authority_once() {
+        let (extent, content) = root_grant(81)
+            .mint_provider_existing_content(
+                0x8000,
+                64,
+                id(82, ExtentContentInterpretationId::from_normalized_identity),
+                id(83, ExtentContentValidityReceiptId::from_normalized_identity),
+                id(84, ExtentContentCustodyReceiptId::from_normalized_identity),
+            )
+            .expect("provider existing-content root");
+        assert_eq!(content.origin(), extent.origin());
+        assert_eq!(content.lineage_root(), extent.lineage_root());
+        assert_eq!((content.base(), content.length()), (0x8000, 64));
+        assert_eq!(content.address_space(), extent.address_space());
+        assert_eq!(content.provenance(), extent.provenance());
+        assert_eq!(content.era(), extent.era());
+        assert_eq!(content.interpretation().normalized_identity(), 82);
+        assert_eq!(content.validity_receipt().normalized_identity(), 83);
+        assert_eq!(content.custody_receipt().normalized_identity(), 84);
+    }
+
+    #[test]
+    fn compiler_root_cannot_mint_provider_existing_content_authority() {
+        let error = local_root_grant(85, 86)
+            .mint_provider_existing_content(
+                0x9000,
+                64,
+                id(87, ExtentContentInterpretationId::from_normalized_identity),
+                id(88, ExtentContentValidityReceiptId::from_normalized_identity),
+                id(89, ExtentContentCustodyReceiptId::from_normalized_identity),
+            )
+            .expect_err("local capacity cannot assert provider-held content");
+        assert!(error.diagnostic().0.contains("compiler-provisioned"));
+        let extent = error
+            .into_grant()
+            .mint(0x9000, 64)
+            .expect("rejected content route returns the root grant");
+        assert!(extent.compiler_provisioning().is_some());
     }
 
     fn external_grant(
