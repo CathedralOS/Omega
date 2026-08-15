@@ -19202,7 +19202,8 @@ fn runtime_boolean_or_guard_exit_canary_runs() {
         "omega-runtime-bool-or-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime boolean or guard canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45176,6 +45177,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_let_mut_reassign_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
     "calls/runtime_value_call_statement_recursive_walk_exit",
+    "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_branching_helper_value",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "control_flow/runtime_multi_assignment_value_calls",
