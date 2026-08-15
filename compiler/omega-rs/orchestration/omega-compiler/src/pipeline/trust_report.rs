@@ -11,15 +11,15 @@ use omega_artifacts::{
     TrustReport, TrustReportRow,
 };
 use psi_diagnostics::Diagnostic;
-use psi_typed_trees::TypedTrees;
 
 pub(super) fn write_trust_report(
     options: &CompileOptions,
-    typed: &TypedTrees,
+    checked: &psi_checked_trees::CheckedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let typed = &checked.typed;
     let mut report = TrustReport::default();
     report.selected_provider_closure_fingerprint = selected_provider_plans.normalized_identity();
     let mut recognized_provider_grants = Vec::new();
@@ -80,6 +80,7 @@ pub(super) fn write_trust_report(
                 if selected { "yes" } else { "no" },
             ),
             provenance: provenance.to_owned(),
+            machine_contract_fingerprint: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -193,6 +194,7 @@ pub(super) fn write_trust_report(
             } else {
                 "own-package (dev-active)".to_owned()
             },
+            machine_contract_fingerprint: None,
             standing_warning: !granted,
         });
     }
@@ -212,6 +214,17 @@ pub(super) fn write_trust_report(
         let granted = root_grants
             .iter()
             .any(|grant| grant == machine.name.as_str() || grant == leaf);
+        let machine_contract_fingerprint = checked
+            .facts
+            .contract_plans
+            .for_machine(machine.symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "accepted machine `{}` has no exact checked contract plan",
+                    machine.name.as_str()
+                ))]
+            })?
+            .fingerprint;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -219,6 +232,7 @@ pub(super) fn write_trust_report(
             } else {
                 "own-package (dev-active)".to_owned()
             },
+            machine_contract_fingerprint: Some(machine_contract_fingerprint),
             standing_warning: !granted,
         });
     }
@@ -240,6 +254,7 @@ pub(super) fn write_trust_report(
             report.rows.push(TrustReportRow {
                 commitment: format!("accepted fact: {grant}"),
                 provenance: "root grant (build.omg)".to_owned(),
+                machine_contract_fingerprint: None,
                 standing_warning: false,
             });
         }
