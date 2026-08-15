@@ -275,20 +275,23 @@ machine Main::main(&mut self) {}
         .iter()
         .find(|machine| machine.name.as_str() == "Published::entry")
         .expect("published entry");
+    let invocation = checked
+        .facts
+        .synchronous_invocations
+        .for_machine(machine.symbol)
+        .expect("published invocation contract");
+    assert_eq!(
+        invocation.interface,
+        SynchronousInvocationInterface::PublishedCeiling
+    );
+    assert_eq!(invocation.published, ["parameter:0"]);
+    assert_eq!(invocation.checked_inferred, ["parameter:0"]);
+
     let contract = checked
         .facts
         .contract_plans
         .for_machine(machine.symbol)
-        .expect("published invocation contract");
-    assert_eq!(
-        contract.synchronous_invocation.interface,
-        SynchronousInvocationInterface::PublishedCeiling
-    );
-    assert_eq!(contract.synchronous_invocation.published, ["parameter:0"]);
-    assert_eq!(
-        contract.synchronous_invocation.checked_inferred,
-        ["parameter:0"]
-    );
+        .expect("published machine contract");
 
     let without_edge = with_edge.replace("invokes handler;\n{\n    handler.handle();\n}", "{\n}");
     assert_ne!(

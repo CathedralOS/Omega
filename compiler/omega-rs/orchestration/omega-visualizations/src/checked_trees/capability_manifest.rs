@@ -254,7 +254,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine: machine_symbol,
-                synchronous_invocation: Default::default(),
                 suspension: SuspensionPlan {
                     interface: SuspensionInterface::InternalInferred,
                     checked_may_suspend: true,

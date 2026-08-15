@@ -11,8 +11,7 @@
 
 use psi_language_semantics::{
     BlockingInterface, BlockingPlan, MachineSupplyMode, SuspensionInterface, SuspensionPlan,
-    SynchronousInvocationInterface, SynchronousInvocationPlan, TerminationGuarantee,
-    TerminationInterface,
+    SynchronousInvocationInterface, TerminationGuarantee, TerminationInterface,
 };
 use psi_numerics::literals::IntegerLiteral;
 use psi_symbols::SymbolHandle;
@@ -989,8 +988,6 @@ impl MachineContractPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
-    /// Direct synchronous boundary edges, kept separate from service reach.
-    pub synchronous_invocation: SynchronousInvocationPlan,
     /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,

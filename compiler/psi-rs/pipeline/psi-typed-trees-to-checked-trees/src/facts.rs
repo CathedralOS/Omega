@@ -63,6 +63,9 @@ pub(crate) fn build_check_facts(
     let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
+    // EFX: direct synchronous invocation is a separately published checked
+    // axis, never reconstructed from service reach or flow-call topology.
+    let synchronous_invocations = build_synchronous_invocation_facts(program);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
     let mutation = build_mutation_facts(program);
@@ -71,6 +74,7 @@ pub(crate) fn build_check_facts(
     let contract_plans = build_contract_plans(
         program,
         &service_reaches,
+        &synchronous_invocations,
         &operational,
         &flow,
         &operators,
@@ -94,10 +98,64 @@ pub(crate) fn build_check_facts(
         index_compatibility,
         mutation,
         service_reaches,
+        synchronous_invocations,
         qualifications,
         contract_plans,
         carry,
     ))
+}
+
+fn build_synchronous_invocation_facts(
+    program: &TypedTrees,
+) -> psi_checked_trees::SynchronousInvocationFacts {
+    let inference = psi_effects::infer_synchronous_invocations(program);
+    let machines = program
+        .machines()
+        .iter()
+        .map(|machine| {
+            let invocation_summary = inference.for_machine(machine.symbol);
+            let canonical_invocation = |target: psi_effects::InvocationTarget| match target {
+                psi_effects::InvocationTarget::Parameter(index) => format!("parameter:{index}"),
+                psi_effects::InvocationTarget::Service(symbol) => program
+                    .traits()
+                    .iter()
+                    .find(|definition| definition.symbol == symbol)
+                    .map(|definition| format!("service:{}", definition.name))
+                    .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
+            };
+            let mut published = invocation_summary
+                .into_iter()
+                .flat_map(|summary| summary.published.iter().copied())
+                .map(canonical_invocation)
+                .collect::<Vec<_>>();
+            published.sort_unstable();
+            published.dedup();
+            let mut checked_inferred = invocation_summary
+                .into_iter()
+                .flat_map(|summary| summary.inferred_transitive.iter().copied())
+                .map(canonical_invocation)
+                .collect::<Vec<_>>();
+            checked_inferred.sort_unstable();
+            checked_inferred.dedup();
+            let publishes_invocations = machine.supply_mode
+                != psi_language_semantics::MachineSupplyMode::CheckedBody
+                || !program.machine_invokes(machine).is_empty();
+
+            psi_checked_trees::MachineSynchronousInvocationFact {
+                machine: machine.symbol,
+                plan: psi_language_semantics::SynchronousInvocationPlan {
+                    interface: if publishes_invocations {
+                        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling
+                    } else {
+                        psi_language_semantics::SynchronousInvocationInterface::InternalInferred
+                    },
+                    published,
+                    checked_inferred,
+                },
+            }
+        })
+        .collect();
+    psi_checked_trees::SynchronousInvocationFacts { machines }
 }
 
 fn build_dynamic_conformance_facts(
@@ -191,6 +249,7 @@ fn selected_data_conformance<'program>(
 fn build_contract_plans(
     program: &TypedTrees,
     service_reaches: &psi_checked_trees::ServiceReachFacts,
+    synchronous_invocations: &psi_checked_trees::SynchronousInvocationFacts,
     operational: &OperationalPlan,
     flow: &psi_checked_trees::FlowFacts,
     operators: &psi_checked_trees::CheckedOperatorFacts,
@@ -198,7 +257,6 @@ fn build_contract_plans(
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
-    let invocation_inference = psi_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
         let published_service_row = service_fact
@@ -211,42 +269,9 @@ fn build_contract_plans(
             .filter_map(|service| service_reaches.services.definition(*service))
             .map(|definition| definition.name.clone())
             .collect::<Vec<_>>();
-        let invocation_summary = invocation_inference.for_machine(machine.symbol);
-        let canonical_invocation = |target: psi_effects::InvocationTarget| match target {
-            psi_effects::InvocationTarget::Parameter(index) => format!("parameter:{index}"),
-            psi_effects::InvocationTarget::Service(symbol) => program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
-                .map(|definition| format!("service:{}", definition.name))
-                .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
-        };
-        let mut published_invocations = invocation_summary
-            .into_iter()
-            .flat_map(|summary| summary.published.iter().copied())
-            .map(canonical_invocation)
-            .collect::<Vec<_>>();
-        published_invocations.sort_unstable();
-        published_invocations.dedup();
-        let mut checked_invocations = invocation_summary
-            .into_iter()
-            .flat_map(|summary| summary.inferred_transitive.iter().copied())
-            .map(canonical_invocation)
-            .collect::<Vec<_>>();
-        checked_invocations.sort_unstable();
-        checked_invocations.dedup();
-        let publishes_invocations = machine.supply_mode
-            != psi_language_semantics::MachineSupplyMode::CheckedBody
-            || !program.machine_invokes(machine).is_empty();
-        let synchronous_invocation = psi_language_semantics::SynchronousInvocationPlan {
-            interface: if publishes_invocations {
-                psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling
-            } else {
-                psi_language_semantics::SynchronousInvocationInterface::InternalInferred
-            },
-            published: published_invocations.clone(),
-            checked_inferred: checked_invocations,
-        };
+        let synchronous_invocation = synchronous_invocations
+            .for_machine(machine.symbol)
+            .expect("every checked machine must publish synchronous invocation facts");
         let termination =
             crate::checks::termination::build_checked_termination_plan(program, machine);
         // Slice 2: the declared requires/ensures facts in a CANONICAL,
@@ -366,7 +391,7 @@ fn build_contract_plans(
             machine.supply_mode,
             &published_service_names,
             synchronous_invocation.interface,
-            &published_invocations,
+            &synchronous_invocation.published,
             suspension.interface,
             blocking.interface,
             &crash,
@@ -375,7 +400,6 @@ fn build_contract_plans(
         );
         machines.push(psi_checked_trees::MachineContractPlan {
             machine: machine.symbol,
-            synchronous_invocation,
             suspension,
             blocking,
             closed_scalar_values,

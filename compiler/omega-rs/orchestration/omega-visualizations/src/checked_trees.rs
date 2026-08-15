@@ -1750,11 +1750,13 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 independent_machine_service_reach_plan(program, machine.symbol),
             );
             json.push_str(",\n        \"synchronous_invocation\": ");
-            push_synchronous_invocation_plan_json(
-                &mut json,
-                &contract.synchronous_invocation,
-                false,
-            );
+            let synchronous_invocation = program
+                .facts
+                .synchronous_invocations
+                .for_machine(machine.symbol)
+                .cloned()
+                .unwrap_or_default();
+            push_synchronous_invocation_plan_json(&mut json, &synchronous_invocation, false);
             json.push_str(",\n        \"suspension\": ");
             push_suspension_plan_json(&mut json, contract.suspension);
             json.push_str(",\n        \"blocking\": ");
@@ -1790,7 +1792,13 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 independent_machine_service_reach_plan(program, machine.symbol).checked_inferred,
             );
             json.push_str(",\n        \"checked_synchronous_invocations\": ");
-            push_string_array(&mut json, &contract.synchronous_invocation.checked_inferred);
+            let checked_synchronous_invocations = program
+                .facts
+                .synchronous_invocations
+                .for_machine(machine.symbol)
+                .map(|plan| plan.checked_inferred.as_slice())
+                .unwrap_or_default();
+            push_string_array(&mut json, checked_synchronous_invocations);
             let state_write_frames = program
                 .facts
                 .mutation
@@ -3131,7 +3139,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine,
-                synchronous_invocation: Default::default(),
                 suspension: SuspensionPlan {
                     checked_may_suspend,
                     ..Default::default()
@@ -4068,18 +4075,23 @@ mod tests {
                 states: Default::default(),
             },
         );
+        program.facts.synchronous_invocations.machines.push(
+            psi_checked_trees::MachineSynchronousInvocationFact {
+                machine: symbol,
+                plan: psi_language_semantics::SynchronousInvocationPlan {
+                    interface:
+                        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+                    published: vec!["parameter:0".to_owned()],
+                    checked_inferred: vec!["parameter:0".to_owned()],
+                },
+            },
+        );
         program
             .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine: symbol,
-                synchronous_invocation: psi_language_semantics::SynchronousInvocationPlan {
-                    interface:
-                        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
-                    published: vec!["parameter:0".to_owned()],
-                    checked_inferred: vec!["parameter:0".to_owned()],
-                },
                 suspension: SuspensionPlan {
                     interface: SuspensionInterface::PublishedMaySuspend(false),
                     checked_may_suspend: false,
