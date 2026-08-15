@@ -405,7 +405,7 @@ fn validate_qualification_receipt(
 fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts::ProgramPoint) {
     use psi_facts::ProgramPoint;
 
-    let (machine_symbol, state_symbol) = match point {
+    let (machine_symbol, state_symbol, statement_index) = match point {
         ProgramPoint::Global | ProgramPoint::Definition { .. } => return,
         ProgramPoint::Machine { machine_symbol } => {
             program
@@ -418,45 +418,58 @@ fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts
         ProgramPoint::State {
             machine_symbol,
             state_symbol,
-        }
-        | ProgramPoint::Statement {
+        } => (machine_symbol, state_symbol, None),
+        ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
-            ..
+            statement_index,
         }
         | ProgramPoint::Call {
             machine_symbol,
             state_symbol,
+            statement_index,
             ..
         }
         | ProgramPoint::CallRequires {
             machine_symbol,
             state_symbol,
+            statement_index,
             ..
         }
         | ProgramPoint::CallEnsures {
             machine_symbol,
             state_symbol,
+            statement_index,
             ..
         }
         | ProgramPoint::Exit {
             machine_symbol,
             state_symbol,
-            ..
-        } => (machine_symbol, state_symbol),
+            statement_index,
+        } => (machine_symbol, state_symbol, Some(statement_index)),
     };
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)
         .expect("qualification evidence program point must name an exact typed machine");
-    program
+    let state = program
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == state_symbol)
         .expect(
             "qualification evidence program point state must belong to its exact typed machine",
         );
+    if let Some(statement_index) = statement_index {
+        assert!(
+            statement_index
+                < program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len(),
+            "qualification evidence program point statement index must be within its exact typed state",
+        );
+    }
 }
 
 fn validate_vacuous_qualification_use<'program>(
@@ -4014,14 +4027,18 @@ mod tests {
             name: Identifier::generated("StorageCaller::run"),
             ..Default::default()
         };
-        program.typed.push_machine_state(
-            &mut machine,
-            State {
-                symbol: state_symbol,
-                name: Identifier::generated("run"),
-                ..Default::default()
-            },
-        );
+        let mut state = State {
+            symbol: state_symbol,
+            name: Identifier::generated("run"),
+            ..Default::default()
+        };
+        for _ in 0..3 {
+            program
+                .typed
+                .statement_table
+                .push_statement(&mut state.statement_nodes, Default::default());
+        }
+        program.typed.push_machine_state(&mut machine, state);
         program.typed.push_machine(machine);
         let (requirement_owner, requirement) =
             push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
@@ -4192,6 +4209,39 @@ mod tests {
             ProgramPoint::State {
                 machine_symbol,
                 state_symbol: other_state_symbol,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "statement index must be within its exact typed state")]
+    fn qualification_manifest_rejects_out_of_range_program_point_statement() {
+        let machine_symbol = SymbolHandle::from_arena_index(80);
+        let state_symbol = SymbolHandle::from_arena_index(81);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Worker::run"),
+            ..Default::default()
+        };
+        let mut state = State {
+            symbol: state_symbol,
+            name: Identifier::generated("run"),
+            ..Default::default()
+        };
+        program
+            .typed
+            .statement_table
+            .push_statement(&mut state.statement_nodes, Default::default());
+        program.typed.push_machine_state(&mut machine, state);
+        program.typed.push_machine(machine);
+
+        validate_qualification_program_point(
+            &program,
+            ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index: 1,
             },
         );
     }
