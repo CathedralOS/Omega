@@ -21072,13 +21072,8 @@ fn custom_ranking_field_countdown_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("custom-ranking recursive delivery canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("custom-ranking recursive delivery canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("custom-ranking recursive delivery canary should run");
@@ -45535,6 +45530,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/struct_literal_field_coercion",
     "arithmetic/array_element_write_width_domain",
     "arithmetic/int_transition_arg_width_wrap",
+    "termination/custom_ranking_field_countdown_compile",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
