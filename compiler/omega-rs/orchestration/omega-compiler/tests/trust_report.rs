@@ -501,6 +501,7 @@ machine Main::exercise(&mut self) {{
         !admitted_row.contains("accepted template:"),
         "nongeneric accepted rows have no universal template identity:\n{admitted_row}"
     );
+    assert!(report.contains("generic accepted instances: 0"));
 
     std::fs::write(project.join("main.omg"), main_with("suspends;")).expect("rewrite main.omg");
     let message = format!(
@@ -535,16 +536,18 @@ machine build(b: &mut Build) {
     let main_with = |requirement_clause: &str| {
         format!(
             r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Console; value: i32; }}
+data Main {{ console: Console; first: i32; second: i32; }}
 
-machine selected(value: &i32) {{}}
+machine selected_first(value: &i32) {{}}
+machine selected_second(value: &i32) ensures true {{}}
 
 boundary machine admitted<T, machine F>(value: &T)
 where machine F(item: &T){requirement_clause};
 ensures true;
 
 machine Main::exercise(&mut self) {{
-    admitted<selected>(&self.value);
+    admitted<selected_first>(&self.first);
+    admitted<selected_second>(&self.second);
     self.console.exit_process(70);
 }}
 "#
@@ -589,6 +592,30 @@ machine Main::exercise(&mut self) {{
         admitted_rows[0].contains(&format!("accepted template: {receipt_identity}")),
         "the trust row must publish the exact receipt identity:\n{}",
         admitted_rows[0]
+    );
+    let instance_rows = report
+        .lines()
+        .filter(|line| line.starts_with("- accepted template: admitted ["))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        instance_rows.len(),
+        2,
+        "two selected machine contracts instantiate one universal grant:\n{report}"
+    );
+    assert!(
+        instance_rows
+            .iter()
+            .all(|line| line.contains(&format!("admitted [{receipt_identity}]")))
+    );
+    assert_ne!(
+        instance_rows[0], instance_rows[1],
+        "distinct selected contracts must retain distinct instance closure rows"
+    );
+    assert!(
+        instance_rows
+            .iter()
+            .all(|line| !line.ends_with("machine argument contracts: none")),
+        "each instance must retain its selected machine contract identity"
     );
     let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
         .expect("machine contract manifest written");
@@ -724,6 +751,7 @@ machine Main::exercise(&mut self) {
         report.contains("provider requirements: 1"),
         "the claim-free plan must still publish its exact requirement blast radius:\n{report}"
     );
+    assert!(report.contains("generic accepted instances: 0"));
     let requirement_row = report
         .lines()
         .find(|line| {
