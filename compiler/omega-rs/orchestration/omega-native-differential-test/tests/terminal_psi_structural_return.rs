@@ -987,7 +987,10 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && (((((input as u8) << 1i8) << 2u16) << 0i32) < 255u8)
                 && ((((signed as i8) << 1u16) << 2i32) < 127i8)
                 && ((((signed_arithmetic as u8) << 1i8) << 2u16) < 255u8)
-                && ((((small as i8) << 1u16) << 2i32) < 127i8)
+                && (((((small as i8) << 1u16) << 2i32) < 127i8)
+                    && (((((input as u8) >> 1i8) >> 2u16) >> 0i32) < 255u8)
+                    && ((((signed as i8) >> 1u16) >> 2i32) < 127i8)
+                    && ((((signed_arithmetic as u8) >> 1i8) >> 2u16) < 255u8))
                 && ((signed_arithmetic * 3i8) < 4i8)
                 && ((signed_arithmetic * -3i8) < 4i8)
                 && ((signed_arithmetic * signed_divisor) <= 127i8)
@@ -2987,6 +2990,134 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
     for obligations in [
         shift_right_then_cast_obligations.as_slice(),
         zero_shift_right_then_cast_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
+    let cast_then_shift_right_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(count, IntegerValue::Signed(0)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: middle_value,
+                count: middle_count,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(middle_count, IntegerValue::Unsigned(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(inner_count, IntegerValue::Signed(1)) {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(inner_value)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == terminal_entry.parameters[0].id).then_some([
+                cast_obligation,
+                inner_obligation,
+                middle_obligation,
+                outer_obligation,
+            ])
+        })
+        .expect("native path retains one post-cast heterogeneous right-shift chain");
+    let find_two_link_cast_then_shift_right = |parameter| {
+        operations.iter().find_map(|outer| {
+            let OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(count, IntegerValue::Unsigned(2))
+                && !has_integer_constant(count, IntegerValue::Signed(2))
+            {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(inner_count, IntegerValue::Unsigned(1))
+                && !has_integer_constant(inner_count, IntegerValue::Signed(1))
+            {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(inner_value)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == parameter).then_some([cast_obligation, inner_obligation, outer_obligation])
+        })
+    };
+    let signed_cast_then_shift_right_obligations =
+        find_two_link_cast_then_shift_right(terminal_entry.parameters[4].id)
+            .expect("native path retains one signed post-cast right-shift chain");
+    let cross_cast_then_shift_right_obligations =
+        find_two_link_cast_then_shift_right(terminal_entry.parameters[5].id)
+            .expect("native path retains one cross-sign post-cast right-shift chain");
+    for obligations in [
+        cast_then_shift_right_obligations.as_slice(),
+        signed_cast_then_shift_right_obligations.as_slice(),
+        cross_cast_then_shift_right_obligations.as_slice(),
     ] {
         for (index, obligation) in obligations.iter().enumerate() {
             for other in &obligations[index + 1..] {

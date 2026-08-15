@@ -6,6 +6,7 @@ use crate::flow::{
     exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
+    exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
@@ -1721,6 +1722,72 @@ fn exact_cast_then_shift_left_classifier_accepts_one_finite_heterogeneous_litera
         exact_cast_then_shift_left_runtime_parameter_positions_for_test(&right_associated, 1),
         None
     );
+}
+
+#[test]
+fn exact_cast_then_shift_right_classifier_accepts_one_finite_heterogeneous_literal_chain() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let cast = || CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U16,
+        }),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let shift = |left, right| CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactShiftRight,
+        primitive_type: PrimitiveType::U8,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let accepted = shift(
+        shift(
+            cast(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_cast_then_shift_right_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+    for invalid in [
+        shift(
+            cast(),
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U8,
+            },
+        ),
+        shift(
+            cast(),
+            literal(-1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        shift(
+            cast(),
+            literal(8i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        shift(
+            cast(),
+            shift(
+                literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            ),
+        ),
+    ] {
+        assert_eq!(
+            exact_cast_then_shift_right_runtime_parameter_positions_for_test(&invalid, 1),
+            None,
+        );
+    }
 }
 
 #[test]

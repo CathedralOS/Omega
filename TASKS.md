@@ -312,6 +312,11 @@ Remaining:
   checked `(A, B)` composition and the target/source interval intersection;
   `A == 0` decides only the current prefix from target representability of `B`,
   while cast and earlier arithmetic evidence remain mandatory.
+  The direct partial-cast root may now also feed a finite nonempty
+  left-associated same-value-carrier exact-right-shift chain with independently
+  landed heterogeneous legal counts. The cast proof remains independent, and
+  every shift prefix is reconstructed from only its own `0 <= count < width`
+  fact without cumulative count, value-definition, or evidence import.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
