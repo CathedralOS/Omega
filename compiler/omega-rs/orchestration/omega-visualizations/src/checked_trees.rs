@@ -1783,8 +1783,14 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_service_row_json(&mut json, program, contract.service_reach.checked_inferred);
             json.push_str(",\n        \"checked_synchronous_invocations\": ");
             push_string_array(&mut json, &contract.synchronous_invocation.checked_inferred);
+            let state_write_frames = program
+                .facts
+                .mutation
+                .for_machine(machine.symbol)
+                .map(|fact| fact.state_write_frames.as_slice())
+                .unwrap_or_default();
             json.push_str(",\n        \"inferred_write_frames\": [");
-            for (frame_index, state_frame) in contract.inferred_write_frames.iter().enumerate() {
+            for (frame_index, state_frame) in state_write_frames.iter().enumerate() {
                 if frame_index > 0 {
                     json.push(',');
                 }
@@ -1810,7 +1816,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 push_json_strings(&mut json, state_frame.frame.paths());
                 json.push_str("]}");
             }
-            if !contract.inferred_write_frames.is_empty() {
+            if !state_write_frames.is_empty() {
                 json.push('\n');
                 json.push_str("        ");
             }
@@ -3066,7 +3072,8 @@ mod tests {
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
-        MachineContractPlan, SuspensionCrossingCarryFact, VacuousQualificationUse,
+        MachineContractPlan, MachineMutationFact, StateWriteFramePlan, SuspensionCrossingCarryFact,
+        VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
@@ -3119,7 +3126,6 @@ mod tests {
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
                 termination: Default::default(),
-                inferred_write_frames: Vec::new(),
                 fingerprint: 0,
             });
     }
@@ -3802,6 +3808,51 @@ mod tests {
     }
 
     #[test]
+    fn machine_contract_manifest_reads_independent_mutation_facts() {
+        let machine_symbol = SymbolHandle::from_arena_index(2);
+        let state_symbol = SymbolHandle::from_arena_index(3);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Worker::write"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
+        push_behavior_contract(&mut program, machine_symbol, false, false);
+
+        let without_mutation = machine_contract_manifest_json(&program);
+        assert!(without_mutation.contains("\"inferred_write_frames\": []"));
+
+        program.facts.mutation.machines.push(MachineMutationFact {
+            machine: machine_symbol,
+            state_write_frames: vec![StateWriteFramePlan {
+                state: state_symbol,
+                frame: psi_facts::NormalizedWriteFrame::complete(vec!["self.value".to_owned()]),
+            }],
+        });
+        let with_mutation = machine_contract_manifest_json(&program);
+        let contract_start = with_mutation.find("\"contract\"").expect("contract object");
+        let implementation_start = with_mutation
+            .find("\"implementation\"")
+            .expect("implementation object");
+        assert!(
+            !with_mutation[contract_start..implementation_start].contains("inferred_write_frames")
+        );
+        assert!(with_mutation[implementation_start..].contains(
+            "\"inferred_write_frames\": [\n          {\"state\": \"entry\", \"completeness\": \"complete\""
+        ));
+        assert!(with_mutation[implementation_start..].contains("\"paths\": [\"self.value\"]"));
+    }
+
+    #[test]
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         let symbol = SymbolHandle::from_arena_index(2);
         let state_symbol = SymbolHandle::from_arena_index(3);
@@ -3955,7 +4006,6 @@ mod tests {
                         rank_range: None,
                     }),
                 },
-                inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,
             });
         program.facts.contract_plans.crash_capsules.push(

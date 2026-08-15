@@ -156,7 +156,6 @@ fn push_operational_contract(
             closed_scalar_values: Default::default(),
             crash: Default::default(),
             termination: Default::default(),
-            inferred_write_frames: Vec::new(),
             fingerprint: 0,
         });
 }
