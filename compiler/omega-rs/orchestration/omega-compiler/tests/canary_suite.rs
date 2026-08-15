@@ -10251,18 +10251,12 @@ stderr:
 #[test]
 fn runtime_slice_length_local_binding_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_slice_length_local_binding_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-slice-len-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("slice length local binding canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("slice length local binding canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -10288,18 +10282,12 @@ fn runtime_slice_length_local_binding_exit_canary_runs() {
 #[test]
 fn runtime_slice_length_local_param_binding_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_slice_length_local_param_binding_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-slice-len-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("slice length local param binding canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("slice length local param binding canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -10325,18 +10313,12 @@ fn runtime_slice_length_local_param_binding_exit_canary_runs() {
 #[test]
 fn runtime_subslice_length_local_binding_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_subslice_length_local_binding_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-subslice-len-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("subslice length local binding canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("subslice length local binding canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -10362,18 +10344,12 @@ fn runtime_subslice_length_local_binding_exit_canary_runs() {
 #[test]
 fn runtime_inline_subslice_length_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_inline_subslice_length_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-inline-subslice-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("inline subslice length canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("inline subslice length canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
