@@ -207,14 +207,31 @@ fields; adding or renaming one is likewise breaking.
 
 ## Evidence output packages
 
-A machine with one or more named `ensures` clauses returns a compiler-generated
-nominal output package whose concrete type is inferred and cannot be written in
-source. Its identity derives from the machine, runtime result, named evidence
-fields, propositions, and outcome guards. Coincidentally equal shapes from two
-machines are not the same type, and no generated `Machine::Output` name is
-inserted into an author-owned namespace.
+A machine with named `ensures` clauses conceptually returns a compiler-generated
+nominal output package whose concrete type cannot be written in source. The
+implemented first rung is deliberately narrower: a concrete, one-state,
+zero-argument checked machine with no runtime result, input evidence, runtime
+statements, or guarded outputs may publish exactly one named `ensures` field.
+Its call must be destructured immediately with the approved colon form, and the
+fresh local evidence term must be forwarded exactly once:
 
-The complete package may be retained and projected:
+```omega
+let { outgoing: local } = produce();
+result = local;
+```
+
+The binding is proof-only: it creates no `Unit` local, runtime operation, or
+fuel charge. The terminal artifact retains a dense invocation row joining the
+callee declaration to a distinct caller-local term; codec and verifier reject
+identity, interface, ordering, or freshness drift.
+
+The complete package model remains pending. Its identity will derive from the
+machine, runtime result, named evidence fields, propositions, and outcome
+guards. Coincidentally equal shapes from two machines will not be the same
+type, and no generated `Machine::Output` name will be inserted into an
+author-owned namespace.
+
+Future rungs may retain and project the complete package:
 
 ```omega
 let division = divide(numerator, denominator);
@@ -222,7 +239,7 @@ use(division.value);
 consume(division.nonzero_evidence);
 ```
 
-Or it may be destructured immediately:
+They may also destructure packages containing runtime or multiple fields:
 
 ```omega
 let {
@@ -231,6 +248,8 @@ let {
 } = divide(numerator, denominator);
 ```
 
+Those broader retained, projected, multi-field, runtime-`value`, guarded,
+generic, and explicit-discard forms are not implemented by the first rung.
 `value` is the reserved contextual field for an ordinary runtime result. Named
 evidence fields erase, so the package has the runtime representation of
 `value`; a proof-only package has zero runtime layout. There is no implicit

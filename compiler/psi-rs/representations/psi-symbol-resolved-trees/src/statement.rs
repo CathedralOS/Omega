@@ -12,9 +12,20 @@ pub enum Statement {
     AssemblyFact(AssemblyFact),
     Assignment(Assignment),
     Call(Call),
+    EvidencePackageDestructure(EvidencePackageDestructure),
     Expression(crate::expression::ExpressionHandle),
     LocalData(LocalData),
     Transition(Transition),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidencePackageDestructure {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub output_field: DiagnosticName,
+    pub binding: DiagnosticName,
+    pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -358,6 +369,24 @@ impl StatementTable {
                     discards_result: call.discards_result,
                 }))
             }
+            Statement::EvidencePackageDestructure(package) => {
+                let call = expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    package.call,
+                    copy_expression_handles,
+                );
+                self.insert(StatementNode::EvidencePackageDestructure(
+                    EvidencePackageDestructure {
+                        machine_symbol: package.machine_symbol,
+                        state_symbol: package.state_symbol,
+                        statement_index: package.statement_index,
+                        output_field: package.output_field.clone(),
+                        binding: package.binding.clone(),
+                        call,
+                    },
+                ))
+            }
             Statement::Expression(expression) => {
                 let expression = expression_handle_from_tree(
                     source_expressions,
@@ -544,6 +573,7 @@ pub enum StatementNode {
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
+    EvidencePackageDestructure(EvidencePackageDestructure),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),

@@ -1529,6 +1529,9 @@ fn collect_statement_expression_handles(
                 collect_expression_handles(syntax, *argument, handles);
             }
         }
+        StatementNode::EvidencePackageDestructure(binding) => {
+            collect_expression_handles(syntax, binding.call, handles)
+        }
         StatementNode::Expression(expression) => {
             collect_expression_handles(syntax, *expression, handles)
         }

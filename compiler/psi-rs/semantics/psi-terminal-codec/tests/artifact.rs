@@ -1364,6 +1364,7 @@ fn semantic_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,

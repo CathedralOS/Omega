@@ -98,9 +98,20 @@ pub enum StatementNode {
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
+    EvidencePackageDestructure(TableEvidencePackageDestructure),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
+}
+
+/// Immediate binding of the sole erased field of a proof-only generated
+/// output package. This is deliberately distinct from record destructuring:
+/// the receiver is evaluated once and no runtime local or member read exists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableEvidencePackageDestructure {
+    pub output_field: Identifier,
+    pub binding: Identifier,
+    pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

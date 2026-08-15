@@ -108,6 +108,21 @@ pub(crate) fn lower_state(
         .statements
         .statements(state.statement_nodes)
     {
+        if let resolved::statement::StatementNode::EvidencePackageDestructure(package) = statement {
+            let call = crate::expression::lower_expression_handle(lowerer, package.call)?;
+            lowerer.typed_trees.evidence_package_invocations.push(
+                typed::typed_trees::EvidencePackageInvocation {
+                    machine_symbol: package.machine_symbol,
+                    state_symbol: package.state_symbol,
+                    statement_index: typed_state.statement_nodes.count() as usize,
+                    source_statement_index: package.statement_index,
+                    output_field: crate::name::lower_name(&package.output_field),
+                    binding: crate::name::lower_name(&package.binding),
+                    call,
+                },
+            );
+            continue;
+        }
         let statement = lower_statement_node(lowerer, attached_data, state, statement)?;
         lowerer
             .typed_trees

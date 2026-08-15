@@ -106,6 +106,9 @@ pub struct TerminalModule {
     /// Strictly ordered erased machine-contract lane rows. These reference
     /// term vocabulary identities and have no runtime representation.
     pub evidence_contract_lanes: Vec<EvidenceContractLane>,
+    /// Canonical proof-only invocations that introduce fresh caller-local
+    /// evidence from a generated output package.
+    pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
     pub machines: Vec<TerminalMachine>,
 }
 
@@ -370,6 +373,20 @@ pub struct EvidenceContractLane {
     /// Public compiler-generated result-package field. Present exactly on an
     /// `ensures` lane; `requires` names remain local input aliases.
     pub output_field: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvidencePackageInvocation {
+    pub caller: MachineId,
+    /// Dense canonical order within the caller; source coordinates erase.
+    pub ordinal: u32,
+    /// Canonical checked callable identity, never a diagnostic display path.
+    pub target_machine_identity: String,
+    pub output_position: u32,
+    /// Exact public generated-package field selected from the callee lane.
+    pub output_field: String,
+    pub callee_output: EvidenceTermId,
+    pub output: EvidenceTermId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

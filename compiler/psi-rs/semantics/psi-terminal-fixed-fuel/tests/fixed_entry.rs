@@ -1302,6 +1302,7 @@ fn unit_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
             attachment: None,
@@ -1878,6 +1879,7 @@ fn unit_effect_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(700),
@@ -1989,6 +1991,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -2085,6 +2088,7 @@ fn call_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),

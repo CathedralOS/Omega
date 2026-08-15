@@ -71,6 +71,74 @@ const EMPTY_PRODUCER_SOURCE: &str = r#"
     }
 "#;
 
+const GENERATED_PACKAGE_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::produce()
+    ensures outgoing: ready()
+    {
+        outgoing = ConcreteEvidence;
+    }
+
+    machine Root::relay()
+    ensures relayed: ready()
+    {
+        let { outgoing: local } = Root::produce();
+        relayed = local;
+    }
+"#;
+
+const REPEATED_GENERATED_PACKAGE_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::produce()
+    ensures outgoing: ready()
+    {
+        outgoing = ConcreteEvidence;
+    }
+
+    machine Root::relay()
+    ensures first: ready()
+    ensures second: ready()
+    {
+        let { outgoing: local_first } = Root::produce();
+        first = local_first;
+        let { outgoing: local_second } = Root::produce();
+        second = local_second;
+    }
+"#;
+
+const DISTINCT_GENERATED_PACKAGE_PRODUCERS_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::produce_first()
+    ensures outgoing: ready()
+    { outgoing = ConcreteEvidence; }
+
+    machine Root::produce_second()
+    ensures outgoing: ready()
+    { outgoing = ConcreteEvidence; }
+
+    machine Root::relay()
+    ensures first: ready()
+    ensures second: ready()
+    {
+        let { outgoing: local_first } = Root::produce_first();
+        first = local_first;
+        let { outgoing: local_second } = Root::produce_second();
+        second = local_second;
+    }
+"#;
+
 const PROJECTED_SOURCE: &str = r#"
     trait Parent<T> {
         machine modulus(value: T) -> i32;
@@ -684,6 +752,146 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
         execution.resume(&mut meter).expect("execute producer"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
+}
+
+#[test]
+fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
+    let checked = check(GENERATED_PACKAGE_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("generated evidence package should cross terminal Psi");
+    let [invocation] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("one terminal evidence-package invocation expected")
+    };
+    assert_eq!(invocation.ordinal, 0);
+    assert_eq!(invocation.output_position, 0);
+    assert_eq!(invocation.output_field, "outgoing");
+    assert_ne!(invocation.callee_output, invocation.output);
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
+
+    let bytes = encode_module(&lowered.semantic_module).expect("package module encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("package proof encodes");
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("exact package invocation and callee producer verify");
+    derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("proof-only invocation adds no runtime fuel obligation");
+
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+    )
+    .expect("proof-only package requires no runtime argument");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("execute erased package"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+
+    let mut forged = lowered.semantic_module.clone();
+    forged.evidence_package_invocations[0].output =
+        forged.evidence_package_invocations[0].callee_output;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&forged),
+        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+    ));
+
+    let baseline = semantic_fingerprint(&lowered.semantic_module).expect("package identity");
+    let mut renamed_target = lowered.semantic_module.clone();
+    renamed_target.evidence_package_invocations[0].target_machine_identity =
+        "different canonical producer".to_owned();
+    assert_ne!(
+        semantic_fingerprint(&renamed_target).expect("renamed target is distinct semantics"),
+        baseline
+    );
+    let mut renamed_field = lowered.semantic_module.clone();
+    renamed_field.evidence_package_invocations[0].output_field = "renamed".to_owned();
+    assert_ne!(
+        semantic_fingerprint(&renamed_field).expect("renamed field is distinct semantics"),
+        baseline
+    );
+    let mut non_dense = lowered.semantic_module.clone();
+    non_dense.evidence_package_invocations[0].ordinal = 1;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&non_dense),
+        Err(psi_terminal_verifier::ModuleError::NonCanonicalEvidencePackageInvocation { .. })
+    ));
+    let mut empty_target = lowered.semantic_module.clone();
+    empty_target.evidence_package_invocations[0]
+        .target_machine_identity
+        .clear();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&empty_target),
+        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+    ));
+    let mut reserved_field = lowered.semantic_module.clone();
+    reserved_field.evidence_package_invocations[0].output_field = "value".to_owned();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&reserved_field),
+        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+    ));
+}
+
+#[test]
+fn repeated_generated_package_calls_have_dense_fresh_outputs_and_one_callee_producer() {
+    let checked = check(REPEATED_GENERATED_PACKAGE_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("repeated package calls should retain distinct invocation terms");
+    let [first, second] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("two invocation rows expected")
+    };
+    assert_eq!((first.ordinal, second.ordinal), (0, 1));
+    assert_eq!(first.callee_output, second.callee_output);
+    assert_ne!(first.output, second.output);
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("one callee declaration needs one producer regardless of invocation count");
+}
+
+#[test]
+fn same_shape_generated_packages_retain_distinct_canonical_callee_identities() {
+    let checked = check(DISTINCT_GENERATED_PACKAGE_PRODUCERS_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("same-shape producer packages should lower");
+    let [first, second] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("two invocation rows expected")
+    };
+    assert_ne!(
+        first.target_machine_identity,
+        second.target_machine_identity
+    );
+    assert!(!first.target_machine_identity.is_empty());
+    assert!(!second.target_machine_identity.is_empty());
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("canonical callee identity remains verified semantic data");
 }
 
 #[test]

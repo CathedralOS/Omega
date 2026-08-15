@@ -44,6 +44,7 @@ pub fn lower_symbol_resolved_trees(
                 machine_symbol: forwarding.machine_symbol,
                 state_symbol: forwarding.state_symbol,
                 statement_index: forwarding.statement_index,
+                source_statement_index: forwarding.statement_index,
                 target: crate::name::lower_name(&forwarding.target),
                 source: crate::name::lower_name(&forwarding.source),
                 source_conformance: forwarding.source_conformance,
@@ -212,6 +213,7 @@ impl Lowerer<'_> {
             boundary_calling_plans: _,
             open_index_normalizations: _,
             evidence_forwardings,
+            evidence_package_invocations,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
@@ -219,7 +221,23 @@ impl Lowerer<'_> {
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
-        trees.evidence_forwardings = evidence_forwardings;
+        trees.evidence_forwardings = evidence_forwardings
+            .into_iter()
+            .map(|mut forwarding| {
+                let erased_before = evidence_package_invocations
+                    .iter()
+                    .filter(|package| {
+                        package.machine_symbol == forwarding.machine_symbol
+                            && package.state_symbol == forwarding.state_symbol
+                            && package.source_statement_index < forwarding.statement_index
+                    })
+                    .count();
+                forwarding.statement_index =
+                    forwarding.statement_index.saturating_sub(erased_before);
+                forwarding
+            })
+            .collect();
+        trees.evidence_package_invocations = evidence_package_invocations;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(&mut trees)?;
         Ok(trees)

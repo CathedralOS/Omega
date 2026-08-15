@@ -477,6 +477,11 @@ pub enum StatementSnapshot {
         acknowledges_suspend: bool,
         acknowledges_block: bool,
     },
+    EvidencePackageDestructure {
+        output_field: IdentifierSnapshot,
+        binding: IdentifierSnapshot,
+        call: ExpressionSnapshot,
+    },
     Expression {
         value: ExpressionSnapshot,
     },
@@ -1573,6 +1578,13 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
+        StatementNode::EvidencePackageDestructure(binding) => {
+            StatementSnapshot::EvidencePackageDestructure {
+                output_field: snapshot_identifier(&binding.output_field),
+                binding: snapshot_identifier(&binding.binding),
+                call: snapshot_expression_handle(syntax_trees, binding.call),
+            }
+        }
         StatementNode::Expression(value) => StatementSnapshot::Expression {
             value: snapshot_expression_handle(syntax_trees, *value),
         },

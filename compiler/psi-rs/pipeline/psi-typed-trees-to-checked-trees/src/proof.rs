@@ -90,6 +90,7 @@ pub(crate) fn build_proof_facts_with_operators(
         evidence_terms,
         psi_arena::Arena::default(),
         psi_arena::Arena::default(),
+        psi_arena::Arena::default(),
         contract_fact_refs,
         contract_calls,
         contract_exits,
@@ -117,7 +118,19 @@ pub(crate) fn bind_evidence_forwarding_facts(
             forwarding.machine_symbol,
             forwarding.source.as_str(),
             ContractProofFactKind::Requires,
-        );
+        )
+        .or_else(|| {
+            proof
+                .evidence_package_invocations
+                .iter()
+                .filter_map(|(_, invocation)| {
+                    (invocation.caller_machine_symbol == forwarding.machine_symbol
+                        && invocation.caller_state_symbol == forwarding.state_symbol
+                        && invocation.source_statement_index < forwarding.source_statement_index)
+                        .then_some(invocation.output)
+                })
+                .find(|term| proof.evidence_terms.get(*term).name == forwarding.source.as_str())
+        });
         let Some(output) = output else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "evidence forwarding target `{}` is not a named ensures binding of this machine",
@@ -154,7 +167,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
             source
         } else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "evidence forwarding source `{}` is not a named requires binding of this machine or an explicit subjectless conformance",
+                "evidence forwarding source `{}` is not a named requires binding of this machine or an explicit subjectless conformance, and is not an available generated package output",
                 forwarding.source
             )));
             continue;
@@ -168,9 +181,196 @@ pub(crate) fn bind_evidence_forwarding_facts(
         });
     }
 
+    for (_, invocation) in proof.evidence_package_invocations.iter() {
+        let uses = forwardings
+            .iter()
+            .filter(|(_, forwarding)| {
+                matches!(
+                    forwarding.source,
+                    psi_checked_trees::EvidenceAssignmentSource::Forwarded { term }
+                        if term == invocation.output
+                )
+            })
+            .count();
+        if uses != 1 {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "generated evidence package term `{}` must be forwarded exactly once; found {uses} uses",
+                proof.evidence_terms.get(invocation.output).name
+            )));
+        }
+    }
+
     if diagnostics.is_empty() {
         proof.evidence_forwardings = forwardings;
         validate_evidence_forwarding_definite_assignment(program, proof)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+pub(crate) fn bind_evidence_package_invocation_facts(
+    program: &psi_typed_trees::TypedTrees,
+    proof: &mut ProofFacts,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let mut diagnostics = Vec::new();
+    let mut invocations = psi_arena::Arena::default();
+
+    for package in &program.evidence_package_invocations {
+        let ExpressionNode::Call(call) = program.expression_table.expression(package.call) else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "generated evidence package binding requires a direct call",
+            ));
+            continue;
+        };
+        let Some((target_machine, target_state)) = program.machines().iter().find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == call.target_symbol)
+                .map(|state| (machine, state))
+        }) else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "generated evidence package call `{}` must target a concrete machine state",
+                call.target
+            )));
+            continue;
+        };
+
+        let concrete = target_machine.lifetime_parameters.is_empty()
+            && target_machine.type_parameters.is_empty()
+            && target_machine.conformance_bounds.is_empty()
+            && call.machine_arguments.is_empty();
+        let proof_only = program.machine_states(target_machine).len() == 1
+            && target_machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+            && program.state_parameters(target_state).is_empty()
+            && !target_state.return_type.is_valid()
+            && target_state.statement_nodes.is_empty()
+            && program
+                .expression_table
+                .expression_handles(call.arguments)
+                .is_empty()
+            && call.evidence_arguments.is_empty();
+        if !concrete || !proof_only {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "generated evidence package call `{}` is limited to a concrete one-state, zero-argument, proof-only machine",
+                call.target
+            )));
+            continue;
+        }
+
+        let requires = proof
+            .evidence_terms
+            .iter()
+            .filter(|(_, term)| {
+                term.kind == ContractProofFactKind::Requires
+                    && (term.owner
+                        == ContractProofFactOwner::Machine {
+                            machine_symbol: target_machine.symbol,
+                        }
+                        || term.owner
+                            == (ContractProofFactOwner::MachineState {
+                                machine_symbol: target_machine.symbol,
+                                state_symbol: target_state.symbol,
+                            }))
+            })
+            .count();
+        let outputs = proof
+            .evidence_terms
+            .iter()
+            .filter_map(|(handle, term)| {
+                (term.kind == ContractProofFactKind::Ensures
+                    && term.owner
+                        == (ContractProofFactOwner::Machine {
+                            machine_symbol: target_machine.symbol,
+                        }))
+                .then_some(handle)
+            })
+            .collect::<Vec<_>>();
+        let [callee_output] = outputs.as_slice() else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "generated evidence package call `{}` requires exactly one unconditional named ensures output",
+                call.target
+            )));
+            continue;
+        };
+        if requires != 0 {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "generated evidence package call `{}` cannot require input evidence",
+                call.target
+            )));
+            continue;
+        }
+        let declaration = proof.evidence_terms.get(*callee_output).clone();
+        if declaration.name != package.output_field.as_str() {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "generated evidence package from `{}` has field `{}`, not `{}`",
+                call.target, declaration.name, package.output_field
+            )));
+            continue;
+        }
+        if package.binding.as_str() == "_" {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "generated evidence package output cannot be discarded",
+            ));
+            continue;
+        }
+        let duplicate = proof.evidence_terms.iter().any(|(_, term)| {
+            term.name == package.binding.as_str()
+                && (term.owner
+                    == (ContractProofFactOwner::Machine {
+                        machine_symbol: package.machine_symbol,
+                    })
+                    || term.owner
+                        == (ContractProofFactOwner::MachineState {
+                            machine_symbol: package.machine_symbol,
+                            state_symbol: package.state_symbol,
+                        }))
+        }) || invocations.iter().any(
+            |(_, invocation): (_, &psi_checked_trees::EvidencePackageInvocationFact)| {
+                let term = proof.evidence_terms.get(invocation.output);
+                invocation.caller_machine_symbol == package.machine_symbol
+                    && invocation.caller_state_symbol == package.state_symbol
+                    && term.name == package.binding.as_str()
+            },
+        );
+        if duplicate {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "evidence term `{}` is already bound in this machine state",
+                package.binding
+            )));
+            continue;
+        }
+
+        let output = proof.evidence_terms.append(CheckedEvidenceTerm {
+            name: package.binding.as_str().to_owned(),
+            owner: ContractProofFactOwner::MachineState {
+                machine_symbol: package.machine_symbol,
+                state_symbol: package.state_symbol,
+            },
+            kind: ContractProofFactKind::Ensures,
+            lane_position: declaration.lane_position,
+            proposition: declaration.proposition,
+            evidence_type: declaration.evidence_type,
+            evidence_interface: declaration.evidence_interface,
+        });
+        invocations.append(psi_checked_trees::EvidencePackageInvocationFact {
+            caller_machine_symbol: package.machine_symbol,
+            caller_state_symbol: package.state_symbol,
+            statement_index: package.statement_index,
+            source_statement_index: package.source_statement_index,
+            target_machine_symbol: target_machine.symbol,
+            target_state_symbol: target_state.symbol,
+            output_position: declaration.lane_position,
+            callee_output: *callee_output,
+            output,
+        });
+    }
+
+    if diagnostics.is_empty() {
+        proof.evidence_package_invocations = invocations;
+        Ok(())
     } else {
         Err(diagnostics)
     }

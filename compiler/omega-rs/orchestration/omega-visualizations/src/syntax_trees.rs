@@ -698,6 +698,11 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
             syntax.expressions.display_name(assignment.value)
         ),
         StatementNode::Call(call) => call_label(syntax, call),
+        StatementNode::EvidencePackageDestructure(binding) => format!(
+            "evidence package {}: {}",
+            binding.output_field.as_str(),
+            binding.binding.as_str()
+        ),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(value) => format!("local {}", value.name.as_str()),
         StatementNode::Transition(transition) => transition_label(syntax, transition),
