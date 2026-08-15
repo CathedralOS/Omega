@@ -11135,10 +11135,11 @@ fn utf8_return_view_equals_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-utf8-return-view-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 return view canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("utf8 return view canary should run");
 
@@ -11159,10 +11160,11 @@ fn runtime_shift_operators_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-shift-operators-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift operators canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("shift operators canary should run");
 
@@ -11183,10 +11185,11 @@ fn runtime_bitwise_operators_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-bitwise-operators-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bitwise operators canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bitwise operators canary should run");
 
@@ -11206,10 +11209,11 @@ fn runtime_popcount_loop_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_popcount_loop_exit");
     let scratch = std::env::temp_dir().join(format!("omega-popcount-loop-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("popcount loop canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("popcount loop canary should run");
 
@@ -11229,10 +11233,11 @@ fn runtime_xorshift_prng_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_xorshift_prng_exit");
     let scratch = std::env::temp_dir().join(format!("omega-xorshift-prng-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("xorshift prng canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("xorshift prng canary should run");
 
@@ -11252,10 +11257,11 @@ fn runtime_bitwise_guard_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_bitwise_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-bitwise-guard-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bitwise guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bitwise guard canary should run");
 
@@ -11278,10 +11284,11 @@ fn integer_literal_suffix_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("integer literal suffix canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("integer literal suffix canary should run");
 
@@ -45979,6 +45986,13 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "domains/utf8_return_view_equals_exit",
+    "operators/integer_literal_suffix_exit",
+    "operators/runtime_bitwise_guard_exit",
+    "operators/runtime_bitwise_operators_exit",
+    "operators/runtime_popcount_loop_exit",
+    "operators/runtime_shift_operators_exit",
+    "operators/runtime_xorshift_prng_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
     "text/runtime_bounded_carrier_pointee_guard_exit",
@@ -46368,6 +46382,13 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "domains/utf8_return_view_equals_exit",
+    "operators/integer_literal_suffix_exit",
+    "operators/runtime_bitwise_guard_exit",
+    "operators/runtime_bitwise_operators_exit",
+    "operators/runtime_popcount_loop_exit",
+    "operators/runtime_shift_operators_exit",
+    "operators/runtime_xorshift_prng_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
     "text/runtime_bounded_carrier_pointee_guard_exit",
