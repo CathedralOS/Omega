@@ -2729,6 +2729,116 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
+/// Stable-only consumer contract for one bounded compound mutation.
+///
+/// This carrier remains distinct from an ordinary Stable read or write: its
+/// consumer must realize one read-patch-write sequence over the complete
+/// retained effect footprint without weakening either exclusive borrow.
+#[derive(Debug)]
+#[must_use = "Stable compound mutation retains its exact placed authority"]
+pub struct StableCompoundMutationAccessRequest<'view, 'extent> {
+    request: PrimitiveAccessRequest<'view, 'extent>,
+}
+
+impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
+    pub const fn primitive_address(&self) -> u64 {
+        self.request.primitive_address
+    }
+
+    pub const fn transfer_width_bits(&self) -> u16 {
+        self.request.transfer_width_bits
+    }
+
+    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
+        &self.request.logical_extent
+    }
+
+    pub const fn effect_footprint(&self) -> EffectFootprint {
+        self.request.effect_footprint
+    }
+
+    pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
+        self.request
+    }
+}
+
+/// Failed compound specialization returns the exact sealed request so its
+/// content-custody lifetime and exclusive authority remain available.
+#[derive(Debug)]
+pub struct StableCompoundMutationAccessRejection<'view, 'extent> {
+    request: PrimitiveAccessRequest<'view, 'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'view, 'extent> StableCompoundMutationAccessRejection<'view, 'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
+        (self.request, self.diagnostic)
+    }
+}
+
+impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
+    /// Consume this general request into the exact contract accepted by one
+    /// bounded Stable read-patch-write realization.
+    pub fn into_stable_compound_mutation_access(
+        self,
+    ) -> Result<
+        StableCompoundMutationAccessRequest<'view, 'extent>,
+        StableCompoundMutationAccessRejection<'view, 'extent>,
+    > {
+        if self.observation != ObservationModel::Stable {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Stable compound mutation requires a Stable observation".into(),
+                ),
+            });
+        }
+        if self.effective_supply.kind() != EffectiveSupplyKind::Stable {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Stable compound mutation requires admitted Stable supply".into(),
+                ),
+            });
+        }
+        if self.effective_supply.key() != self.key
+            || self.effective_supply.width_bits() != self.transfer_width_bits
+        {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Stable compound mutation requires the admitted supply key and width to match the sealed request"
+                        .into(),
+                ),
+            });
+        }
+        if self.current_borrow != BorrowPolarity::Exclusive
+            || self.source_loan != BorrowPolarity::Exclusive
+        {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Stable compound mutation requires exclusive current and source borrows".into(),
+                ),
+            });
+        }
+        if self.operation != AccessOperation::CompoundMutation {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Stable compound lowering accepts only one sealed CompoundMutation event"
+                        .into(),
+                ),
+            });
+        }
+        Ok(StableCompoundMutationAccessRequest { request: self })
+    }
+}
+
 /// Operation subset accepted by one exact External primitive transfer.
 ///
 /// Repeatable reads, destructive reads, and whole-container writes remain
@@ -4911,6 +5021,25 @@ mod tests {
         request
     }
 
+    fn expect_exact_stable_compound_rejection<'view, 'extent>(
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic_fragment: &str,
+    ) -> PrimitiveAccessRequest<'view, 'extent> {
+        let before = primitive_request_snapshot(&request);
+        let rejection = request
+            .into_stable_compound_mutation_access()
+            .expect_err("corrupt request must fail Stable compound specialization");
+        assert!(
+            rejection.diagnostic().0.contains(diagnostic_fragment),
+            "unexpected Stable compound rejection: {}",
+            rejection.diagnostic()
+        );
+        let (request, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains(diagnostic_fragment));
+        assert_eq!(primitive_request_snapshot(&request), before);
+        request
+    }
+
     fn provider_existing_content(
         plan: &ValidatedPlacementPlan,
         base: u64,
@@ -5157,6 +5286,84 @@ mod tests {
         assert_eq!(request.admission().normalized_identity(), 131);
         assert_eq!(request.current_borrow(), BorrowPolarity::Exclusive);
         assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+    }
+
+    #[test]
+    fn established_owned_compound_mutation_specializes_with_exact_custody() {
+        let (plan, mut established) = established_stable_word(0xad00, 160, 161, 163);
+        let mut projection = established
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable projection");
+        let request = projection
+            .compound_mutation()
+            .expect("authorized Stable compound mutation")
+            .into_primitive_request();
+        let before = primitive_request_snapshot(&request);
+        let compound = request
+            .into_stable_compound_mutation_access()
+            .expect("Stable compound specialization");
+
+        assert_eq!(compound.primitive_address(), 0xad00);
+        assert_eq!(compound.transfer_width_bits(), 32);
+        assert_eq!(compound.logical_extent().fragments().len(), 1);
+        assert_eq!(compound.effect_footprint().address(), 0xad00);
+        assert_eq!(compound.effect_footprint().length_bytes(), 4);
+        let request = compound.into_primitive_request();
+        assert_eq!(primitive_request_snapshot(&request), before);
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 163);
+        assert_eq!(request.effective_supply().key(), request.key);
+        assert_eq!(request.effective_supply().width_bits(), 32);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Exclusive);
+        assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+        assert_eq!(request.operation(), AccessOperation::CompoundMutation);
+        drop(request);
+        assert_eq!(established.validity_receipt().normalized_identity(), 161);
+        assert_eq!(established.custody_receipt().normalized_identity(), 162);
+    }
+
+    #[test]
+    fn stable_compound_specialization_fails_closed_and_returns_exact_request() {
+        let (plan, mut established) = established_stable_word(0xad80, 164, 165, 167);
+        let mut projection = established
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable projection");
+        let mut request = projection
+            .compound_mutation()
+            .expect("authorized Stable compound mutation")
+            .into_primitive_request();
+
+        request.observation = ObservationModel::External;
+        request = expect_exact_stable_compound_rejection(request, "Stable observation");
+        request.observation = ObservationModel::Stable;
+
+        request.effective_supply.kind = EffectiveSupplyKind::External;
+        request = expect_exact_stable_compound_rejection(request, "Stable supply");
+        request.effective_supply.kind = EffectiveSupplyKind::Stable;
+
+        request.key.slot ^= 1;
+        request = expect_exact_stable_compound_rejection(request, "supply key and width");
+        request.key = request.effective_supply.key;
+
+        request.effective_supply.width_bits = 64;
+        request = expect_exact_stable_compound_rejection(request, "supply key and width");
+        request.effective_supply.width_bits = request.transfer_width_bits;
+
+        request.current_borrow = BorrowPolarity::Shared;
+        request = expect_exact_stable_compound_rejection(request, "exclusive current and source");
+        request.current_borrow = BorrowPolarity::Exclusive;
+
+        request.source_loan = BorrowPolarity::Shared;
+        request = expect_exact_stable_compound_rejection(request, "exclusive current and source");
+        request.source_loan = BorrowPolarity::Exclusive;
+
+        request.operation = AccessOperation::Write;
+        let request =
+            expect_exact_stable_compound_rejection(request, "sealed CompoundMutation event");
+        assert_eq!(request.admission().normalized_identity(), 167);
+        drop(request);
+        assert_eq!(established.validity_receipt().normalized_identity(), 165);
+        assert_eq!(established.custody_receipt().normalized_identity(), 166);
     }
 
     #[test]
