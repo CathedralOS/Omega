@@ -14856,9 +14856,10 @@ fn runtime_domain_boundaries_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_domain_boundaries_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-domain-boundaries-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("domain-boundaries canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("domain-boundaries canary should run");
     assert_eq!(
@@ -14882,9 +14883,10 @@ fn runtime_comparison_signedness_exit_canary_runs() {
         "omega-comparison-signedness-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("comparison-signedness canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("comparison-signedness canary should run");
     assert_eq!(
@@ -14905,9 +14907,10 @@ fn runtime_shift_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_signedness_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-shift-signedness-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-signedness canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("shift-signedness canary should run");
     assert_eq!(
@@ -14929,9 +14932,10 @@ fn runtime_shift_in_guard_exit_canary_runs() {
     // guard value-operand path learned to thread shift signedness.
     let canary = pass_canary("arithmetic/runtime_shift_in_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-shift-in-guard-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-in-guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("shift-in-guard canary should run");
     assert_eq!(
@@ -14954,9 +14958,10 @@ fn runtime_cast_in_guard_exit_canary_runs() {
     // blocker until the guard resolver learned to resolve a Cast operand.
     let canary = pass_canary("arithmetic/runtime_cast_in_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-cast-in-guard-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast-in-guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("cast-in-guard canary should run");
     assert_eq!(
@@ -14977,9 +14982,10 @@ fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
     // at runtime; all guards must hold -> exit 70.
     let canary = pass_canary("arithmetic/runtime_parenthesized_guard_subjects_exit");
     let scratch = std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("parenthesized-guard-subjects canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("parenthesized-guard-subjects canary should run");
     assert_eq!(
@@ -15000,9 +15006,10 @@ fn runtime_and_of_or_guard_exit_canary_runs() {
     // and false arms via different operands; all must be correct -> exit 70.
     let canary = pass_canary("arithmetic/runtime_and_of_or_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("and-of-or-guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("and-of-or-guard canary should run");
     assert_eq!(
@@ -15023,9 +15030,10 @@ fn runtime_negated_boolean_nesting_guard_exit_canary_runs() {
     // discriminates both arms -> exit 70.
     let canary = pass_canary("arithmetic/runtime_negated_boolean_nesting_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-neg-bool-nest-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("negated-boolean-nesting canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("negated-boolean-nesting canary should run");
     assert_eq!(
@@ -15046,9 +15054,10 @@ fn runtime_guard_feature_composition_exit_canary_runs() {
     // alone). Values built at runtime; discriminates -> exit 70.
     let canary = pass_canary("arithmetic/runtime_guard_feature_composition_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guard-compose-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guard-feature-composition canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("guard-feature-composition canary should run");
     assert_eq!(
@@ -15069,9 +15078,10 @@ fn runtime_saturating_narrow_add_sub_exit_canary_runs() {
     // stays exact. Differential-checked native==interp.
     let canary = pass_canary("arithmetic/runtime_saturating_narrow_add_sub_exit");
     let scratch = std::env::temp_dir().join(format!("omega-sat-narrow-as-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating narrow add/sub canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating narrow add/sub canary should run");
     assert_eq!(
@@ -46165,6 +46175,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_guard_divide_modulo_exit",
     "expressions/runtime_guard_divide_modulo_signedness_exit",
     "expressions/runtime_guard_negative_arithmetic_exit",
+    "arithmetic/runtime_and_of_or_guard_exit",
+    "arithmetic/runtime_cast_in_guard_exit",
+    "arithmetic/runtime_comparison_signedness_exit",
+    "arithmetic/runtime_domain_boundaries_exit",
+    "arithmetic/runtime_guard_feature_composition_exit",
+    "arithmetic/runtime_negated_boolean_nesting_guard_exit",
+    "arithmetic/runtime_parenthesized_guard_subjects_exit",
+    "arithmetic/runtime_saturating_narrow_add_sub_exit",
+    "arithmetic/runtime_shift_in_guard_exit",
+    "arithmetic/runtime_shift_signedness_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46671,6 +46691,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_guard_divide_modulo_exit",
     "expressions/runtime_guard_divide_modulo_signedness_exit",
     "expressions/runtime_guard_negative_arithmetic_exit",
+    "arithmetic/runtime_and_of_or_guard_exit",
+    "arithmetic/runtime_cast_in_guard_exit",
+    "arithmetic/runtime_comparison_signedness_exit",
+    "arithmetic/runtime_domain_boundaries_exit",
+    "arithmetic/runtime_guard_feature_composition_exit",
+    "arithmetic/runtime_negated_boolean_nesting_guard_exit",
+    "arithmetic/runtime_parenthesized_guard_subjects_exit",
+    "arithmetic/runtime_saturating_narrow_add_sub_exit",
+    "arithmetic/runtime_shift_in_guard_exit",
+    "arithmetic/runtime_shift_signedness_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
