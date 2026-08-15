@@ -721,6 +721,57 @@ impl ProviderPlan {
                     self.name, self.schema.trait_name, method.name
                 ));
             }
+            if method.parameter_type_identities.len() != method.parameter_count {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` declares {} parameters but retains {} exact parameter type identities",
+                    self.name,
+                    self.schema.trait_name,
+                    method.name,
+                    method.parameter_count,
+                    method.parameter_type_identities.len(),
+                ));
+            }
+            for claim in &method.entry_claims {
+                if claim.parameter_index >= method.parameter_count {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` entry claim names out-of-range parameter {} of {}",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        claim.parameter_index,
+                        method.parameter_count,
+                    ));
+                }
+                if claim.domain.is_empty() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` entry claim for parameter {} has no exact semantic domain identity",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        claim.parameter_index,
+                    ));
+                }
+            }
+            if method.has_result != method.result_type_identity.is_some() {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` result presence disagrees with its exact result type identity",
+                    self.name, self.schema.trait_name, method.name,
+                ));
+            }
+            for claim in &method.result_claims {
+                if !method.has_result || method.result_type_identity.is_none() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` retains a result claim without a real result",
+                        self.name, self.schema.trait_name, method.name,
+                    ));
+                }
+                if claim.domain.is_empty() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` result claim has no exact semantic domain identity",
+                        self.name, self.schema.trait_name, method.name,
+                    ));
+                }
+            }
         }
         for row in &self.rows {
             if row.requirement_identity.is_empty() {
@@ -1137,5 +1188,84 @@ mod tests {
                 "schema method `DerivedConsole::write_line` has no exact requirement identity",
             )
         }));
+    }
+
+    #[test]
+    fn schema_validation_rejects_malformed_qualification_subjects_independently() {
+        let valid_claim = ServiceEntryClaim {
+            parameter_index: 0,
+            domain: "Token::Granted".to_owned(),
+            predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        };
+        let mut valid = windows_console_plan();
+        valid.schema.methods[0].entry_claims = vec![valid_claim.clone()];
+        assert!(valid.validate_candidate_against_schema().is_empty());
+
+        let mut missing_parameter_type = valid.clone();
+        missing_parameter_type.schema.methods[0]
+            .parameter_type_identities
+            .clear();
+        assert!(
+            missing_parameter_type
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("declares 1 parameters but retains 0 exact parameter"))
+        );
+
+        let mut out_of_range = valid.clone();
+        out_of_range.schema.methods[0].entry_claims[0].parameter_index = 1;
+        assert!(
+            out_of_range
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("out-of-range parameter 1 of 1"))
+        );
+
+        let mut empty_entry_domain = valid.clone();
+        empty_entry_domain.schema.methods[0].entry_claims[0]
+            .domain
+            .clear();
+        assert!(
+            empty_entry_domain
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("entry claim for parameter 0 has no exact semantic domain"))
+        );
+
+        let mut result_presence_mismatch = valid.clone();
+        result_presence_mismatch.schema.methods[0].has_result = true;
+        assert!(
+            result_presence_mismatch
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result presence disagrees"))
+        );
+
+        let mut claim_without_result = valid.clone();
+        claim_without_result.schema.methods[0].result_claims = vec![ServiceResultClaim {
+            domain: "Token::Issued".to_owned(),
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+        }];
+        assert!(
+            claim_without_result
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result claim without a real result"))
+        );
+
+        let mut empty_result_domain = valid;
+        empty_result_domain.schema.methods[1].result_claims = vec![ServiceResultClaim {
+            domain: String::new(),
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+        }];
+        assert!(
+            empty_result_domain
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result claim has no exact semantic domain"))
+        );
     }
 }
