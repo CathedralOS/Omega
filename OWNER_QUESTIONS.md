@@ -294,3 +294,17 @@ boundary reach without embedding a forgeable address. The verifier,
 interpreter, Omega lowering, artifacts, and installation must preserve that same
 event rather than re-resolving it from source names or offsets. Q8 continues to
 own how admission first establishes a live `Placed<P, T>` and its erased terms.
+
+## Q16 — Progress-profile classification and premise attachment
+
+Termination guarantees can retain sealed `ProgressProfileId` premises, but the
+ordinary domain and routed-requirement surface does not distinguish a progress
+profile from another predicate-free qualification. Choose the explicit
+classification or exact closed inference rule, and choose whether the premise
+attaches to the machine guarantee or to a selected operation/provider edge.
+
+The decision must bind establishment to the profile owner or explicit acceptance
+authority and to an admitted grant/receipt, while keeping private ranking
+witnesses outside public contract identity. Generic routed/domain requirements
+must not become progress premises merely because they are predicate-free,
+provider-backed, or mentioned by a terminating machine.
