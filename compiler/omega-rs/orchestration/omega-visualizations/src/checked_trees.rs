@@ -152,7 +152,11 @@ pub fn qualification_evidence_manifest_json(
         if index > 0 {
             json.push(',');
         }
-        validate_qualification_receipt(selected_provider_plans, fact.evidence.receipt_identity);
+        validate_qualification_receipt(
+            selected_provider_plans,
+            fact.evidence.origin,
+            fact.evidence.receipt_identity,
+        );
         json.push_str("\n    {\n      \"subject\": ");
         push_json_string(&mut json, &qualification_subject(program, fact));
         json.push_str(",\n      \"domain\": ");
@@ -378,9 +382,15 @@ pub fn qualification_evidence_manifest_json(
 
 fn validate_qualification_receipt(
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    origin: psi_language_semantics::QualificationEvidenceOrigin,
     receipt_identity: u64,
 ) {
     if receipt_identity != 0 {
+        assert_eq!(
+            origin,
+            psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
+            "nonzero qualification evidence receipt must use admitted-receipt origin",
+        );
         selected_provider_plans
             .plan_by_identity(receipt_identity)
             .expect(
@@ -3948,7 +3958,24 @@ mod tests {
     fn qualification_manifest_rejects_unselected_nonzero_receipt() {
         validate_qualification_receipt(
             &omega_effects::SelectedProviderPlanFacts::default(),
+            QualificationEvidenceOrigin::AdmittedReceipt,
             selected_storage_plan().identity_fingerprint(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must use admitted-receipt origin")]
+    fn qualification_manifest_rejects_selected_receipt_on_non_admitted_origin() {
+        let plan = selected_storage_plan();
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&plan),
+            std::slice::from_ref(&plan.name),
+        )
+        .expect("complete selected provider plan");
+        validate_qualification_receipt(
+            &selected,
+            QualificationEvidenceOrigin::Prover,
+            plan.identity_fingerprint(),
         );
     }
 
