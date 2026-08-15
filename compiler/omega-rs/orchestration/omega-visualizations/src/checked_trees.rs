@@ -152,6 +152,7 @@ pub fn qualification_evidence_manifest_json(
         if index > 0 {
             json.push(',');
         }
+        validate_qualification_receipt(selected_provider_plans, fact.evidence.receipt_identity);
         json.push_str("\n    {\n      \"subject\": ");
         push_json_string(&mut json, &qualification_subject(program, fact));
         json.push_str(",\n      \"domain\": ");
@@ -373,6 +374,19 @@ pub fn qualification_evidence_manifest_json(
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn validate_qualification_receipt(
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    receipt_identity: u64,
+) {
+    if receipt_identity != 0 {
+        selected_provider_plans
+            .plan_by_identity(receipt_identity)
+            .expect(
+                "qualification evidence receipt must name an exact retained selected provider plan",
+            );
+    }
 }
 
 fn validate_vacuous_qualification_use<'program>(
@@ -3219,7 +3233,7 @@ mod tests {
         machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
-        validate_vacuous_qualification_use,
+        validate_qualification_receipt, validate_vacuous_qualification_use,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3405,6 +3419,51 @@ mod tests {
             domain_symbol,
             semantic_domain,
         )
+    }
+
+    fn selected_storage_plan() -> ProviderPlan {
+        ProviderPlan {
+            name: "selected::Storage".to_owned(),
+            provider_type: "StorageProvider".to_owned(),
+            target: String::new(),
+            schema: ServiceSchema {
+                trait_name: "StorageRoot".to_owned(),
+                methods: vec![ServiceMethod {
+                    name: "transfer".to_owned(),
+                    requirement_owner: "StorageBase".to_owned(),
+                    requirement_identity: "StorageBase::transfer".to_owned(),
+                    parameter_count: 1,
+                    parameter_type_identities: vec!["Token".to_owned()],
+                    entry_claims: vec![ServiceEntryClaim {
+                        parameter_index: 0,
+                        domain: "Token::Granted".to_owned(),
+                        predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+                        effective_carry: CarryPolicy::STRICT,
+                        authority_flow: ServiceEntryAuthorityFlow::Accepts,
+                    }],
+                    has_result: true,
+                    result_type_identity: Some("Token".to_owned()),
+                    result_claims: vec![ServiceResultClaim {
+                        domain: "Token::Issued".to_owned(),
+                        effective_carry: CarryPolicy::STRICT,
+                    }],
+                    service_reach: vec!["StorageRoot".to_owned()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: false,
+                    may_block: false,
+                    terminates_guarantee: false,
+                    calling_plan_fingerprint: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "transfer".to_owned(),
+                requirement_identity: "StorageBase::transfer".to_owned(),
+                binding: ProviderBinding::CheckedAdapter {
+                    machine: "StorageProvider::transfer".to_owned(),
+                },
+            }],
+            origin_package: "omega::providers::storage".to_owned(),
+        }
     }
 
     #[test]
@@ -3813,6 +3872,13 @@ mod tests {
         let subject = SymbolHandle::from_arena_index(4);
         let domain = SymbolHandle::from_arena_index(5);
         let provider = SymbolHandle::from_arena_index(6);
+        let plan = selected_storage_plan();
+        let receipt_identity = plan.identity_fingerprint();
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&plan),
+            std::slice::from_ref(&plan.name),
+        )
+        .expect("complete selected provider plan");
         let mut program = CheckedTrees::default();
         let place = program.facts.semantic.append_symbol_place(subject);
         program.facts.semantic.append_fact(Fact {
@@ -3828,7 +3894,28 @@ mod tests {
                 origin: QualificationEvidenceOrigin::AdmittedReceipt,
                 source_symbol: provider,
                 requirement_symbol: SymbolHandle::invalid(),
-                receipt_identity: 0x1234,
+                receipt_identity,
+            },
+            payload: FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol: domain,
+            },
+        });
+        let unstamped_subject = SymbolHandle::from_arena_index(7);
+        let unstamped_place = program
+            .facts
+            .semantic
+            .append_symbol_place(unstamped_subject);
+        program.facts.semantic.append_fact(Fact {
+            place: FactPlace::Place(unstamped_place),
+            point: ProgramPoint::Global,
+            origin: FactOrigin::CallEnsures,
+            evidence: QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                source_symbol: provider,
+                requirement_symbol: SymbolHandle::invalid(),
+                receipt_identity: 0,
             },
             payload: FactPayload::DomainMembership {
                 value: Default::default(),
@@ -3837,7 +3924,6 @@ mod tests {
             },
         });
 
-        let selected = omega_effects::SelectedProviderPlanFacts::default();
         let json = qualification_evidence_manifest_json(&program, &selected);
 
         assert!(json.contains(&format!(
@@ -3851,53 +3937,24 @@ mod tests {
         assert!(json.contains("\"source\": \"#6\""));
         assert!(json.contains("\"requirement\": null"));
         assert!(json.contains("\"requirement_identity\": null"));
-        assert!(json.contains("\"receipt_identity\": \"0x0000000000001234\""));
+        assert!(json.contains(&format!(
+            "\"receipt_identity\": \"0x{receipt_identity:016x}\""
+        )));
+        assert!(json.contains("\"receipt_identity\": null"));
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact retained selected provider plan")]
+    fn qualification_manifest_rejects_unselected_nonzero_receipt() {
+        validate_qualification_receipt(
+            &omega_effects::SelectedProviderPlanFacts::default(),
+            selected_storage_plan().identity_fingerprint(),
+        );
     }
 
     #[test]
     fn qualification_manifest_retains_provider_origin_outside_plan_identity() {
-        let plan = ProviderPlan {
-            name: "selected::Storage".to_owned(),
-            provider_type: "StorageProvider".to_owned(),
-            target: String::new(),
-            schema: ServiceSchema {
-                trait_name: "StorageRoot".to_owned(),
-                methods: vec![ServiceMethod {
-                    name: "transfer".to_owned(),
-                    requirement_owner: "StorageBase".to_owned(),
-                    requirement_identity: "StorageBase::transfer".to_owned(),
-                    parameter_count: 1,
-                    parameter_type_identities: vec!["Token".to_owned()],
-                    entry_claims: vec![ServiceEntryClaim {
-                        parameter_index: 0,
-                        domain: "Token::Granted".to_owned(),
-                        predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
-                        effective_carry: CarryPolicy::STRICT,
-                        authority_flow: ServiceEntryAuthorityFlow::Accepts,
-                    }],
-                    has_result: true,
-                    result_type_identity: Some("Token".to_owned()),
-                    result_claims: vec![ServiceResultClaim {
-                        domain: "Token::Issued".to_owned(),
-                        effective_carry: CarryPolicy::STRICT,
-                    }],
-                    service_reach: vec!["StorageRoot".to_owned()],
-                    synchronous_invocations: Vec::new(),
-                    may_suspend: false,
-                    may_block: false,
-                    terminates_guarantee: false,
-                    calling_plan_fingerprint: None,
-                }],
-            },
-            rows: vec![ProviderPlanRow {
-                method: "transfer".to_owned(),
-                requirement_identity: "StorageBase::transfer".to_owned(),
-                binding: ProviderBinding::CheckedAdapter {
-                    machine: "StorageProvider::transfer".to_owned(),
-                },
-            }],
-            origin_package: "omega::providers::storage".to_owned(),
-        };
+        let plan = selected_storage_plan();
         let plan_identity = plan.identity_fingerprint();
         let mut relocated = plan.clone();
         relocated.origin_package = "omega::providers::relocated".to_owned();
