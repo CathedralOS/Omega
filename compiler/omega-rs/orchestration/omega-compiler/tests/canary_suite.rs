@@ -6781,20 +6781,14 @@ fn runtime_guarded_computed_index_operand_exit_canary_runs() {
     // the auto-hoisted index temp's bounds discharge from the guard facts
     // under its INITIALIZER label. Was the computed-index FAIL canary.
     let canary = pass_canary("collections/runtime_guarded_computed_index_operand_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-guarded-computed-index-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("guarded computed-index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("guarded computed-index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -6817,20 +6811,14 @@ stderr:
 #[test]
 fn runtime_computed_index_direct_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_computed_index_direct_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-computed-index-direct-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("direct computed-index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("direct computed-index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -6883,18 +6871,12 @@ fn runtime_double_indexed_write_exit_canary_runs() {
     // Both-runtime nested writes (`grid[i][j] = v`): const value, machine and
     // frame place sources, neighbor-validated. Was the write fail canary.
     let canary = pass_canary("collections/runtime_double_indexed_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-double-indexed-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("double-indexed write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("double-indexed write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -6985,18 +6967,12 @@ stderr:
 #[test]
 fn runtime_frame_double_indexed_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-frame-double-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("frame double-indexed read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("frame double-indexed read canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7020,18 +6996,12 @@ stderr:
 #[test]
 fn runtime_double_indexed_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_rmw_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-double-indexed-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("double-indexed RMW canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("double-indexed RMW canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7055,17 +7025,11 @@ stderr:
 #[test]
 fn runtime_indexed_operand_transition_arg_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_operand_transition_arg_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-indexed-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-operand transition-arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("indexed-operand transition-arg canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7164,20 +7128,14 @@ stderr:
 #[test]
 fn runtime_double_indexed_member_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_member_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-double-indexed-member-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("double-indexed member canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("double-indexed member canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7200,20 +7158,14 @@ stderr:
 #[test]
 fn runtime_double_indexed_operand_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_operand_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-double-indexed-operand-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("double-indexed operand canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("double-indexed operand canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
