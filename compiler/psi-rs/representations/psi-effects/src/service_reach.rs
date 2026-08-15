@@ -1,5 +1,7 @@
 use psi_arena::{Arena, HandleSpan};
-use psi_language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachRowTable};
+use psi_language_semantics::{
+    ServiceReachId, ServiceReachInterface, ServiceReachRowId, ServiceReachRowTable,
+};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
@@ -11,6 +13,9 @@ use crate::OperationalPlan;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineServiceReachInference {
     pub machine: SymbolHandle,
+    /// Exact public/private contract axis. A published empty ceiling remains
+    /// distinct from an internal empty inference.
+    pub interface: ServiceReachInterface,
     pub published: ServiceReachRowId,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
@@ -223,6 +228,11 @@ pub fn infer_service_reaches(
             &mut plan.root_machines,
             MachineServiceReachInference {
                 machine: machine.symbol,
+                interface: if machine_work.uses_published {
+                    ServiceReachInterface::PublishedCeiling(published)
+                } else {
+                    ServiceReachInterface::InternalInferred
+                },
                 published,
                 inferred_direct,
                 inferred_transitive,

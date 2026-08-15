@@ -1744,7 +1744,11 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push_str("\",\n        \"supply\": ");
             push_json_string(&mut json, supply_mode_name(contract.supply_mode));
             json.push_str(",\n        \"service_reach\": ");
-            push_service_reach_plan_json(&mut json, program, contract.service_reach);
+            push_service_reach_plan_json(
+                &mut json,
+                program,
+                independent_machine_service_reach_plan(program, machine.symbol),
+            );
             json.push_str(",\n        \"synchronous_invocation\": ");
             push_synchronous_invocation_plan_json(
                 &mut json,
@@ -1780,7 +1784,11 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 "false"
             });
             json.push_str(",\n        \"checked_service_reach\": ");
-            push_service_row_json(&mut json, program, contract.service_reach.checked_inferred);
+            push_service_row_json(
+                &mut json,
+                program,
+                independent_machine_service_reach_plan(program, machine.symbol).checked_inferred,
+            );
             json.push_str(",\n        \"checked_synchronous_invocations\": ");
             push_string_array(&mut json, &contract.synchronous_invocation.checked_inferred);
             let state_write_frames = program
@@ -2145,6 +2153,21 @@ fn push_service_reach_plan_json(
             json.push('}');
         }
     }
+}
+
+fn independent_machine_service_reach_plan(
+    program: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+) -> psi_language_semantics::ServiceReachPlan {
+    program
+        .facts
+        .service_reaches
+        .for_machine(machine)
+        .map(|reach| psi_language_semantics::ServiceReachPlan {
+            interface: reach.interface,
+            checked_inferred: reach.inferred_transitive,
+        })
+        .unwrap_or_default()
 }
 
 fn push_synchronous_invocation_plan_json(
@@ -3072,8 +3095,8 @@ mod tests {
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
-        MachineContractPlan, MachineMutationFact, StateWriteFramePlan, SuspensionCrossingCarryFact,
-        VacuousQualificationUse,
+        MachineContractPlan, MachineMutationFact, MachineServiceReachRows, StateWriteFramePlan,
+        SuspensionCrossingCarryFact, VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
@@ -3853,6 +3876,81 @@ mod tests {
     }
 
     #[test]
+    fn machine_contract_manifest_distinguishes_published_empty_from_internal_empty_reach() {
+        let public_symbol = SymbolHandle::from_arena_index(20);
+        let private_symbol = SymbolHandle::from_arena_index(21);
+        let mut program = CheckedTrees::default();
+        for (machine_symbol, state_symbol, name) in [
+            (
+                public_symbol,
+                SymbolHandle::from_arena_index(22),
+                "Public::run",
+            ),
+            (
+                private_symbol,
+                SymbolHandle::from_arena_index(23),
+                "Private::run",
+            ),
+        ] {
+            let mut machine = Machine {
+                symbol: machine_symbol,
+                name: Identifier::generated(name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    name: Identifier::generated("entry"),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+            push_behavior_contract(&mut program, machine_symbol, false, false);
+        }
+
+        let empty = psi_language_semantics::ServiceReachRowTable::EMPTY_ROW;
+        for (machine, interface) in [
+            (
+                public_symbol,
+                psi_language_semantics::ServiceReachInterface::PublishedCeiling(empty),
+            ),
+            (
+                private_symbol,
+                psi_language_semantics::ServiceReachInterface::InternalInferred,
+            ),
+        ] {
+            program.facts.service_reaches.machines.append_to_span(
+                &mut program.facts.service_reaches.root_machines,
+                MachineServiceReachRows {
+                    machine,
+                    interface,
+                    published_ceiling: empty,
+                    inferred_direct: empty,
+                    inferred_transitive: empty,
+                    effective: empty,
+                    states: Default::default(),
+                },
+            );
+        }
+
+        let json = machine_contract_manifest_json(&program);
+        let public_start = json
+            .find("\"machine\": \"Public::run\"")
+            .expect("public row");
+        let private_start = json
+            .find("\"machine\": \"Private::run\"")
+            .expect("private row");
+        assert!(json[public_start..private_start].contains(
+            "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": []}"
+        ));
+        assert!(
+            json[private_start..]
+                .contains("\"service_reach\": {\"interface\": \"internal_inferred\"}")
+        );
+    }
+
+    #[test]
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         let symbol = SymbolHandle::from_arena_index(2);
         let state_symbol = SymbolHandle::from_arena_index(3);
@@ -3962,6 +4060,20 @@ mod tests {
             },
         );
         program.typed.push_trait_definition(capsule_trait);
+        program.facts.service_reaches.machines.append_to_span(
+            &mut program.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine: symbol,
+                interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
+                    service_row,
+                ),
+                published_ceiling: service_row,
+                inferred_direct: service_row,
+                inferred_transitive: service_row,
+                effective: service_row,
+                states: Default::default(),
+            },
+        );
         program
             .facts
             .contract_plans
@@ -3969,12 +4081,9 @@ mod tests {
             .push(MachineContractPlan {
                 machine: symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
-                service_reach: psi_language_semantics::ServiceReachPlan {
-                    interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
-                        service_row,
-                    ),
-                    checked_inferred: service_row,
-                },
+                // Deliberately contradictory legacy source: visualization
+                // must use the independently published reach axis above.
+                service_reach: Default::default(),
                 synchronous_invocation: psi_language_semantics::SynchronousInvocationPlan {
                     interface:
                         psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
