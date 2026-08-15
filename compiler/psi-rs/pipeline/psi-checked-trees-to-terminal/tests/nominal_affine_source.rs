@@ -467,6 +467,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small - divisor) < 4u8)
             && ((small * 2u8) < 10u8)
             && ((((small * 2u8) * 3u8) * 1u8) < 255u8)
+            && (((((small * 2u8) * 3u8) as i8) < 127i8))
+            && (((((small * 2u8) * 0u8) as i8) < 127i8))
             && ((small * divisor) < 50u8)
             && ((small / 2u8) < 3u8)
             && ((small % 2u8) <= 1u8)
@@ -3613,6 +3615,85 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             }));
         }
     }
+    let find_multiply_chain_then_cast = |outer_factor| {
+        operations.iter().find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(right, target_type, IntegerValue::Unsigned(outer_factor)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[1].id && is_u8_two(inner_right))
+                .then_some(([inner_obligation, outer_obligation, cast_obligation], right))
+        })
+    };
+    let (multiply_chain_then_cast_obligations, multiply_chain_then_cast_outer_factor) =
+        find_multiply_chain_then_cast(3)
+            .expect("a finite exact-multiply chain feeds one partial exact cast");
+    let (zero_multiply_chain_then_cast_obligations, _) = find_multiply_chain_then_cast(0)
+        .expect("a zero cumulative product retains both prefixes and the following cast");
+    for obligations in [
+        multiply_chain_then_cast_obligations.as_slice(),
+        zero_multiply_chain_then_cast_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            let operation = operations
+                .iter()
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::IntegerExactCast {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerMultiply {
+                            obligation: candidate,
+                            ..
+                        } if candidate == *obligation
+                    )
+                })
+                .expect("pre-cast multiply obligation retains its exact operation");
+            assert_eq!(
+                TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+                1
+            );
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
     let (nested_divide_remainder_obligations, middle_divisor) = operations
         .iter()
         .find_map(|outer| {
@@ -4987,6 +5068,25 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == cast_then_multiply_obligation
         ));
     }
+    for multiply_chain_then_cast_obligation in multiply_chain_then_cast_obligations
+        .into_iter()
+        .chain(zero_multiply_chain_then_cast_obligations)
+    {
+        let mut missing_multiply_chain_then_cast_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_multiply_chain_then_cast_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != multiply_chain_then_cast_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_multiply_chain_then_cast_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == multiply_chain_then_cast_obligation
+        ));
+    }
     for nested_divide_remainder_obligation in nested_divide_remainder_obligations {
         let mut missing_nested_divide_remainder_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -5214,6 +5314,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if cast_then_multiply_obligations.contains(&obligation)
+    ));
+    let mut changed_multiply_chain_then_cast_factor =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_factor = changed_multiply_chain_then_cast_factor
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id)
+                == Some(multiply_chain_then_cast_outer_factor)
+        })
+        .expect("pre-cast multiply landed outer factor operation");
+    changed_factor.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(4),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_multiply_chain_then_cast_factor,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if multiply_chain_then_cast_obligations.contains(&obligation)
     ));
     let mut changed_middle_divisor = decode_module(&semantics).expect("decode shared semantics");
     let changed_divisor = changed_middle_divisor

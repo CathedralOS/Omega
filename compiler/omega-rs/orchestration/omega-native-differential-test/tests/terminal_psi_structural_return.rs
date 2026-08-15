@@ -924,6 +924,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small - divisor) < 4u8)
                 && ((small * 2u8) < 10u8)
                 && ((((small * 2u8) * 3u8) * 1u8) < 255u8)
+                && (((((small * 2u8) * 3u8) as i8) < 127i8))
+                && (((((small * 2u8) * 0u8) as i8) < 127i8))
                 && ((small * divisor) < 50u8)
                 && ((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
@@ -2144,6 +2146,71 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
     for obligations in [
         cast_then_multiply_obligations.as_slice(),
         zero_cast_then_multiply_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
+    let find_multiply_chain_then_cast = |outer_factor| {
+        operations.iter().find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(right, outer_factor) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(inner_right, 2) {
+                return None;
+            }
+            (inner_left == terminal_entry.parameters[1].id).then_some([
+                inner_obligation,
+                outer_obligation,
+                cast_obligation,
+            ])
+        })
+    };
+    let multiply_chain_then_cast_obligations = find_multiply_chain_then_cast(3)
+        .expect("native path retains one complete pre-cast exact-multiply chain");
+    let zero_multiply_chain_then_cast_obligations = find_multiply_chain_then_cast(0)
+        .expect("native path retains every pre-cast prefix through a zero product and cast");
+    for obligations in [
+        multiply_chain_then_cast_obligations.as_slice(),
+        zero_multiply_chain_then_cast_obligations.as_slice(),
     ] {
         for (index, obligation) in obligations.iter().enumerate() {
             for other in &obligations[index + 1..] {

@@ -11245,6 +11245,9 @@ fn shared_integer_runtime_parameters_with_shells(
         } if proof_shell_allowed => {
             shared_roundtrip_exact_cast_runtime_parameters(*scalar_type, operand)
                 .or_else(|| {
+                    shared_exact_multiply_chain_cast_runtime_parameters(*scalar_type, operand)
+                })
+                .or_else(|| {
                     shared_exact_offset_chain_cast_runtime_parameters(*scalar_type, operand)
                 })
                 .or_else(|| shared_integer_runtime_parameters_with_shells(operand, 0, false))
@@ -11310,6 +11313,52 @@ fn shared_exact_offset_chain_cast_runtime_parameters(
         match left.as_ref() {
             nested @ LoweredDirectExpression::IntegerBinary {
                 kind: LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract,
+                ..
+            } => operand = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == *integer_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_multiply_chain_cast_runtime_parameters(
+    target_type: ScalarType,
+    mut operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_type else {
+        return None;
+    };
+    if !native_fixed_integer_type(target_type) {
+        return None;
+    }
+    let mut chain_type = None;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = operand
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+            || !nonnegative_exact_multiply_landed_literal(*integer_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*integer_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactMultiply,
                 ..
             } => operand = nested,
             LoweredDirectExpression::Parameter {

@@ -4,6 +4,7 @@ use crate::flow::{
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
+    exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
 };
@@ -1231,6 +1232,157 @@ fn offset_chain_exact_cast_classifier_requires_one_direct_same_carrier_left_chai
 }
 
 #[test]
+fn multiply_chain_exact_cast_classifier_requires_one_direct_same_carrier_left_chain() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let operation = |primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactMultiply,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let finite = operation(
+        PrimitiveType::U16,
+        operation(
+            PrimitiveType::U16,
+            parameter(0, PrimitiveType::U16),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &finite,
+            1,
+        ),
+        Some(vec![0])
+    );
+    let zero = operation(
+        PrimitiveType::U16,
+        parameter(0, PrimitiveType::U16),
+        literal(0i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(PrimitiveType::I8, &zero, 1,),
+        Some(vec![0])
+    );
+    let signed = operation(
+        PrimitiveType::I16,
+        parameter(0, PrimitiveType::I16),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &signed,
+            1,
+        ),
+        Some(vec![0])
+    );
+
+    let reversed = operation(
+        PrimitiveType::U16,
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        parameter(0, PrimitiveType::U16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &reversed,
+            1,
+        ),
+        None
+    );
+    let runtime_sibling = operation(
+        PrimitiveType::U16,
+        parameter(0, PrimitiveType::U16),
+        parameter(0, PrimitiveType::U16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &runtime_sibling,
+            1,
+        ),
+        None
+    );
+    let negative = operation(
+        PrimitiveType::I16,
+        parameter(0, PrimitiveType::I16),
+        literal(-1i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &negative,
+            1,
+        ),
+        None
+    );
+    let mixed = operation(
+        PrimitiveType::U16,
+        operation(
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &mixed,
+            1,
+        ),
+        None
+    );
+    let right_associated = operation(
+        PrimitiveType::U16,
+        parameter(0, PrimitiveType::U16),
+        operation(
+            PrimitiveType::U16,
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &right_associated,
+            1,
+        ),
+        None
+    );
+    let local_root = operation(
+        PrimitiveType::U16,
+        CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type: PrimitiveType::U16,
+        },
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &local_root,
+            1,
+        ),
+        None
+    );
+}
+
+#[test]
 fn exact_cast_then_offset_classifier_accepts_one_finite_left_literal_chain() {
     let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
         literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
@@ -2366,6 +2518,58 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         requires input <= 127u8, input <= 63u8, input <= 21u8
         {
             let staged: bool = (((((input as i8) * 2i8) * 3i8) < 127i8) && enabled);
+            staged
+        }
+        machine Root::exact_multiply_chain_then_cast_u16_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 32767u16, input <= 10922u16, input <= 42u16
+        {
+            let staged: bool = (((((input * 2u16) * 3u16) as u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::zero_factor_exact_multiply_chain_then_cast_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        requires input <= 32767u16
+        {
+            let staged: bool = (((((input * 2u16) * 0u16) as u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::exact_multiply_chain_then_cast_i16_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: i16,
+            enabled: bool
+        ) -> bool
+        requires -16384i16 <= input, input <= 16383i16,
+            -5461i16 <= input, input <= 5461i16,
+            -21i16 <= input, input <= 21i16
+        {
+            let staged: bool = (((((input * 2i16) * 3i16) as i8) < 127i8) && enabled);
+            staged
+        }
+        machine Root::exact_multiply_chain_then_cast_i8_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -64i8 <= input, input <= 63i8, 0i8 <= input
+        {
+            let staged: bool = ((((input * 2i8) as u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::exact_multiply_chain_then_cast_u8_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 127u8, input <= 63u8
+        {
+            let staged: bool = ((((input * 2u8) as i8) < 127i8) && enabled);
             staged
         }
         machine Root::runtime_factor_exact_multiply_chain_integer_comparison_convergence(
@@ -4093,6 +4297,27 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             });
         assert!(
             cast_then_multiply_chain
+                .shared_boolean_convergence
+                .is_some()
+        );
+    }
+    for machine in [
+        "exact_multiply_chain_then_cast_u16_to_u8_integer_comparison_convergence",
+        "zero_factor_exact_multiply_chain_then_cast_integer_comparison_convergence",
+        "exact_multiply_chain_then_cast_i16_to_i8_integer_comparison_convergence",
+        "exact_multiply_chain_then_cast_i8_to_u8_integer_comparison_convergence",
+        "exact_multiply_chain_then_cast_u8_to_i8_integer_comparison_convergence",
+    ] {
+        let multiply_chain_then_cast = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!("pre-cast exact-multiply chain `{machine}` retains its scalar-return plan")
+            });
+        assert!(
+            multiply_chain_then_cast
                 .shared_boolean_convergence
                 .is_some()
         );
