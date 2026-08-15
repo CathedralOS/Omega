@@ -876,7 +876,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         ) -> bool
         requires input <= 255u64, small <= 254u8, small <= 253u8, small <= 252u8,
             small <= 127u8, small <= 63u8,
-            small <= 7u8, 3u8 <= small, 1u8 <= divisor, divisor <= small,
+            small <= 7u8, 1u8 <= small, 2u8 <= small, 3u8 <= small,
+            1u8 <= divisor, divisor <= small,
             small <= 255u8 / divisor, count <= 2u8,
             -128i64 <= signed, signed <= 127i64,
             -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
@@ -907,6 +908,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((((small + 1u8) + 1u8) + 1u8) < 8u8)
                 && ((~(small + 3u8)) < 255u8)
                 && (((small - 3u8) as u16) < 255u16)
+                && ((((small - 1u8) - 1u8) - 1u8) < 5u8)
                 && ((15u8 & (small * 2u8)) < 16u8)
                 && ((~((small + 3u8) as u16)) < 65535u16)
                 && (((small + 1u8) & (small * 2u8)) < 255u8)

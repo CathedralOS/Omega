@@ -456,15 +456,18 @@ operation beneath up to two bitwise-not, integer-widening, or proof-free binary
 shells, and distinct binary subtrees may each contain one independently proved
 exact leaf. A finite same-carrier exact-add chain may instead have a direct
 machine-parameter root when every non-chain sibling is a landed literal
-constant. Terminal retains every add and obligation. The verifier walks only
-prior left-to-right definitions with a shrinking prefix, combines the constants
-as a checked mathematical sign and magnitude, rejects accumulator overflow or
-a magnitude beyond the carrier span, and reconstructs and checks every
-operation's evidence independently. Two computed
-operands, nonconstant siblings, local or block-parameter roots, subtraction,
-multiplication, and other proof-bearing compositions remain fenced. Missing,
-reordered, reversed, redirected, cyclic, or stale definitions and missing
-evidence reject. One separate computed-cast exception accepts a direct
+constant. A finite same-carrier exact-subtract chain may likewise have a direct
+machine-parameter root, but only the left operand continues the chain and every
+right operand is a landed literal constant; reversed subtraction is not a
+chain. Terminal retains every operation and obligation. The verifier walks only
+prior left-to-right definitions with a shrinking prefix, combines addition
+constants or mathematical negations of subtrahends as a checked sign and
+magnitude, rejects accumulator overflow or a magnitude beyond the carrier span,
+and reconstructs and checks every operation's evidence independently. Two
+computed operands, nonconstant siblings, local or block-parameter roots,
+multiplication, mixed exact operations, and other proof-bearing compositions
+remain fenced. Missing, reordered, reversed, redirected, cyclic, or stale
+definitions and missing evidence reject. One separate computed-cast exception accepts a direct
 fixed-integer parameter
 widened through any finite chain of valid fixed-carrier widenings and then
 exactly narrowed back to its original carrier. Terminal retains every ordered

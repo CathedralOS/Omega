@@ -895,6 +895,7 @@ fn reconstruct_machine_semantics(
                     else {
                         unreachable!("validator requires exact-subtract integer result type")
                     };
+                    let definition_axiom_count = axioms.len();
                     let mut available_bounds = axioms.clone();
                     available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -905,6 +906,8 @@ fn reconstruct_machine_semantics(
                                 value_term(left),
                                 value_term(right),
                                 &available_bounds,
+                                definition_axiom_count,
+                                &machine_parameter_values,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1728,6 +1731,13 @@ impl IntegerOffset {
         }
     }
 
+    fn from_subtrahend(value: IntegerValue) -> Self {
+        match Self::from_value(value) {
+            Self::Nonnegative(value) => Self::Negative(value),
+            Self::Negative(value) => Self::Nonnegative(value),
+        }
+    }
+
     fn checked_add(self, right: Self) -> Option<Self> {
         match (self, right) {
             (Self::Nonnegative(left), Self::Nonnegative(right)) => {
@@ -1804,7 +1814,7 @@ fn landed_integer_constant_value(
     (known_type == integer_type && integer_type.admits(value)).then_some(value)
 }
 
-fn exact_integer_add_offset_obligation(
+fn exact_integer_offset_obligation(
     integer_type: psi_core::IntegerType,
     variable: ScalarTerm,
     offset: IntegerOffset,
@@ -1825,7 +1835,11 @@ fn exact_integer_add_offset_obligation(
             .expect("exact-add unsigned boundary remains in the carrier");
             Proposition::LessOrEqual(variable, boundary)
         }
-        (IntegerSign::Unsigned, IntegerOffset::Negative(_)) => Proposition::Falsehood,
+        (IntegerSign::Unsigned, IntegerOffset::Negative(offset)) => {
+            let boundary = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(offset))
+                .expect("exact-subtract unsigned boundary remains in the carrier");
+            Proposition::LessOrEqual(boundary, variable)
+        }
         (IntegerSign::Signed, IntegerOffset::Nonnegative(offset)) => {
             let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
                 unreachable!("signed type has signed maximum")
@@ -2044,7 +2058,7 @@ fn exact_integer_add_obligation(
         variable = original_variable;
         offset = original_offset;
     }
-    exact_integer_add_offset_obligation(integer_type, variable, offset)
+    exact_integer_offset_obligation(integer_type, variable, offset)
 }
 
 fn is_maximum_minus(
@@ -2110,6 +2124,8 @@ fn exact_integer_subtract_obligation(
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -2191,34 +2207,93 @@ fn exact_integer_subtract_obligation(
         }
         return Proposition::Falsehood;
     };
-    match (integer_type.sign(), constant) {
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
-        | (IntegerSign::Signed, IntegerValue::Signed(0)) => Proposition::Truth,
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(constant)) => {
-            let boundary = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(constant))
-                .expect("exact-subtract unsigned lower boundary remains in the carrier");
-            Proposition::LessOrEqual(boundary, left)
-        }
-        (IntegerSign::Signed, IntegerValue::Signed(constant)) if constant > 0 => {
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
-                unreachable!("signed type has signed minimum")
+    let original_variable = left.clone();
+    let original_offset = IntegerOffset::from_subtrahend(constant);
+    let mut variable = left;
+    let mut offset = original_offset;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let may_follow_chain =
+        landed_integer_constant_value(integer_type, &right, semantic_axioms, prior_axiom_count)
+            == Some(constant);
+    let mut followed_definition = false;
+    if may_follow_chain {
+        for _ in 0..prior_axiom_count {
+            let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, axiom)| match axiom {
+                    Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                    _ => None,
+                })
+            else {
+                break;
             };
-            let boundary =
-                ScalarTerm::integer(integer_type, IntegerValue::Signed(minimum + constant))
-                    .expect("exact-subtract signed lower boundary remains in the carrier");
-            Proposition::LessOrEqual(boundary, left)
-        }
-        (IntegerSign::Signed, IntegerValue::Signed(constant)) => {
-            let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
-                unreachable!("signed type has signed maximum")
+            let ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } = definition
+            else {
+                break;
             };
-            let boundary =
-                ScalarTerm::integer(integer_type, IntegerValue::Signed(maximum + constant))
-                    .expect("exact-subtract signed upper boundary remains in the carrier");
-            Proposition::LessOrEqual(left, boundary)
+            if *scalar_type != integer_type {
+                break;
+            }
+            let known_left = landed_integer_constant_value(
+                integer_type,
+                left,
+                semantic_axioms,
+                definition_index,
+            );
+            let Some(nested_constant) = landed_integer_constant_value(
+                integer_type,
+                right,
+                semantic_axioms,
+                definition_index,
+            ) else {
+                break;
+            };
+            if let Some(base) = known_left {
+                let Some(base) = integer_type.exact_sub(base, nested_constant) else {
+                    return Proposition::Falsehood;
+                };
+                let Some(total) = offset.checked_add(IntegerOffset::from_value(base)) else {
+                    return Proposition::Falsehood;
+                };
+                return if total.is_representable(integer_type) {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                };
+            }
+            let Some(combined) =
+                offset.checked_add(IntegerOffset::from_subtrahend(nested_constant))
+            else {
+                return Proposition::Falsehood;
+            };
+            if combined.magnitude() > integer_type_span(integer_type) {
+                return Proposition::Falsehood;
+            }
+            offset = combined;
+            variable = (**left).clone();
+            prior_axiom_count = definition_index;
+            followed_definition = true;
         }
-        _ => Proposition::Falsehood,
     }
+    if followed_definition
+        && !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type && machine_parameter_values.contains(id)
+        )
+    {
+        variable = original_variable;
+        offset = original_offset;
+    }
+    exact_integer_offset_obligation(integer_type, variable, offset)
 }
 
 fn is_minimum_plus(
@@ -3784,6 +3859,185 @@ mod tests {
     }
 
     #[test]
+    fn reconstructs_a_finite_ordered_exact_subtract_chain_and_rejects_broken_definitions() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let input_id = ValueId::new(21).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(integer_type));
+        let first = ScalarTerm::value(
+            ValueId::new(22).expect("first"),
+            ScalarType::Integer(integer_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(23).expect("second"),
+            ScalarType::Integer(integer_type),
+        );
+        let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_subtract(integer_type, input.clone(), one.clone())
+                .expect("first exact subtract"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_subtract(integer_type, first.clone(), one.clone())
+                .expect("second exact subtract"),
+        );
+        let parameters = BTreeSet::from([input_id]);
+        let expected = Proposition::LessOrEqual(
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(3)).expect("3u8"),
+            input.clone(),
+        );
+        let reconstruct = |axioms: &[Proposition], parameters: &BTreeSet<ValueId>| {
+            exact_integer_subtract_obligation(
+                integer_type,
+                second.clone(),
+                one.clone(),
+                axioms,
+                axioms.len(),
+                parameters,
+            )
+        };
+        assert_eq!(
+            reconstruct(
+                &[first_definition.clone(), second_definition.clone()],
+                &parameters,
+            ),
+            expected
+        );
+        assert_ne!(
+            reconstruct(std::slice::from_ref(&second_definition), &parameters),
+            expected
+        );
+        assert_ne!(
+            reconstruct(
+                &[second_definition.clone(), first_definition.clone()],
+                &parameters,
+            ),
+            expected
+        );
+        let reversed_second = match second_definition.clone() {
+            Proposition::Equal(left, right) => Proposition::Equal(right, left),
+            _ => unreachable!("exact-subtract definition is an equality"),
+        };
+        assert_ne!(
+            reconstruct(&[first_definition.clone(), reversed_second], &parameters),
+            expected
+        );
+        let redirected_second = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(2)).expect("2u8"),
+        );
+        assert_ne!(
+            reconstruct(&[first_definition.clone(), redirected_second], &parameters),
+            expected
+        );
+        let reversed_operand_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_subtract(integer_type, one.clone(), input)
+                .expect("reversed exact subtract"),
+        );
+        assert_ne!(
+            reconstruct(
+                &[reversed_operand_definition, second_definition.clone()],
+                &parameters,
+            ),
+            expected
+        );
+        let cyclic_first = Proposition::Equal(
+            first,
+            ScalarTerm::exact_integer_subtract(integer_type, second.clone(), one.clone())
+                .expect("cyclic exact subtract"),
+        );
+        assert_ne!(
+            reconstruct(&[cyclic_first, second_definition.clone()], &parameters),
+            expected
+        );
+        assert_ne!(
+            reconstruct(&[first_definition, second_definition], &BTreeSet::new()),
+            expected
+        );
+    }
+
+    #[test]
+    fn reconstructs_wide_signed_subtract_offsets_cancellation_and_magnitude_overflow() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let input_id = ValueId::new(31).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(i8_type));
+        let first = ScalarTerm::value(
+            ValueId::new(32).expect("first"),
+            ScalarType::Integer(i8_type),
+        );
+        let positive = ScalarTerm::integer(i8_type, IntegerValue::Signed(127)).expect("127i8");
+        let negative = ScalarTerm::integer(i8_type, IntegerValue::Signed(-127)).expect("-127i8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_subtract(i8_type, input.clone(), positive.clone())
+                .expect("first signed exact subtract"),
+        );
+        let parameters = BTreeSet::from([input_id]);
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                i8_type,
+                first.clone(),
+                positive,
+                std::slice::from_ref(&first_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(126)).expect("126i8"),
+                input,
+            )
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                i8_type,
+                first,
+                negative,
+                std::slice::from_ref(&first_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::Truth
+        );
+
+        let i128_type = IntegerType::new(IntegerSign::Signed, 128).expect("i128");
+        let wide_input_id = ValueId::new(41).expect("wide input");
+        let wide_input = ScalarTerm::value(wide_input_id, ScalarType::Integer(i128_type));
+        let wide_first = ScalarTerm::value(
+            ValueId::new(42).expect("wide first"),
+            ScalarType::Integer(i128_type),
+        );
+        let wide_second = ScalarTerm::value(
+            ValueId::new(43).expect("wide second"),
+            ScalarType::Integer(i128_type),
+        );
+        let maximum =
+            ScalarTerm::integer(i128_type, IntegerValue::Signed(i128::MAX)).expect("i128 maximum");
+        let wide_first_definition = Proposition::Equal(
+            wide_first.clone(),
+            ScalarTerm::exact_integer_subtract(i128_type, wide_input, maximum.clone())
+                .expect("wide first exact subtract"),
+        );
+        let wide_second_definition = Proposition::Equal(
+            wide_second.clone(),
+            ScalarTerm::exact_integer_subtract(i128_type, wide_first, maximum.clone())
+                .expect("wide second exact subtract"),
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                i128_type,
+                wide_second,
+                maximum,
+                &[wide_first_definition, wide_second_definition],
+                2,
+                &BTreeSet::from([wide_input_id]),
+            ),
+            Proposition::Falsehood
+        );
+    }
+
+    #[test]
     fn reconstructs_signed_nonnegative_joint_exact_add_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = ScalarTerm::value(
@@ -3818,6 +4072,8 @@ mod tests {
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8"),
                 right,
                 std::slice::from_ref(&nonnegative),
+                0,
+                &BTreeSet::new(),
             ),
             nonnegative
         );
@@ -3859,6 +4115,8 @@ mod tests {
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(-128)).expect("-128i8"),
                 right.clone(),
                 std::slice::from_ref(&nonpositive),
+                0,
+                &BTreeSet::new(),
             ),
             nonpositive
         );
@@ -3868,6 +4126,8 @@ mod tests {
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(-128)).expect("-128i8"),
                 right,
                 &[axioms[1].clone()],
+                0,
+                &BTreeSet::new(),
             ),
             Proposition::Falsehood
         );
@@ -3891,11 +4151,13 @@ mod tests {
                 left.clone(),
                 right.clone(),
                 std::slice::from_ref(&bound),
+                0,
+                &BTreeSet::new(),
             ),
             bound.clone()
         );
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, left, right, &[],),
+            exact_integer_subtract_obligation(integer_type, left, right, &[], 0, &BTreeSet::new(),),
             Proposition::Falsehood
         );
     }
@@ -3920,11 +4182,25 @@ mod tests {
         let bound = Proposition::LessOrEqual(lower, left.clone());
         let axioms = vec![nonnegative.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, left.clone(), right.clone(), &axioms,),
+            exact_integer_subtract_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                0,
+                &BTreeSet::new(),
+            ),
             canonical_conjunction(vec![nonnegative.clone(), bound.clone()])
         );
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, left, right, &axioms[1..],),
+            exact_integer_subtract_obligation(
+                integer_type,
+                left,
+                right,
+                &axioms[1..],
+                0,
+                &BTreeSet::new(),
+            ),
             Proposition::Falsehood
         );
     }
@@ -3948,11 +4224,25 @@ mod tests {
         let bound = Proposition::LessOrEqual(left.clone(), upper);
         let axioms = vec![nonpositive.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, left.clone(), right.clone(), &axioms,),
+            exact_integer_subtract_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                0,
+                &BTreeSet::new(),
+            ),
             canonical_conjunction(vec![nonpositive.clone(), bound.clone()])
         );
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, left, right, &axioms[1..],),
+            exact_integer_subtract_obligation(
+                integer_type,
+                left,
+                right,
+                &axioms[1..],
+                0,
+                &BTreeSet::new(),
+            ),
             Proposition::Falsehood
         );
     }
@@ -3971,6 +4261,8 @@ mod tests {
                 unsigned_left.clone(),
                 unsigned_five.clone(),
                 &[],
+                0,
+                &BTreeSet::new(),
             ),
             Proposition::LessOrEqual(unsigned_five, unsigned_left)
         );
@@ -3983,14 +4275,28 @@ mod tests {
         let positive = ScalarTerm::integer(i8_type, IntegerValue::Signed(8)).expect("8i8");
         let lower = ScalarTerm::integer(i8_type, IntegerValue::Signed(-120)).expect("-120i8");
         assert_eq!(
-            exact_integer_subtract_obligation(i8_type, signed_left.clone(), positive, &[],),
+            exact_integer_subtract_obligation(
+                i8_type,
+                signed_left.clone(),
+                positive,
+                &[],
+                0,
+                &BTreeSet::new(),
+            ),
             Proposition::LessOrEqual(lower, signed_left.clone())
         );
 
         let negative = ScalarTerm::integer(i8_type, IntegerValue::Signed(-7)).expect("-7i8");
         let upper = ScalarTerm::integer(i8_type, IntegerValue::Signed(120)).expect("120i8");
         assert_eq!(
-            exact_integer_subtract_obligation(i8_type, signed_left.clone(), negative, &[],),
+            exact_integer_subtract_obligation(
+                i8_type,
+                signed_left.clone(),
+                negative,
+                &[],
+                0,
+                &BTreeSet::new(),
+            ),
             Proposition::LessOrEqual(signed_left, upper)
         );
     }
@@ -4005,14 +4311,21 @@ mod tests {
             )
         };
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, value(1), value(2), &[],),
+            exact_integer_subtract_obligation(
+                integer_type,
+                value(1),
+                value(2),
+                &[],
+                0,
+                &BTreeSet::new(),
+            ),
             Proposition::Falsehood
         );
 
         let four = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(4)).expect("4u8");
         let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, four, five, &[],),
+            exact_integer_subtract_obligation(integer_type, four, five, &[], 0, &BTreeSet::new(),),
             Proposition::Falsehood
         );
     }
@@ -4027,7 +4340,14 @@ mod tests {
         let maximum =
             ScalarTerm::integer(integer_type, IntegerValue::Unsigned(255)).expect("255u8");
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, maximum.clone(), right.clone(), &[],),
+            exact_integer_subtract_obligation(
+                integer_type,
+                maximum.clone(),
+                right.clone(),
+                &[],
+                0,
+                &BTreeSet::new(),
+            ),
             Proposition::Truth
         );
     }

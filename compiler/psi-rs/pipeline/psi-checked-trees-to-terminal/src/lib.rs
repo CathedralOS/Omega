@@ -11140,10 +11140,23 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_add_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactSubtract,
+            left,
+            right,
+            ..
+        } if proof_shell_allowed => {
+            let collect_direct = || {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                Some(parameters)
+            };
+            collect_direct().or_else(|| shared_exact_subtract_chain_runtime_parameters(expression))
+        }
+        LoweredDirectExpression::IntegerBinary {
             kind:
-                LoweredIntegerBinaryKind::ExactSubtract
-                | LoweredIntegerBinaryKind::ExactMultiply
-                | LoweredIntegerBinaryKind::ExactShiftRight,
+                LoweredIntegerBinaryKind::ExactMultiply | LoweredIntegerBinaryKind::ExactShiftRight,
             left,
             right,
             ..
@@ -11278,6 +11291,50 @@ fn shared_exact_add_chain_runtime_parameters(
                 expression = nested;
             }
             _ if saw_nested_add && (left_is_literal || right_is_literal) => {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                return Some(parameters);
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_subtract_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_subtract = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactSubtract,
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *scalar_type)
+            || !matches!(
+                right.as_ref(),
+                LoweredDirectExpression::IntegerLiteral { .. }
+            )
+        {
+            return None;
+        }
+        chain_type = Some(*scalar_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactSubtract,
+                ..
+            } => {
+                saw_nested_subtract = true;
+                expression = nested;
+            }
+            _ if saw_nested_subtract => {
                 let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
                 parameters.extend(shared_integer_runtime_parameters_with_shells(
                     right, 0, false,

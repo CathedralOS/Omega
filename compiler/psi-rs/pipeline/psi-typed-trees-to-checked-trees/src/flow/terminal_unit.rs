@@ -1557,10 +1557,33 @@ fn shared_integer_runtime_inputs_with_shells(
             })
         }
         CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactSubtract,
+            left,
+            right,
+            ..
+        } if proof_shell_allowed => {
+            let collect_direct = || {
+                let mut inputs = shared_integer_runtime_inputs_with_shells(
+                    left,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?;
+                inputs.extend(shared_integer_runtime_inputs_with_shells(
+                    right,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?);
+                Some(inputs)
+            };
+            collect_direct().or_else(|| {
+                shared_exact_subtract_chain_runtime_inputs(expression, scalar_parameter_count)
+            })
+        }
+        CheckedScalarExpression::IntegerBinary {
             kind:
-                CheckedIntegerBinaryKind::ExactSubtract
-                | CheckedIntegerBinaryKind::ExactMultiply
-                | CheckedIntegerBinaryKind::ExactShiftRight,
+                CheckedIntegerBinaryKind::ExactMultiply | CheckedIntegerBinaryKind::ExactShiftRight,
             left,
             right,
             ..
@@ -1726,6 +1749,59 @@ fn shared_exact_add_chain_runtime_inputs(
                 expression = nested;
             }
             _ if saw_nested_add && (left_is_literal || right_is_literal) => {
+                let mut inputs = shared_integer_runtime_inputs_with_shells(
+                    left,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?;
+                inputs.extend(shared_integer_runtime_inputs_with_shells(
+                    right,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?);
+                return Some(inputs);
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_subtract_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_subtract = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactSubtract,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || !matches!(
+                right.as_ref(),
+                CheckedScalarExpression::IntegerLiteral { .. }
+            )
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactSubtract,
+                ..
+            } => {
+                saw_nested_subtract = true;
+                expression = nested;
+            }
+            _ if saw_nested_subtract => {
                 let mut inputs = shared_integer_runtime_inputs_with_shells(
                     left,
                     scalar_parameter_count,

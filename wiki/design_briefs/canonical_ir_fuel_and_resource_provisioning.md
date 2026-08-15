@@ -146,9 +146,10 @@ native lowering improved.
 
 A value-less `ReturnUnit` is still one taken normal-return edge. It has the
 same edge charge as a scalar return and no invented value-producing operation.
-Likewise, a finite retained exact-add chain charges every ordered arithmetic
-operation and its ordinary value leaves. Reconstructing each operation's proof
-adds no executable operation and therefore no fuel charge.
+Likewise, a finite retained exact-add or left-associated exact-subtract chain
+charges every ordered arithmetic operation and its ordinary value leaves.
+Reconstructing each operation's proof adds no executable operation and therefore
+no fuel charge.
 A finite chain of direct integer widens followed by an exact narrowing back to
 the original carrier likewise charges every retained operation; the
 verifier-derived self-proof adds no executable work.

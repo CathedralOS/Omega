@@ -198,9 +198,11 @@ Remaining:
   shifts, division/remainder, exact-operation evidence, bounded nesting, and
   independent exact leaves in distinct proof-free subtrees across interpreter
   and every native target. A finite same-carrier exact-add chain may have a
-  direct machine-parameter root when every non-chain sibling is a landed
-  literal constant; the verifier walks the ordered definitions and reconstructs
-  every retained operation's safety obligation independently. One direct
+  landed literal sibling at each link, while a finite exact-subtract chain may
+  continue only through its left operand and must have a landed literal right
+  operand at each link. Both require a direct machine-parameter root; the
+  verifier walks ordered definitions and reconstructs every retained
+  operation's safety obligation independently. One direct
   fixed-integer parameter may also pass through a finite chain of valid
   widenings and then exactly narrow back to its original carrier; Terminal
   retains every operation and independently derives the narrowing obligation
