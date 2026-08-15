@@ -389,6 +389,9 @@ pub(super) fn write_trust_report(
                             machine_argument_contract_fingerprints: specialization
                                 .machine_argument_contract_fingerprints
                                 .clone(),
+                            conformance_argument_fingerprints: specialization
+                                .conformance_argument_fingerprints
+                                .clone(),
                         },
                     )
                 }),

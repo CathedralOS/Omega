@@ -536,18 +536,26 @@ machine build(b: &mut Build) {
     let main_with = |requirement_clause: &str| {
         format!(
             r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Console; first: i32; second: i32; }}
+trait Ranked {{ machine Self::before(&self, other: &Self) -> bool; }}
+data Card {{ rank: i32; }}
+Ascending: Card satisfies Ranked {{
+    machine before(&self, other: &Card) -> bool {{ self.rank < other.rank }}
+}}
+Descending: Card satisfies Ranked {{
+    machine before(&self, other: &Card) -> bool {{ self.rank > other.rank }}
+}}
+data Main {{ console: Console; first: Card; second: Card; }}
 
-machine selected_first(value: &i32) {{}}
-machine selected_second(value: &i32) ensures true {{}}
+machine selected_first(value: &Card) {{}}
+machine selected_second(value: &Card) ensures true {{}}
 
-boundary machine admitted<T, machine F>(value: &T)
+boundary machine admitted<T, Order: T satisfies Ranked, machine F>(value: &T)
 where machine F(item: &T){requirement_clause};
 ensures true;
 
 machine Main::exercise(&mut self) {{
-    admitted<selected_first>(&self.first);
-    admitted<selected_second>(&self.second);
+    admitted<Card, Ascending, selected_first>(&self.first);
+    admitted<Card, Descending, selected_second>(&self.second);
     self.console.exit_process(70);
 }}
 "#
@@ -614,8 +622,14 @@ machine Main::exercise(&mut self) {{
     assert!(
         instance_rows
             .iter()
-            .all(|line| !line.ends_with("machine argument contracts: none")),
+            .all(|line| !line.contains("machine argument contracts: none")),
         "each instance must retain its selected machine contract identity"
+    );
+    assert!(
+        instance_rows
+            .iter()
+            .all(|line| !line.ends_with("conformance arguments: none")),
+        "each instance must retain its selected closed conformance identity"
     );
     let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
         .expect("machine contract manifest written");
