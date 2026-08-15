@@ -11714,10 +11714,11 @@ fn runtime_float_place_comparison_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float place comparison canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float place comparison canary should run");
 
@@ -11740,10 +11741,11 @@ fn runtime_float_comparison_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float comparison canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float comparison canary should run");
 
@@ -11764,10 +11766,11 @@ fn runtime_float_arithmetic_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-float-arith-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float arithmetic canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float arithmetic canary should run");
 
@@ -46010,6 +46013,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_position_branching_call_exit",
     "domains/utf8_return_view_equals_exit",
     "expressions/runtime_16bit_cast_exit",
+    "expressions/runtime_float_arithmetic_exit",
+    "expressions/runtime_float_comparison_exit",
+    "expressions/runtime_float_place_comparison_exit",
     "expressions/runtime_numeric_cast_exit",
     "expressions/runtime_widened_bitwise_exit",
     "expressions/runtime_widened_comparison_exit",
