@@ -23286,13 +23286,8 @@ fn runtime_signed_const_data_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-signed-const-data-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("signed const data arguments should specialize");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("signed const data arguments should specialize");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("signed const data canary should run");
@@ -45355,6 +45350,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "generics/runtime_const_data_forwarded_length_exit",
     "generics/runtime_const_data_multiple_instances_exit",
     "generics/runtime_const_data_symbolic_expression_exit",
+    "generics/runtime_signed_const_data_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
