@@ -511,26 +511,23 @@ checked `u128`, and reconstructs every link from the cumulative count: zero is
 total; `0 < cumulative < width` requires `root <= MAX >> cumulative` for
 unsigned roots and `MIN >> cumulative <= root <= MAX >> cumulative` for signed
 roots; cumulative counts at least the width require the root to equal zero.
-One mixed shift family admits a finite nonempty exact-right-shift chain from a
-direct same-carrier machine parameter feeding a finite nonempty exact-left-shift
-chain. Every count is an independently landed legal fixed-native literal and
-count carriers may differ. For each left prefix the verifier walks only prior
-canonical definitions, accumulates its left count `L` and the inner right count
-`C` with checked arithmetic, and reconstructs the root interval independently.
-When `C` is below the value width, the left-safe quotient interval is the full
-carrier for `L == 0`, the carrier shifted right by `L` for a sub-width `L`, and
-zero-only at or above the width; arithmetic/zero-fill right-shift preimage maps
-that interval to `[Qmin*2^C, (Qmax+1)*2^C-1]` and intersects it with the root
-carrier. At or above the width an unsigned right chain is zero and every left
-prefix is true. A signed right chain is `-1` or zero: sub-width left prefixes
-are true, while a width-sized or larger prefix requires the direct root to be
-nonnegative. Every right and left operation keeps distinct evidence; no prior
-shift proof is imported. Homogeneous and cast-rooted shift families remain on
-their existing paths. Runtime, computed, negative, out-of-range, address, or
-non-native counts, mixed value carriers, local, block, computed, or cast roots,
-intervening shells or operations, left-then-right, reversed, or right-associated
-shapes, malformed or stale definitions, cumulative-count or interval overflow,
-and stale or missing evidence remain fenced.
+One mixed shift family admits any finite left-associated same-carrier chain
+containing both exact-left and exact-right shifts from a direct machine
+parameter. Every count is an independently landed legal fixed-native literal;
+count carriers may differ. Each right-shift proof remains only its own legal
+count proposition. For each left prefix the verifier starts with that
+operation's carrier-tight safe input interval and walks every prior canonical
+mixed-shift definition backward: a prior left shift maps `[a,b]` to
+`[ceil(a/2^k), floor(b/2^k)]`, while a prior arithmetic or zero-fill right shift
+maps it to `[a*2^k, (b+1)*2^k-1]`; each step intersects the value carrier.
+Empty intervals reject, full intervals are true, and surviving intervals become
+canonical direct-root bounds. Every operation keeps distinct evidence, so a
+later right shift cannot erase an unsafe earlier left prefix. Homogeneous and
+cast-rooted shift families remain on their existing paths. Runtime, computed,
+negative, out-of-range, address, or non-native counts, mixed value carriers,
+local, block, computed, or cast roots, intervening shells or operations,
+right-associated shapes, malformed, reordered, cyclic, redirected, or stale
+definitions, interval overflow, and stale or missing evidence remain fenced.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,

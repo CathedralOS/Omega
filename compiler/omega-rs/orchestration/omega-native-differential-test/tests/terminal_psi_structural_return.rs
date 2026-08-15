@@ -847,7 +847,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
 }
 
 #[test]
-fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
+fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
     let source = r#"
         data Helper {}
         machine Helper::touch() {}
@@ -862,13 +862,16 @@ fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
             signed: i8,
             enabled: bool
         ) -> bool
-        requires value <= 31u8, -32i8 <= signed, signed <= 31i8, 0i8 <= signed
+        requires value <= 127u8, value <= 63u8, value <= 31u8,
+            -32i8 <= signed, signed <= 31i8, 0i8 <= signed
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
                 && ((((signed >> 1u8) << 3i16) < 127i8)
                     && (((((signed >> 7i8) >> 1u16) << 7i32) << 1u64) < 127i8))
                 && (((((value >> 7i8) >> 1u16) << 7i32) << 7u64) < 255u8)
+                && (((value << 1i8) >> 2u16) < 255u8)
+                && (((((value << 1i8) >> 2u16) << 3i32) >> 1u64) < 255u8)
                 && enabled
         }
     "#;
@@ -896,7 +899,7 @@ fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        8,
+        11,
     );
     assert_eq!(
         operations
@@ -906,7 +909,7 @@ fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        8,
+        11,
     );
     verify_module(
         &lowered.semantic_module,
@@ -928,7 +931,7 @@ fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        8,
+        11,
     );
     assert_eq!(
         abstract_plan
@@ -940,7 +943,7 @@ fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        8,
+        11,
     );
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)

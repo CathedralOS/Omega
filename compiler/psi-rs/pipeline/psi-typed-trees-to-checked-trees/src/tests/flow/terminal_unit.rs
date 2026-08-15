@@ -10,13 +10,13 @@ use crate::flow::{
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
+    exact_mixed_shift_chain_runtime_parameter_positions_for_test,
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
     exact_runtime_divisor_chain_runtime_parameter_positions_for_test,
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
-    exact_shift_right_then_left_runtime_parameter_positions_for_test,
 };
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedScalarExpression,
@@ -1974,7 +1974,7 @@ fn exact_runtime_divisor_chain_classifier_unifies_direct_and_partial_cast_roots(
 }
 
 #[test]
-fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain() {
+fn exact_mixed_shift_classifier_accepts_finite_ordered_alternation() {
     let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
         literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
             psi_numerics::literals::IntegerLanding {
@@ -2016,7 +2016,7 @@ fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain()
         literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
     );
     assert_eq!(
-        exact_shift_right_then_left_runtime_parameter_positions_for_test(&mixed, 1),
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&mixed, 1),
         Some(vec![0]),
     );
 
@@ -2032,10 +2032,10 @@ fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain()
         literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
     );
     assert_eq!(
-        exact_shift_right_then_left_runtime_parameter_positions_for_test(&homogeneous, 1),
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&homogeneous, 1),
         None,
     );
-    let reversed = shift(
+    let left_then_right = shift(
         CheckedIntegerBinaryKind::ExactShiftRight,
         PrimitiveType::U8,
         shift(
@@ -2047,8 +2047,28 @@ fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain()
         literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
     );
     assert_eq!(
-        exact_shift_right_then_left_runtime_parameter_positions_for_test(&reversed, 1),
-        None,
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&left_then_right, 1),
+        Some(vec![0]),
+    );
+    let alternating = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            shift(
+                CheckedIntegerBinaryKind::ExactShiftLeft,
+                PrimitiveType::U8,
+                parameter(0, PrimitiveType::U8),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+            ),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&alternating, 1),
+        Some(vec![0]),
     );
     let runtime_count = shift(
         CheckedIntegerBinaryKind::ExactShiftLeft,
@@ -2062,7 +2082,7 @@ fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain()
         literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
     );
     assert_eq!(
-        exact_shift_right_then_left_runtime_parameter_positions_for_test(&runtime_count, 2),
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&runtime_count, 2),
         None,
     );
     let mismatched = shift(
@@ -2077,7 +2097,7 @@ fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain()
         literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
     );
     assert_eq!(
-        exact_shift_right_then_left_runtime_parameter_positions_for_test(&mismatched, 1),
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&mismatched, 1),
         None,
     );
     let address = shift(
@@ -2092,7 +2112,7 @@ fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain()
         literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
     );
     assert_eq!(
-        exact_shift_right_then_left_runtime_parameter_positions_for_test(&address, 1),
+        exact_mixed_shift_chain_runtime_parameter_positions_for_test(&address, 1),
         None,
     );
 }

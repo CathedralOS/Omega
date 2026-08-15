@@ -23,19 +23,22 @@ const SOURCE: &str = r#"
     data Root {}
 
     machine Root::measure(token: Token, value: u8, signed: i8, enabled: bool) -> bool
-    requires value <= 31u8, -32i8 <= signed, signed <= 31i8, 0i8 <= signed
+    requires value <= 127u8, value <= 63u8, value <= 31u8,
+        -32i8 <= signed, signed <= 31i8, 0i8 <= signed
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
             && ((((signed >> 1u8) << 3i16) < 127i8)
                 && (((((signed >> 7i8) >> 1u16) << 7i32) << 1u64) < 127i8))
             && (((((value >> 7i8) >> 1u16) << 7i32) << 7u64) < 255u8)
+            && (((value << 1i8) >> 2u16) < 255u8)
+            && (((((value << 1i8) >> 2u16) << 3i32) >> 1u64) < 255u8)
             && enabled
     }
 "#;
 
 #[test]
-fn exact_right_shift_chains_feed_independently_verified_left_shift_prefixes() {
+fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let tokens = Lexer::new(SOURCE)
         .tokenize()
         .expect("tokenize mixed shifts");
@@ -54,6 +57,7 @@ fn exact_right_shift_chains_feed_independently_verified_left_shift_prefixes() {
     let [token] = entry.structural_parameters.as_slice() else {
         panic!("mixed-shift entry retains its nominal cleanup root")
     };
+    let value_parameter = entry.parameters[0].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -77,7 +81,7 @@ fn exact_right_shift_chains_feed_independently_verified_left_shift_prefixes() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        8,
+        11,
     );
     assert_eq!(
         operations
@@ -87,9 +91,9 @@ fn exact_right_shift_chains_feed_independently_verified_left_shift_prefixes() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        8,
+        11,
     );
-    assert_eq!(shift_obligations.len(), 16);
+    assert_eq!(shift_obligations.len(), 22);
     for (index, obligation) in shift_obligations.iter().enumerate() {
         assert!(!shift_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -161,6 +165,51 @@ fn exact_right_shift_chains_feed_independently_verified_left_shift_prefixes() {
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &changed_count,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if shift_obligations.contains(&obligation)
+    ));
+
+    let mut stale_definition = decode_module(&semantics).expect("decode mixed-shift module");
+    let four = stale_definition
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(4),
+                }
+            ) && operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.scalar_type == ScalarType::Integer(u16_type))
+        })
+        .and_then(|operation| operation.result.scalar().map(|result| result.id))
+        .expect("mixed shifts retain their landed 4u16 count");
+    let redirected = stale_definition
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::ExactIntegerShiftLeft { count, .. } if count == four
+            )
+        })
+        .expect("mixed shifts retain the 4u16 exact-left definition");
+    let OperationKind::ExactIntegerShiftLeft { value, .. } = &mut redirected.kind else {
+        unreachable!("selected exact-left definition")
+    };
+    *value = value_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &stale_definition,
             &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
             &AdmissionProfile::default(),
         ),

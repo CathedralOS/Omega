@@ -11202,6 +11202,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
+                .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_shift_right_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_right_chain_runtime_parameters(expression))
         }
@@ -11237,7 +11238,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
-                .or_else(|| shared_exact_shift_right_then_left_runtime_parameters(expression))
+                .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_shift_left_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_left_chain_runtime_parameters(expression))
         }
@@ -12389,20 +12390,29 @@ fn landed_exact_shift_literal_count(
     count.filter(|count| *count < u128::from(value_type.bits()))
 }
 
-fn shared_exact_shift_right_then_left_runtime_parameters(
+fn shared_exact_mixed_shift_chain_runtime_parameters(
     mut expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     let mut value_type = None;
     let mut cumulative_left = 0_u128;
+    let mut cumulative_right = 0_u128;
+    let mut saw_left = false;
+    let mut saw_right = false;
     loop {
-        let LoweredDirectExpression::IntegerBinary {
-            kind: LoweredIntegerBinaryKind::ExactShiftLeft,
-            scalar_type: ScalarType::Integer(integer_type),
-            left,
-            right,
-        } = expression
-        else {
-            return None;
+        let (kind, integer_type, left, right) = match expression {
+            LoweredDirectExpression::IntegerBinary {
+                kind: kind @ LoweredIntegerBinaryKind::ExactShiftLeft,
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            }
+            | LoweredDirectExpression::IntegerBinary {
+                kind: kind @ LoweredIntegerBinaryKind::ExactShiftRight,
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            } => (kind, integer_type, left, right),
+            _ => return None,
         };
         if !native_fixed_integer_type(*integer_type)
             || value_type.is_some_and(|value_type| value_type != *integer_type)
@@ -12410,50 +12420,28 @@ fn shared_exact_shift_right_then_left_runtime_parameters(
             return None;
         }
         value_type = Some(*integer_type);
-        cumulative_left =
-            cumulative_left.checked_add(landed_exact_shift_literal_count(*integer_type, right)?)?;
-        match left.as_ref() {
-            nested @ LoweredDirectExpression::IntegerBinary {
-                kind: LoweredIntegerBinaryKind::ExactShiftLeft,
-                ..
-            } => expression = nested,
-            nested @ LoweredDirectExpression::IntegerBinary {
-                kind: LoweredIntegerBinaryKind::ExactShiftRight,
-                ..
-            } => {
-                expression = nested;
-                break;
+        let count = landed_exact_shift_literal_count(*integer_type, right)?;
+        match kind {
+            LoweredIntegerBinaryKind::ExactShiftLeft => {
+                cumulative_left = cumulative_left.checked_add(count)?;
+                saw_left = true;
             }
-            _ => return None,
+            LoweredIntegerBinaryKind::ExactShiftRight => {
+                cumulative_right = cumulative_right.checked_add(count)?;
+                saw_right = true;
+            }
+            _ => unreachable!("matched one exact shift kind"),
         }
-    }
-
-    let value_type = value_type?;
-    let mut cumulative_right = 0_u128;
-    loop {
-        let LoweredDirectExpression::IntegerBinary {
-            kind: LoweredIntegerBinaryKind::ExactShiftRight,
-            scalar_type: ScalarType::Integer(integer_type),
-            left,
-            right,
-        } = expression
-        else {
-            return None;
-        };
-        if *integer_type != value_type {
-            return None;
-        }
-        cumulative_right = cumulative_right
-            .checked_add(landed_exact_shift_literal_count(*integer_type, right)?)?;
         match left.as_ref() {
             nested @ LoweredDirectExpression::IntegerBinary {
-                kind: LoweredIntegerBinaryKind::ExactShiftRight,
+                kind:
+                    LoweredIntegerBinaryKind::ExactShiftLeft | LoweredIntegerBinaryKind::ExactShiftRight,
                 ..
             } => expression = nested,
             LoweredDirectExpression::Parameter {
                 position,
                 scalar_type: ScalarType::Integer(root_type),
-            } if *root_type == value_type => {
+            } if saw_left && saw_right && Some(*root_type) == value_type => {
                 let _ = (cumulative_left, cumulative_right);
                 return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                     *position,

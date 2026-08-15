@@ -207,10 +207,9 @@ The unified runtime-divisor widening uses the same accounting for either a
 direct-root chain or a chain rooted at one partial exact cast: every retained
 divide, remainder, and cast is charged, while each independently reconstructed
 runtime-divisor proposition adds no executable work.
-A finite exact-right-shift chain feeding a finite exact-left-shift chain also
-charges every retained shift and ordinary value leaf. Verifier replay of the
-cumulative counts and right-shift preimage for each left prefix adds no
-executable work.
+A finite mixed exact-left/exact-right chain also charges every retained shift
+and ordinary value leaf. Verifier replay of each left prefix's safe interval
+through the prior canonical mixed-shift definitions adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
