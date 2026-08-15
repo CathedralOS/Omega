@@ -177,9 +177,10 @@ package additionally binds exactly one contextual `value` field through one
 ordinary caller local/call, while the evidence fields remain erased. The proof
 group is linked to that exact checked call site and canonical terminal call
 operation; its runtime effects, crashes, and fuel are only those of the ordinary
-call. Retained, projected, guarded, and generic packages remain pending.
-Explicit discard is design-blocked on `OWNER_QUESTIONS.md` Q13; evidence fields
-erase independently of the multiplicity that decision must assign.
+call. Retained/projected and guarded complete-package forms are design-blocked
+on `OWNER_QUESTIONS.md` Q14. Generic package application is design-blocked on
+Q12. Explicit discard is design-blocked on Q13; evidence fields erase
+independently of the multiplicity that decision must assign.
 
 A transparent logical definition uses `=`:
 
@@ -524,8 +525,10 @@ outputs are dense in callee-lane order and bind each public field/position and
 callee term declaration to one distinct caller-local term with the same exact
 proposition and interface. Repeated calls reuse callee declarations and their
 producer provenance while minting distinct caller terms. A display spelling is
-never an identity oracle. Retained and general package projection remain future
-work.
+never an identity oracle. Retained/general projection and guarded complete
+packages are design-blocked on `OWNER_QUESTIONS.md` Q14; generic application is
+blocked on Q12 and explicit discard on Q13.
+
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.

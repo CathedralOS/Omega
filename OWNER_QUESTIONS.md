@@ -245,3 +245,22 @@ are forwarded through `requires`/`ensures` lanes and generated output
 packages, and define exactly when `_` is a legal discharge. Erasure must remain
 independent of multiplicity, and neither producer choice nor runtime layout
 may silently weaken exact-use evidence into discardable evidence.
+
+## Q14 — Generated evidence-output package identity and projection
+
+The immediate output-package rung destructures one complete unconditional
+package at its call site, but the retained and outcome-guarded package model is
+not settled. The guide promises an inferred, source-unnameable nominal type
+derived from the producer machine, runtime result, named evidence fields,
+propositions, and outcome guards without defining its canonical identity,
+binding lifetime, projection ownership, or proof-artifact representation.
+
+Choose whether nominal identity belongs to one normalized machine application,
+one call site, or another exact origin, including substitutions and guarded
+outcome variants. Define how `let package = call()` binds a zero-layout or
+runtime-bearing unnameable value; whether projecting `value` or an evidence
+field borrows, copies, moves, or partially consumes it; what remains valid after
+each projection; and which origin, field, outcome, and exact evidence-term rows
+Terminal Psi must retain and verify. Q12 continues to own generic conformance
+application syntax. Q13 continues to own evidence multiplicity, use counts,
+residual-field discharge, and `_` legality.
