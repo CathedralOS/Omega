@@ -14604,9 +14604,10 @@ fn sum_field_storage_roundtrip_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-sum-field-roundtrip-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sum field-storage canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("sum field-storage canary should run");
     assert_eq!(
@@ -14640,9 +14641,10 @@ fn sum_mixed_width_payload_layout_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-sum-mixed-width-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sum mixed-width payload canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("sum mixed-width payload canary should run");
     assert_eq!(
@@ -14662,9 +14664,10 @@ fn arithmetic_domain_saturating_mul_exit_canary_runs() {
     let canary = pass_canary("expressions/arithmetic_domain_saturating_mul_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-sat-mul-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating_mul canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_mul canary should run");
 
@@ -14688,9 +14691,10 @@ fn arithmetic_domain_saturating_mul_signed_exit_canary_runs() {
         "omega-arith-domain-sat-mul-signed-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating_mul_signed canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_mul_signed canary should run");
     assert_eq!(
@@ -14712,9 +14716,10 @@ fn arithmetic_domain_trapping_div_exit_canary_runs() {
         "omega-arith-domain-trap-div-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_div canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_div canary should run");
     assert_eq!(
@@ -14737,9 +14742,10 @@ fn arithmetic_domain_trapping_mul_exit_canary_runs() {
         "omega-arith-domain-trap-mul-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_mul canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_mul canary should run");
     assert_eq!(
@@ -14761,9 +14767,10 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_arg_guard_narrowing_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-transition-arg-guard-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded transition-arg decrement should compile (guard narrows n-1 to Exact)");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("transition-arg guard narrowing canary should run");
     assert_eq!(
@@ -14786,9 +14793,10 @@ fn runtime_requires_one_sided_bound_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_requires_one_sided_bound_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-requires-one-sided-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("one-sided requires x<100 should prove x+1 Exact (env interval ∩ type range)");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("requires one-sided bound canary should run");
     assert_eq!(
@@ -14812,9 +14820,10 @@ fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
         "omega-transition-value-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded transition-value decrement should compile (guard narrows n-1 to Exact)");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("transition-value guard narrowing canary should run");
     assert_eq!(
@@ -14836,10 +14845,11 @@ fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
         "omega-transition-arg-false-arm-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()).expect(
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
         "false-arm transition-arg increment should compile (negated guard narrows n+1 to Exact)",
     );
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("transition-arg false-arm narrowing canary should run");
     assert_eq!(
@@ -46015,6 +46025,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "control_flow/sum_field_storage_roundtrip",
+    "control_flow/sum_mixed_width_payload_layout",
+    "expressions/arithmetic_domain_saturating_mul_exit",
+    "expressions/arithmetic_domain_saturating_mul_signed_exit",
+    "expressions/arithmetic_domain_trapping_div_exit",
+    "expressions/arithmetic_domain_trapping_mul_exit",
+    "arithmetic/runtime_transition_arg_guard_narrowing_exit",
+    "arithmetic/runtime_requires_one_sided_bound_exit",
+    "arithmetic/runtime_transition_value_guard_narrowing_exit",
+    "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
     "collections/runtime_fixed_vec_round_trip_exit",
     "expressions/float_array_binary_op_zero",
     "expressions/f32_array_binary_op_zero",
