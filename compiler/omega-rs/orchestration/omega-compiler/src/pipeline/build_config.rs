@@ -381,6 +381,7 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
         super::program_storage_entry::SelectedProgramStorageEntryPlan::from_target_slot(
             selected.slot,
             service_schema,
+            arrival.requirement_identity,
         )
         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     Ok(Some((
@@ -396,6 +397,7 @@ struct ArrivalRequirementParameterType {
 
 struct ArrivalRequirementContract {
     signature: psi_symbols::SymbolHandle,
+    requirement_identity: String,
     parameters: Vec<ArrivalRequirementParameterType>,
 }
 
@@ -435,6 +437,9 @@ fn arrival_requirement_contract(
     };
     Ok(ArrivalRequirementContract {
         signature: signature.symbol,
+        requirement_identity: typed
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity(),
         parameters: typed
             .state_signature_parameters(signature)
             .iter()

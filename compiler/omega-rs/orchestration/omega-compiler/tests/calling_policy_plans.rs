@@ -532,6 +532,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .iter()
             .all(|claim| claim.predicate_body.is_present())
     );
+    let requirement_identity = method.requirement_identity.clone();
 
     let shape = ValueShape::integer(16, 8);
     let boundary = evaluate_calling_policy_plan(
@@ -559,6 +560,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let hosted_error = SelectedProgramStorageEntryPlan::from_target_slot(
         omega_target::TargetProfile::MacosArm64.program_entry_slot(),
         selected_schema.clone(),
+        requirement_identity.clone(),
     )
     .expect_err("hosted entries cannot claim source-visible program-storage roots");
     assert!(
@@ -571,14 +573,84 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let mismatched_error = SelectedProgramStorageEntryPlan::from_target_slot(
         omega_target::TargetProfile::UefiX64.program_entry_slot(),
         mismatched_schema,
+        requirement_identity.clone(),
     )
     .expect_err("a target slot cannot accept a different boundary schema");
     assert!(mismatched_error.0.contains("requires boundary schema"));
+    let empty_identity_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        selected_schema.clone(),
+        String::new(),
+    )
+    .expect_err("an arrival requirement needs exact identity");
+    assert!(
+        empty_identity_error
+            .0
+            .contains("no exact arrival requirement identity")
+    );
+    let wrong_identity_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        selected_schema.clone(),
+        format!("{requirement_identity}#lookalike"),
+    )
+    .expect_err("a lookalike requirement identity cannot select the arrival slot");
+    assert!(
+        wrong_identity_error
+            .0
+            .contains("0 copies of exact arrival requirement")
+    );
+    let mut duplicate_schema = selected_schema.clone();
+    duplicate_schema
+        .methods
+        .push(duplicate_schema.methods[0].clone());
+    let duplicate_identity_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        duplicate_schema,
+        requirement_identity.clone(),
+    )
+    .expect_err("duplicate exact arrival identities must reject");
+    assert!(
+        duplicate_identity_error
+            .0
+            .contains("2 copies of exact arrival requirement")
+    );
+    let mut owner_drift_schema = selected_schema.clone();
+    owner_drift_schema.methods[0].requirement_owner = "LookalikeOwner".into();
+    let owner_drift_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        owner_drift_schema,
+        requirement_identity.clone(),
+    )
+    .expect_err("the exact identity cannot launder readable owner drift");
+    assert!(
+        owner_drift_error
+            .0
+            .contains("drifted from `ProgramStorageEntry::enter`")
+    );
+    let mut name_drift_schema = selected_schema.clone();
+    name_drift_schema.methods[0].name = "lookalike_enter".into();
+    let name_drift_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        name_drift_schema,
+        requirement_identity.clone(),
+    )
+    .expect_err("the exact identity cannot launder readable method drift");
+    assert!(
+        name_drift_error
+            .0
+            .contains("drifted from `ProgramStorageEntry::enter`")
+    );
+    let mut overloaded_schema = selected_schema;
+    let mut same_name_overload = overloaded_schema.methods[0].clone();
+    same_name_overload.requirement_identity = format!("{requirement_identity}#other-overload");
+    overloaded_schema.methods.push(same_name_overload);
     let selected = SelectedProgramStorageEntryPlan::from_target_slot(
         omega_target::TargetProfile::UefiX64.program_entry_slot(),
-        selected_schema,
+        overloaded_schema,
+        requirement_identity.clone(),
     )
     .expect("selected target root slot");
+    assert_eq!(selected.requirement_identity(), requirement_identity);
     let binding = bind_program_storage_entry_plan(&selected, &boundary, &storage)
         .expect("stable storage positions should bind to selected ABI captures");
     assert_eq!(binding.root_slot(), selected.root_slot());

@@ -2729,11 +2729,19 @@ mod tests {
 
         let diagnostics = validate_provider_plan_candidates(&TypedTrees::default(), &[plan]);
 
-        assert_eq!(diagnostics.len(), 1);
+        // Candidate-shape and typed-resolution validation remain cumulative:
+        // the impossible free adapter has neither a nominal owner nor a typed
+        // machine that could supply one.
+        assert_eq!(diagnostics.len(), 2);
         assert!(
-            diagnostics[0]
-                .message
-                .contains("has no nominal provider type")
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("has no nominal provider type"))
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("is absent from typed machines"))
         );
     }
 
