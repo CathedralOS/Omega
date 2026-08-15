@@ -19334,7 +19334,8 @@ fn runtime_negated_comparison_guard_exit_canary_runs() {
         "omega-runtime-negated-comparison-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime negated comparison guard canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45185,6 +45186,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_negated_boolean_place_guard_exit",
+    "control_flow/runtime_negated_comparison_guard_exit",
     "control_flow/record_pattern_arm_rename_guard_exit",
     "control_flow/state_transition_chain",
     "data/record_pattern_bind_all_exit",
