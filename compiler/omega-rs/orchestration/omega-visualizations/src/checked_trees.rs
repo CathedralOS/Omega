@@ -1742,7 +1742,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push_str("\n        \"fingerprint\": \"0x");
             json.push_str(&format!("{:016x}", contract.fingerprint));
             json.push_str("\",\n        \"supply\": ");
-            push_json_string(&mut json, supply_mode_name(contract.supply_mode));
+            push_json_string(&mut json, supply_mode_name(machine.supply_mode));
             json.push_str(",\n        \"service_reach\": ");
             push_service_reach_plan_json(
                 &mut json,
@@ -4080,7 +4080,9 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine: symbol,
-                supply_mode: MachineSupplyMode::CheckedBody,
+                // Deliberately contradictory legacy source: normalized
+                // typed-machine supply owns the artifact axis.
+                supply_mode: MachineSupplyMode::Accepted,
                 // Deliberately contradictory legacy source: visualization
                 // must use the independently published reach axis above.
                 service_reach: Default::default(),
@@ -4135,6 +4137,8 @@ mod tests {
         let contract = &json[contract_start..implementation_start];
 
         assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
+        assert!(contract.contains("\"supply\": \"checked_body\""));
+        assert!(!contract.contains("\"supply\": \"accepted\""));
         assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Worker::run)"));
         assert!(contract.contains(
             "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": [\"Readable\"]}"
