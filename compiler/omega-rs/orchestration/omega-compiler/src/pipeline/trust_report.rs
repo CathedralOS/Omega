@@ -83,6 +83,7 @@ pub(super) fn write_trust_report(
             machine_contract_fingerprint: None,
             machine_service_reach: None,
             machine_synchronous_invocations: None,
+            machine_may_suspend: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -199,6 +200,7 @@ pub(super) fn write_trust_report(
             machine_contract_fingerprint: None,
             machine_service_reach: None,
             machine_synchronous_invocations: None,
+            machine_may_suspend: None,
             standing_warning: !granted,
         });
     }
@@ -238,6 +240,9 @@ pub(super) fn write_trust_report(
             machine.name.as_str(),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_may_suspend =
+            accepted_machine_may_suspend(checked, machine.symbol, machine.name.as_str())
+                .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -248,6 +253,7 @@ pub(super) fn write_trust_report(
             machine_contract_fingerprint: Some(machine_contract_fingerprint),
             machine_service_reach: Some(machine_service_reach),
             machine_synchronous_invocations: Some(machine_synchronous_invocations),
+            machine_may_suspend: Some(machine_may_suspend),
             standing_warning: !granted,
         });
     }
@@ -272,6 +278,7 @@ pub(super) fn write_trust_report(
                 machine_contract_fingerprint: None,
                 machine_service_reach: None,
                 machine_synchronous_invocations: None,
+                machine_may_suspend: None,
                 standing_warning: false,
             });
         }
@@ -349,6 +356,30 @@ fn accepted_machine_synchronous_invocations(
     Ok(plan.published.clone())
 }
 
+fn accepted_machine_may_suspend(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<bool, Diagnostic> {
+    let plan = checked
+        .facts
+        .suspensions
+        .for_machine(machine)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no exact checked suspension facts"
+            ))
+        })?;
+    let psi_language_semantics::SuspensionInterface::PublishedMaySuspend(may_suspend) =
+        plan.interface
+    else {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no published suspension ceiling"
+        )));
+    };
+    Ok(may_suspend)
+}
+
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
 ) -> TrustProviderRealization {
@@ -387,15 +418,19 @@ fn trust_provider_realization(
 #[cfg(test)]
 mod tests {
     use psi_checked_trees::{
-        CheckedTrees, MachineServiceReachRows, MachineSynchronousInvocationFact, ServiceReachFacts,
+        CheckedTrees, MachineServiceReachRows, MachineSuspensionFact,
+        MachineSynchronousInvocationFact, ServiceReachFacts,
     };
     use psi_language_semantics::{
-        ServiceReachInterface, ServiceReachRowTable, ServiceReachTable,
-        SynchronousInvocationInterface, SynchronousInvocationPlan,
+        ServiceReachInterface, ServiceReachRowTable, ServiceReachTable, SuspensionInterface,
+        SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
     };
     use psi_symbols::SymbolHandle;
 
-    use super::{accepted_machine_service_reach, accepted_machine_synchronous_invocations};
+    use super::{
+        accepted_machine_may_suspend, accepted_machine_service_reach,
+        accepted_machine_synchronous_invocations,
+    };
 
     fn checked_with_reach(
         machine: SymbolHandle,
@@ -526,5 +561,53 @@ mod tests {
             .expect_err("private inference rejects")
             .to_string();
         assert!(internal.contains("has no published synchronous-invocation ceiling"));
+    }
+
+    #[test]
+    fn accepted_suspension_copies_only_the_published_interface_bit() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let mut checked = CheckedTrees::default();
+        checked
+            .facts
+            .suspensions
+            .machines
+            .push(MachineSuspensionFact {
+                machine,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::PublishedMaySuspend(true),
+                    checked_may_suspend: false,
+                },
+            });
+
+        assert_eq!(
+            accepted_machine_may_suspend(&checked, machine, "accepted"),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn accepted_suspension_fails_closed_on_missing_and_internal_facts() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing = accepted_machine_may_suspend(&CheckedTrees::default(), machine, "missing")
+            .expect_err("missing facts reject")
+            .to_string();
+        assert!(missing.contains("has no exact checked suspension facts"));
+
+        let mut internal = CheckedTrees::default();
+        internal
+            .facts
+            .suspensions
+            .machines
+            .push(MachineSuspensionFact {
+                machine,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::InternalInferred,
+                    checked_may_suspend: true,
+                },
+            });
+        let internal = accepted_machine_may_suspend(&internal, machine, "internal")
+            .expect_err("private inference rejects")
+            .to_string();
+        assert!(internal.contains("has no published suspension ceiling"));
     }
 }
