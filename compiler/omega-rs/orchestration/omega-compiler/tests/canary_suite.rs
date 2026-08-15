@@ -43886,13 +43886,8 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-float-minmax-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float min/max/abs/clamp canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("float min/max/abs/clamp canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44286,13 +44281,8 @@ fn runtime_float_running_min_max_fold_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-float-minmax-fold-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float running min/max fold canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("float running min/max fold canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44317,13 +44307,8 @@ fn runtime_clamp_desugar_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-clamp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("clamp desugar canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("clamp desugar canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44349,13 +44334,8 @@ fn runtime_clamp_narrowing_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-clamp-narrow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("clamp narrowing canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("clamp narrowing canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44381,13 +44361,8 @@ fn runtime_negative_float_to_int_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-negfloat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("negative float->int canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("negative float->int canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44550,13 +44525,8 @@ fn runtime_sqrt_builtin_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-sqrt-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sqrt builtin canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sqrt builtin canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44581,13 +44551,8 @@ fn runtime_abs_desugar_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-abs-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("abs desugar canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("abs desugar canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44615,13 +44580,8 @@ fn runtime_float_self_compare_nan_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-nan-self-compare-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("NaN self-compare canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("NaN self-compare canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -46055,6 +46015,14 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "arithmetic/runtime_float_self_compare_nan_exit",
+    "arithmetic/runtime_abs_desugar_exit",
+    "arithmetic/runtime_sqrt_builtin_exit",
+    "arithmetic/runtime_clamp_desugar_exit",
+    "arithmetic/runtime_clamp_narrowing_exit",
+    "arithmetic/runtime_negative_float_to_int_exit",
+    "arithmetic/runtime_float_min_max_abs_clamp_exit",
+    "arithmetic/runtime_float_running_min_max_fold_exit",
     "arithmetic/runtime_shift_count_domain_exit",
     "arithmetic/runtime_shift_atwidth_signed_modular_exit",
     "arithmetic/runtime_shift_subword_masked_count_exit",
