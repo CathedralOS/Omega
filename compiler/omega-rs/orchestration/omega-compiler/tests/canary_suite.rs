@@ -1429,13 +1429,8 @@ fn runtime_shared_ref_param_copy_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shared ref-param direct-copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shared ref-param direct-copy canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1513,13 +1508,8 @@ fn runtime_pointee_pair_copy_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("pointee-pair copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("pointee-pair copy canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
