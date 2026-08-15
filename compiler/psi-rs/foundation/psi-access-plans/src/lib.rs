@@ -1953,7 +1953,7 @@ pub struct PlacementAdmission<'extent> {
     loan: ExtentLoan<'extent>,
 }
 
-impl PlacementAdmission<'_> {
+impl<'extent> PlacementAdmission<'extent> {
     pub const fn identity(&self) -> PlacementAdmissionId {
         self.identity
     }
@@ -1964,6 +1964,14 @@ impl PlacementAdmission<'_> {
 
     pub const fn resources(&self) -> &PlacementResourceCompatibility {
         &self.resources
+    }
+
+    /// Cancel permission-only admission and recover the exact source loan.
+    ///
+    /// No placed content has been established at this stage, so withdrawal
+    /// makes no content, destruction, vacancy, or allocator-release claim.
+    pub fn withdraw(self) -> ExtentLoan<'extent> {
+        self.loan
     }
 }
 
@@ -5101,6 +5109,86 @@ mod tests {
             plan,
             &resources,
         )
+    }
+
+    #[test]
+    fn borrowed_admission_withdraws_the_exact_shared_loan() {
+        let plan = uart_placement_plan();
+        let mut extent = uart_extent_with_lineage(0x7200, 32, 76);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let address_space = extent.address_space();
+        let rights = extent.rights().clone();
+        let provenance = extent.provenance();
+        let era = extent.era();
+        let loan = extent.loan(4, 12).expect("shared placement loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(77).expect("admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect("borrowed shared placement admission");
+        let returned = admission.withdraw();
+
+        assert_eq!(returned.base(), 0x7204);
+        assert_eq!(returned.length(), 12);
+        assert_eq!(returned.polarity(), LoanPolarity::Shared);
+        assert_eq!(returned.origin(), origin);
+        assert_eq!(returned.lineage_root(), lineage);
+        assert_eq!(returned.address_space(), address_space);
+        assert_eq!(returned.rights(), &rights);
+        assert_eq!(returned.provenance(), provenance);
+        assert_eq!(returned.era(), era);
+
+        drop(returned);
+        drop(
+            extent
+                .loan_mut(0, 32)
+                .expect("dropping the returned loan restores exclusive parent access"),
+        );
+    }
+
+    #[test]
+    fn borrowed_admission_withdraws_the_exact_exclusive_loan() {
+        let plan = uart_placement_plan();
+        let mut extent = uart_extent_with_lineage(0x7300, 32, 78);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let address_space = extent.address_space();
+        let rights = extent.rights().clone();
+        let provenance = extent.provenance();
+        let era = extent.era();
+        let loan = extent.loan_mut(8, 12).expect("exclusive placement loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(79).expect("admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect("borrowed exclusive placement admission");
+        let returned = admission.withdraw();
+
+        assert_eq!(returned.base(), 0x7308);
+        assert_eq!(returned.length(), 12);
+        assert_eq!(returned.polarity(), LoanPolarity::Exclusive);
+        assert_eq!(returned.origin(), origin);
+        assert_eq!(returned.lineage_root(), lineage);
+        assert_eq!(returned.address_space(), address_space);
+        assert_eq!(returned.rights(), &rights);
+        assert_eq!(returned.provenance(), provenance);
+        assert_eq!(returned.era(), era);
+
+        drop(returned);
+        drop(
+            extent
+                .loan(0, 32)
+                .expect("dropping the returned loan restores shared parent access"),
+        );
     }
 
     #[test]
