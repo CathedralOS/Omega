@@ -481,7 +481,9 @@ compiler concept is introduced.
   direct-call trees or use one scalar-computation shell around those calls;
   every field publishes its writes. One additional outer scalar shell is
   admitted only when the fields do not consume that remaining shared
-  computation-depth-two budget.
+  computation-depth-two budget. The literal receiver may use the existing
+  two-level aggregate budget while carrying that reduced computation budget
+  unchanged; a third aggregate level remains fenced.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete

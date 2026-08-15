@@ -9014,6 +9014,11 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         marker: u64;
     }
 
+    data DeepPair {
+        nested: NestedPair;
+        marker: u64;
+    }
+
     data GenericPair<T> {
         first: T;
         second: u64;
@@ -9128,13 +9133,32 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         cells
     }
 
-    machine return_after_nested_literal_member<'cells, 'target, 'value>(
+    machine return_after_nested_literal_member<'cells, 'target, 'value, 'other>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64,
+        other: &'other mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (NestedPair {
+            pair: Pair {
+                first: identity(identity(identity(compute(value)))) + 1,
+                second: 0
+            },
+            marker: compute(other) + 2
+        }).marker;
+        cells
+    }
+
+    machine return_after_third_aggregate_literal_member<'cells, 'target, 'value>(
         cells: &'cells mut [u64; 2],
         target: &'target mut u64,
         value: &'value mut u64
     ) -> &'cells mut [u64; 2] {
-        target = (NestedPair {
-            pair: Pair { first: compute(value), second: 0 },
+        target = (DeepPair {
+            nested: NestedPair {
+                pair: Pair { first: compute(value), second: 0 },
+                marker: 0
+            },
             marker: 0
         }).marker;
         cells
@@ -9238,6 +9262,16 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
 
     machine Main::nested_literal_member_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_nested_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::third_aggregate_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_third_aggregate_literal_member(
             &mut self.cells,
             &mut self.target,
             &mut self.first
@@ -9358,10 +9392,31 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         "the member and field computations must share the depth-two budget and publish every field write"
     );
 
+    let nested = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::nested_literal_member_result")
+        .expect("nested literal member machine");
+    let nested_entry = typed
+        .machine_states(nested)
+        .first()
+        .expect("nested literal member entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(nested, nested_entry)
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.first", "self.second", "self.target"]
+                .map(str::to_owned)
+                .as_slice()
+        ),
+        "the literal member must share the aggregate-depth-two and reduced computation budgets while publishing every nested write"
+    );
+
     for name in [
         "Main::wrapped_computed_literal_field_result",
         "Main::third_shell_literal_member_result",
-        "Main::nested_literal_member_result",
+        "Main::third_aggregate_literal_member_result",
         "Main::generic_literal_member_result",
         "Main::reborrow_literal_member_result",
         "Main::recursive_literal_member_result",
