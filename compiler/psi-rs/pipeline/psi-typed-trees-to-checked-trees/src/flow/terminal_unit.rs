@@ -1407,9 +1407,11 @@ enum SharedBooleanRuntimeInput {
 /// computation shell. The single exact operation may be the additional
 /// innermost shell beneath up to two bitwise-not, integer-widening, or
 /// proof-free binary shells. Distinct binary subtrees may each contain one
-/// independently proved exact leaf, but no proof-bearing result may feed
-/// another proof-bearing operation. Constants and Boolean equality against a
-/// constant add no new runtime input.
+/// independently proved exact leaf. One exact-add result may additionally feed
+/// one same-type exact add when the inner operation has a landed constant
+/// addend and otherwise direct operands, and the other outer operand is a
+/// landed constant. Constants and Boolean equality against a constant add no
+/// new runtime input.
 fn shared_boolean_runtime_inputs(
     expression: &psi_checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -1528,9 +1530,67 @@ fn shared_integer_runtime_inputs_with_shells(
             }
         }
         CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactAdd,
+            left,
+            right,
+            ..
+        } if proof_shell_allowed => {
+            let collect_direct = |left, right| {
+                let mut inputs = shared_integer_runtime_inputs_with_shells(
+                    left,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?;
+                inputs.extend(shared_integer_runtime_inputs_with_shells(
+                    right,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?);
+                Some(inputs)
+            };
+            collect_direct(left, right)
+                .or_else(|| {
+                    if !matches!(
+                        right.as_ref(),
+                        CheckedScalarExpression::IntegerLiteral { .. }
+                    ) {
+                        return None;
+                    }
+                    let mut inputs =
+                        shared_direct_exact_add_runtime_inputs(left, scalar_parameter_count)?;
+                    inputs.extend(shared_integer_runtime_inputs_with_shells(
+                        right,
+                        scalar_parameter_count,
+                        0,
+                        false,
+                    )?);
+                    Some(inputs)
+                })
+                .or_else(|| {
+                    if !matches!(
+                        left.as_ref(),
+                        CheckedScalarExpression::IntegerLiteral { .. }
+                    ) {
+                        return None;
+                    }
+                    let mut inputs = shared_integer_runtime_inputs_with_shells(
+                        left,
+                        scalar_parameter_count,
+                        0,
+                        false,
+                    )?;
+                    inputs.extend(shared_direct_exact_add_runtime_inputs(
+                        right,
+                        scalar_parameter_count,
+                    )?);
+                    Some(inputs)
+                })
+        }
+        CheckedScalarExpression::IntegerBinary {
             kind:
-                CheckedIntegerBinaryKind::ExactAdd
-                | CheckedIntegerBinaryKind::ExactSubtract
+                CheckedIntegerBinaryKind::ExactSubtract
                 | CheckedIntegerBinaryKind::ExactMultiply
                 | CheckedIntegerBinaryKind::ExactShiftRight,
             left,
@@ -1615,6 +1675,39 @@ fn shared_integer_runtime_inputs_with_shells(
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::Boolean(_) => None,
     }
+}
+
+fn shared_direct_exact_add_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactAdd,
+        left,
+        right,
+        ..
+    } = expression
+    else {
+        return None;
+    };
+    if !matches!(
+        left.as_ref(),
+        CheckedScalarExpression::IntegerLiteral { .. }
+    ) && !matches!(
+        right.as_ref(),
+        CheckedScalarExpression::IntegerLiteral { .. }
+    ) {
+        return None;
+    }
+    let mut inputs =
+        shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
+    inputs.extend(shared_integer_runtime_inputs_with_shells(
+        right,
+        scalar_parameter_count,
+        0,
+        false,
+    )?);
+    Some(inputs)
 }
 
 fn is_bounded_scalar_nominal_cleanup_target(

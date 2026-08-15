@@ -1544,6 +1544,46 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (((input + 1u8) + 1u8) < 4u8) && enabled;
             staged
         }
+        machine Root::deep_nested_exact_add_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8
+        {
+            let staged: bool = ((((input + 1u8) + 1u8) + 1u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::two_nested_exact_add_operands_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 126u8
+        {
+            let staged: bool = (((input + 1u8) + (input + 1u8)) < 255u8) && enabled;
+            staged
+        }
+        machine Root::nested_exact_add_computed_sibling_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 253u8
+        {
+            let staged: bool = (((input + 1u8) + (input & 0u8)) < 4u8) && enabled;
+            staged
+        }
+        machine Root::nested_exact_add_feeds_multiply_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 126u8
+        {
+            let staged: bool = (((input + 1u8) * 2u8) < 255u8) && enabled;
+            staged
+        }
         machine Root::nested_exact_cast_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -2274,12 +2314,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             &checked,
             "nested_exact_add_integer_comparison_convergence",
         ))
-        .expect("nested exact-add shells retain the source-distributed fallback");
+        .expect("one exact-add result may feed one exact-add shell");
     assert!(
         nested_exact_add_integer_comparison
             .shared_boolean_convergence
-            .is_none()
+            .is_some()
     );
+    for machine in [
+        "deep_nested_exact_add_integer_comparison_convergence",
+        "two_nested_exact_add_operands_integer_comparison_convergence",
+        "nested_exact_add_computed_sibling_integer_comparison_convergence",
+        "nested_exact_add_feeds_multiply_integer_comparison_convergence",
+    ] {
+        let wider_nested_exact_add = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect("wider exact-add composition retains only the source-distributed fallback");
+        assert!(wider_nested_exact_add.shared_boolean_convergence.is_none());
+    }
     let nested_exact_cast_integer_comparison = checked
         .facts
         .flow
