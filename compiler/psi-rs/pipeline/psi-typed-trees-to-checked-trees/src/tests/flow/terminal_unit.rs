@@ -3,6 +3,7 @@ use crate::flow::{
     exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
     exact_cast_then_affine_runtime_parameter_positions_for_test,
+    exact_cast_then_divide_remainder_runtime_parameter_positions_for_test,
     exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
@@ -1788,6 +1789,64 @@ fn exact_cast_then_shift_right_classifier_accepts_one_finite_heterogeneous_liter
             None,
         );
     }
+}
+
+#[test]
+fn exact_cast_then_divide_remainder_classifier_accepts_one_unified_safe_literal_chain() {
+    let literal = |value| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::I8,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let cast = || CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::I8,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::I16,
+        }),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::I8,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        operation(CheckedIntegerBinaryKind::ExactDivide, cast(), literal(2i64)),
+        literal(-3i64),
+    );
+    assert_eq!(
+        exact_cast_then_divide_remainder_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+    for divisor in [0i64, -1i64] {
+        let invalid = operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            cast(),
+            literal(divisor),
+        );
+        assert_eq!(
+            exact_cast_then_divide_remainder_runtime_parameter_positions_for_test(&invalid, 1),
+            None,
+        );
+    }
+    let runtime_divisor = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        cast(),
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::I8,
+        },
+    );
+    assert_eq!(
+        exact_cast_then_divide_remainder_runtime_parameter_positions_for_test(&runtime_divisor, 1,),
+        None,
+    );
 }
 
 #[test]

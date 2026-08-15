@@ -483,9 +483,12 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && (((((small * 2u8) * 3u8) as i8) < 127i8))
             && (((((small * 2u8) * 0u8) as i8) < 127i8))
             && ((small * divisor) < 50u8)
-            && ((small / 2u8) < 3u8)
-            && ((small % 2u8) <= 1u8)
-            && ((((small / 2u8) % 3u8) / 2u8) < 2u8)
+            && (((small / 2u8) < 3u8)
+                && ((small % 2u8) <= 1u8)
+                && (((((small / 2u8) % 3u8) / 2u8) < 2u8)
+                && (((((input as u8) / 2u8) % 3u8) / 2u8) < 2u8)
+                && ((((signed as i8) / 2i8) % -3i8) < 3i8)
+                && ((((signed_arithmetic as u8) / 2u8) % 3u8) < 3u8)))
             && ((small / divisor) < 6u8)
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
@@ -4313,6 +4316,163 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let (cast_then_divide_remainder_obligations, cast_then_divide_remainder_middle_divisor) =
+        operations
+            .iter()
+            .find_map(|outer| {
+                let OperationKind::ExactIntegerDivide {
+                    left,
+                    right,
+                    obligation: outer_obligation,
+                } = outer.kind
+                else {
+                    return None;
+                };
+                if !is_u8_two(right) {
+                    return None;
+                }
+                let middle = operations.iter().find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+                })?;
+                let OperationKind::ExactIntegerRemainder {
+                    left: middle_left,
+                    right: middle_right,
+                    obligation: middle_obligation,
+                } = middle.kind
+                else {
+                    return None;
+                };
+                if !is_u8_three(middle_right) {
+                    return None;
+                }
+                let inner = operations.iter().find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+                })?;
+                let OperationKind::ExactIntegerDivide {
+                    left: inner_left,
+                    right: inner_right,
+                    obligation: inner_obligation,
+                } = inner.kind
+                else {
+                    return None;
+                };
+                if !is_u8_two(inner_right) {
+                    return None;
+                }
+                let cast = operations.iter().find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(inner_left)
+                })?;
+                let OperationKind::IntegerExactCast {
+                    operand,
+                    obligation: cast_obligation,
+                } = cast.kind
+                else {
+                    return None;
+                };
+                (operand == entry.parameters[0].id).then_some((
+                    [
+                        cast_obligation,
+                        inner_obligation,
+                        middle_obligation,
+                        outer_obligation,
+                    ],
+                    middle_right,
+                ))
+            })
+            .expect("one direct exact cast roots a finite divide/remainder chain");
+    let find_two_link_cast_then_divide_remainder = |parameter, signed| {
+        operations.iter().find_map(|outer| {
+            let OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            let outer_matches = if signed {
+                is_integer_constant(right, i8_type, IntegerValue::Signed(-3))
+            } else {
+                is_u8_three(right)
+            };
+            if !outer_matches {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            let inner_matches = if signed {
+                is_integer_constant(inner_right, i8_type, IntegerValue::Signed(2))
+            } else {
+                is_u8_two(inner_right)
+            };
+            if !inner_matches {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(inner_left)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == parameter).then_some([cast_obligation, inner_obligation, outer_obligation])
+        })
+    };
+    let signed_cast_then_divide_remainder_obligations =
+        find_two_link_cast_then_divide_remainder(entry.parameters[4].id, true)
+            .expect("one signed exact cast roots a finite divide/remainder chain");
+    let cross_cast_then_divide_remainder_obligations =
+        find_two_link_cast_then_divide_remainder(entry.parameters[5].id, false)
+            .expect("one cross-sign exact cast roots a finite divide/remainder chain");
+    for obligations in [
+        cast_then_divide_remainder_obligations.as_slice(),
+        signed_cast_then_divide_remainder_obligations.as_slice(),
+        cross_cast_then_divide_remainder_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            let operation = operations
+                .iter()
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::IntegerExactCast {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerDivide {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerRemainder {
+                            obligation: candidate,
+                            ..
+                        } if candidate == *obligation
+                    )
+                })
+                .expect("post-cast divide/remainder obligation retains its exact operation");
+            assert_eq!(
+                TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+                1
+            );
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(evidence.route, EvidenceRoute::CertificateDerived(_))
+            }));
+        }
+    }
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let (nested_shift_right_obligations, middle_shift_count) = operations
@@ -6077,6 +6237,26 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == nested_divide_remainder_obligation
         ));
     }
+    for cast_then_divide_remainder_obligation in cast_then_divide_remainder_obligations
+        .into_iter()
+        .chain(signed_cast_then_divide_remainder_obligations)
+        .chain(cross_cast_then_divide_remainder_obligations)
+    {
+        let mut missing_cast_then_divide_remainder_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_cast_then_divide_remainder_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != cast_then_divide_remainder_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_cast_then_divide_remainder_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == cast_then_divide_remainder_obligation
+        ));
+    }
     for nested_shift_right_obligation in nested_shift_right_obligations {
         let mut missing_nested_shift_right_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -6396,6 +6576,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_divide_remainder_obligations[1]
+    ));
+    let mut changed_cast_then_divide_remainder_divisor =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_divisor = changed_cast_then_divide_remainder_divisor
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id)
+                == Some(cast_then_divide_remainder_middle_divisor)
+        })
+        .expect("post-cast divide/remainder landed divisor operation");
+    changed_divisor.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(0),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_cast_then_divide_remainder_divisor,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if cast_then_divide_remainder_obligations.contains(&obligation)
     ));
     let mut changed_middle_factor = decode_module(&semantics).expect("decode shared semantics");
     let changed_factor = changed_middle_factor

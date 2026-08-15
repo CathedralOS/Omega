@@ -11213,6 +11213,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
+                .or_else(|| shared_exact_cast_then_divide_remainder_runtime_parameters(expression))
                 .or_else(|| shared_exact_divide_remainder_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
@@ -11983,6 +11984,53 @@ fn shared_exact_divide_remainder_chain_runtime_parameters(
                 return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                     *position,
                 )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_cast_then_divide_remainder_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+            scalar_type: ScalarType::Integer(target_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*target_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *target_type)
+            || !safe_exact_divide_remainder_landed_literal(*target_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*target_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if *cast_target_type == *target_type => {
+                let LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type: ScalarType::Integer(source_type),
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return native_fixed_integer_type(*source_type).then(|| {
+                    BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                });
             }
             _ => return None,
         }

@@ -940,9 +940,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && (((((small * 2u8) * 3u8) as i8) < 127i8))
                 && (((((small * 2u8) * 0u8) as i8) < 127i8))
                 && ((small * divisor) < 50u8)
-                && ((small / 2u8) < 3u8)
+            && (((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
-                && ((((small / 2u8) % 3u8) / 2u8) < 2u8)
+                && (((((small / 2u8) % 3u8) / 2u8) < 2u8)
+                && (((((input as u8) / 2u8) % 3u8) / 2u8) < 2u8)
+                && ((((signed as i8) / 2i8) % -3i8) < 3i8)
+                && ((((signed_arithmetic as u8) / 2u8) % 3u8) < 3u8)))
                 && ((small / divisor) < 6u8)
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
@@ -2849,6 +2852,140 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 )
         })
     };
+    let cast_then_divide_remainder_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerDivide {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(right, 2) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerRemainder {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(middle_right, 3) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(inner_right, 2) {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(inner_left)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == terminal_entry.parameters[0].id).then_some([
+                cast_obligation,
+                inner_obligation,
+                middle_obligation,
+                outer_obligation,
+            ])
+        })
+        .expect("native path retains one post-cast divide/remainder chain");
+    let find_two_link_cast_then_divide_remainder = |parameter, signed| {
+        operations.iter().find_map(|outer| {
+            let OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            let outer_matches = if signed {
+                has_integer_constant(right, IntegerValue::Signed(-3))
+            } else {
+                has_u8_constant(right, 3)
+            };
+            if !outer_matches {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            let inner_matches = if signed {
+                has_integer_constant(inner_right, IntegerValue::Signed(2))
+            } else {
+                has_u8_constant(inner_right, 2)
+            };
+            if !inner_matches {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(inner_left)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == parameter).then_some([cast_obligation, inner_obligation, outer_obligation])
+        })
+    };
+    let signed_cast_then_divide_remainder_obligations =
+        find_two_link_cast_then_divide_remainder(terminal_entry.parameters[4].id, true)
+            .expect("native path retains one signed post-cast divide/remainder chain");
+    let cross_cast_then_divide_remainder_obligations =
+        find_two_link_cast_then_divide_remainder(terminal_entry.parameters[5].id, false)
+            .expect("native path retains one cross-sign post-cast divide/remainder chain");
+    for obligations in [
+        cast_then_divide_remainder_obligations.as_slice(),
+        signed_cast_then_divide_remainder_obligations.as_slice(),
+        cross_cast_then_divide_remainder_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
     let nested_shift_right_obligations = operations
         .iter()
         .find_map(|outer| {
