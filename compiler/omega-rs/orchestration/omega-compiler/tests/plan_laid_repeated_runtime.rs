@@ -2,8 +2,8 @@
 //! destinations retain a constant physical stride larger than element width.
 
 use omega_compiler::{
-    CompileOptions, compile, compile_to_checked, compute_layout_plan,
-    evaluate_and_materialize_typed_owned_layout_into,
+    BuildTimeValue, CompileOptions, compile, compile_to_checked, compute_layout_plan,
+    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
 };
 use psi_checked_interpreter::interpret_entry;
 use psi_layout_plans::ByteOrder;
@@ -14,6 +14,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const PRIMITIVE_CANARY: &str = "layouts/runtime_plan_laid_tiled_outer_array_view_exit";
 const RECORD_CANARY: &str = "layouts/runtime_plan_laid_tiled_record_array_view_exit";
 const NESTED_ARRAY_CANARY: &str = "layouts/runtime_plan_laid_tiled_nested_array_view_exit";
+const RECORD_NESTED_ARRAY_CANARY: &str =
+    "layouts/runtime_plan_laid_tiled_record_nested_array_view_exit";
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -127,6 +129,14 @@ fn gapped_nested_array_outer_array_interprets_runs_natively_and_cross_compiles()
 }
 
 #[test]
+fn gapped_record_nested_array_outer_array_interprets_runs_natively_and_cross_compiles() {
+    assert_runtime_canary(
+        RECORD_NESTED_ARRAY_CANARY,
+        "plan-laid-gapped-record-nested-array",
+    );
+}
+
+#[test]
 fn gapped_record_outer_array_materializes_from_checked_owned_value() {
     let canary = repo_root().join("canaries/pass").join(RECORD_CANARY);
     let host = omega_target::TargetProfile::host();
@@ -208,4 +218,126 @@ fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
         big,
         [0, 0, 0, 0, 2, 1, 4, 3, 0, 0, 0, 0, 6, 5, 8, 7, 0, 0, 0, 0,]
     );
+}
+
+#[test]
+fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
+    let canary = repo_root()
+        .join("canaries/pass")
+        .join(RECORD_NESTED_ARRAY_CANARY);
+    let host = omega_target::TargetProfile::host();
+    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
+        .expect("gapped record-nested-array canary should reach checked trees");
+    let layout = compute_layout_plan(&checked.typed, "TiledRecordNestedArray::plan", "Samples")
+        .expect("gapped record-nested-array plan should validate");
+
+    let mut little = [0xa5; 28];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("checked owned record-nested array should materialize little-endian");
+    assert_eq!(
+        little,
+        [
+            0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 9, 10, 11, 12, 13, 14, 15, 16, 0, 0, 0,
+            0,
+        ]
+    );
+
+    let mut big = [0xa5; 28];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("checked owned record-nested array should materialize big-endian");
+    assert_eq!(
+        big,
+        [
+            0, 0, 0, 0, 4, 3, 2, 1, 6, 5, 8, 7, 0, 0, 0, 0, 12, 11, 10, 9, 14, 13, 16, 15, 0, 0, 0,
+            0,
+        ]
+    );
+
+    let cell = |type_name: &str, tag: i64, values: Vec<BuildTimeValue>| BuildTimeValue::Struct {
+        type_name: type_name.to_owned(),
+        fields: vec![
+            ("tag".to_owned(), BuildTimeValue::Int(tag.into())),
+            ("values".to_owned(), BuildTimeValue::Array(values)),
+        ],
+    };
+    let short_inner = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "cells".to_owned(),
+            BuildTimeValue::Array(vec![
+                cell(
+                    "Cell",
+                    0x04030201,
+                    vec![
+                        BuildTimeValue::Int(0x0605.into()),
+                        BuildTimeValue::Int(0x0807.into()),
+                    ],
+                ),
+                cell("Cell", 0x0c0b0a09, vec![BuildTimeValue::Int(0x0e0d.into())]),
+            ]),
+        )],
+    };
+    let mut unchanged = [0x5a; 28];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &short_inner,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a short interior array must reject before destination mutation");
+    assert!(error.0.contains("has 1 elements, expected 2"));
+    assert_eq!(unchanged, [0x5a; 28]);
+
+    let wrong_record = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "cells".to_owned(),
+            BuildTimeValue::Array(vec![
+                cell(
+                    "Cell",
+                    0x04030201,
+                    vec![
+                        BuildTimeValue::Int(0x0605.into()),
+                        BuildTimeValue::Int(0x0807.into()),
+                    ],
+                ),
+                cell(
+                    "Samples",
+                    0x0c0b0a09,
+                    vec![
+                        BuildTimeValue::Int(0x0e0d.into()),
+                        BuildTimeValue::Int(0x100f.into()),
+                    ],
+                ),
+            ]),
+        )],
+    };
+    let mut unchanged = [0x5a; 28];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &wrong_record,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a wrong nested record identity must reject before destination mutation");
+    assert!(error.0.contains("does not match `Cell`"));
+    assert_eq!(unchanged, [0x5a; 28]);
 }

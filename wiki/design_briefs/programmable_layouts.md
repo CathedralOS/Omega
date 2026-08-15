@@ -111,8 +111,9 @@ The same normalized geometry may feed different compiler-owned consumers:
   fixed-record-array fields through their whole `At` extent, plus two runtime
   indices through a plan-laid gapped outer fixed array of recursively fixed
   arrays while retaining distinct plan-derived outer and compiler-derived inner
-  strides, in both native and interpreter execution, plus x86-64/AArch64
-  compile rails);
+  strides, and a gapped outer fixed array of fixed records that retains an
+  intervening member offset before the inner fixed-array index, in both native
+  and interpreter execution, plus x86-64/AArch64 compile rails);
 - placed-view projection over an authorized external extent; or
 - ordinary scalar materialization into fixed dictated structures. The
   normalized foundation also admits atomic aggregate materialization when the

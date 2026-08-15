@@ -1,0 +1,94 @@
+// A recursively fixed record containing a fixed primitive array remains one
+// compiler-sized element when its outer array is tiled through `At`. The
+// physical outer stride is plan-derived; the record-member offset and inner
+// array stride remain compiler-derived between and below two runtime indices.
+use omega::language::std::console;
+use omega::language::core::layout;
+
+data TiledRecordNestedArray { entries: [FieldEntry; 64]; }
+
+machine TiledRecordNestedArray::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 28,
+        size_is_dynamic: false,
+        align: 4,
+    }
+}
+
+data Cell {
+    tag: u32;
+    values: [u16; 2];
+}
+
+data Samples { cells: [Cell; 2]; }
+data TiledRecordNestedArrayView { value: TiledRecordNestedArray<Samples>; }
+
+machine make_samples() -> Samples {
+    let cells: [Cell; 2];
+    cells[0] = Cell {
+        tag: 0x04030201,
+        values: [0x0605, 0x0807],
+    };
+    cells[1] = Cell {
+        tag: 0x0c0b0a09,
+        values: [0x0e0d, 0x100f],
+    };
+    Samples { cells: cells }
+}
+
+data Main {
+    console: Console;
+    bytes: [u8; 28];
+    outer: u64;
+    inner: u64;
+    observed: u16;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut TiledRecordNestedArrayView =
+        &mut self.bytes[0] as &mut TiledRecordNestedArrayView;
+    self.outer = 0;
+    view.value.cells[self.outer].tag = 0x04030201;
+    self.inner = 0;
+    view.value.cells[self.outer].values[self.inner] = 0x0605;
+    self.inner = 1;
+    view.value.cells[self.outer].values[self.inner] = 0x0807;
+    self.outer = 1;
+    view.value.cells[self.outer].tag = 0x0c0b0a09;
+    self.inner = 0;
+    view.value.cells[self.outer].values[self.inner] = 0x0e0d;
+    self.inner = 1;
+    view.value.cells[self.outer].values[self.inner] = 0x100f;
+    self.observed = view.value.cells[self.outer].values[self.inner];
+    transition self.bytes[0] == 0 && self.bytes[1] == 0
+        && self.bytes[2] == 0 && self.bytes[3] == 0
+        && self.bytes[4] == 1 && self.bytes[5] == 2
+        && self.bytes[6] == 3 && self.bytes[7] == 4
+        && self.bytes[8] == 5 && self.bytes[9] == 6
+        && self.bytes[10] == 7 && self.bytes[11] == 8
+        && self.bytes[12] == 0 && self.bytes[13] == 0
+        && self.bytes[14] == 0 && self.bytes[15] == 0
+        && self.bytes[16] == 9 && self.bytes[17] == 10
+        && self.bytes[18] == 11 && self.bytes[19] == 12
+        && self.bytes[20] == 13 && self.bytes[21] == 14
+        && self.bytes[22] == 15 && self.bytes[23] == 16
+        && self.bytes[24] == 0 && self.bytes[25] == 0
+        && self.bytes[26] == 0 && self.bytes[27] == 0
+        && self.observed == 0x100f {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
