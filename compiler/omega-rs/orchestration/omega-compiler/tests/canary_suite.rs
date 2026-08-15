@@ -45191,6 +45191,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_statement_recursive_walk_exit",
     "control_flow/runtime_branching_helper_value",
     "control_flow/runtime_multi_assignment_value_calls",
+    "data/record_pattern_bind_all_exit",
     "traits/equatable_sum_stale_payload_exit",
     "traits/ring_requirement_satisfies_exit",
     "traits/runtime_trait_default_dispatch_exit",
