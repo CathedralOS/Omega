@@ -20751,13 +20751,8 @@ fn runtime_tick_count_monotonic_exit_canary_runs() {
     let canary = pass_canary("host/runtime_tick_count_monotonic_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-tick-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("tick_count canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("tick_count canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("tick_count canary should run");
@@ -45189,6 +45184,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/record_pattern_double_underscore_field",
     "memory/repr_native_stable_layout",
     "host/runtime_console_byte_literal_exit",
+    "host/runtime_tick_count_monotonic_exit",
     "wire/wire_data_field_numbers",
     "wire/wire_data_reserved_field",
     "traits/equatable_sum_stale_payload_exit",
