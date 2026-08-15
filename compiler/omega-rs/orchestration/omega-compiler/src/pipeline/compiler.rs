@@ -492,13 +492,6 @@ impl Compiler {
             &provider_plans,
             &selected_provider_plans,
         )?;
-        crate::pipeline::trust_report::write_trust_report(
-            &self.options,
-            &typed,
-            &build_config.grants,
-            &provider_plans,
-            &selected_provider_plans,
-        )?;
         crate::pipeline::wire_report::write_wire_protocol_report(
             &self.options,
             &typed,
@@ -544,6 +537,13 @@ impl Compiler {
                 self.executable_tcb_policy.profile.as_ref(),
             )?;
         checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
+        crate::pipeline::trust_report::write_trust_report(
+            &self.options,
+            &checked.program.typed,
+            &build_config.grants,
+            &provider_plans,
+            &checked.selected_provider_plans,
+        )?;
         crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),
