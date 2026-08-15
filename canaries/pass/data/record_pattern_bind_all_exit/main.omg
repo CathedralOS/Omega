@@ -1,5 +1,5 @@
 // The plain-bind face of record patterns: every field bound by its own
-// name, no rename, no waiver. Run-verified natively: 30 + 40 = 70.
+// name, no rename, no waiver. The runtime self-check accepts only 30 + 40 = 70.
 use omega::language::std::console;
 data Pair {
     x: i32 [0..=100];
