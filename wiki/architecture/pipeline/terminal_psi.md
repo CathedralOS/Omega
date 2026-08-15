@@ -538,19 +538,22 @@ addition, reversed subtraction, right-associated shapes, local or block roots,
 mixed-carrier or non-native chains, other proof-bearing operations, additional
 casts, missing or noncanonical definitions, accumulator overflow, and stale or
 missing evidence remain fenced. Conversely, one validator-legal partial
-fixed-native exact cast of a direct machine parameter may feed one
-same-target-carrier exact addition or subtraction. The cast result is the left
-operand and the right operand is one independently landed target-carrier
-literal. The cast retains its ordinary direct source-to-target representability
-obligation. The verifier follows the prior canonical cast-result definition for
-the arithmetic obligation, applies the literal or mathematical negation as one
-checked offset to the target interval, and expresses the shifted interval's
-intersection with the source carrier as direct-root propositions. Neither
-operation imports the other's evidence, and both retain distinct obligations.
-Literal-left or reversed arithmetic, runtime or computed siblings, local or
-block roots, intervening shells, a second following exact operation, other
-proof-bearing operations, non-native or mismatched carriers, malformed
-definitions, and stale or missing evidence remain fenced.
+fixed-native exact cast of a direct machine parameter may root a finite
+nonempty left-associated same-target-carrier exact-add/subtract chain. The cast
+result is the innermost left operand, and every right operand is an
+independently landed target-carrier literal. The cast retains its ordinary
+direct source-to-target representability obligation. For every arithmetic
+prefix, the verifier walks only prior canonical shrinking-prefix definitions
+through the chain to the cast, accumulates additions and mathematical negations
+of subtrahends with checked sign/magnitude arithmetic, shifts the target
+interval back by that cumulative offset, and intersects it with the source
+carrier. The cast and every arithmetic prefix retain distinct obligations and
+evidence, so later cancellation cannot erase earlier safety. Literal-left or
+reversed arithmetic, runtime or computed siblings, right-associated shapes,
+local or block roots, intervening shells, additional casts or other
+proof-bearing operations, non-native or mismatched carriers, missing,
+reordered, reversed, redirected, cyclic, or stale definitions, cumulative
+offset overflow, and stale or missing evidence remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

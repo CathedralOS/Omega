@@ -2055,8 +2055,8 @@ fn exact_integer_offset_chain_cast_obligation(
 
 fn exact_integer_cast_then_offset_obligation(
     target_type: psi_core::IntegerType,
-    variable: ScalarTerm,
-    offset: IntegerOffset,
+    mut variable: ScalarTerm,
+    initial_offset: IntegerOffset,
     semantic_axioms: &[Proposition],
     definition_axiom_count: usize,
     machine_parameter_values: &BTreeSet<ValueId>,
@@ -2064,43 +2064,93 @@ fn exact_integer_cast_then_offset_obligation(
     if target_type.is_address() || !matches!(target_type.bits(), 8 | 16 | 32 | 64) {
         return None;
     }
-    let definition = semantic_axioms[..definition_axiom_count.min(semantic_axioms.len())]
-        .iter()
-        .rev()
-        .find_map(|axiom| match axiom {
-            Proposition::Equal(left, right) if left == &variable => Some(right),
-            _ => None,
-        })?;
-    let ScalarTerm::IntegerExactCast {
-        source_type,
-        target_type: cast_target_type,
-        operand,
-    } = definition
-    else {
-        return None;
-    };
-    if *cast_target_type != target_type
-        || source_type.is_address()
-        || !matches!(source_type.bits(), 8 | 16 | 32 | 64)
-        || *source_type == target_type
-        || source_type.can_widen_to(target_type)
-        || !source_type.can_exact_cast_to(target_type)
-        || !matches!(
-            operand.as_ref(),
-            ScalarTerm::Value {
-                id,
-                scalar_type: ScalarType::Integer(root_type),
-            } if *root_type == *source_type && machine_parameter_values.contains(id)
-        )
-    {
-        return None;
+    let mut offset = initial_offset;
+    if offset.magnitude() > integer_type_span(target_type) {
+        return Some(Proposition::Falsehood);
     }
-    Some(exact_integer_shifted_interval_obligation(
-        *source_type,
-        target_type,
-        (**operand).clone(),
-        offset,
-    ))
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => {
+                if landed_integer_constant_value(
+                    target_type,
+                    left,
+                    semantic_axioms,
+                    definition_index,
+                )
+                .is_some()
+                {
+                    return None;
+                }
+                let constant = landed_integer_constant_value(
+                    target_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let nested_offset = match definition {
+                    ScalarTerm::ExactIntegerAdd { .. } => IntegerOffset::from_value(constant),
+                    ScalarTerm::ExactIntegerSubtract { .. } => {
+                        IntegerOffset::from_subtrahend(constant)
+                    }
+                    _ => unreachable!("matched one exact offset definition"),
+                };
+                let Some(combined) = offset.checked_add(nested_offset) else {
+                    return Some(Proposition::Falsehood);
+                };
+                if combined.magnitude() > integer_type_span(target_type) {
+                    return Some(Proposition::Falsehood);
+                }
+                offset = combined;
+                variable = (**left).clone();
+                prior_axiom_count = definition_index;
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: cast_target_type,
+                operand,
+            } if *cast_target_type == target_type
+                && !source_type.is_address()
+                && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                && *source_type != target_type
+                && !source_type.can_widen_to(target_type)
+                && source_type.can_exact_cast_to(target_type)
+                && matches!(
+                    operand.as_ref(),
+                    ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Integer(root_type),
+                    } if *root_type == *source_type && machine_parameter_values.contains(id)
+                ) =>
+            {
+                return Some(exact_integer_shifted_interval_obligation(
+                    *source_type,
+                    target_type,
+                    (**operand).clone(),
+                    offset,
+                ));
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 fn exact_integer_shifted_interval_obligation(
@@ -4490,7 +4540,7 @@ mod tests {
     }
 
     #[test]
-    fn reconstructs_one_exact_offset_after_a_direct_partial_cast() {
+    fn reconstructs_a_finite_exact_offset_chain_after_a_direct_partial_cast() {
         let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
         let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let root_id = ValueId::new(161).expect("root");
@@ -4548,6 +4598,109 @@ mod tests {
                 &parameters,
             ),
             expected_subtract
+        );
+
+        let first = ScalarTerm::value(
+            ValueId::new(163).expect("first offset"),
+            ScalarType::Integer(target_type),
+        );
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_add(target_type, cast.clone(), five.clone())
+                .expect("cast + 5u8"),
+        );
+        let three = ScalarTerm::integer(target_type, IntegerValue::Unsigned(3)).expect("3u8");
+        let second = ScalarTerm::value(
+            ValueId::new(164).expect("second offset"),
+            ScalarType::Integer(target_type),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_subtract(target_type, first.clone(), three.clone())
+                .expect("(cast + 5u8) - 3u8"),
+        );
+        let two = ScalarTerm::integer(target_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let definitions = [
+            cast_definition.clone(),
+            first_definition.clone(),
+            second_definition.clone(),
+        ];
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                target_type,
+                first.clone(),
+                three,
+                &definitions[..2],
+                2,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(253)).expect("253u16"),
+            ),
+            "the second prefix reconstructs cumulative offset +2"
+        );
+        assert_eq!(
+            exact_integer_add_obligation(target_type, second, two, &definitions, 3, &parameters,),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(251)).expect("251u16"),
+            ),
+            "the third prefix reconstructs cumulative offset +4"
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                target_type,
+                first.clone(),
+                five.clone(),
+                &[cast_definition.clone(), first_definition.clone()],
+                2,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(255)).expect("255u16"),
+            ),
+            "later cancellation reconstructs its own zero-offset bound without replacing the first-prefix proof"
+        );
+        assert_ne!(
+            exact_integer_add_obligation(
+                target_type,
+                first.clone(),
+                ScalarTerm::integer(target_type, IntegerValue::Unsigned(2)).expect("2u8"),
+                &[first_definition.clone(), cast_definition.clone()],
+                2,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(248)).expect("248u16"),
+            ),
+            "definitions must precede the operation that consumes them"
+        );
+
+        let two_hundred =
+            ScalarTerm::integer(target_type, IntegerValue::Unsigned(200)).expect("200u8");
+        let large_first = ScalarTerm::value(
+            ValueId::new(165).expect("large first offset"),
+            ScalarType::Integer(target_type),
+        );
+        let large_first_definition = Proposition::Equal(
+            large_first.clone(),
+            ScalarTerm::exact_integer_add(target_type, cast.clone(), two_hundred)
+                .expect("cast + 200u8"),
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                target_type,
+                large_first,
+                ScalarTerm::integer(target_type, IntegerValue::Unsigned(100)).expect("100u8"),
+                &[cast_definition.clone(), large_first_definition],
+                2,
+                &parameters,
+            ),
+            Proposition::Falsehood,
+            "a cumulative offset wider than the target carrier fails closed"
         );
 
         let reversed_definition = match cast_definition.clone() {

@@ -11323,37 +11323,49 @@ fn shared_exact_offset_chain_cast_runtime_parameters(
 }
 
 fn shared_exact_cast_then_offset_runtime_parameters(
-    expression: &LoweredDirectExpression,
+    mut expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    let LoweredDirectExpression::IntegerBinary {
-        kind: LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract,
-        scalar_type: ScalarType::Integer(target_type),
-        left,
-        right,
-    } = expression
-    else {
-        return None;
-    };
-    if !native_fixed_integer_type(*target_type) || !exact_offset_landed_literal(*target_type, right)
-    {
-        return None;
+    let mut chain_type = None;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract,
+            scalar_type: ScalarType::Integer(target_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*target_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *target_type)
+            || !exact_offset_landed_literal(*target_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*target_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if *cast_target_type == *target_type => {
+                let LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type: ScalarType::Integer(source_type),
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return native_fixed_integer_type(*source_type).then(|| {
+                    BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                });
+            }
+            _ => return None,
+        }
     }
-    let LoweredDirectExpression::IntegerExactCast {
-        scalar_type: ScalarType::Integer(cast_target_type),
-        operand,
-    } = left.as_ref()
-    else {
-        return None;
-    };
-    let LoweredDirectExpression::Parameter {
-        position,
-        scalar_type: ScalarType::Integer(source_type),
-    } = operand.as_ref()
-    else {
-        return None;
-    };
-    (*cast_target_type == *target_type && native_fixed_integer_type(*source_type))
-        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
 fn shared_exact_add_chain_runtime_parameters(

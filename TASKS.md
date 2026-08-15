@@ -249,11 +249,13 @@ Remaining:
   The verifier retains every prefix proof, accumulates the checked offset, and
   independently derives target-range-minus-offset bounds intersected with the
   source carrier, including signed and cross-sign conversions. Conversely, one
-  validator-legal partial fixed-native cast of a direct parameter may feed one
-  same-target-carrier exact add or subtract with a landed literal right sibling.
-  The cast keeps its own direct representability evidence; the arithmetic keeps
-  distinct evidence for the target interval shifted by the literal offset and
-  expressed in the source carrier.
+  validator-legal partial fixed-native cast of a direct parameter may root a
+  finite nonempty left-associated same-target-carrier exact-add/subtract chain
+  with independently landed literal right siblings. The cast keeps its own
+  direct representability evidence; every arithmetic prefix keeps distinct
+  evidence for the target interval shifted by its checked cumulative offset and
+  intersected with the source carrier. Cancellation cannot erase an earlier
+  prefix obligation.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

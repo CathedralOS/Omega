@@ -1374,11 +1374,14 @@ requires value <= 65530u16, value <= 65533u16, value <= 253u16
     staged
 }
 
-machine terminal_exact_cast_then_literal_offset(value: u16, enabled: bool) -> bool
-requires value <= 255u16, value <= 250u16, 5u16 <= value, value <= 260u16
+machine terminal_exact_cast_then_literal_offset_chain(value: u16, enabled: bool) -> bool
+requires value <= 255u16, value <= 250u16, value <= 253u16, value <= 251u16,
+    5u16 <= value, value <= 260u16
 {
     let staged: bool = ((((value as u8) + 5u8) < 255u8)
-        && (((value as u8) - 5u8) < 255u8)) && enabled;
+        && (((value as u8) - 5u8) < 255u8)
+        && (((((value as u8) + 5u8) - 3u8) + 2u8) < 255u8)
+        && ((((value as u8) + 5u8) - 5u8) < 255u8)) && enabled;
     staged
 }
 

@@ -1852,50 +1852,61 @@ fn shared_exact_offset_chain_cast_runtime_inputs(
 }
 
 fn shared_exact_cast_then_offset_runtime_inputs(
-    expression: &CheckedScalarExpression,
+    mut expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    let CheckedScalarExpression::IntegerBinary {
-        kind: CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract,
-        primitive_type: target_type,
-        left,
-        right,
-    } = expression
-    else {
-        return None;
-    };
-    if !exact_offset_landed_literal(*target_type, right) {
-        return None;
+    let mut chain_type = None;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract,
+            primitive_type: target_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *target_type)
+            || !exact_offset_landed_literal(*target_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*target_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target_type,
+                operand,
+                ..
+            } if *cast_target_type == *target_type => {
+                let CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: source_type,
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return (matches!(
+                    source_type,
+                    PrimitiveType::I8
+                        | PrimitiveType::I16
+                        | PrimitiveType::I32
+                        | PrimitiveType::I64
+                        | PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                ) && *position < scalar_parameter_count)
+                    .then(|| {
+                        BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                    });
+            }
+            _ => return None,
+        }
     }
-    let CheckedScalarExpression::IntegerExactCast {
-        primitive_type: cast_target_type,
-        operand,
-        ..
-    } = left.as_ref()
-    else {
-        return None;
-    };
-    let CheckedScalarExpression::Parameter {
-        position,
-        primitive_type: source_type,
-    } = operand.as_ref()
-    else {
-        return None;
-    };
-    (*cast_target_type == *target_type
-        && matches!(
-            source_type,
-            PrimitiveType::I8
-                | PrimitiveType::I16
-                | PrimitiveType::I32
-                | PrimitiveType::I64
-                | PrimitiveType::U8
-                | PrimitiveType::U16
-                | PrimitiveType::U32
-                | PrimitiveType::U64
-        )
-        && *position < scalar_parameter_count)
-        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
 #[cfg(test)]
