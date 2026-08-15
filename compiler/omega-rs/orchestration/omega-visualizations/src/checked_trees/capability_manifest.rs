@@ -184,8 +184,8 @@ mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
     use psi_checked_trees::{CheckedTrees, MachineContractPlan, MachineServiceReachRows};
     use psi_language_semantics::{
-        BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachInterface,
-        ServiceReachPlan, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
+        BlockingInterface, BlockingPlan, ServiceReachInterface, ServiceReachPlan,
+        SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
@@ -254,7 +254,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine: machine_symbol,
-                supply_mode: MachineSupplyMode::CheckedBody,
                 // Deliberately conflicting legacy source: the capability
                 // manifest must read reach only from independent facts.
                 service_reach: ServiceReachPlan::default(),

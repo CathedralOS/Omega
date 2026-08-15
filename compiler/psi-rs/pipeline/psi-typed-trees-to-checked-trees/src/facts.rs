@@ -381,7 +381,6 @@ fn build_contract_plans(
         );
         machines.push(psi_checked_trees::MachineContractPlan {
             machine: machine.symbol,
-            supply_mode: machine.supply_mode,
             service_reach,
             synchronous_invocation,
             suspension,

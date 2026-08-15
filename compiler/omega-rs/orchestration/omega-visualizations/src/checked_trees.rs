@@ -3135,7 +3135,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine,
-                supply_mode: Default::default(),
                 service_reach: Default::default(),
                 synchronous_invocation: Default::default(),
                 suspension: SuspensionPlan {
@@ -4080,9 +4079,6 @@ mod tests {
             .machines
             .push(MachineContractPlan {
                 machine: symbol,
-                // Deliberately contradictory legacy source: normalized
-                // typed-machine supply owns the artifact axis.
-                supply_mode: MachineSupplyMode::Accepted,
                 // Deliberately contradictory legacy source: visualization
                 // must use the independently published reach axis above.
                 service_reach: Default::default(),
