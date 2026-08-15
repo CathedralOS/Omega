@@ -382,40 +382,56 @@ pub(super) fn write_trust_report(
             });
         }
     }
-    report
-        .generic_accepted_instances
-        .extend(
-            typed
-                .machine_specializations
-                .iter()
-                .filter_map(|specialization| {
-                    specialization.accepted_template_commitment.as_ref().map(
-                        |template_commitment| TrustGenericAcceptedInstanceRow {
-                            template_commitment: template_commitment.clone(),
-                            template_fingerprint: specialization.template_contract_fingerprint,
-                            instance_fingerprint: specialization.fingerprint,
-                            type_argument_identities: specialization
-                                .type_argument_identities
-                                .clone(),
-                            const_argument_identities: specialization
-                                .const_argument_identities
-                                .clone(),
-                            machine_argument_contract_fingerprints: specialization
-                                .machine_argument_contract_fingerprints
-                                .clone(),
-                            conformance_argument_fingerprints: specialization
-                                .conformance_argument_fingerprints
-                                .clone(),
-                        },
-                    )
-                }),
-        );
+    for specialization in &typed.machine_specializations {
+        let Some(template_commitment) = specialization.accepted_template_commitment.as_ref() else {
+            continue;
+        };
+        let instance_contract_fingerprint = accepted_instance_contract_fingerprint(
+            checked,
+            specialization.instance,
+            template_commitment,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        report
+            .generic_accepted_instances
+            .push(TrustGenericAcceptedInstanceRow {
+                template_commitment: template_commitment.clone(),
+                template_fingerprint: specialization.template_contract_fingerprint,
+                instance_fingerprint: specialization.fingerprint,
+                instance_contract_fingerprint,
+                type_argument_identities: specialization.type_argument_identities.clone(),
+                const_argument_identities: specialization.const_argument_identities.clone(),
+                machine_argument_contract_fingerprints: specialization
+                    .machine_argument_contract_fingerprints
+                    .clone(),
+                conformance_argument_fingerprints: specialization
+                    .conformance_argument_fingerprints
+                    .clone(),
+            });
+    }
 
     let writer =
         ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
     writer
         .write_trust_report(&report)
         .map_err(|diagnostic| vec![diagnostic])
+}
+
+fn accepted_instance_contract_fingerprint(
+    checked: &psi_checked_trees::CheckedTrees,
+    instance: psi_symbols::SymbolHandle,
+    template_commitment: &str,
+) -> Result<u64, Diagnostic> {
+    checked
+        .facts
+        .contract_plans
+        .for_machine(instance)
+        .map(|plan| plan.fingerprint)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted generic instance of `{template_commitment}` has no exact checked contract plan"
+            ))
+        })
 }
 
 fn accepted_machine_service_reach(
@@ -662,9 +678,9 @@ mod tests {
 
     use super::{
         GenericAcceptedTemplateFingerprint, GenericAcceptedTemplateFingerprints,
-        accepted_machine_crash_routes, accepted_machine_may_block, accepted_machine_may_suspend,
-        accepted_machine_service_reach, accepted_machine_synchronous_invocations,
-        accepted_machine_terminates_guarantee,
+        accepted_instance_contract_fingerprint, accepted_machine_crash_routes,
+        accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
+        accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
     };
 
     #[test]
@@ -697,6 +713,35 @@ mod tests {
             duplicate
                 .message
                 .contains("duplicate pre-lowering template classifications")
+        );
+    }
+
+    #[test]
+    fn accepted_instance_contract_identity_copies_exact_plan_and_fails_closed_when_missing() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing =
+            accepted_instance_contract_fingerprint(&CheckedTrees::default(), machine, "admitted")
+                .expect_err("missing checked instance plan must fail closed");
+        assert!(
+            missing
+                .message
+                .contains("has no exact checked contract plan")
+        );
+
+        let mut checked = CheckedTrees::default();
+        checked
+            .facts
+            .contract_plans
+            .machines
+            .push(MachineContractPlan {
+                machine,
+                closed_scalar_values: Default::default(),
+                crash: CrashPlan::default(),
+                fingerprint: 0x1234_5678_9abc_def0,
+            });
+        assert_eq!(
+            accepted_instance_contract_fingerprint(&checked, machine, "admitted"),
+            Ok(0x1234_5678_9abc_def0)
         );
     }
 
