@@ -27636,13 +27636,8 @@ fn runtime_value_call_self_field_enum_match_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call self-field-enum-match canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call self-field-enum-match canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27706,13 +27701,8 @@ fn runtime_contained_machine_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-contained-machine-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("contained-machine canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("contained-machine canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27848,20 +27838,14 @@ fn runtime_trailing_local_return_exit_canary_runs() {
 #[test]
 fn runtime_looping_value_return_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_looping_value_return_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-recursive-value-return-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime recursive value return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime recursive value return canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27889,13 +27873,8 @@ fn runtime_looping_cast_return_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime looping cast return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime looping cast return canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -28730,20 +28709,14 @@ fn runtime_nested_value_call_in_substate_exit_canary_runs() {
     // so its nested room_mut was dropped -> null `&mut Room` -> fault. The classifier
     // now treats a state that sources any non-host call as non-leaf (InlineExpansion).
     let canary = pass_canary("calls/runtime_nested_value_call_in_substate_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-value-call-substate-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-value-call-in-substate canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested-value-call-in-substate canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -28770,20 +28743,14 @@ fn runtime_call_in_inlined_substate_exit_canary_runs() {
     // leaf expansion can't carry a nested call -> the call was dropped, leaving its
     // `&mut`/value result null -> the next use faulted. Dungeon generation shape.
     let canary = pass_canary("calls/runtime_call_in_inlined_substate_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-call-in-inlined-substate-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("call-in-inlined-substate canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("call-in-inlined-substate canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -28857,13 +28824,8 @@ fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime dispatch binary call argument canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime dispatch binary call argument canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -29377,19 +29339,13 @@ fn runtime_nested_field_terminal_second_instance_exit_canary_runs() {
 #[test]
 fn runtime_multiarm_same_named_locals_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_multiarm_same_named_locals_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-multiarm-same-named-locals-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("multi-arm same-named locals canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("multi-arm same-named locals canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("multi-arm same-named locals canary should run");
@@ -29686,19 +29642,13 @@ fn runtime_natural_termination_exit_canary_runs() {
 #[test]
 fn runtime_deep_state_name_collision_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_deep_state_name_collision_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-deep-state-name-collision-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("deep-state name collision canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("deep-state name collision canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("deep-state name collision canary should run");
@@ -29717,19 +29667,13 @@ fn runtime_deep_state_name_collision_exit_canary_runs() {
 #[test]
 fn runtime_u64_literal_let_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_u64_literal_let_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-u64-literal-let-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("u64 let+guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("u64 let+guard canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("u64 let+guard canary should run");
@@ -46201,6 +46145,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_transition_subject_call_single_evaluation_exit",
     "calls/runtime_value_call_single_execution_exit",
     "control_flow/runtime_effectful_subject_single_evaluation_exit",
+    "arithmetic/runtime_u64_literal_let_guard_exit",
+    "calls/runtime_call_in_inlined_substate_exit",
+    "calls/runtime_contained_machine_exit",
+    "calls/runtime_deep_state_name_collision_exit",
+    "calls/runtime_dispatch_binary_call_argument_exit",
+    "calls/runtime_looping_cast_return_exit",
+    "calls/runtime_looping_value_return_exit",
+    "calls/runtime_multiarm_same_named_locals_exit",
+    "calls/runtime_nested_value_call_in_substate_exit",
+    "calls/runtime_value_call_self_field_enum_match_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46757,6 +46711,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_transition_subject_call_single_evaluation_exit",
     "calls/runtime_value_call_single_execution_exit",
     "control_flow/runtime_effectful_subject_single_evaluation_exit",
+    "arithmetic/runtime_u64_literal_let_guard_exit",
+    "calls/runtime_call_in_inlined_substate_exit",
+    "calls/runtime_contained_machine_exit",
+    "calls/runtime_deep_state_name_collision_exit",
+    "calls/runtime_dispatch_binary_call_argument_exit",
+    "calls/runtime_looping_cast_return_exit",
+    "calls/runtime_looping_value_return_exit",
+    "calls/runtime_multiarm_same_named_locals_exit",
+    "calls/runtime_nested_value_call_in_substate_exit",
+    "calls/runtime_value_call_self_field_enum_match_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
