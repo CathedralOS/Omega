@@ -1,13 +1,18 @@
 //! End-to-end oracle for a plan-laid outer fixed array whose validated
 //! destinations retain a constant physical stride larger than element width.
 
-use omega_compiler::{CompileOptions, compile, compile_to_checked};
+use omega_compiler::{
+    CompileOptions, compile, compile_to_checked, compute_layout_plan,
+    evaluate_and_materialize_typed_owned_layout_into,
+};
 use psi_checked_interpreter::interpret_entry;
+use psi_layout_plans::ByteOrder;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const CANARY: &str = "layouts/runtime_plan_laid_tiled_outer_array_view_exit";
+const PRIMITIVE_CANARY: &str = "layouts/runtime_plan_laid_tiled_outer_array_view_exit";
+const RECORD_CANARY: &str = "layouts/runtime_plan_laid_tiled_record_array_view_exit";
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -41,9 +46,8 @@ fn unique_build_dir(tag: &str) -> TemporaryBuildDirectory {
     )
 }
 
-#[test]
-fn gapped_outer_array_interprets_runs_natively_and_cross_compiles() {
-    let canary = repo_root().join("canaries/pass").join(CANARY);
+fn assert_runtime_canary(canary_name: &str, tag: &str) {
+    let canary = repo_root().join("canaries/pass").join(canary_name);
     let host = omega_target::TargetProfile::host();
     let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
         .expect("gapped outer-array canary should reach checked trees");
@@ -59,7 +63,7 @@ fn gapped_outer_array_interprets_runs_natively_and_cross_compiles() {
         "interpreter must preserve the validated element stride: {interpreted:?}"
     );
 
-    let host_build = unique_build_dir("plan-laid-gapped-host");
+    let host_build = unique_build_dir(&format!("{tag}-host"));
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(host_build.path().to_path_buf()),
@@ -89,7 +93,7 @@ fn gapped_outer_array_interprets_runs_natively_and_cross_compiles() {
     );
 
     for target in ["windows_x64", "linux_arm64"] {
-        let cross_build = unique_build_dir(&format!("plan-laid-gapped-{target}"));
+        let cross_build = unique_build_dir(&format!("{tag}-{target}"));
         compile(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(cross_build.path().to_path_buf()),
@@ -104,4 +108,58 @@ fn gapped_outer_array_interprets_runs_natively_and_cross_compiles() {
             "{target} build directory should be removed after compilation"
         );
     }
+}
+
+#[test]
+fn gapped_primitive_outer_array_interprets_runs_natively_and_cross_compiles() {
+    assert_runtime_canary(PRIMITIVE_CANARY, "plan-laid-gapped-primitive");
+}
+
+#[test]
+fn gapped_record_outer_array_interprets_runs_natively_and_cross_compiles() {
+    assert_runtime_canary(RECORD_CANARY, "plan-laid-gapped-record");
+}
+
+#[test]
+fn gapped_record_outer_array_materializes_from_checked_owned_value() {
+    let canary = repo_root().join("canaries/pass").join(RECORD_CANARY);
+    let host = omega_target::TargetProfile::host();
+    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
+        .expect("gapped record-array canary should reach checked trees");
+    let layout = compute_layout_plan(&checked.typed, "TiledRecordArray::plan", "Samples")
+        .expect("gapped record-array plan should validate");
+
+    let mut little = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("checked owned record array should materialize little-endian");
+    assert_eq!(
+        little,
+        [
+            0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 5, 6, 0, 0, 0, 0, 7, 8, 0, 0, 9, 10, 11, 12,
+        ]
+    );
+
+    let mut big = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("checked owned record array should materialize big-endian");
+    assert_eq!(
+        big,
+        [
+            0, 0, 0, 0, 2, 1, 0, 0, 6, 5, 4, 3, 0, 0, 0, 0, 8, 7, 0, 0, 12, 11, 10, 9,
+        ]
+    );
 }
