@@ -709,6 +709,12 @@ impl ProviderPlan {
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
         for method in &self.schema.methods {
+            if method.requirement_owner.is_empty() {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` has no exact requirement owner",
+                    self.name, self.schema.trait_name, method.name
+                ));
+            }
             if method.requirement_identity.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` has no exact requirement identity",
@@ -1097,5 +1103,39 @@ mod tests {
             !plan.covers_schema(),
             "a human name cannot select an overload"
         );
+    }
+
+    #[test]
+    fn schema_validation_requires_explicit_owner_without_using_it_for_selection() {
+        let mut plan = windows_console_plan();
+        plan.schema.trait_name = "DerivedConsole".to_owned();
+
+        assert!(
+            plan.validate_candidate_against_schema().is_empty(),
+            "an inherited requirement owner may differ from its selected schema"
+        );
+        assert!(plan.covers_schema());
+
+        plan.schema.methods[0].requirement_owner.clear();
+        let errors = plan.validate_candidate_against_schema();
+        assert!(errors.iter().any(|error| {
+            error.contains(
+                "schema method `DerivedConsole::write_line` has no exact requirement owner",
+            )
+        }));
+        assert!(
+            plan.covers_schema(),
+            "readable owner metadata must not replace canonical overload selection"
+        );
+
+        plan.schema.methods[0].requirement_owner = "Console".to_owned();
+        plan.schema.methods[0].requirement_identity.clear();
+        assert!(!plan.covers_schema());
+        let errors = plan.validate_candidate_against_schema();
+        assert!(errors.iter().any(|error| {
+            error.contains(
+                "schema method `DerivedConsole::write_line` has no exact requirement identity",
+            )
+        }));
     }
 }
