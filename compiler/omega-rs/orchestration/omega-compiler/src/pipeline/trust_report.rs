@@ -7,8 +7,9 @@
 
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
-    ArtifactWriter, TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow,
-    TrustReport, TrustReportRow,
+    ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
+    TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
+    TrustReportRow,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -86,6 +87,7 @@ pub(super) fn write_trust_report(
             machine_may_suspend: None,
             machine_may_block: None,
             machine_terminates_guarantee: None,
+            machine_crash_routes: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -205,6 +207,7 @@ pub(super) fn write_trust_report(
             machine_may_suspend: None,
             machine_may_block: None,
             machine_terminates_guarantee: None,
+            machine_crash_routes: None,
             standing_warning: !granted,
         });
     }
@@ -253,6 +256,9 @@ pub(super) fn write_trust_report(
         let machine_terminates_guarantee =
             accepted_machine_terminates_guarantee(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_crash_routes =
+            accepted_machine_crash_routes(checked, machine.symbol, machine.name.as_str())
+                .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -266,6 +272,7 @@ pub(super) fn write_trust_report(
             machine_may_suspend: Some(machine_may_suspend),
             machine_may_block: Some(machine_may_block),
             machine_terminates_guarantee: Some(machine_terminates_guarantee),
+            machine_crash_routes: Some(machine_crash_routes),
             standing_warning: !granted,
         });
     }
@@ -293,6 +300,7 @@ pub(super) fn write_trust_report(
                 machine_may_suspend: None,
                 machine_may_block: None,
                 machine_terminates_guarantee: None,
+                machine_crash_routes: None,
                 standing_warning: false,
             });
         }
@@ -445,6 +453,56 @@ fn accepted_machine_terminates_guarantee(
     }
 }
 
+fn accepted_machine_crash_routes(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<Vec<TrustCrashRouteBucket>, Diagnostic> {
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(machine)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no exact checked crash plan"
+            ))
+        })?;
+    if plan.crash.interface() != psi_checked_trees::CrashInterface::PublishedCeiling {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no published crash ceiling"
+        )));
+    }
+    plan.crash
+        .published()
+        .iter()
+        .map(|bucket| {
+            if bucket.alternative_guards().is_empty() {
+                return Err(Diagnostic::error(format!(
+                    "accepted machine `{machine_name}` has an empty published crash guard bucket"
+                )));
+            }
+            Ok(TrustCrashRouteBucket {
+                cause: match bucket.cause() {
+                    psi_checked_trees::CrashCause::Trap => TrustCrashCause::Trap,
+                    psi_checked_trees::CrashCause::Abort => TrustCrashCause::Abort,
+                },
+                alternative_guards: bucket
+                    .alternative_guards()
+                    .iter()
+                    .map(|guard| match guard {
+                        psi_checked_trees::CrashRouteGuard::Truth => TrustCrashRouteGuard::Truth,
+                        psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                            TrustCrashRouteGuard::PredicateIdentity(
+                                predicate.canonical_bytes().to_vec(),
+                            )
+                        }
+                    })
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
 ) -> TrustProviderRealization {
@@ -482,9 +540,12 @@ fn trust_provider_realization(
 
 #[cfg(test)]
 mod tests {
+    use omega_artifacts::{TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard};
     use psi_checked_trees::{
-        CheckedTrees, MachineBlockingFact, MachineServiceReachRows, MachineSuspensionFact,
-        MachineSynchronousInvocationFact, MachineTerminationFact, ServiceReachFacts,
+        CheckedTrees, CrashCause, CrashPlan, CrashPredicateIdentity, CrashRouteBucket,
+        CrashRouteGuard, MachineBlockingFact, MachineContractPlan, MachineContractPlans,
+        MachineServiceReachRows, MachineSuspensionFact, MachineSynchronousInvocationFact,
+        MachineTerminationFact, ServiceReachFacts,
     };
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, MachineTerminationPlan, ProgressProfileId, RankingWitness,
@@ -495,8 +556,9 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
-        accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
-        accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
+        accepted_machine_crash_routes, accepted_machine_may_block, accepted_machine_may_suspend,
+        accepted_machine_service_reach, accepted_machine_synchronous_invocations,
+        accepted_machine_terminates_guarantee,
     };
 
     fn checked_with_reach(
@@ -520,6 +582,20 @@ mod tests {
         );
         let mut checked = CheckedTrees::default();
         checked.facts.service_reaches = service_reaches;
+        checked
+    }
+
+    fn checked_with_crash(machine: SymbolHandle, crash: CrashPlan) -> CheckedTrees {
+        let mut checked = CheckedTrees::default();
+        checked.facts.contract_plans = MachineContractPlans {
+            machines: vec![MachineContractPlan {
+                machine,
+                closed_scalar_values: Default::default(),
+                crash,
+                fingerprint: 0,
+            }],
+            crash_capsules: Vec::new(),
+        };
         checked
     }
 
@@ -794,5 +870,54 @@ mod tests {
             .expect_err("progress-premised guarantee rejects")
             .to_string();
         assert!(premised.contains("cannot enter the premise-free trust row"));
+    }
+
+    #[test]
+    fn accepted_crash_routes_copy_exact_published_bucket_and_guard_identity() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let trap = CrashRouteBucket::new(
+            CrashCause::Trap,
+            vec![CrashRouteGuard::Predicate(
+                CrashPredicateIdentity::from_canonical_bytes(vec![1, 2]),
+            )],
+        )
+        .expect("nonempty guarded bucket");
+        let abort = CrashRouteBucket::unconditional(CrashCause::Abort);
+        let checked = checked_with_crash(machine, CrashPlan::published_ceiling(vec![abort, trap]));
+
+        assert_eq!(
+            accepted_machine_crash_routes(&checked, machine, "accepted"),
+            Ok(vec![
+                TrustCrashRouteBucket {
+                    cause: TrustCrashCause::Trap,
+                    alternative_guards: vec![TrustCrashRouteGuard::PredicateIdentity(vec![1, 2])],
+                },
+                TrustCrashRouteBucket {
+                    cause: TrustCrashCause::Abort,
+                    alternative_guards: vec![TrustCrashRouteGuard::Truth],
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn accepted_crash_routes_fail_closed_on_missing_and_internal_plans() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing = accepted_machine_crash_routes(&CheckedTrees::default(), machine, "missing")
+            .expect_err("missing plan rejects")
+            .to_string();
+        assert!(missing.contains("has no exact checked crash plan"));
+
+        let internal = checked_with_crash(machine, CrashPlan::default());
+        let internal = accepted_machine_crash_routes(&internal, machine, "internal")
+            .expect_err("private inference rejects")
+            .to_string();
+        assert!(internal.contains("has no published crash ceiling"));
+
+        assert_eq!(
+            CrashRouteBucket::new(CrashCause::Trap, Vec::new()),
+            None,
+            "the checked owner seals the empty-guard state before trust projection"
+        );
     }
 }
