@@ -246,19 +246,24 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             && target_machine.type_parameters.is_empty()
             && target_machine.conformance_bounds.is_empty()
             && call.machine_arguments.is_empty();
-        let proof_only = program.machine_states(target_machine).len() == 1
+        let immediate = program.machine_states(target_machine).len() == 1
             && target_machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
             && program.state_parameters(target_state).is_empty()
-            && !target_state.return_type.is_valid()
-            && target_state.statement_nodes.is_empty()
             && program
                 .expression_table
                 .expression_handles(call.arguments)
                 .is_empty()
             && call.evidence_arguments.is_empty();
-        if !concrete || !proof_only {
+        let runtime_value_type = target_state
+            .return_type
+            .is_valid()
+            .then(|| program.primitive_type_reference(target_state.return_type))
+            .flatten();
+        let proof_only =
+            !target_state.return_type.is_valid() && target_state.statement_nodes.is_empty();
+        if !concrete || !immediate || (!proof_only && runtime_value_type.is_none()) {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package call `{}` is limited to a concrete one-state, zero-argument, proof-only machine",
+                "generated evidence package call `{}` is limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
                 call.target
             )));
             continue;
@@ -308,11 +313,13 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             continue;
         }
 
-        if package.bindings.len() != callee_outputs.len() {
+        let expected_binding_count =
+            callee_outputs.len() + usize::from(runtime_value_type.is_some());
+        if package.bindings.len() != expected_binding_count {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "generated evidence package from `{}` must destructure all {} fields; found {} bindings",
                 call.target,
-                callee_outputs.len(),
+                expected_binding_count,
                 package.bindings.len()
             )));
             continue;
@@ -357,10 +364,29 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 invalid = true;
             }
         }
+        let value_binding = fields.get("value").copied();
+        match (runtime_value_type, value_binding) {
+            (Some(_), None) => {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "generated evidence package from `{}` is missing runtime field `value`",
+                    call.target
+                )));
+                invalid = true;
+            }
+            (None, Some(_)) => {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "proof-only generated evidence package from `{}` has no runtime field `value`",
+                    call.target
+                )));
+                invalid = true;
+            }
+            _ => {}
+        }
         for field in fields.keys() {
-            if !callee_outputs
-                .iter()
-                .any(|output| proof.evidence_terms.get(*output).name == *field)
+            if !(*field == "value" && runtime_value_type.is_some())
+                && !callee_outputs
+                    .iter()
+                    .any(|output| proof.evidence_terms.get(*output).name == *field)
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "generated evidence package from `{}` has no field `{field}`",
@@ -369,6 +395,87 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 invalid = true;
             }
         }
+
+        let runtime_call = if let (Some(runtime_value_type), Some(value_binding)) =
+            (runtime_value_type, value_binding)
+        {
+            let Some(statement_index) = package.runtime_call_statement_index else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "runtime generated evidence package has no ordinary call statement",
+                ));
+                continue;
+            };
+            let Some(caller_state) = program.machines().iter().find_map(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == package.state_symbol)
+            }) else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "runtime generated evidence package has no caller state",
+                ));
+                continue;
+            };
+            let Some(psi_typed_trees::statement::StatementNode::LocalData(local)) = program
+                .statement_table
+                .statements(caller_state.statement_nodes)
+                .get(statement_index)
+            else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "runtime generated evidence package must bind `value` through an ordinary local",
+                ));
+                continue;
+            };
+            let local_call = local
+                .initial_value
+                .is_valid()
+                .then(|| program.expression_table.expression(local.initial_value));
+            let exact_local = local.name == value_binding.binding
+                && program.primitive_type_reference(local.type_reference)
+                    == Some(runtime_value_type)
+                && matches!(local_call, Some(ExpressionNode::Call(local_call))
+                    if local_call.target_symbol == call.target_symbol);
+            if !exact_local || package.statement_index != statement_index.saturating_add(1) {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "runtime generated evidence package `value` does not match its exact ordinary call local",
+                ));
+                continue;
+            }
+            let mut matching_calls = proof.contract_calls.iter().filter_map(|(_, fact)| {
+                (fact.caller_machine_symbol == package.machine_symbol
+                    && fact.caller_state_symbol == package.state_symbol
+                    && fact.statement_index == statement_index
+                    && fact.call_ordinal == 0)
+                    .then_some(fact)
+            });
+            let Some(contract_call) = matching_calls.next() else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "runtime generated evidence package call has no exact checked contract-call row",
+                ));
+                continue;
+            };
+            if matching_calls.next().is_some()
+                || contract_call.target_machine_symbol != target_machine.symbol
+                || contract_call.target_state_symbol != target_state.symbol
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "runtime generated evidence package call disagrees with its checked contract-call row",
+                ));
+                continue;
+            }
+            Some(psi_checked_trees::EvidencePackageRuntimeCallFact {
+                statement_index,
+                call_ordinal: 0,
+            })
+        } else {
+            if package.runtime_call_statement_index.is_some() {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "proof-only generated evidence package cannot carry a runtime call",
+                ));
+                continue;
+            }
+            None
+        };
         for binding in &package.bindings {
             let duplicate = proof.evidence_terms.iter().any(|(_, term)| {
                 term.name == binding.binding.as_str()
@@ -433,6 +540,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             caller_state_symbol: package.state_symbol,
             statement_index: package.statement_index,
             source_statement_index: package.source_statement_index,
+            runtime_call,
             target_machine_symbol: target_machine.symbol,
             target_state_symbol: target_state.symbol,
             outputs,

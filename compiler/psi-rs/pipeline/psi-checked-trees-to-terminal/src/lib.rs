@@ -57,9 +57,10 @@ use psi_terminal::{
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
-    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidenceProjectionIdentity,
-    EvidenceRequirementIdentity, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
+    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
+    MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
@@ -1445,6 +1446,7 @@ pub fn lower_machine(
         checked,
         selection.machine,
         lowered.semantic_module.entry,
+        &lowered.semantic_module,
         &evidence_terms.term_ids,
     )?;
     lowered.proof_bundle.evidence_producers =
@@ -1941,6 +1943,7 @@ fn lower_evidence_package_invocations(
     checked: &CheckedTrees,
     selected_machine: psi_symbols::SymbolHandle,
     terminal_machine: MachineId,
+    semantic_module: &TerminalModule,
     term_ids: &[Option<EvidenceTermId>],
 ) -> Result<Vec<EvidencePackageInvocation>, LoweringError> {
     let mut invocations = checked
@@ -1953,6 +1956,13 @@ fn lower_evidence_package_invocations(
         })
         .enumerate()
         .map(|(ordinal, invocation)| {
+            let (runtime_value, runtime_call) = lower_evidence_package_runtime_call(
+                checked,
+                selected_machine,
+                terminal_machine,
+                semantic_module,
+                invocation,
+            )?;
             let outputs = invocation
                 .outputs
                 .iter()
@@ -2000,12 +2010,125 @@ fn lower_evidence_package_invocations(
                     checked,
                     invocation.target_machine_symbol,
                 )?,
+                runtime_value,
+                runtime_call,
                 outputs,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     invocations.sort_unstable();
     Ok(invocations)
+}
+
+fn lower_evidence_package_runtime_call(
+    checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
+    terminal_machine: MachineId,
+    semantic_module: &TerminalModule,
+    invocation: &psi_checked_trees::EvidencePackageInvocationFact,
+) -> Result<(Option<ScalarType>, Option<EvidencePackageRuntimeCall>), LoweringError> {
+    let Some(runtime_call) = invocation.runtime_call else {
+        return Ok((None, None));
+    };
+    let target_state = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .find(|state| state.symbol == invocation.target_state_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "runtime evidence package target state is absent",
+        ))?;
+    let runtime_value = checked
+        .typed
+        .primitive_type_reference(target_state.return_type)
+        .map(terminal_scalar_type)
+        .transpose()?
+        .ok_or(LoweringError::Unsupported(
+            "runtime evidence package target is not scalar-result",
+        ))?;
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(selected_machine)
+        .ok_or(LoweringError::Unsupported(
+            "runtime evidence package caller has no checked scalar graph",
+        ))?;
+    let mut direct_call_position = None;
+    let mut next_position = 0usize;
+    for state in &graph.states {
+        for binding in &state.bindings {
+            let psi_checked_trees::CheckedScalarBindingValue::DirectCall {
+                target_machine,
+                target_state,
+                call_ordinal,
+                ..
+            } = &binding.value
+            else {
+                continue;
+            };
+            if state.state == invocation.caller_state_symbol
+                && usize::try_from(binding.statement_ordinal).ok()
+                    == Some(runtime_call.statement_index)
+                && usize::try_from(*call_ordinal).ok() == Some(runtime_call.call_ordinal)
+            {
+                if *target_machine != invocation.target_machine_symbol
+                    || *target_state != invocation.target_state_symbol
+                {
+                    return unsupported(
+                        "runtime evidence package target disagrees with its scalar call plan",
+                    );
+                }
+                if direct_call_position.replace(next_position).is_some() {
+                    return unsupported(
+                        "runtime evidence package scalar call coordinate is not unique",
+                    );
+                }
+            }
+            next_position = next_position
+                .checked_add(1)
+                .expect("checked scalar direct-call count advances");
+        }
+    }
+    let direct_call_position = direct_call_position.ok_or(LoweringError::Unsupported(
+        "runtime evidence package scalar call coordinate is absent",
+    ))?;
+    let caller = semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal_machine)
+        .ok_or(LoweringError::Unsupported(
+            "runtime evidence package caller is absent from terminal Psi",
+        ))?;
+    let mut calls = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .collect::<Vec<_>>();
+    calls.sort_unstable_by_key(|operation| operation.id);
+    let operation = calls
+        .get(direct_call_position)
+        .copied()
+        .ok_or(LoweringError::Unsupported(
+            "runtime evidence package call has no emitted terminal operation",
+        ))?;
+    let (Some(result), OperationKind::Call { callee, .. }) =
+        (operation.result.scalar(), &operation.kind)
+    else {
+        return unsupported("runtime evidence package operation is not an ordinary scalar call");
+    };
+    if result.scalar_type != runtime_value {
+        return unsupported("runtime evidence package operation result type disagrees");
+    }
+    Ok((
+        Some(runtime_value),
+        Some(EvidencePackageRuntimeCall {
+            operation: operation.id,
+            callee: *callee,
+        }),
+    ))
 }
 
 fn lower_evidence_producer_provenance(

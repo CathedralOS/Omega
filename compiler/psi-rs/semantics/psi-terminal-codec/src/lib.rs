@@ -38,18 +38,18 @@ use psi_terminal::{
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidenceTermDeclaration, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
-    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    EvidencePackageRuntimeCall, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, OperationResult, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
+    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
@@ -1445,6 +1445,15 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
             "evidence package target machine identity",
             &invocation.target_machine_identity,
         )?;
+        writer.boolean(invocation.runtime_value.is_some());
+        if let Some(runtime_value) = invocation.runtime_value {
+            encode_scalar_type(&mut writer, runtime_value);
+        }
+        writer.boolean(invocation.runtime_call.is_some());
+        if let Some(runtime_call) = invocation.runtime_call {
+            writer.id(runtime_call.operation);
+            writer.id(runtime_call.callee);
+        }
         writer.len("evidence package outputs", invocation.outputs.len())?;
         for output in &invocation.outputs {
             writer.u32(output.output_position);
@@ -3086,6 +3095,19 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
             caller: reader.id("MachineId")?,
             ordinal: reader.u32()?,
             target_machine_identity: reader.string("evidence package target machine identity")?,
+            runtime_value: reader
+                .boolean()?
+                .then(|| decode_scalar_type(reader))
+                .transpose()?,
+            runtime_call: reader
+                .boolean()?
+                .then(|| {
+                    Ok(EvidencePackageRuntimeCall {
+                        operation: reader.id("OperationId")?,
+                        callee: reader.id("MachineId")?,
+                    })
+                })
+                .transpose()?,
             outputs: decode_counted(reader, |reader| {
                 Ok(EvidencePackageOutputBinding {
                     output_position: reader.u32()?,

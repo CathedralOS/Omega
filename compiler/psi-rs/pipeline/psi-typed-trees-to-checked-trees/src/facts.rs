@@ -476,6 +476,12 @@ fn build_closed_scalar_value_contract_plan(
     let mut has_crash_clauses = false;
     let mut has_other_clauses = false;
     for contract in program.machine_contracts(machine) {
+        // Named witness-bearing lanes are checked and lowered through the
+        // evidence contract plan. They do not participate in the independent
+        // closed scalar value contract used by terminal scalar production.
+        if contract.binding.is_some() {
+            continue;
+        }
         match contract.kind {
             SignatureContractKind::Requires => requires.push(lower_clause(contract)),
             SignatureContractKind::Ensures => ensures.push(lower_clause(contract)),

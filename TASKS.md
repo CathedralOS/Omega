@@ -514,16 +514,19 @@ Remaining N6/N8 work:
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 
   The immediate generated-output-package rung now destructures the complete
-  nonempty set of unconditional proof-only fields from a concrete zero-input,
-  zero-runtime checked machine. Source field order may vary; checked and
-  terminal Psi canonicalize by callee lane, mint one distinct fresh
-  caller-local term per field, require each term to be forwarded exactly once,
-  and retain one dense verified invocation group with no runtime or fuel effect.
+  nonempty set of unconditional evidence fields from a concrete zero-input
+  checked machine. Source field order may vary; checked and terminal Psi
+  canonicalize by callee lane, mint one distinct fresh caller-local term per
+  field, and require each term to be forwarded exactly once. A proof-only call
+  remains fully erased. A scalar-result call additionally requires exactly one
+  contextual `value` field, synthesizes one ordinary caller local/call, and
+  links the grouped proof row to that exact canonical terminal call operation;
+  proof metadata adds no runtime work or fuel beyond the ordinary call.
 
-  Next, complete retained/projection, runtime-`value`, guarded, generic, and
-  explicit-discard package forms. Keep proposition, evidence-term, and
-  provenance identities separate; neither provenance nor display spelling is a
-  term identity oracle.
+  Next, complete retained/projection, guarded, and generic package forms.
+  Explicit-discard packages are design-blocked on `OWNER_QUESTIONS.md` Q13.
+  Keep proposition, evidence-term, and provenance identities separate; neither
+  provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
   front half now parses `Name<Telescope>: [Subject] satisfies Trait { ... }`,
   retains lifetime/type/const/static-machine parameters through resolved and
@@ -664,6 +667,7 @@ specifications:
 - **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q8.
 - **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q9.
 - **GENERIC-CONFORMANCE-APPLICATION:** owner Q12.
+- **EVIDENCE-PACKAGE-DISCARD:** owner Q13.
 
 ## Platform-gated verification
 

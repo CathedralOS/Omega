@@ -143,17 +143,25 @@ pub struct EvidenceForwardingFact {
     pub source: EvidenceAssignmentSource,
 }
 
-/// One proof-only call whose complete generated output package is bound to
-/// fresh caller-local evidence terms.
+/// One immediate call whose complete generated output package is bound to
+/// fresh caller-local evidence terms. A scalar `value` package additionally
+/// names the exact ordinary runtime call coordinate.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EvidencePackageInvocationFact {
     pub caller_machine_symbol: SymbolHandle,
     pub caller_state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub source_statement_index: usize,
+    pub runtime_call: Option<EvidencePackageRuntimeCallFact>,
     pub target_machine_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
     pub outputs: Vec<EvidencePackageOutputFact>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EvidencePackageRuntimeCallFact {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
 }
 
 /// One exact public field binding within a generated package invocation.

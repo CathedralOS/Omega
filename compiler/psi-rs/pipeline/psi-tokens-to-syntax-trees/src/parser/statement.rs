@@ -1316,9 +1316,10 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
 /// Chapter-10 generated proof-package destructuring:
 /// `let { first: local_first, second: local_second } = producer();`.
 ///
-/// This remains a dedicated erased, call-only statement so the call is
-/// evaluated once and the generic place-only record destructure cannot
-/// manufacture Unit locals for it.
+/// This remains a dedicated call-only statement so the call is evaluated once
+/// and the generic place-only record destructure cannot manufacture Unit locals
+/// for evidence fields. Later lowering gives contextual `value` its one
+/// ordinary runtime local while retaining the grouped proof metadata.
 pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

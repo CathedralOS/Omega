@@ -681,33 +681,168 @@ fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
 }
 
 #[test]
-fn generated_output_package_rejects_a_runtime_result_callee() {
+fn immediate_generated_output_package_binds_one_runtime_scalar_call_and_proofs() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
         ConcreteEvidence: satisfies Evidence {}
 
         machine produce() -> i32
-        ensures outgoing: ready()
+        ensures first: ready()
+        ensures second: ready()
         {
-            outgoing = ConcreteEvidence;
-            1
+            first = ConcreteEvidence;
+            second = ConcreteEvidence;
+            7
         }
 
-        machine relay()
-        ensures relayed: ready()
+        machine relay() -> i32
+        ensures relayed_first: ready()
+        ensures relayed_second: ready()
         {
-            let { outgoing: local } = produce();
-            relayed = local;
+            let { second: local_second, value: local_value, first: local_first } = produce();
+            relayed_first = local_first;
+            relayed_second = local_second;
+            local_value
         }
     "#;
 
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("the immediate scalar value and complete proof package should check");
+    let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
+        panic!("one typed evidence-package invocation expected")
+    };
+    assert_eq!(typed_invocation.runtime_call_statement_index, Some(0));
+    let invocation = checked
+        .facts
+        .proof
+        .evidence_package_invocations
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked evidence-package invocation expected");
+    assert_eq!(invocation.outputs.len(), 2);
+    let runtime_call = invocation
+        .runtime_call
+        .expect("the grouped proof metadata retains the ordinary call coordinate");
+    assert_eq!(
+        (runtime_call.statement_index, runtime_call.call_ordinal),
+        (0, 0)
+    );
+    let relay = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("relay machine");
+    let relay_state = &checked.machine_states(relay)[0];
+    assert_eq!(relay_state.statement_nodes.count(), 2);
+    let contract_call = checked
+        .facts
+        .proof
+        .contract_calls
+        .iter()
+        .find_map(|(_, call)| {
+            (call.caller_machine_symbol == relay.symbol
+                && call.statement_index == runtime_call.statement_index
+                && call.call_ordinal == runtime_call.call_ordinal)
+                .then_some(call)
+        })
+        .expect("the retained coordinate names one checked contract call");
+    assert_eq!(
+        contract_call.target_machine_symbol,
+        invocation.target_machine_symbol
+    );
+}
+
+#[test]
+fn generated_output_package_rejects_runtime_result_without_value_field() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce() -> i32
+        ensures outgoing: ready()
+        { outgoing = ConcreteEvidence; 1 }
+        machine relay()
+        ensures relayed: ready()
+        { let { outgoing: local } = produce(); relayed = local; }
+    "#;
+
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("runtime payloads remain outside the first generated package rung");
+        .expect_err("a runtime package must bind its value field");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("must destructure all 2 fields"))
+    );
+}
+
+#[test]
+fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_value() {
+    let unit = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
+        machine relay()
+        ensures relayed: ready()
+        { let { value: runtime, outgoing: local } = produce(); relayed = local; }
+    "#;
+    let unit = format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{unit}");
+    let tokens = Lexer::new(&unit).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostics =
+        lower_symbol_resolved_trees(&resolved).expect_err("a proof-only package has no value type");
+    assert!(
+        diagnostics
+            .message
+            .contains("needs the callee's return type declared")
+    );
+
+    let duplicate = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce() -> i32
+        ensures first: ready()
+        ensures second: ready()
+        { first = ConcreteEvidence; second = ConcreteEvidence; 1 }
+        machine relay() -> i32
+        ensures relayed_first: ready()
+        ensures relayed_second: ready()
+        {
+            let { value: one, value: two, first: local } = produce();
+            relayed_first = local;
+            relayed_second = local;
+            one
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate))
+        .expect_err("the contextual value field is unique");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("is limited to a concrete one-state, zero-argument, proof-only machine")
+            .contains("field `value` is bound more than once")
+    }));
+
+    let discarded = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        machine produce() -> i32
+        ensures outgoing: ready()
+        { outgoing = ConcreteEvidence; 1 }
+        machine relay()
+        ensures relayed: ready()
+        { let { value: _, outgoing: local } = produce(); relayed = local; }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(discarded))
+        .expect_err("runtime value discard remains outside this rung");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("generated evidence package output cannot be discarded")
     }));
 }
 
@@ -738,9 +873,9 @@ fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("erasing a package call must not erase runtime work");
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("is limited to a concrete one-state, zero-argument, proof-only machine")
+        diagnostic.message.contains(
+            "is limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
+        )
     }));
 }
 
@@ -775,6 +910,9 @@ fn generated_output_package_binding_is_not_visible_to_its_own_call() {
                     .message
                     .contains("unknown incoming evidence term `local`")
                 || diagnostic.message.contains("proof-only machine")
+                || diagnostic
+                    .message
+                    .contains("proof-only or scalar-result machine")
         }),
         "unexpected diagnostics: {diagnostics:?}"
     );

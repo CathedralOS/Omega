@@ -169,12 +169,17 @@ an evidence-only call (`callee(; proof)`) and is omitted only when there is no
 evidence lane. Named guarantees are public fields of an inferred,
 source-unnameable, compiler-generated nominal output package. The implemented
 immediate rung requires colon-form destructuring of the complete nonempty set of
-unconditional evidence fields from a concrete zero-input, zero-runtime checked
-machine. Source field order may vary; checking canonicalizes by callee lane,
-mints one distinct fresh caller-local term per field, and requires each term to
-be forwarded exactly once. Retained, projected, runtime-value, guarded, generic,
-and discarded packages remain pending; evidence fields erase and remain subject
-to ordinary multiplicity.
+unconditional evidence fields from a concrete zero-input checked machine.
+Source field order may vary; checking canonicalizes by callee lane, mints one
+distinct fresh caller-local term per field, and requires each term to be
+forwarded exactly once. A proof-only package erases completely. A scalar-result
+package additionally binds exactly one contextual `value` field through one
+ordinary caller local/call, while the evidence fields remain erased. The proof
+group is linked to that exact checked call site and canonical terminal call
+operation; its runtime effects, crashes, and fuel are only those of the ordinary
+call. Retained, projected, guarded, and generic packages remain pending.
+Explicit discard is design-blocked on `OWNER_QUESTIONS.md` Q13; evidence fields
+erase independently of the multiplicity that decision must assign.
 
 A transparent logical definition uses `=`:
 

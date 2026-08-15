@@ -1,8 +1,9 @@
+use psi_core::{IntegerValue, OperationId};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::{EvidenceContractLaneKind, EvidenceTermDeclaration};
+use psi_terminal::{EvidenceContractLaneKind, EvidenceTermDeclaration, OperationKind};
 use psi_terminal_codec::{
     decode_module, decode_proof_bundle, encode_module, encode_proof_bundle,
     proof_bundle_fingerprint, render_verified_proof_synopsis, semantic_fingerprint,
@@ -10,7 +11,8 @@ use psi_terminal_codec::{
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    TerminalStructuralValue,
 };
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
@@ -112,6 +114,41 @@ const MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
         let { second: local_second, first: local_first } = Root::produce();
         relayed_first = local_first;
         relayed_second = local_second;
+    }
+"#;
+
+const RUNTIME_VALUE_GENERATED_PACKAGE_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    machine warmup() -> bool
+    requires true == true
+    ensures true == true
+    { true }
+
+    machine produce() -> bool
+    requires true == true
+    ensures true == true
+    ensures first: ready()
+    ensures second: ready()
+    {
+        first = ConcreteEvidence;
+        second = ConcreteEvidence;
+        true
+    }
+
+    machine relay() -> bool
+    requires true == true
+    ensures true == true
+    ensures relayed_first: ready()
+    ensures relayed_second: ready()
+    {
+        let warmed: bool = warmup();
+        let { second: local_second, value: local_value, first: local_first } = produce();
+        relayed_first = local_first;
+        relayed_second = local_second;
+        local_value
     }
 "#;
 
@@ -895,6 +932,172 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
         psi_terminal_verifier::validate_module_representation(&reserved_field),
         Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
     ));
+}
+
+#[test]
+fn runtime_value_generated_package_links_one_scalar_call_and_executes_once() {
+    let checked = check(RUNTIME_VALUE_GENERATED_PACKAGE_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "relay")
+        .expect("runtime value package should cross terminal Psi");
+    let [invocation] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("one terminal runtime-value package expected")
+    };
+    let runtime_type = invocation
+        .runtime_value
+        .expect("runtime package retains its scalar payload type");
+    let runtime_call = invocation
+        .runtime_call
+        .expect("runtime package retains its exact ordinary call operation");
+    assert_eq!(runtime_type, psi_core::ScalarType::Boolean);
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == invocation.caller)
+        .expect("package caller machine");
+    let calls = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.len(),
+        2,
+        "one unrelated call precedes the package call"
+    );
+    let call = calls
+        .iter()
+        .copied()
+        .find(|operation| operation.id == runtime_call.operation)
+        .expect("the retained ID selects the package call, not the earlier call");
+    assert_eq!(call.id, runtime_call.operation);
+    assert!(matches!(
+        call.kind,
+        OperationKind::Call { callee, .. } if callee == runtime_call.callee
+    ));
+
+    let bytes = encode_module(&lowered.semantic_module).expect("runtime package module encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("runtime package proof encodes");
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("runtime package operation and proof group verify together");
+    let fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("the ordinary scalar call has fixed fuel");
+    assert!(fuel.ceiling_units() > 0);
+    let baseline = check(
+        r#"
+            machine warmup() -> bool
+            requires true == true
+            ensures true == true
+            { true }
+            machine produce() -> bool
+            requires true == true
+            ensures true == true
+            { true }
+            machine relay() -> bool
+            requires true == true
+            ensures true == true
+            { let warmed: bool = warmup(); let local: bool = produce(); local }
+        "#,
+    );
+    let baseline = psi_checked_trees_to_terminal::lower_machine(&baseline, "relay")
+        .expect("ordinary scalar-call baseline lowers");
+    let baseline_verified = psi_terminal_verifier::verify_module(
+        &baseline.semantic_module,
+        &baseline.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("ordinary scalar-call baseline verifies");
+    let baseline_fuel = derive_fixed_entry_fuel(&baseline_verified, baseline.semantic_module.entry)
+        .expect("ordinary scalar-call baseline has fixed fuel");
+    assert_eq!(
+        fuel.ceiling_units(),
+        baseline_fuel.ceiling_units(),
+        "erased package proof metadata adds no runtime fuel"
+    );
+
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+    )
+    .expect("runtime package artifact starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("execute runtime package"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
+
+    let invalid_package = |module: &psi_terminal::TerminalModule| {
+        matches!(
+            psi_terminal_verifier::validate_module_representation(module),
+            Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        )
+    };
+    let mut unknown_operation = lowered.semantic_module.clone();
+    unknown_operation.evidence_package_invocations[0]
+        .runtime_call
+        .as_mut()
+        .expect("runtime link")
+        .operation = OperationId::new(u64::MAX).unwrap();
+    assert!(invalid_package(&unknown_operation));
+
+    let mut wrong_kind = lowered.semantic_module.clone();
+    let linked = wrong_kind.evidence_package_invocations[0]
+        .runtime_call
+        .expect("runtime link")
+        .operation;
+    wrong_kind
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.id == linked)
+        .expect("linked operation")
+        .kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Signed(7),
+    };
+    assert!(invalid_package(&wrong_kind));
+
+    let mut wrong_caller = lowered.semantic_module.clone();
+    wrong_caller.evidence_package_invocations[0].caller = runtime_call.callee;
+    assert!(invalid_package(&wrong_caller));
+
+    let mut missing_link = lowered.semantic_module.clone();
+    missing_link.evidence_package_invocations[0].runtime_call = None;
+    assert!(invalid_package(&missing_link));
+
+    let mut mismatched_callee = lowered.semantic_module.clone();
+    mismatched_callee.evidence_package_invocations[0]
+        .runtime_call
+        .as_mut()
+        .expect("runtime link")
+        .callee = invocation.caller;
+    assert!(invalid_package(&mismatched_callee));
+
+    let proof_only = psi_checked_trees_to_terminal::lower_machine(
+        &check(GENERATED_PACKAGE_SOURCE),
+        "Root::relay",
+    )
+    .expect("proof-only package");
+    let mut spurious_link = proof_only.semantic_module;
+    spurious_link.evidence_package_invocations[0].runtime_call = Some(runtime_call);
+    assert!(invalid_package(&spurious_link));
 }
 
 #[test]

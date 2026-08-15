@@ -110,12 +110,25 @@ pub(crate) fn lower_state(
     {
         if let resolved::statement::StatementNode::EvidencePackageDestructure(package) = statement {
             let call = crate::expression::lower_expression_handle(lowerer, package.call)?;
+            let runtime_call_statement_index = package
+                .bindings
+                .iter()
+                .any(|binding| {
+                    binding.output_field.as_str() == "value" && binding.binding.as_str() != "_"
+                })
+                .then(|| {
+                    usize::try_from(typed_state.statement_nodes.count())
+                        .expect("typed statement count fits usize")
+                        .checked_sub(1)
+                        .expect("a runtime package value has its synthesized local first")
+                });
             lowerer.typed_trees.evidence_package_invocations.push(
                 typed::typed_trees::EvidencePackageInvocation {
                     machine_symbol: package.machine_symbol,
                     state_symbol: package.state_symbol,
                     statement_index: typed_state.statement_nodes.count() as usize,
                     source_statement_index: package.statement_index,
+                    runtime_call_statement_index,
                     bindings: package
                         .bindings
                         .iter()

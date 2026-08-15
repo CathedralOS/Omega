@@ -154,9 +154,15 @@ complete nonempty output set in callee-lane order. Each output binds its public
 field and dense position, one callee declaration, and one distinct caller-local
 term with the same proposition and interface. Repeated calls share callee terms
 and producers while minting fresh caller terms. Source coordinates, source
-field order, and diagnostic paths erase; the grouped row adds no runtime
-operation or fuel. Retained, runtime-value, guarded, generic, discarded, and
-general projection forms remain separate work.
+field order, and diagnostic paths erase. A proof-only row adds no runtime
+operation or fuel. A scalar-runtime row separately retains its scalar result
+type and the exact canonical ordinary `Call` operation ID and callee. The
+verifier requires that operation to occur in the declared caller, produce the
+declared scalar type, and call the linked callee; a missing, spurious, unknown,
+wrong-kind, wrong-caller, or mismatched-callee link rejects. The proof row adds
+no operation or fuel beyond that ordinary call. Retained, guarded, generic, and
+general projection forms remain separate work. Explicit discard is
+design-blocked on `OWNER_QUESTIONS.md` Q13.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
