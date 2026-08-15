@@ -1758,7 +1758,14 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 .unwrap_or_default();
             push_synchronous_invocation_plan_json(&mut json, &synchronous_invocation, false);
             json.push_str(",\n        \"suspension\": ");
-            push_suspension_plan_json(&mut json, contract.suspension);
+            push_suspension_plan_json(
+                &mut json,
+                program
+                    .facts
+                    .suspensions
+                    .for_machine(machine.symbol)
+                    .unwrap_or_default(),
+            );
             json.push_str(",\n        \"blocking\": ");
             push_blocking_plan_json(&mut json, contract.blocking);
             json.push_str(",\n        \"crashes\": ");
@@ -1774,11 +1781,18 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         let mut has_implementation_field = false;
         if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
             json.push_str("\n        \"checked_may_suspend\": ");
-            json.push_str(if contract.suspension.checked_may_suspend {
-                "true"
-            } else {
-                "false"
-            });
+            json.push_str(
+                if program
+                    .facts
+                    .suspensions
+                    .for_machine(machine.symbol)
+                    .is_some_and(|plan| plan.checked_may_suspend)
+                {
+                    "true"
+                } else {
+                    "false"
+                },
+            );
             json.push_str(",\n        \"checked_may_block\": ");
             json.push_str(if contract.blocking.checked_may_block {
                 "true"
@@ -2912,9 +2926,11 @@ fn machine_suspension_summary(
     {
         summary.direct_may_suspend |= flow.suspension.direct_may_suspend;
     }
-    if let Some(contract) = program.facts.contract_plans.for_machine(symbol) {
-        summary.transitive_may_suspend = contract.suspension.checked_may_suspend;
-    }
+    summary.transitive_may_suspend = program
+        .facts
+        .suspensions
+        .for_machine(symbol)
+        .is_some_and(|plan| plan.checked_may_suspend);
     summary
 }
 
@@ -3135,14 +3151,21 @@ mod tests {
     ) {
         program
             .facts
+            .suspensions
+            .machines
+            .push(psi_checked_trees::MachineSuspensionFact {
+                machine,
+                plan: SuspensionPlan {
+                    checked_may_suspend,
+                    ..Default::default()
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine,
-                suspension: SuspensionPlan {
-                    checked_may_suspend,
-                    ..Default::default()
-                },
                 blocking: BlockingPlan {
                     checked_may_block,
                     ..Default::default()
@@ -4088,14 +4111,21 @@ mod tests {
         );
         program
             .facts
+            .suspensions
+            .machines
+            .push(psi_checked_trees::MachineSuspensionFact {
+                machine: symbol,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::PublishedMaySuspend(false),
+                    checked_may_suspend: false,
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine: symbol,
-                suspension: SuspensionPlan {
-                    interface: SuspensionInterface::PublishedMaySuspend(false),
-                    checked_may_suspend: false,
-                },
                 blocking: BlockingPlan {
                     interface: BlockingInterface::PublishedMayBlock(true),
                     checked_may_block: true,

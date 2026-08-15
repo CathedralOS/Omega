@@ -1846,15 +1846,20 @@ fn operational_plans_are_independent_from_service_reach_rows() {
         .contract_plans
         .for_machine(wait)
         .expect("published callee plan");
+    let wait_suspension = checked
+        .facts
+        .suspensions
+        .for_machine(wait)
+        .expect("published callee suspension plan");
     assert_eq!(
-        wait_plan.suspension.interface,
+        wait_suspension.interface,
         SuspensionInterface::PublishedMaySuspend(true)
     );
     assert_eq!(
         wait_plan.blocking.interface,
         BlockingInterface::PublishedMayBlock(true)
     );
-    assert!(!wait_plan.suspension.checked_may_suspend);
+    assert!(!wait_suspension.checked_may_suspend);
     assert!(!wait_plan.blocking.checked_may_block);
     let wait_reach = checked
         .facts
@@ -1881,8 +1886,13 @@ fn operational_plans_are_independent_from_service_reach_rows() {
         .contract_plans
         .for_machine(run)
         .expect("caller plan");
+    let run_suspension = checked
+        .facts
+        .suspensions
+        .for_machine(run)
+        .expect("caller suspension plan");
     assert_eq!(
-        run_plan.suspension.interface,
+        run_suspension.interface,
         SuspensionInterface::InternalInferred
     );
     assert_eq!(
@@ -1892,7 +1902,7 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     // Local calls to checked bodies consume the honest checked summary, not
     // the callee's authored ceiling. `wait` is quiet, so the private caller
     // remains quiet even though `wait` publishes room to suspend and block.
-    assert!(!run_plan.suspension.checked_may_suspend);
+    assert!(!run_suspension.checked_may_suspend);
     assert!(!run_plan.blocking.checked_may_block);
 
     let run_reach = checked

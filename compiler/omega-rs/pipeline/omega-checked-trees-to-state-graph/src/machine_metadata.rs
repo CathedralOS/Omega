@@ -67,9 +67,9 @@ pub(crate) fn machine_suspension_summary(
         .any(|(_, state)| state.suspension.direct_may_suspend);
     let transitive_may_suspend = program
         .facts
-        .contract_plans
+        .suspensions
         .for_machine(machine_symbol)
-        .is_some_and(|contract| contract.suspension.checked_may_suspend);
+        .is_some_and(|plan| plan.checked_may_suspend);
     SuspensionSummary {
         direct_may_suspend,
         transitive_may_suspend,

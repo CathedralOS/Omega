@@ -146,7 +146,11 @@ fn entry_capability_manifest(
         entry_machine: machine_name,
         entry_state: state_name,
         service_reach,
-        may_suspend: contract.is_some_and(|contract| contract.suspension.checked_may_suspend),
+        may_suspend: program
+            .facts
+            .suspensions
+            .for_machine(machine_symbol)
+            .is_some_and(|plan| plan.checked_may_suspend),
         may_block: contract.is_some_and(|contract| contract.blocking.checked_may_block),
         capability_flow_counts: capability_flow_counts(program),
     }
@@ -250,14 +254,21 @@ mod tests {
 
         program
             .facts
+            .suspensions
+            .machines
+            .push(psi_checked_trees::MachineSuspensionFact {
+                machine: machine_symbol,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::InternalInferred,
+                    checked_may_suspend: true,
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine: machine_symbol,
-                suspension: SuspensionPlan {
-                    interface: SuspensionInterface::InternalInferred,
-                    checked_may_suspend: true,
-                },
                 blocking: BlockingPlan {
                     interface: BlockingInterface::InternalInferred,
                     checked_may_block: false,
