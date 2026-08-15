@@ -30894,13 +30894,8 @@ fn runtime_qualified_case_value_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-qualified-case-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("qualified-case-value canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("qualified-case-value canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45418,6 +45413,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_arithmetic_guard",
     "generics/runtime_generic_value_call_exit",
     "generics/runtime_generic_value_call_agreeing_exit",
+    "expressions/runtime_qualified_case_value_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
