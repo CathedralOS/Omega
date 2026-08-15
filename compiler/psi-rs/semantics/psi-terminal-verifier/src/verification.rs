@@ -3978,6 +3978,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_affine_cast_affine_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_cast_then_affine_chain_obligation(
             integer_type,
             left.clone(),
@@ -4388,6 +4408,25 @@ fn exact_integer_subtract_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_affine_cast_affine_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_cast_then_affine_chain_obligation(
             integer_type,
             left.clone(),
@@ -4772,6 +4811,236 @@ fn exact_integer_affine_chain_obligation(
         coefficient,
         offset,
     ))
+}
+
+fn exact_integer_affine_cast_affine_obligation(
+    target_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if target_type.is_address() || !matches!(target_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let (mut target_coefficient, mut target_offset) = match initial_operation {
+        ExactIntegerAffineOperation::Add => (1, IntegerOffset::from_value(initial_constant)),
+        ExactIntegerAffineOperation::Subtract => {
+            (1, IntegerOffset::from_subtrahend(initial_constant))
+        }
+        ExactIntegerAffineOperation::Multiply => (
+            nonnegative_integer_factor(target_type, initial_constant)?,
+            IntegerOffset::Nonnegative(0),
+        ),
+    };
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let (source_type, mut source_variable) = loop {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => {
+                if landed_integer_constant_value(
+                    target_type,
+                    left,
+                    semantic_axioms,
+                    definition_index,
+                )
+                .is_some()
+                {
+                    return None;
+                }
+                let constant = landed_integer_constant_value(
+                    target_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let (nested_coefficient, nested_offset) = match definition {
+                    ScalarTerm::ExactIntegerAdd { .. } => (1, IntegerOffset::from_value(constant)),
+                    ScalarTerm::ExactIntegerSubtract { .. } => {
+                        (1, IntegerOffset::from_subtrahend(constant))
+                    }
+                    ScalarTerm::ExactIntegerMultiply { .. } => (
+                        nonnegative_integer_factor(target_type, constant)?,
+                        IntegerOffset::Nonnegative(0),
+                    ),
+                    _ => unreachable!("matched one exact affine definition"),
+                };
+                target_offset = nested_offset
+                    .checked_multiply(target_coefficient)
+                    .and_then(|nested| nested.checked_add(target_offset))?;
+                target_coefficient = target_coefficient.checked_mul(nested_coefficient)?;
+                variable = (**left).clone();
+                prior_axiom_count = definition_index;
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: cast_target_type,
+                operand,
+            } if *cast_target_type == target_type
+                && !source_type.is_address()
+                && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                && *source_type != target_type
+                && !source_type.can_widen_to(target_type)
+                && source_type.can_exact_cast_to(target_type) =>
+            {
+                prior_axiom_count = definition_index;
+                break (*source_type, (**operand).clone());
+            }
+            _ => return None,
+        }
+    };
+
+    let target_carrier = fixed_integer_type_interval(target_type)?;
+    let target_preimage = if target_coefficient == 0 {
+        None
+    } else {
+        match exact_integer_affine_preimage_interval(
+            target_type,
+            target_coefficient,
+            target_offset,
+            target_carrier,
+        ) {
+            Ok(interval) => interval,
+            Err(()) => return None,
+        }
+    };
+    let mut source_coefficient = 1_u128;
+    let mut source_offset = IntegerOffset::Nonnegative(0);
+    let mut followed_source_definition = false;
+    for _ in 0..=prior_axiom_count {
+        if matches!(
+            &source_variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == source_type && machine_parameter_values.contains(id)
+        ) {
+            if !followed_source_definition {
+                return None;
+            }
+            if target_coefficient == 0 {
+                return Some(if target_offset.is_representable(target_type) {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                });
+            }
+            let Some((target_lower, target_upper)) = target_preimage else {
+                return Some(Proposition::Falsehood);
+            };
+            let source_carrier = fixed_integer_type_interval(source_type)?;
+            let lower = target_lower.max(source_carrier.0);
+            let upper = target_upper.min(source_carrier.1);
+            if lower > upper {
+                return Some(Proposition::Falsehood);
+            }
+            return exact_integer_affine_preimage_obligation(
+                source_type,
+                source_variable,
+                source_coefficient,
+                source_offset,
+                (lower, upper),
+            )
+            .ok();
+        }
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &source_variable => Some((index, right)),
+                _ => None,
+            })?;
+        let (left, right, nested_coefficient, nested_offset) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == source_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    source_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+            ),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == source_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_subtrahend(landed_integer_constant_value(
+                    source_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+            ),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == source_type => (
+                left,
+                right,
+                nonnegative_integer_factor(
+                    source_type,
+                    landed_integer_constant_value(
+                        source_type,
+                        right,
+                        semantic_axioms,
+                        definition_index,
+                    )?,
+                )?,
+                IntegerOffset::Nonnegative(0),
+            ),
+            _ => return None,
+        };
+        if landed_integer_constant_value(source_type, left, semantic_axioms, definition_index)
+            .is_some()
+            || landed_integer_constant_value(source_type, right, semantic_axioms, definition_index)
+                .is_none()
+        {
+            return None;
+        }
+        source_offset = nested_offset
+            .checked_multiply(source_coefficient)
+            .and_then(|nested| nested.checked_add(source_offset))?;
+        source_coefficient = source_coefficient.checked_mul(nested_coefficient)?;
+        source_variable = (**left).clone();
+        prior_axiom_count = definition_index;
+        followed_source_definition = true;
+    }
+    None
 }
 
 fn exact_integer_cast_then_affine_chain_obligation(
@@ -5198,6 +5467,25 @@ fn exact_integer_multiply_obligation_with_definitions(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_then_arithmetic_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_affine_cast_affine_obligation(
             integer_type,
             variable.clone(),
             constant,
@@ -10070,6 +10358,161 @@ mod tests {
             ),
             None,
             "reordered or stale definitions cannot authorize the walk",
+        );
+    }
+
+    #[test]
+    fn affine_cast_affine_reconstructs_both_sides_without_importing_any_prefix_proof() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root_id = ValueId::new(711).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let source_add = ScalarTerm::value(
+            ValueId::new(712).expect("source add"),
+            ScalarType::Integer(source_type),
+        );
+        let source_multiply = ScalarTerm::value(
+            ValueId::new(713).expect("source multiply"),
+            ScalarType::Integer(source_type),
+        );
+        let cast = ScalarTerm::value(
+            ValueId::new(714).expect("cast"),
+            ScalarType::Integer(target_type),
+        );
+        let target_subtract = ScalarTerm::value(
+            ValueId::new(715).expect("target subtract"),
+            ScalarType::Integer(target_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                source_add.clone(),
+                ScalarTerm::exact_integer_add(
+                    source_type,
+                    root.clone(),
+                    ScalarTerm::integer(source_type, IntegerValue::Unsigned(3)).expect("3u16"),
+                )
+                .expect("root + 3"),
+            ),
+            Proposition::Equal(
+                source_multiply.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    source_type,
+                    source_add,
+                    ScalarTerm::integer(source_type, IntegerValue::Unsigned(2)).expect("2u16"),
+                )
+                .expect("(root + 3) * 2"),
+            ),
+            Proposition::Equal(
+                cast.clone(),
+                ScalarTerm::integer_exact_cast(source_type, target_type, source_multiply)
+                    .expect("affine u16 to u8 cast"),
+            ),
+            Proposition::Equal(
+                target_subtract.clone(),
+                ScalarTerm::exact_integer_subtract(
+                    target_type,
+                    cast,
+                    ScalarTerm::integer(target_type, IntegerValue::Unsigned(1)).expect("1u8"),
+                )
+                .expect("cast - 1"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_affine_cast_affine_obligation(
+                target_type,
+                target_subtract.clone(),
+                IntegerValue::Unsigned(2),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(61)).expect("61u16"),
+            )),
+        );
+        assert_eq!(
+            exact_integer_affine_cast_affine_obligation(
+                target_type,
+                target_subtract,
+                IntegerValue::Unsigned(2),
+                ExactIntegerAffineOperation::Multiply,
+                &[Proposition::Truth],
+                1,
+                &BTreeSet::from([root_id]),
+            ),
+            None,
+            "stale definitions cannot authorize either side of the cast sandwich",
+        );
+
+        let source_zero = ScalarTerm::value(
+            ValueId::new(716).expect("source zero"),
+            ScalarType::Integer(source_type),
+        );
+        let zero_cast = ScalarTerm::value(
+            ValueId::new(717).expect("zero cast"),
+            ScalarType::Integer(target_type),
+        );
+        let source_zero_definitions = vec![
+            Proposition::Equal(
+                source_zero.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    source_type,
+                    root.clone(),
+                    ScalarTerm::integer(source_type, IntegerValue::Unsigned(0)).expect("0u16"),
+                )
+                .expect("root * 0"),
+            ),
+            Proposition::Equal(
+                zero_cast.clone(),
+                ScalarTerm::integer_exact_cast(source_type, target_type, source_zero)
+                    .expect("zero u16 to u8 cast"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_affine_cast_affine_obligation(
+                target_type,
+                zero_cast,
+                IntegerValue::Unsigned(1),
+                ExactIntegerAffineOperation::Add,
+                &source_zero_definitions,
+                source_zero_definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::Truth),
+            "a source-side zero decides only the current post-cast obligation",
+        );
+
+        let post_zero = ScalarTerm::value(
+            ValueId::new(718).expect("post zero"),
+            ScalarType::Integer(target_type),
+        );
+        let mut post_zero_definitions = definitions[..3].to_vec();
+        post_zero_definitions.push(Proposition::Equal(
+            post_zero.clone(),
+            ScalarTerm::exact_integer_multiply(
+                target_type,
+                ScalarTerm::value(
+                    ValueId::new(714).expect("cast"),
+                    ScalarType::Integer(target_type),
+                ),
+                ScalarTerm::integer(target_type, IntegerValue::Unsigned(0)).expect("0u8"),
+            )
+            .expect("cast * 0"),
+        ));
+        assert_eq!(
+            exact_integer_affine_cast_affine_obligation(
+                target_type,
+                post_zero,
+                IntegerValue::Unsigned(255),
+                ExactIntegerAffineOperation::Add,
+                &post_zero_definitions,
+                post_zero_definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::Truth),
+            "a target-side zero decides only the current obligation after full source validation",
         );
     }
 

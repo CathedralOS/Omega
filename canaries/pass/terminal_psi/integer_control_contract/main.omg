@@ -1451,6 +1451,31 @@ requires -128i16 <= value, value <= 127i16, -125i16 <= value,
     ((((((value as i8) - 3i8) * 2i8) + 1i8) < 127i8) && enabled)
 }
 
+machine terminal_exact_affine_cast_affine_unsigned(value: u16, enabled: bool) -> bool
+requires value <= 65532u16, value <= 32764u16,
+    value <= 124u16, value <= 61u16
+{
+    ((((((value + 3u16) * 2u16) as u8) - 1u8) * 2u8) < 255u8) && enabled
+}
+
+machine terminal_exact_affine_cast_affine_signed(value: i16, enabled: bool) -> bool
+requires value <= 32764i16, -16387i16 <= value, value <= 16380i16,
+    -67i16 <= value, value <= 60i16, -35i16 <= value, value <= 28i16
+{
+    ((((((value - -3i16) * 2i16) as i8) + 1i8) * 2i8) < 127i8) && enabled
+}
+
+machine terminal_exact_affine_cast_affine_pre_zero(value: u16, enabled: bool) -> bool
+{
+    ((((value * 0u16) as u8) + 255u8) <= 255u8) && enabled
+}
+
+machine terminal_exact_affine_cast_affine_post_zero(value: u16, enabled: bool) -> bool
+requires value <= 65534u16, value <= 254u16
+{
+    (((((value + 1u16) as u8) * 0u8) + 255u8) <= 255u8) && enabled
+}
+
 machine terminal_literal_multiply_chain_then_exact_cast(value: u8, enabled: bool) -> bool
 requires value <= 127u8, value <= 42u8, value <= 21u8
 {

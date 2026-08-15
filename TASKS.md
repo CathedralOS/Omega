@@ -371,6 +371,16 @@ Remaining:
   `A == 0` decides only the current proposition after full shape validation,
   mathematical emptiness is falsehood, and checked replay failure admits no
   family.
+  A unified finite affine/cast/affine sandwich may now cross one validator-legal
+  partial fixed-native exact cast. Both sides are nonempty left-associated
+  add/subtract/nonnegative-multiply literal chains. The cast independently maps
+  its target/source interval through the checked source form; every target
+  prefix maps the target carrier through its own checked form, intersects with
+  the source carrier, then maps through the complete source form. Every source
+  arithmetic, cast, and target arithmetic obligation remains independently
+  mandatory. A zero coefficient on either side decides only the current
+  proposition after full ordered shape validation; mathematical emptiness is
+  falsehood and checked replay failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
