@@ -2063,6 +2063,31 @@ impl Interval {
         }
     }
 
+    fn shift_right(self, count: Self) -> Self {
+        let (Some(value_low), Some(value_high), Some(count_low), Some(count_high)) =
+            (self.low, self.high, count.low, count.high)
+        else {
+            return Interval::UNBOUNDED;
+        };
+        let (Ok(count_low), Ok(count_high)) = (u32::try_from(count_low), u32::try_from(count_high))
+        else {
+            return Interval::UNBOUNDED;
+        };
+        if count_high >= i64::BITS {
+            return Interval::UNBOUNDED;
+        }
+        let values = [
+            value_low >> count_low,
+            value_low >> count_high,
+            value_high >> count_low,
+            value_high >> count_high,
+        ];
+        Self {
+            low: values.iter().min().copied(),
+            high: values.iter().max().copied(),
+        }
+    }
+
     /// `a % b`: the remainder's magnitude is strictly below the divisor's
     /// magnitude (truncated-division semantics: the remainder takes the
     /// dividend's sign). SOUND only when the divisor is provably nonzero with a
@@ -2861,6 +2886,7 @@ fn analyze(
                 BinaryOperator::Modulo => left.interval.modulo(right.interval),
                 BinaryOperator::Divide => left.interval.divide(right.interval),
                 BinaryOperator::ShiftLeft => left.interval.shift_left(right.interval),
+                BinaryOperator::ShiftRight => left.interval.shift_right(right.interval),
                 _ => Interval::UNBOUNDED,
             };
             // Operand primitives win. The destination type is a fallback ONLY when
@@ -4062,6 +4088,28 @@ mod tests {
         assert_eq!(iv(1, 1).shift_left(iv(127, 128)), Interval::UNBOUNDED);
         assert_eq!(iv(0, 2).shift_left(iv(127, 127)), Interval::UNBOUNDED);
         assert_eq!(iv(2, 2).shift_left(iv(62, 62)), Interval::UNBOUNDED);
+    }
+
+    #[test]
+    fn exact_right_shift_tracks_signed_and_unsigned_source_extrema() {
+        assert_eq!(iv(0, 2047).shift_right(iv(3, 3)), iv(0, 255));
+        assert_eq!(iv(-1024, 1023).shift_right(iv(3, 3)), iv(-128, 127));
+        assert_eq!(iv(-128, 127).shift_right(iv(0, 7)), iv(-128, 127));
+        assert_eq!(iv(0, 65535).shift_right(iv(8, 15)), iv(0, 255));
+    }
+
+    #[test]
+    fn exact_right_shift_fails_closed_when_bounds_are_unusable() {
+        assert_eq!(
+            Interval::UNBOUNDED.shift_right(iv(0, 3)),
+            Interval::UNBOUNDED
+        );
+        assert_eq!(iv(0, 255).shift_right(iv(-1, 3)), Interval::UNBOUNDED);
+        assert_eq!(iv(0, 255).shift_right(iv(0, 64)), Interval::UNBOUNDED);
+        assert_eq!(
+            iv(0, 255).shift_right(Interval::UNBOUNDED),
+            Interval::UNBOUNDED
+        );
     }
 
     #[test]

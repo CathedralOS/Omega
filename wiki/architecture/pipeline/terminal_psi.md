@@ -573,7 +573,16 @@ Runtime, computed, negative, out-of-range, address, or non-native counts,
 right-associated shapes, mixed value carriers, local or block roots,
 intervening operations or casts, non-native or invalid casts, malformed or
 stale definitions, cumulative-count overflow, and stale or missing evidence
-remain fenced. Conversely, one
+remain fenced. A fifth computed-cast exception accepts the corresponding finite nonempty
+same-source-carrier exact-right-shift chain. Counts, root, definition walk, and
+fences match the pre-cast left-shift family, but every shift-prefix obligation
+remains only its independent legal-count proof. For cumulative count `C` below
+the source width, with `Q = 2^C`, the cast maps target interval `[L, U]` back to
+`[L*Q, (U+1)*Q-1]` and intersects the result with the source carrier. At or
+above source width an unsigned source yields zero; a signed source yields
+`-1` or `0`, so the cast is true for a signed target and requires `0 <= root`
+for an unsigned target. No shift proof is imported into the cast reconstruction.
+Conversely, one
 validator-legal partial fixed-native exact cast of a direct machine parameter
 may root a finite
 nonempty left-associated same-target-carrier exact-add/subtract chain. The cast

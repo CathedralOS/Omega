@@ -1415,6 +1415,18 @@ requires value <= 15u8, value <= 0u8
     staged
 }
 
+machine terminal_literal_shift_right_chain_then_exact_cast(value: u16, enabled: bool) -> bool
+requires value <= 2047u16
+{
+    ((((value >> 1i8) >> 2u16) as u8) < 255u8) && enabled
+}
+
+machine terminal_signed_width_shift_right_chain_then_exact_cast(value: i8, enabled: bool) -> bool
+requires 0i8 <= value
+{
+    ((((value >> 4u8) >> 4i16) as u8) < 255u8) && enabled
+}
+
 machine terminal_exact_cast_then_literal_shift_left_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 127u16, value <= 31u16
 {

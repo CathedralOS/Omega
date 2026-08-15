@@ -267,6 +267,12 @@ Remaining:
   target/source intersection, a sub-source-width count uses signed or unsigned
   inverse target bounds, and a source-width-or-larger count makes only the cast
   true because any successfully produced exact source result is zero.
+  A finite nonempty same-source-carrier exact-right-shift chain may feed the
+  same partial cast under the same direct-root and heterogeneous landed-count
+  fences. The cast independently reconstructs the arithmetic/zero-fill shift
+  preimage of the target interval; at or above source width, unsigned roots
+  yield zero while signed roots yield `-1` or `0` and therefore require a
+  nonnegative root only when the target is unsigned.
   Conversely, one
   validator-legal partial fixed-native cast of a direct parameter may root a
   finite nonempty left-associated same-target-carrier exact-add/subtract chain

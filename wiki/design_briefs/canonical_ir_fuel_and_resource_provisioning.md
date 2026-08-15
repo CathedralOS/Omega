@@ -166,6 +166,9 @@ Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no
 executable work.
+The same rule applies to a finite exact-right-shift literal chain followed by a
+partial fixed-native exact cast: every shift and the cast are charged, while
+the verifier's target-preimage reconstruction adds no executable work.
 The converse finite retained chain—one direct partial exact cast followed by a
 nonempty left-associated same-target-carrier exact-add/subtract literal-offset
 chain—likewise charges the cast and every arithmetic operation separately;
