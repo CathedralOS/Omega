@@ -242,6 +242,11 @@ source operation, the partial cast, and every retained target operation.
 Carrier-total quotient/remainder hull replay, target safe-interval replay, and
 hull containment or disjointness checks are verifier work and add no executable
 fuel.
+The direct same-carrier divide/remainder-to-affine/shift compositions likewise
+charge every retained operation and ordinary value leaf separately. Replaying
+the carrier-total divide/remainder hull, affine safe interval, or ordered shift
+preimage and comparing hull containment or disjointness are verifier work and
+add no executable fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

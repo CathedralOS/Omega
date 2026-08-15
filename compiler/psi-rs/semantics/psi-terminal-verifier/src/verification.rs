@@ -1776,6 +1776,16 @@ fn exact_integer_shift_left_obligation(
         ) {
             return obligation;
         }
+        if let Some(obligation) = exact_integer_divide_remainder_then_shift_obligation(
+            value_type,
+            value.clone(),
+            count_value,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        ) {
+            return obligation;
+        }
         if let Some(obligation) = exact_integer_divide_remainder_cast_shift_obligation(
             value_type,
             value.clone(),
@@ -2999,6 +3009,85 @@ fn exact_integer_divide_remainder_cast_shift_obligation(
     exact_integer_carrier_total_hull_obligation(hull, interval)
 }
 
+fn exact_integer_divide_remainder_then_shift_obligation(
+    value_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    count: u128,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if value_type.is_address() || !matches!(value_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let mut interval = exact_integer_shift_left_input_interval(value_type, count)?;
+    let mut mathematical_empty = false;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (nested_value, count_type, nested_count) = match definition {
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type: nested_value_type,
+                count_type,
+                value,
+                count,
+            }
+            | ScalarTerm::ExactIntegerShiftRight {
+                value_type: nested_value_type,
+                count_type,
+                value,
+                count,
+            } if *nested_value_type == value_type => (value, *count_type, count),
+            _ => break,
+        };
+        let nested_count = landed_exact_shift_count(
+            value_type,
+            count_type,
+            nested_count,
+            semantic_axioms,
+            definition_index,
+        )?;
+        if !mathematical_empty {
+            interval = match exact_integer_mixed_shift_preimage(
+                value_type,
+                interval,
+                definition,
+                nested_count,
+            ) {
+                Ok(Some(interval)) => interval,
+                Ok(None) => {
+                    mathematical_empty = true;
+                    interval
+                }
+                Err(()) => return None,
+            };
+        }
+        value = (**nested_value).clone();
+        prior_axiom_count = definition_index;
+    }
+    let hull = exact_integer_divide_remainder_chain_hull(
+        value_type,
+        value,
+        semantic_axioms,
+        prior_axiom_count,
+        machine_parameter_values,
+    )?;
+    if mathematical_empty {
+        return Some(Proposition::Falsehood);
+    }
+    exact_integer_carrier_total_hull_obligation(hull, interval)
+}
+
 fn exact_integer_divide_remainder_cast_affine_obligation(
     target_type: psi_core::IntegerType,
     mut value: ScalarTerm,
@@ -3121,6 +3210,130 @@ fn exact_integer_divide_remainder_cast_affine_obligation(
         Ok(None) => Some(Proposition::Falsehood),
         Err(()) => None,
     }
+}
+
+fn exact_integer_divide_remainder_then_affine_obligation(
+    integer_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let (mut coefficient, mut offset) = match initial_operation {
+        ExactIntegerAffineOperation::Add => (1, IntegerOffset::from_value(initial_constant)),
+        ExactIntegerAffineOperation::Subtract => {
+            (1, IntegerOffset::from_subtrahend(initial_constant))
+        }
+        ExactIntegerAffineOperation::Multiply => (
+            nonnegative_integer_factor(integer_type, initial_constant)?,
+            IntegerOffset::Nonnegative(0),
+        ),
+    };
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (left, right, nested_coefficient, nested_offset) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+            ),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_subtrahend(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+            ),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                nonnegative_integer_factor(
+                    integer_type,
+                    landed_integer_constant_value(
+                        integer_type,
+                        right,
+                        semantic_axioms,
+                        definition_index,
+                    )?,
+                )?,
+                IntegerOffset::Nonnegative(0),
+            ),
+            _ => break,
+        };
+        if landed_integer_constant_value(integer_type, left, semantic_axioms, definition_index)
+            .is_some()
+            || landed_integer_constant_value(integer_type, right, semantic_axioms, definition_index)
+                .is_none()
+        {
+            return None;
+        }
+        offset = nested_offset
+            .checked_multiply(coefficient)
+            .and_then(|nested| nested.checked_add(offset))?;
+        coefficient = coefficient.checked_mul(nested_coefficient)?;
+        value = (**left).clone();
+        prior_axiom_count = definition_index;
+    }
+    let hull = exact_integer_divide_remainder_chain_hull(
+        integer_type,
+        value,
+        semantic_axioms,
+        prior_axiom_count,
+        machine_parameter_values,
+    )?;
+    if coefficient == 0 {
+        return Some(if offset.is_representable(integer_type) {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        });
+    }
+    let carrier = fixed_integer_type_interval(integer_type)?;
+    let interval =
+        match exact_integer_affine_preimage_interval(integer_type, coefficient, offset, carrier) {
+            Ok(Some(interval)) => interval,
+            Ok(None) => return Some(Proposition::Falsehood),
+            Err(()) => return None,
+        };
+    exact_integer_carrier_total_hull_obligation(hull, interval)
 }
 
 fn exact_integer_mixed_shift_chain_obligation(
@@ -4903,6 +5116,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_divide_remainder_then_affine_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_divide_remainder_cast_affine_obligation(
             integer_type,
             left.clone(),
@@ -5354,6 +5587,25 @@ fn exact_integer_subtract_obligation(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_cast_affine_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_divide_remainder_then_affine_obligation(
             integer_type,
             left.clone(),
             constant,
@@ -6469,6 +6721,25 @@ fn exact_integer_multiply_obligation_with_definitions(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_cast_affine_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_divide_remainder_then_affine_obligation(
             integer_type,
             variable.clone(),
             constant,
@@ -12615,6 +12886,149 @@ mod tests {
             ),
             None,
             "stale target definitions cannot authorize carrier-total replay",
+        );
+    }
+
+    #[test]
+    fn exact_divide_remainder_cross_chain_reconstructs_carrier_total_target_prefixes() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 carrier");
+        let i8_count = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let root_id = ValueId::new(1511).expect("divide root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(integer_type));
+        let divided = ScalarTerm::value(
+            ValueId::new(1512).expect("divided"),
+            ScalarType::Integer(integer_type),
+        );
+        let remainder = ScalarTerm::value(
+            ValueId::new(1513).expect("remainder"),
+            ScalarType::Integer(integer_type),
+        );
+        let target_add = ScalarTerm::value(
+            ValueId::new(1514).expect("target add"),
+            ScalarType::Integer(integer_type),
+        );
+        let target_right = ScalarTerm::value(
+            ValueId::new(1515).expect("target right"),
+            ScalarType::Integer(integer_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                divided.clone(),
+                ScalarTerm::exact_integer_divide(
+                    integer_type,
+                    root.clone(),
+                    ScalarTerm::integer(integer_type, IntegerValue::Unsigned(2)).expect("2u8"),
+                )
+                .expect("root / 2"),
+            ),
+            Proposition::Equal(
+                remainder.clone(),
+                ScalarTerm::exact_integer_remainder(
+                    integer_type,
+                    divided,
+                    ScalarTerm::integer(integer_type, IntegerValue::Unsigned(64)).expect("64u8"),
+                )
+                .expect("divided % 64"),
+            ),
+            Proposition::Equal(
+                target_add.clone(),
+                ScalarTerm::exact_integer_add(
+                    integer_type,
+                    remainder.clone(),
+                    ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("1u8"),
+                )
+                .expect("remainder + 1"),
+            ),
+            Proposition::Equal(
+                target_right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    integer_type,
+                    i8_count,
+                    remainder.clone(),
+                    ScalarTerm::integer(i8_count, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("remainder >> 1"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_divide_remainder_then_affine_obligation(
+                integer_type,
+                target_add,
+                IntegerValue::Unsigned(2),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                3,
+                &parameters,
+            ),
+            Some(Proposition::Truth),
+            "the complete [0,63] remainder hull fits the (value + 1) * 2 prefix",
+        );
+        assert_eq!(
+            exact_integer_divide_remainder_then_affine_obligation(
+                integer_type,
+                remainder.clone(),
+                IntegerValue::Unsigned(64),
+                ExactIntegerAffineOperation::Subtract,
+                &definitions,
+                2,
+                &parameters,
+            ),
+            Some(Proposition::Falsehood),
+            "a hull disjoint from the current safe interval is canonical falsehood",
+        );
+        assert_eq!(
+            exact_integer_divide_remainder_then_affine_obligation(
+                integer_type,
+                remainder.clone(),
+                IntegerValue::Unsigned(200),
+                ExactIntegerAffineOperation::Add,
+                &definitions,
+                2,
+                &parameters,
+            ),
+            None,
+            "partial overlap remains outside the carrier-total family",
+        );
+        assert_eq!(
+            exact_integer_divide_remainder_then_affine_obligation(
+                integer_type,
+                remainder,
+                IntegerValue::Unsigned(0),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                2,
+                &parameters,
+            ),
+            Some(Proposition::Truth),
+            "zero decides only the current target prefix after the full source walk",
+        );
+        assert_eq!(
+            exact_integer_divide_remainder_then_shift_obligation(
+                integer_type,
+                target_right,
+                2,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::Truth),
+            "the target-right preimage admits the whole hull before the target-left prefix",
+        );
+        assert_eq!(
+            exact_integer_divide_remainder_then_shift_obligation(
+                integer_type,
+                ScalarTerm::value(
+                    ValueId::new(1516).expect("stale target"),
+                    ScalarType::Integer(integer_type),
+                ),
+                2,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "stale definitions cannot authorize carrier-total replay",
         );
     }
 

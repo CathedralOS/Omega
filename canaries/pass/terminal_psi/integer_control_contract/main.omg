@@ -1826,6 +1826,28 @@ requires value <= 32767u16, value <= 127u16
     (((((((value >> 1i8) << 2u16) as u8) / 2u8) % 3u8) < 3u8) && enabled)
 }
 
+machine terminal_exact_divide_remainder_then_affine(value: u8, enabled: bool) -> bool
+{
+    ((((((value / 2u8) % 64u8) + 1u8) * 2u8) < 255u8) && enabled)
+}
+
+machine terminal_exact_divide_remainder_then_shift(value: u8, enabled: bool) -> bool
+{
+    ((((((value / 2u8) % 64u8) >> 1i16) << 2u32) < 255u8) && enabled)
+}
+
+machine terminal_exact_affine_then_divide_remainder(value: u8, enabled: bool) -> bool
+requires value <= 254u8, value <= 126u8
+{
+    ((((((value + 1u8) * 2u8) / 2u8) % 3u8) < 3u8) && enabled)
+}
+
+machine terminal_exact_shift_then_divide_remainder(value: u8, enabled: bool) -> bool
+requires value <= 127u8
+{
+    ((((((value >> 1i8) << 2u16) / 2u8) % 3u8) < 3u8) && enabled)
+}
+
 machine terminal_exact_arithmetic_then_shift_unsigned(value: u8, enabled: bool) -> bool
 requires value <= 252u8, value <= 124u8, value <= 60u8
 {

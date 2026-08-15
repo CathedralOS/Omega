@@ -409,6 +409,14 @@ Remaining:
   converse direction, the source affine or shift chain and cast reconstruct by
   their existing rules while every target divisor proof stays independent.
   Every source operation, cast, and target operation retains separate evidence.
+  The corresponding direct same-carrier family now retains all four nonempty
+  divide/remainder-to-affine/shift compositions without a cast. A leading
+  divide/remainder chain supplies its complete verifier-owned carrier hull to
+  each following affine or left-shift safe interval: containment is true,
+  disjointness is false, and partial overlap remains unadmitted. In the
+  converse direction, affine or shift proofs use their established direct-root
+  reconstruction while each following divide/remainder proof depends only on
+  its own landed safe divisor. Every operation retains independent evidence.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

@@ -14,6 +14,7 @@ use crate::flow::{
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
+    exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test,
     exact_mixed_shift_chain_runtime_parameter_positions_for_test,
@@ -2583,6 +2584,129 @@ fn exact_divide_remainder_cross_cast_classifier_accepts_all_four_compositions() 
     );
     assert_eq!(
         exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(&empty_source, 1),
+        None,
+    );
+}
+
+#[test]
+fn exact_divide_remainder_cross_chain_classifier_accepts_all_four_compositions() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type: PrimitiveType::U8,
+    };
+    let binary = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U8,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let u8_literal = |value| literal(value, psi_numerics::literals::LandedIntegerType::U8);
+    let divide_remainder = || {
+        binary(
+            CheckedIntegerBinaryKind::ExactRemainder,
+            binary(
+                CheckedIntegerBinaryKind::ExactDivide,
+                parameter(0),
+                u8_literal(2i64),
+            ),
+            u8_literal(64i64),
+        )
+    };
+    let divide_affine = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            divide_remainder(),
+            u8_literal(1i64),
+        ),
+        u8_literal(2i64),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(&divide_affine, 1,),
+        Some(vec![0]),
+    );
+    let divide_shift = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            divide_remainder(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(&divide_shift, 1,),
+        Some(vec![0]),
+    );
+
+    let affine_divide = binary(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            binary(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                binary(
+                    CheckedIntegerBinaryKind::ExactAdd,
+                    parameter(0),
+                    u8_literal(1i64),
+                ),
+                u8_literal(2i64),
+            ),
+            u8_literal(2i64),
+        ),
+        u8_literal(3i64),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(&affine_divide, 1,),
+        Some(vec![0]),
+    );
+    let shift_divide = binary(
+        CheckedIntegerBinaryKind::ExactDivide,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            binary(
+                CheckedIntegerBinaryKind::ExactShiftRight,
+                parameter(0),
+                u8_literal(1i64),
+            ),
+            u8_literal(2i64),
+        ),
+        u8_literal(2i64),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(&shift_divide, 1,),
+        Some(vec![0]),
+    );
+
+    let runtime_divisor = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            parameter(0),
+            parameter(1),
+        ),
+        u8_literal(1i64),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(
+            &runtime_divisor,
+            2,
+        ),
+        None,
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(
+            &divide_remainder(),
+            1,
+        ),
         None,
     );
 }
@@ -6051,9 +6175,22 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             });
         assert!(divide_remainder_chain.shared_boolean_convergence.is_some());
     }
+    let exact_add_feeds_divide_remainder = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_add_feeds_divide_remainder_chain_integer_comparison_convergence",
+        ))
+        .expect("the direct affine-to-divide/remainder chain retains its scalar-return plan");
+    assert!(
+        exact_add_feeds_divide_remainder
+            .shared_boolean_convergence
+            .is_some()
+    );
     for machine in [
         "local_exact_divide_remainder_chain_integer_comparison_convergence",
-        "exact_add_feeds_divide_remainder_chain_integer_comparison_convergence",
         "computed_right_exact_divide_integer_comparison_convergence",
         "signed_negative_one_exact_divide_chain_integer_comparison_convergence",
     ] {
@@ -6217,10 +6354,23 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             "pre-cast right-shift chain `{machine}` retains convergence"
         );
     }
+    let exact_divide_feeds_shift_right = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_divide_feeds_shift_right_chain_integer_comparison_convergence",
+        ))
+        .expect("the direct divide/remainder-to-shift chain retains its scalar-return plan");
+    assert!(
+        exact_divide_feeds_shift_right
+            .shared_boolean_convergence
+            .is_some()
+    );
     for machine in [
         "runtime_count_exact_shift_right_chain_integer_comparison_convergence",
         "local_exact_shift_right_chain_integer_comparison_convergence",
-        "exact_divide_feeds_shift_right_chain_integer_comparison_convergence",
         "right_associated_exact_shift_right_integer_comparison_convergence",
         "widened_exact_shift_right_chain_integer_comparison_convergence",
     ] {
