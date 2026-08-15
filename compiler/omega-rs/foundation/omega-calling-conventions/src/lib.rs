@@ -1141,8 +1141,8 @@ pub struct ExternalBindingRow {
     pub target_name: String,
     pub trait_name: String,
     pub method: String,
-    /// Exact overload identity when the human method name is overloaded.
-    /// Singleton rows retain the established human-name operation key.
+    /// Exact canonical overload identity. The human method name remains only
+    /// readable drift data, including for singleton requirements.
     pub requirement_identity: String,
     /// The attached provider data type that owns the table layout. Empty for
     /// free leaves and required for table-field bindings.
@@ -1223,6 +1223,12 @@ pub fn merge_external_binding_rows(
     // the duplicate-binding check below catches a genuinely repeated
     // (trait, method) pair like any other collision.
     for row in external_bindings {
+        if row.requirement_identity.is_empty() {
+            return Err(format!(
+                "external binding `{}::{}` has no exact requirement identity",
+                row.trait_name, row.method
+            ));
+        }
         if let ExternalBindingKind::CompilerIntrinsic { name } = &row.binding {
             let expected_name = format!("{}::{}", row.trait_name, row.method);
             if name != &expected_name {
@@ -1243,12 +1249,6 @@ pub fn merge_external_binding_rows(
                 ));
             }
             continue;
-        }
-        if row.requirement_identity.is_empty() {
-            return Err(format!(
-                "external binding `{}::{}` has no exact requirement identity",
-                row.trait_name, row.method
-            ));
         }
         let operation_identity = row.requirement_identity.as_str();
         let key = HostOperationKey::from_names(&row.trait_name, operation_identity);
@@ -2122,7 +2122,7 @@ mod binding_plan_tests {
             target_name: "macos_arm64".to_owned(),
             trait_name: "Console".to_owned(),
             method: method.to_owned(),
-            requirement_identity: String::new(),
+            requirement_identity: format!("Console::{method}#exact"),
             table_type: "ConsoleNativeProvider".to_owned(),
             boundary_entry_plan: None,
             binding: ExternalBindingKind::CompilerIntrinsic {
@@ -2132,6 +2132,11 @@ mod binding_plan_tests {
 
         let mut hosted = build_host_abi_plan(NativeTarget::macos_arm64());
         let binding_count = hosted.bindings.iter().count();
+        let mut missing_identity = row("Console::write_byte", "write_byte");
+        missing_identity.requirement_identity.clear();
+        let missing_identity_error = merge_external_binding_rows(&mut hosted, &[missing_identity])
+            .expect_err("a compiler intrinsic cannot bypass exact requirement identity");
+        assert!(missing_identity_error.contains("has no exact requirement identity"));
         merge_external_binding_rows(&mut hosted, &[row("Console::write_byte", "write_byte")])
             .expect("the selected target already owns Console::write_byte");
         assert_eq!(
