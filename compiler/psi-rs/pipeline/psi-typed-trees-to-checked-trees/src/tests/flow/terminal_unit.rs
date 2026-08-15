@@ -3,6 +3,7 @@ use crate::flow::{
     exact_affine_cast_affine_runtime_parameter_positions_for_test,
     exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
+    exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test,
     exact_arithmetic_then_shift_runtime_parameter_positions_for_test,
     exact_cast_then_affine_runtime_parameter_positions_for_test,
     exact_cast_then_divide_remainder_runtime_parameter_positions_for_test,
@@ -2310,6 +2311,118 @@ fn exact_shift_cast_shift_classifier_unifies_both_nonempty_sides() {
     );
     assert_eq!(
         exact_shift_cast_shift_runtime_parameter_positions_for_test(&runtime_count, 2),
+        None,
+    );
+}
+
+#[test]
+fn exact_affine_shift_cast_sandwich_classifier_accepts_both_directions() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U16,
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cast = |operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+
+    let source_affine = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U16,
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U16,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    let affine_cast_shift = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            cast(source_affine),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U32),
+    );
+    assert_eq!(
+        exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test(
+            &affine_cast_shift,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    let source_shift = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U16,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U16,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    let shift_cast_affine = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactSubtract,
+            PrimitiveType::U8,
+            cast(source_shift),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test(
+            &shift_cast_affine,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    let empty_source = binary(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        cast(parameter()),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test(&empty_source, 1),
+        None,
+    );
+
+    let runtime_count = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        affine_cast_shift,
+        CheckedScalarExpression::Parameter {
+            position: 1,
+            primitive_type: PrimitiveType::U8,
+        },
+    );
+    assert_eq!(
+        exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test(&runtime_count, 2),
         None,
     );
 }

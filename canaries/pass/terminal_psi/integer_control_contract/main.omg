@@ -1760,6 +1760,45 @@ requires value <= 32767u16, value <= 127u16
     ((((value << 1u8) as u8) >> 1i16) < 255u8) && enabled
 }
 
+machine terminal_exact_affine_cast_shift_unsigned(value: u16, enabled: bool) -> bool
+requires value <= 65534u16, value <= 32766u16,
+    value <= 126u16, value <= 62u16
+{
+    (((((((value + 1u16) * 2u16) as u8) >> 1i8) << 2u32) < 255u8) && enabled)
+}
+
+machine terminal_exact_affine_cast_shift_cross_sign(value: i16, enabled: bool) -> bool
+requires value <= 32764i16, -16387i16 <= value, value <= 16380i16,
+    -3i16 <= value, value <= 124i16, value <= 60i16
+{
+    (((((((value - -3i16) * 2i16) as u8) >> 1u16) << 2i32) < 255u8) && enabled)
+}
+
+machine terminal_exact_affine_cast_shift_zero(value: u16, enabled: bool) -> bool
+requires value <= 0u16
+{
+    ((((((value + 65535u16) * 0u16) as u8) << 2u8) < 255u8) && enabled)
+}
+
+machine terminal_exact_shift_cast_affine_unsigned(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 127u16, value <= 63u16
+{
+    (((((((value >> 1i8) << 2u16) as u8) + 3u8) * 2u8) < 255u8) && enabled)
+}
+
+machine terminal_exact_shift_cast_affine_cross_sign(value: i16, enabled: bool) -> bool
+requires -16384i16 <= value, value <= 16383i16,
+    0i16 <= value, value <= 127i16, value <= 63i16
+{
+    (((((((value >> 1u8) << 2i16) as u8) + 3u8) * 2u8) < 255u8) && enabled)
+}
+
+machine terminal_exact_shift_cast_affine_zero(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 127u16
+{
+    ((((((value << 1u8) as u8) * 0u8) + 255u8) <= 255u8) && enabled)
+}
+
 machine terminal_exact_arithmetic_then_shift_unsigned(value: u8, enabled: bool) -> bool
 requires value <= 252u8, value <= 124u8, value <= 60u8
 {

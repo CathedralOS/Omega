@@ -389,6 +389,16 @@ Remaining:
   intersects the surviving interval with the source carrier, then replays the
   complete source chain to the direct parameter. Mathematical emptiness is
   falsehood; checked transfer failure admits no family.
+  The two heterogeneous affine/shift cast sandwiches are retained as one
+  consolidated family. A nonempty source affine chain may cross one partial
+  fixed-native exact cast into a nonempty target shift chain, or a nonempty
+  source shift chain may cross the cast into a nonempty target affine chain.
+  Each side uses its established landed-literal/count rules and ordered
+  canonical replay. Every source operation, the cast, and every target
+  operation keeps separate mandatory evidence; zero coefficients decide only
+  the current obligation after full shape validation. Mathematical emptiness
+  is falsehood, while checked composition or interval-transfer failure admits
+  no family. Empty-sided shapes remain on their narrower existing paths.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
