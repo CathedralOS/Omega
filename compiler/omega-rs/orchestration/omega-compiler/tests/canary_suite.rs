@@ -6864,13 +6864,8 @@ fn runtime_dual_indexed_copy_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-dual-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dual-indexed copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dual-indexed copy canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7250,13 +7245,8 @@ fn runtime_inplace_reverse_local_temp_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-reverse-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("in-place reverse canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("in-place reverse canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7283,13 +7273,8 @@ fn runtime_indexed_local_copy_chain_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-copychain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("copy-chain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("copy-chain canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7316,13 +7301,8 @@ fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("frame-local-source indexed write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("frame-local-source indexed write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7385,13 +7365,8 @@ fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("in-loop dual-indexed copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("in-loop dual-indexed copy canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44141,13 +44116,8 @@ fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-cross-idx-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cross-array indexed guard-compare canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("cross-array indexed guard-compare canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44173,13 +44143,8 @@ fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dual-indexed guard-equality canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dual-indexed guard-equality canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -44206,13 +44171,8 @@ fn runtime_dual_indexed_guard_compare_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-dual-idx-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dual-indexed guard-compare canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dual-indexed guard-compare canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45975,6 +45935,14 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "collections/runtime_dual_indexed_guard_compare_exit",
+    "collections/runtime_cross_array_indexed_guard_compare_exit",
+    "collections/runtime_dual_indexed_guard_equality_exit",
+    "collections/runtime_dual_indexed_copy_exit",
+    "collections/runtime_dual_indexed_copy_in_loop_exit",
+    "collections/runtime_indexed_write_frame_local_source_exit",
+    "collections/runtime_indexed_local_copy_chain_exit",
+    "collections/runtime_inplace_reverse_local_temp_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_inline_recursive_walk_exit",
