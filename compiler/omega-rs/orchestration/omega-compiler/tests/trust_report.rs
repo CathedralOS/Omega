@@ -905,6 +905,74 @@ machine Main::exercise(&mut self) {
 }
 
 #[test]
+fn partial_provider_reports_only_bound_requirement_qualifications() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-partial-provider-qualification-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"data Token [linear] { id: u64; }
+domain Token::Bound { Pair::bound; }
+domain Token::Unbound { Pair::unbound; }
+
+boundary trait Pair {
+    machine bound() -> Token in Bound
+    ensures
+        result in Token::Bound;
+
+    machine unbound() -> Token in Unbound
+    ensures
+        result in Token::Unbound;
+}
+
+machine bound_leaf() -> Token in Bound
+    satisfies Pair::bound via Binding::VtableSlot(1);
+
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("partial routed provider candidate should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    let plan_row = report
+        .lines()
+        .find(|line| line.contains("provider plan: satisfies::Pair ["))
+        .expect("partial provider plan row");
+    assert!(plan_row.contains("coverage 1/2"));
+    assert!(report.contains("provider requirements: 1"));
+    assert!(report.contains("routed qualifications: 1"));
+    let qualification = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Pair [") && line.contains("subject: result")
+        })
+        .expect("bound result qualification row");
+    assert!(qualification.contains("requirement identity: named-callable(path(Pair::bound)"));
+    assert!(qualification.contains("domain: Token::Bound"));
+    assert!(!report.contains("subject: result -- flow: returns -- domain: Token::Unbound"));
+    assert!(!report.lines().any(|line| {
+        line.contains("provider plan: satisfies::Pair [")
+            && line.contains("requirement identity: named-callable(path(Pair::unbound)")
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn provider_type_conformance_closures_remain_separate() {
     // PRV4c prerequisite: rows attached to different provider types are
     // different candidates. Two half-providers must never become one covered
