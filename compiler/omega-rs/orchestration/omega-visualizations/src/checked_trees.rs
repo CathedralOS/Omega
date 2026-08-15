@@ -1862,12 +1862,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 if frame_index > 0 {
                     json.push(',');
                 }
-                let state_name = program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == state_frame.state)
-                    .map(|state| state.name.as_str())
-                    .unwrap_or("<unknown>");
+                let state_name = mutation_frame_state_name(program, machine, state_frame.state);
                 json.push_str("\n          {\"state\": ");
                 push_json_string(&mut json, state_name);
                 json.push_str(", \"completeness\": ");
@@ -2198,6 +2193,19 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn mutation_frame_state_name<'program>(
+    program: &'program CheckedTrees,
+    machine: &Machine,
+    state_symbol: SymbolHandle,
+) -> &'program str {
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+        .map(|state| state.name.as_str())
+        .expect("checked mutation write-frame state must belong to its exact fact machine")
 }
 
 fn specialization_instance_contract_fingerprint(
@@ -3188,7 +3196,7 @@ fn push_json_string(output: &mut String, value: &str) {
 mod tests {
     use super::{
         carry_manifest_json, claim_outcome_manifest_json, machine_blocking_summary,
-        machine_contract_manifest_json, machine_suspension_summary,
+        machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
     };
@@ -3292,6 +3300,34 @@ mod tests {
             blocking,
             ..Default::default()
         });
+    }
+
+    fn mutation_state_owner_fixture() -> (CheckedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
+        let owner = SymbolHandle::from_arena_index(50);
+        let owner_state = SymbolHandle::from_arena_index(51);
+        let other = SymbolHandle::from_arena_index(52);
+        let other_state = SymbolHandle::from_arena_index(53);
+        let mut program = CheckedTrees::default();
+        for (machine_symbol, state_symbol, machine_name, state_name) in [
+            (owner, owner_state, "Owner::write", "entry"),
+            (other, other_state, "Other::write", "other_entry"),
+        ] {
+            let mut machine = Machine {
+                symbol: machine_symbol,
+                name: Identifier::generated(machine_name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    name: Identifier::generated(state_name),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+        }
+        (program, owner, owner_state, other_state)
     }
 
     #[test]
@@ -4065,23 +4101,7 @@ mod tests {
 
     #[test]
     fn machine_contract_manifest_reads_independent_mutation_facts() {
-        let machine_symbol = SymbolHandle::from_arena_index(2);
-        let state_symbol = SymbolHandle::from_arena_index(3);
-        let mut program = CheckedTrees::default();
-        let mut machine = Machine {
-            symbol: machine_symbol,
-            name: Identifier::generated("Worker::write"),
-            ..Default::default()
-        };
-        program.typed.push_machine_state(
-            &mut machine,
-            State {
-                symbol: state_symbol,
-                name: Identifier::generated("entry"),
-                ..Default::default()
-            },
-        );
-        program.typed.push_machine(machine);
+        let (mut program, machine_symbol, state_symbol, _) = mutation_state_owner_fixture();
         push_behavior_contract(&mut program, machine_symbol, false, false);
 
         let without_mutation = machine_contract_manifest_json(&program);
@@ -4106,6 +4126,32 @@ mod tests {
             "\"inferred_write_frames\": [\n          {\"state\": \"entry\", \"completeness\": \"complete\""
         ));
         assert!(with_mutation[implementation_start..].contains("\"paths\": [\"self.value\"]"));
+    }
+
+    #[test]
+    #[should_panic(expected = "write-frame state must belong to its exact fact machine")]
+    fn machine_contract_manifest_rejects_cross_machine_mutation_frame_state() {
+        let (program, owner, _, other_state) = mutation_state_owner_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == owner)
+            .expect("owner machine");
+
+        mutation_frame_state_name(&program, machine, other_state);
+    }
+
+    #[test]
+    #[should_panic(expected = "write-frame state must belong to its exact fact machine")]
+    fn machine_contract_manifest_rejects_missing_mutation_frame_state() {
+        let (program, owner, _, _) = mutation_state_owner_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == owner)
+            .expect("owner machine");
+
+        mutation_frame_state_name(&program, machine, SymbolHandle::from_arena_index(99));
     }
 
     #[test]
