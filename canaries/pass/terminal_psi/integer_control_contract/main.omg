@@ -1353,6 +1353,13 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_subtract_literal_chain(value: u8, enabled: bool) -> bool
+requires 1u8 <= value, 2u8 <= value, 3u8 <= value
+{
+    let staged: bool = ((((value - 1u8) - 1u8) - 1u8) < 8u8) && enabled;
+    staged
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

@@ -1565,6 +1565,67 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((retained + 1u8) + 1u8) + 1u8) < 5u8) && enabled;
             staged
         }
+        machine Root::deep_nested_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 3u8 <= input
+        {
+            let staged: bool = ((((input - 1u8) - 1u8) - 1u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::reversed_nested_exact_subtract_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 2u8 <= input
+        {
+            let staged: bool = ((255u8 - ((input - 1u8) - 1u8)) < 255u8) && enabled;
+            staged
+        }
+        machine Root::nested_exact_subtract_computed_sibling_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 1u8 <= input, (input & 0u8) <= input - 1u8
+        {
+            let staged: bool = (((input - 1u8) - (input & 0u8)) < 5u8) && enabled;
+            staged
+        }
+        machine Root::nested_exact_subtract_feeds_multiply_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 2u8 <= input, input <= 128u8
+        {
+            let staged: bool = ((((input - 1u8) - 1u8) * 2u8) < 255u8) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_add_subtract_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 254u8
+        {
+            let staged: bool = (((input + 1u8) - 1u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::local_exact_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 3u8 <= input
+        {
+            let retained: u8 = input;
+            let staged: bool = ((((retained - 1u8) - 1u8) - 1u8) < 5u8) && enabled;
+            staged
+        }
         machine Root::two_nested_exact_add_operands_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -2398,6 +2459,54 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         ))
         .expect("a finite exact-add chain retains the scalar-return plan");
     assert!(deep_nested_exact_add.shared_boolean_convergence.is_some());
+    let deep_nested_exact_subtract = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "deep_nested_exact_subtract_integer_comparison_convergence",
+        ))
+        .expect("a finite exact-subtract chain retains the scalar-return plan");
+    assert!(
+        deep_nested_exact_subtract
+            .shared_boolean_convergence
+            .is_some()
+    );
+    for machine in [
+        "reversed_nested_exact_subtract_integer_comparison_convergence",
+        "nested_exact_subtract_feeds_multiply_integer_comparison_convergence",
+        "mixed_exact_add_subtract_integer_comparison_convergence",
+        "local_exact_subtract_chain_integer_comparison_convergence",
+    ] {
+        let wider_nested_exact_subtract = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!(
+                    "wider exact-subtract composition `{machine}` retains only source-distributed fallback"
+                )
+            });
+        assert!(
+            wider_nested_exact_subtract
+                .shared_boolean_convergence
+                .is_none()
+        );
+    }
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(
+                &checked,
+                "nested_exact_subtract_computed_sibling_integer_comparison_convergence",
+            ))
+            .is_none(),
+        "a computed subtraction sibling remains outside the terminal scalar-return plan"
+    );
     let nested_exact_cast_integer_comparison = checked
         .facts
         .flow
