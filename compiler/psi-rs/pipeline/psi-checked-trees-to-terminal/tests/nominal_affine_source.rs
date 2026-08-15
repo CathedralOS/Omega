@@ -443,6 +443,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small as u16) < 5u16))
             && ((input as u8) < 5u8)
             && (((input as u8) as u16) < 256u16)
+            && (((small as u16) as u8) < 6u8)
             && ((small + 1u8) < 6u8)
             && (((small + 1u8) + 1u8) < 7u8)
             && ((~(small + 3u8)) < 255u8)
@@ -2119,6 +2120,40 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let roundtrip_cast_obligation = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation,
+            } = operation.kind
+            else {
+                return None;
+            };
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+                        && matches!(
+                            candidate.kind,
+                            OperationKind::IntegerWiden { operand }
+                                if operand == entry.parameters[1].id
+                        )
+                })
+                .map(|_| obligation)
+        })
+        .expect("shared convergence retains the direct widen-then-narrow exact cast");
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == roundtrip_cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
     let signed_arithmetic_parameter = entry.parameters[5].id;
     let signed_add_sites = entry
         .blocks
@@ -2988,6 +3023,70 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == *cross_sign_cast_obligation
         ));
     }
+    let mut missing_roundtrip_cast_proof =
+        decode_proof_bundle(&proof).expect("decode shared proof");
+    missing_roundtrip_cast_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != roundtrip_cast_obligation);
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode shared semantics"),
+            &missing_roundtrip_cast_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == roundtrip_cast_obligation
+    ));
+    let mut redirected_roundtrip_cast = decode_module(&semantics).expect("decode shared semantics");
+    let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+    let constant_256 = redirected_roundtrip_cast
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            (operation
+                .result
+                .scalar_ref()
+                .map(|result| result.scalar_type)
+                == Some(ScalarType::Integer(u16_type))
+                && matches!(
+                    operation.kind,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(256)
+                    }
+                ))
+            .then(|| operation.result.scalar_ref().expect("scalar constant").id)
+        })
+        .expect("an earlier u16 256 comparison constant exists");
+    let changed_cast = redirected_roundtrip_cast
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerExactCast { obligation, .. }
+                    if obligation == roundtrip_cast_obligation
+            )
+        })
+        .expect("roundtrip exact-cast operation exists");
+    let OperationKind::IntegerExactCast { operand, .. } = &mut changed_cast.kind else {
+        unreachable!("selected exact-cast operation")
+    };
+    *operand = constant_256;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_roundtrip_cast,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == roundtrip_cast_obligation
+    ));
     for (signed_subtract_obligation, _) in &signed_subtract_sites {
         let mut missing_signed_subtract_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -4214,6 +4313,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small < 5
                     && input < 5
                     && input < 256
+                    && small < 6
                     && small + 1 < 6
                     && small + 1 + 1 < 7
                     && (!(small + 3) & u128::from(u8::MAX)) < 255

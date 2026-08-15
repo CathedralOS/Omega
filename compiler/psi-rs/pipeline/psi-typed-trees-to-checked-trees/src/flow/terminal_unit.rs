@@ -1663,9 +1663,18 @@ fn shared_integer_runtime_inputs_with_shells(
                 proof_shell_allowed,
             )
         }
-        CheckedScalarExpression::IntegerExactCast { operand, .. } if proof_shell_allowed => {
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type,
+            operand,
+            ..
+        } if proof_shell_allowed => shared_roundtrip_exact_cast_runtime_inputs(
+            *primitive_type,
+            operand,
+            scalar_parameter_count,
+        )
+        .or_else(|| {
             shared_integer_runtime_inputs_with_shells(operand, scalar_parameter_count, 0, false)
-        }
+        }),
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerBinary { .. }
@@ -1675,6 +1684,25 @@ fn shared_integer_runtime_inputs_with_shells(
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::Boolean(_) => None,
     }
+}
+
+fn shared_roundtrip_exact_cast_runtime_inputs(
+    target_type: PrimitiveType,
+    operand: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::IntegerWiden { operand, .. } = operand else {
+        return None;
+    };
+    let CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    } = operand.as_ref()
+    else {
+        return None;
+    };
+    (*primitive_type == target_type && *position < scalar_parameter_count)
+        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
 fn shared_direct_exact_add_runtime_inputs(

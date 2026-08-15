@@ -678,6 +678,7 @@ fn reconstruct_machine_semantics(
                                 source_type,
                                 target_type,
                                 value_term(operand),
+                                &axioms,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1422,7 +1423,25 @@ fn exact_integer_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
     operand: ScalarTerm,
+    semantic_axioms: &[Proposition],
 ) -> Proposition {
+    if semantic_axioms.iter().rev().any(|axiom| {
+        let definition = match axiom {
+            Proposition::Equal(left, right) if left == &operand => right,
+            Proposition::Equal(left, right) if right == &operand => left,
+            _ => return false,
+        };
+        matches!(
+            definition,
+            ScalarTerm::IntegerWiden {
+                source_type: original_type,
+                target_type: widened_type,
+                ..
+            } if *original_type == target_type && *widened_type == source_type
+        )
+    }) {
+        return Proposition::Truth;
+    }
     let mut bounds = Vec::with_capacity(2);
     let source_minimum = source_type.minimum_value();
     let target_minimum = target_type.minimum_value();
@@ -3137,6 +3156,33 @@ impl std::error::Error for VerificationError {}
 mod tests {
     use super::*;
     use psi_core::{IntegerType, ScalarType, ValueId};
+
+    #[test]
+    fn reconstructs_widen_then_exact_narrow_roundtrip_as_self_proving() {
+        let narrow_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let wide_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let input = ScalarTerm::value(
+            ValueId::new(1).expect("input"),
+            ScalarType::Integer(narrow_type),
+        );
+        let widened = ScalarTerm::value(
+            ValueId::new(2).expect("widened"),
+            ScalarType::Integer(wide_type),
+        );
+        let definition = Proposition::Equal(
+            widened.clone(),
+            ScalarTerm::integer_widen(narrow_type, wide_type, input).expect("u8 to u16 widening"),
+        );
+        assert_eq!(
+            exact_integer_cast_obligation(
+                wide_type,
+                narrow_type,
+                widened,
+                std::slice::from_ref(&definition),
+            ),
+            Proposition::Truth
+        );
+    }
 
     #[test]
     fn reconstructs_unsigned_joint_exact_add_bounds() {

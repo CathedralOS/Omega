@@ -1594,6 +1594,41 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (((input as u8) as u16) < 4u16) && enabled;
             staged
         }
+        machine Root::roundtrip_computed_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = (((input as u16) as u8) < 4u8) && enabled;
+            staged
+        }
+        machine Root::nonroundtrip_computed_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 127u8
+        {
+            let staged: bool = (((input as u16) as i8) < 4i8) && enabled;
+            staged
+        }
+        machine Root::local_roundtrip_computed_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool {
+            let retained: u8 = input;
+            let staged: bool = (((retained as u16) as u8) < 4u8) && enabled;
+            staged
+        }
+        machine Root::multistep_roundtrip_computed_exact_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool {
+            let staged: bool = ((((input as u16) as u32) as u8) < 4u8) && enabled;
+            staged
+        }
         machine Root::member_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -2348,6 +2383,46 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    let roundtrip_computed_exact_cast = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "roundtrip_computed_exact_cast_integer_comparison_convergence",
+        ))
+        .expect("one direct widen-then-narrow round trip retains the scalar-return plan");
+    assert!(
+        roundtrip_computed_exact_cast
+            .shared_boolean_convergence
+            .is_some()
+    );
+    let nonroundtrip_computed_exact_cast = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nonroundtrip_computed_exact_cast_integer_comparison_convergence",
+        ))
+        .expect("a wider computed exact cast retains only the source-distributed fallback");
+    assert!(
+        nonroundtrip_computed_exact_cast
+            .shared_boolean_convergence
+            .is_none()
+    );
+    for machine in [
+        "local_roundtrip_computed_exact_cast_integer_comparison_convergence",
+        "multistep_roundtrip_computed_exact_cast_integer_comparison_convergence",
+    ] {
+        let wider_roundtrip = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .expect("a fenced computed round trip retains only the source-distributed fallback");
+        assert!(wider_roundtrip.shared_boolean_convergence.is_none());
+    }
     let member = checked
         .facts
         .flow

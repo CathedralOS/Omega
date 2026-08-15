@@ -200,10 +200,13 @@ Remaining:
   and every native target. One bounded same-carrier exact-add result may now
   feed one further exact add when the inner operation and the outer sibling
   each have a landed constant addend; the verifier reconstructs both safety
-  obligations independently from the ordered value definitions.
+  obligations independently from the ordered value definitions. One direct
+  fixed-integer parameter may also widen and then exactly narrow back to its
+  original carrier; Terminal retains both operations and independently derives
+  the narrowing obligation from the ordered widening definition.
 
   Next engineering frontiers are other proof-bearing results feeding another
-  proof-bearing operation, computed exact-cast and wider exact-arithmetic
+  proof-bearing operation, other computed exact-cast and wider exact-arithmetic
   premises, member/comparison mixtures, calls and effects, wider partial-value
   cleanup, nested ownership, returned transfer, loops, suspension, scoped
   ordering, and ranked tail recursion. Dynamic/nested indexing, wider
