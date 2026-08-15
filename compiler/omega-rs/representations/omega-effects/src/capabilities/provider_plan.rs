@@ -731,6 +731,17 @@ impl ProviderPlan {
                     method.parameter_type_identities.len(),
                 ));
             }
+            for (parameter_index, identity) in method.parameter_type_identities.iter().enumerate() {
+                if identity.is_empty() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` parameter {} has no exact semantic type identity",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        parameter_index,
+                    ));
+                }
+            }
             for claim in &method.entry_claims {
                 if claim.parameter_index >= method.parameter_count {
                     errors.push(format!(
@@ -755,6 +766,16 @@ impl ProviderPlan {
             if method.has_result != method.result_type_identity.is_some() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` result presence disagrees with its exact result type identity",
+                    self.name, self.schema.trait_name, method.name,
+                ));
+            }
+            if method
+                .result_type_identity
+                .as_ref()
+                .is_some_and(|identity| identity.is_empty())
+            {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` result has no exact semantic type identity",
                     self.name, self.schema.trait_name, method.name,
                 ));
             }
@@ -1266,6 +1287,48 @@ mod tests {
                 .validate_candidate_against_schema()
                 .iter()
                 .any(|error| error.contains("result claim has no exact semantic domain"))
+        );
+    }
+
+    #[test]
+    fn schema_validation_requires_nonempty_semantic_type_identities() {
+        let mut valid = windows_console_plan();
+        valid.schema.methods[0].entry_claims = vec![ServiceEntryClaim {
+            parameter_index: 0,
+            domain: "Token::Granted".to_owned(),
+            predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        }];
+        valid.schema.methods[1].result_claims = vec![ServiceResultClaim {
+            domain: "Token::Issued".to_owned(),
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+        }];
+        assert!(
+            valid.validate_candidate_against_schema().is_empty(),
+            "exact type identities and independently retained domains are orthogonal"
+        );
+
+        let mut blank_parameter = valid.clone();
+        blank_parameter.schema.methods[0].parameter_type_identities[0].clear();
+        assert!(
+            blank_parameter
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("parameter 0 has no exact semantic type identity"))
+        );
+
+        let mut blank_result = valid;
+        blank_result.schema.methods[1]
+            .result_type_identity
+            .as_mut()
+            .expect("read_byte has a real result")
+            .clear();
+        assert!(
+            blank_result
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result has no exact semantic type identity"))
         );
     }
 }
