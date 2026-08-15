@@ -2140,12 +2140,16 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             .find(|machine| machine.symbol == specialization.instance)
             .map(|machine| machine.name.as_str())
             .unwrap_or("<unknown>");
+        let instance_contract_fingerprint =
+            specialization_instance_contract_fingerprint(program, specialization.instance);
         json.push_str("\n    {\n      \"template\": ");
         push_json_string(&mut json, template);
         json.push_str(",\n      \"instance\": ");
         push_json_string(&mut json, instance);
         json.push_str(",\n      \"instance_fingerprint\": \"0x");
         json.push_str(&format!("{:016x}", specialization.fingerprint));
+        json.push_str("\",\n      \"instance_contract_fingerprint\": \"0x");
+        json.push_str(&format!("{instance_contract_fingerprint:016x}"));
         json.push_str("\",\n      \"template_contract_fingerprint\": \"0x");
         json.push_str(&format!(
             "{:016x}",
@@ -2191,6 +2195,20 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn specialization_instance_contract_fingerprint(
+    program: &CheckedTrees,
+    instance: SymbolHandle,
+) -> u64 {
+    program
+        .facts
+        .contract_plans
+        .for_machine(instance)
+        .unwrap_or_else(|| {
+            panic!("checked specialization instance must have an exact machine contract plan")
+        })
+        .fingerprint
 }
 
 fn supply_mode_name(mode: psi_language_semantics::MachineSupplyMode) -> &'static str {
@@ -3169,7 +3187,7 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_blocking_summary,
         machine_contract_manifest_json, machine_suspension_summary,
         push_termination_interface_json, qualification_evidence_manifest_json,
-        task_activation_manifest_json,
+        specialization_instance_contract_fingerprint, task_activation_manifest_json,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -4480,6 +4498,14 @@ mod tests {
                 conformance_argument_fingerprints: vec![0x4444, 0x5555],
                 fingerprint: 0x3333,
             });
+        push_behavior_contract(&mut program, symbol, false, false);
+        program
+            .facts
+            .contract_plans
+            .machines
+            .last_mut()
+            .expect("specialization contract fixture")
+            .fingerprint = 0xaaaa;
 
         let json = machine_contract_manifest_json(&program);
         assert!(json.contains("\"template\": \"accepted_map\""));
@@ -4496,5 +4522,15 @@ mod tests {
             "\"conformance_argument_fingerprints\": [\"0x0000000000004444\", \"0x0000000000005555\"]"
         ));
         assert!(json.contains("\"instance_fingerprint\": \"0x0000000000003333\""));
+        assert!(json.contains("\"instance_contract_fingerprint\": \"0x000000000000aaaa\""));
+    }
+
+    #[test]
+    #[should_panic(expected = "must have an exact machine contract plan")]
+    fn specialization_manifest_fails_closed_without_exact_instance_contract() {
+        specialization_instance_contract_fingerprint(
+            &CheckedTrees::default(),
+            SymbolHandle::from_arena_index(1),
+        );
     }
 }
