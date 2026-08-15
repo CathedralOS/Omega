@@ -24444,13 +24444,8 @@ fn runtime_const_measured_recursion_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-const-recursion-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("const measured recursion canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("const measured recursion canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("const measured recursion canary should run");
@@ -45331,6 +45326,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "generics/runtime_signed_const_data_exit",
     "generics/runtime_const_container_methods_exit",
     "constants/runtime_free_const_exit",
+    "comptime/runtime_const_measured_recursion_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
