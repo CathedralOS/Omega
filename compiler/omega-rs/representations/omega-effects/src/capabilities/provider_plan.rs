@@ -68,6 +68,9 @@ pub struct ServiceMethod {
     /// service reach and participate directly in provider schema identity.
     pub may_suspend: bool,
     pub may_block: bool,
+    /// Existing public bodyless requirement guarantee. Progress-profile
+    /// premises and private ranking evidence remain outside this carrier.
+    pub terminates_guarantee: bool,
     /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
     /// `Calling<C>` relationship. Policy type/source identity is excluded.
     pub calling_plan_fingerprint: Option<u64>,
@@ -258,6 +261,7 @@ impl ServiceSchema {
                 synchronous_invocations: Vec::new(),
                 may_suspend: false,
                 may_block: false,
+                terminates_guarantee: false,
                 calling_plan_fingerprint: None,
             }],
         })
@@ -336,6 +340,7 @@ fn collect_service_methods(
             synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
             may_block: signature.blocks,
+            terminates_guarantee: signature.terminates_guarantee,
             calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
                 policy_owner,
                 boundary_arguments,
@@ -617,7 +622,7 @@ impl ProviderPlan {
         });
         for method in methods {
             rendered.push_str(&format!(
-                "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}",
+                "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/terminates:{}",
                 method.name,
                 method.requirement_identity,
                 method.parameter_count,
@@ -626,6 +631,7 @@ impl ProviderPlan {
                 method.synchronous_invocations.join("+"),
                 method.may_suspend,
                 method.may_block,
+                method.terminates_guarantee,
             ));
             for parameter in &method.parameter_type_identities {
                 rendered.push_str("\nmp:");
@@ -1069,6 +1075,7 @@ mod tests {
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: false,
+                    terminates_guarantee: false,
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
@@ -1085,6 +1092,7 @@ mod tests {
                     synchronous_invocations: Vec::new(),
                     may_suspend: true,
                     may_block: false,
+                    terminates_guarantee: false,
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
@@ -1101,6 +1109,7 @@ mod tests {
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: true,
+                    terminates_guarantee: false,
                     calling_plan_fingerprint: None,
                 },
             ],
@@ -1167,8 +1176,20 @@ mod tests {
         let mut blocking = baseline;
         blocking.schema.methods[0].may_block = true;
         assert_ne!(blocking.identity_fingerprint(), baseline_identity);
+
+        let mut terminating = windows_console_plan();
+        terminating.schema.methods[0].terminates_guarantee = true;
+        assert_ne!(terminating.identity_fingerprint(), baseline_identity);
         assert_ne!(
             suspending.identity_fingerprint(),
+            blocking.identity_fingerprint()
+        );
+        assert_ne!(
+            terminating.identity_fingerprint(),
+            suspending.identity_fingerprint()
+        );
+        assert_ne!(
+            terminating.identity_fingerprint(),
             blocking.identity_fingerprint()
         );
     }

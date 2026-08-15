@@ -715,6 +715,7 @@ boundary trait Pair {
     invokes callback;
     suspends;
     blocks;
+    terminates;
 
     machine quiet();
 }
@@ -751,6 +752,7 @@ machine Main::exercise(&mut self) {}
     assert!(effectful.contains("synchronous invocations: Callback"));
     assert!(effectful.contains("may suspend: yes"));
     assert!(effectful.contains("may block: yes"));
+    assert!(effectful.contains("termination guarantee: yes"));
 
     let quiet = report
         .lines()
@@ -762,6 +764,7 @@ machine Main::exercise(&mut self) {}
     assert!(quiet.contains("synchronous invocations: none"));
     assert!(quiet.contains("may suspend: no"));
     assert!(quiet.contains("may block: no"));
+    assert!(quiet.contains("termination guarantee: no"));
     assert!(!quiet.contains("Clock"));
     assert!(!quiet.contains("Callback"));
 
