@@ -717,7 +717,7 @@ impl ProviderPlan {
                 self.name
             ));
         }
-        for method in &self.schema.methods {
+        for (method_index, method) in self.schema.methods.iter().enumerate() {
             if method.name.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema `{}` has a method with no readable drift name",
@@ -734,6 +734,14 @@ impl ProviderPlan {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` has no exact requirement identity",
                     self.name, self.schema.trait_name, method.name
+                ));
+            } else if let Some(previous_index) = self.schema.methods[..method_index]
+                .iter()
+                .position(|previous| previous.requirement_identity == method.requirement_identity)
+            {
+                errors.push(format!(
+                    "plan `{}` schema methods at indexes {previous_index} and {method_index} repeat exact requirement identity `{}`",
+                    self.name, method.requirement_identity,
                 ));
             }
             if method.parameter_type_identities.len() != method.parameter_count {
@@ -1378,6 +1386,51 @@ mod tests {
                 "schema method `DerivedConsole::write_line` has no exact requirement identity",
             )
         }));
+    }
+
+    #[test]
+    fn schema_validation_requires_unique_exact_requirement_identities() {
+        let mut valid = windows_console_plan();
+        valid.schema.methods[0].name = "operation".to_owned();
+        valid.rows[0].method = "operation".to_owned();
+        valid.schema.methods[0].requirement_owner = "BaseConsole".to_owned();
+        valid.schema.methods[1].name = "operation".to_owned();
+        valid.rows[1].method = "operation".to_owned();
+        valid.schema.methods[1].requirement_owner = "DerivedConsole".to_owned();
+        assert!(
+            valid.validate_candidate_against_schema().is_empty(),
+            "duplicate readable names and inherited differing owners remain valid when exact overload identities differ"
+        );
+
+        let mut same_label = windows_console_plan();
+        same_label
+            .schema
+            .methods
+            .push(same_label.schema.methods[0].clone());
+        assert!(
+            same_label.covers_schema(),
+            "one row previously appeared to cover two identical schema methods"
+        );
+        assert!(
+            same_label
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("repeat exact requirement identity `Console::write_line`"))
+        );
+
+        let mut different_label = windows_console_plan();
+        let mut duplicate_identity = different_label.schema.methods[0].clone();
+        duplicate_identity.name = "renamed_operation".to_owned();
+        duplicate_identity.requirement_owner = "OtherConsole".to_owned();
+        different_label.schema.methods.push(duplicate_identity);
+        assert!(
+            different_label
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("repeat exact requirement identity `Console::write_line`"))
+        );
     }
 
     #[test]
