@@ -207,9 +207,12 @@ probe/evaluation/exact-accessor synthesis live in that service as paired
 pre-resolution and post-typing passes as well. The
 `psi-access-plans` bootstrap validates geometry, exact widths,
 observation/operation compatibility, borrow polarity, atomic orderings, exact
-internal loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns
-the complete layout/access pairing and one normalized boundary reach, which
-admission checks once and lowering retains. The Rust bootstrap consumes an
+internal loan facts, and sealed lowering requests. Stable, External, and Atomic
+consumers narrow those requests without reauthoring geometry and return the
+original authority-bearing request unchanged when specialization rejects. Its
+normalized `PlacementPlan` owns the complete layout/access pairing and one
+normalized boundary reach, which admission checks once and lowering retains.
+The Rust bootstrap consumes an
 internal exact-loan carrier; source instead admits ordinary `&`/`&mut`
 projections of `Extent in Granted`, with range, lifetime, and polarity supplied
 by the borrow checker. Current view-borrow and retained source-borrow polarity

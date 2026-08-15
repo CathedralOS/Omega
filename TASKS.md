@@ -162,9 +162,11 @@ Owners:
   atomic laws. Continue rejecting External initialization, multi-transfer
   reads, and synthesized RMW.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
-  claim exclusivity against a device. Connect admitted whole-container External
-  and atomic transfers to both native backends through one sealed core
-  requirement per atomic operation.
+  claim exclusivity against a device. Sealed primitive events now specialize
+  linearly into Stable read/write, External read/take/write, or one exact
+  Atomic operation and ordering while preserving the original authority on
+  rejection. Connect admitted whole-container External and atomic transfers to
+  both native backends through those sealed requests.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
 
