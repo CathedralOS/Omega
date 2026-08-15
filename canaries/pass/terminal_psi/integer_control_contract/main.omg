@@ -1360,6 +1360,13 @@ requires 1u8 <= value, 2u8 <= value, 3u8 <= value
     staged
 }
 
+machine terminal_mixed_exact_add_subtract_literal_chain(value: u8, enabled: bool) -> bool
+requires value <= 252u8, value <= 253u8
+{
+    let staged: bool = ((((value + 3u8) - 2u8) + 1u8) < 255u8) && enabled;
+    staged
+}
+
 machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) -> bool
 {
     let staged: bool = ((((value / 2u8) % 3u8) / 2u8) < 2u8) && enabled;
