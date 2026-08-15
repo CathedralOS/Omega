@@ -221,6 +221,9 @@ A retained finite exact-arithmetic prefix followed by a finite shift suffix
 charges every add, subtract, multiply, and shift operation separately. Replaying
 each left prefix through prior shifts and the checked affine form is verifier
 work and adds no executable fuel.
+The converse finite shift-prefix/exact-arithmetic-suffix family uses the same
+accounting: every retained shift, add, subtract, and multiply is charged, while
+affine preimage reconstruction and ordered shift replay add no executable fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

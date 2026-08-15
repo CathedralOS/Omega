@@ -33,6 +33,9 @@ const SOURCE: &str = r#"
         affine_unsigned: u8,
         affine_signed: i8,
         zero_root: u8,
+        shift_affine_unsigned: u8,
+        shift_affine_signed: i8,
+        shift_zero_root: u8,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -47,7 +50,11 @@ const SOURCE: &str = r#"
         affine_unsigned <= 60u8,
         affine_signed <= 124i8, -67i8 <= affine_signed,
         affine_signed <= 60i8, -35i8 <= affine_signed, affine_signed <= 28i8,
-        zero_root <= 0u8
+        zero_root <= 0u8,
+        shift_affine_unsigned <= 127u8, shift_affine_unsigned <= 63u8,
+        -64i8 <= shift_affine_signed, shift_affine_signed <= 63i8,
+        -32i8 <= shift_affine_signed, shift_affine_signed <= 31i8,
+        shift_zero_root <= 127u8
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -63,6 +70,9 @@ const SOURCE: &str = r#"
             && ((((((affine_unsigned + 3u8) * 2u8) >> 1i8) << 2u16) < 255u8))
             && ((((((affine_signed - -3i8) * 2i8) >> 1u16) << 2i32) < 127i8))
             && ((((((zero_root + 255u8) * 0u8) << 1u8) >> 1i16) < 255u8))
+            && ((((((shift_affine_unsigned >> 1i8) << 2u16) + 3u8) * 2u8) < 255u8))
+            && ((((((shift_affine_signed >> 1u8) << 2i16) - -3i8) * 2i8) < 127i8))
+            && (((((shift_zero_root << 1u8) * 0u8) + 255u8) <= 255u8))
             && enabled
     }
 "#;
@@ -92,6 +102,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let signed_wide_parameter = entry.parameters[3].id;
     let post_signed_parameter = entry.parameters[4].id;
     let affine_unsigned_parameter = entry.parameters[6].id;
+    let shift_affine_unsigned_parameter = entry.parameters[9].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -127,7 +138,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        18,
+        20,
     );
     assert_eq!(
         operations
@@ -137,10 +148,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        20,
+        23,
     );
-    assert_eq!(shift_obligations.len(), 38);
-    assert_eq!(proof_obligations.len(), 48);
+    assert_eq!(shift_obligations.len(), 43);
+    assert_eq!(proof_obligations.len(), 59);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -374,6 +385,65 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let mut redirected_shift_affine = decode_module(&semantics).expect("decode mixed-shift module");
+    let shift_results = redirected_shift_affine
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            matches!(operation.kind, OperationKind::ExactIntegerShiftLeft { .. })
+                .then(|| operation.result.scalar().map(|result| result.id))
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    let shift_feeding_arithmetic = redirected_shift_affine
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { left, .. }
+                if shift_results.contains(&left)
+                    && operation.result.scalar_ref().is_some_and(|result| {
+                        result.scalar_type
+                            == ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type"),
+                            )
+                    }) =>
+            {
+                Some(left)
+            }
+            _ => None,
+        })
+        .expect("shift-to-arithmetic chain retains its shift definition");
+    let redirected_shift = redirected_shift_affine
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == shift_feeding_arithmetic)
+        })
+        .expect("shift-to-arithmetic chain retains its exact-left result");
+    let OperationKind::ExactIntegerShiftLeft { value, .. } = &mut redirected_shift.kind else {
+        unreachable!("selected exact-left definition")
+    };
+    assert_ne!(*value, shift_affine_unsigned_parameter);
+    *value = value_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_shift_affine,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -399,6 +469,18 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
                 value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value"),
+                value: IntegerValue::Unsigned(0),
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value"),

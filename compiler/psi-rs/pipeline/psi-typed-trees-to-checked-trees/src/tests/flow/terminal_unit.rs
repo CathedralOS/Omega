@@ -20,6 +20,7 @@ use crate::flow::{
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
+    exact_shift_then_arithmetic_runtime_parameter_positions_for_test,
 };
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedScalarExpression,
@@ -2326,6 +2327,118 @@ fn exact_arithmetic_then_shift_classifier_unifies_affine_prefix_shapes() {
     );
     assert_eq!(
         exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&negative_factor, 1),
+        None,
+    );
+}
+
+#[test]
+fn exact_shift_then_arithmetic_classifier_unifies_affine_suffix_shapes() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let shift_prefix = operation(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U8,
+            shift_prefix,
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_then_arithmetic_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+
+    let homogeneous = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_then_arithmetic_runtime_parameter_positions_for_test(&homogeneous, 1),
+        Some(vec![0]),
+    );
+
+    let runtime_count = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            parameter(1, PrimitiveType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_then_arithmetic_runtime_parameter_positions_for_test(&runtime_count, 2),
+        None,
+    );
+
+    let runtime_sibling = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        parameter(1, PrimitiveType::U8),
+    );
+    assert_eq!(
+        exact_shift_then_arithmetic_runtime_parameter_positions_for_test(&runtime_sibling, 2),
+        None,
+    );
+
+    let negative_factor = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I8,
+        operation(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::I8,
+            parameter(0, PrimitiveType::I8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(-1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_shift_then_arithmetic_runtime_parameter_positions_for_test(&negative_factor, 1),
         None,
     );
 }

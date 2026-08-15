@@ -363,6 +363,14 @@ Remaining:
   independent evidence. `A == 0` decides only the current left obligation,
   mathematical emptiness is falsehood, and checked replay failure admits no
   family.
+  Conversely, a finite exact-shift prefix may now feed a finite exact-
+  arithmetic suffix on the same fixed-native carrier. Each arithmetic prefix
+  maps the carrier backward through checked `A * shifted_root + B`, then
+  replays the complete ordered shift prefix to the direct root. Every count,
+  left overflow, and arithmetic obligation remains independently mandatory;
+  `A == 0` decides only the current proposition after full shape validation,
+  mathematical emptiness is falsehood, and checked replay failure admits no
+  family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

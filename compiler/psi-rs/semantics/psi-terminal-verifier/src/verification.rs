@@ -2084,6 +2084,23 @@ fn exact_integer_affine_preimage_obligation(
             Proposition::Falsehood
         });
     }
+    let Some(interval) =
+        exact_integer_affine_preimage_interval(root_type, coefficient, offset, interval)?
+    else {
+        return Ok(Proposition::Falsehood);
+    };
+    Ok(exact_integer_source_interval_obligation(
+        root_type, root, interval.0, interval.1,
+    ))
+}
+
+fn exact_integer_affine_preimage_interval(
+    input_type: psi_core::IntegerType,
+    coefficient: u128,
+    offset: IntegerOffset,
+    interval: (i128, i128),
+) -> Result<Option<(i128, i128)>, ()> {
+    debug_assert_ne!(coefficient, 0);
     let lower_numerator = IntegerOffset::from_value(IntegerValue::Signed(interval.0))
         .checked_add(offset.negated())
         .ok_or(())?;
@@ -2095,7 +2112,7 @@ fn exact_integer_affine_preimage_obligation(
     let lower = match lower {
         IntegerOffset::Nonnegative(value) => match i128::try_from(value) {
             Ok(value) => value,
-            Err(_) => return Ok(Proposition::Falsehood),
+            Err(_) => return Ok(None),
         },
         IntegerOffset::Negative(value) if value > (1_u128 << 127) => i128::MIN,
         IntegerOffset::Negative(value) => signed_negative_magnitude(value).ok_or(())?,
@@ -2103,13 +2120,189 @@ fn exact_integer_affine_preimage_obligation(
     let upper = match upper {
         IntegerOffset::Nonnegative(value) => i128::try_from(value).unwrap_or(i128::MAX),
         IntegerOffset::Negative(value) if value > (1_u128 << 127) => {
-            return Ok(Proposition::Falsehood);
+            return Ok(None);
         }
         IntegerOffset::Negative(value) => signed_negative_magnitude(value).ok_or(())?,
     };
-    Ok(exact_integer_source_interval_obligation(
-        root_type, root, lower, upper,
-    ))
+    let carrier = fixed_integer_type_interval(input_type).ok_or(())?;
+    let lower = lower.max(carrier.0);
+    let upper = upper.min(carrier.1);
+    Ok((lower <= upper).then_some((lower, upper)))
+}
+
+fn exact_integer_shift_then_arithmetic_chain_obligation(
+    value_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if value_type.is_address() || !matches!(value_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let (mut coefficient, mut offset) = match initial_operation {
+        ExactIntegerAffineOperation::Add => (1, IntegerOffset::from_value(initial_constant)),
+        ExactIntegerAffineOperation::Subtract => {
+            (1, IntegerOffset::from_subtrahend(initial_constant))
+        }
+        ExactIntegerAffineOperation::Multiply => (
+            nonnegative_integer_factor(value_type, initial_constant)?,
+            IntegerOffset::Nonnegative(0),
+        ),
+    };
+    let carrier_interval = fixed_integer_type_interval(value_type)?;
+    let mut shifted_interval: Option<(i128, i128)> = None;
+    let mut constant_decision = None;
+    let mut mathematical_empty = false;
+    let mut saw_shift = false;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        if saw_shift
+            && matches!(
+                &value,
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(root_type),
+                } if *root_type == value_type && machine_parameter_values.contains(id)
+            )
+        {
+            if let Some(decision) = constant_decision {
+                return Some(decision);
+            }
+            if mathematical_empty {
+                return Some(Proposition::Falsehood);
+            }
+            let interval = shifted_interval?;
+            return Some(exact_integer_source_interval_obligation(
+                value_type, value, interval.0, interval.1,
+            ));
+        }
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if !saw_shift && *scalar_type == value_type => {
+                if landed_integer_constant_value(
+                    value_type,
+                    left,
+                    semantic_axioms,
+                    definition_index,
+                )
+                .is_some()
+                {
+                    return None;
+                }
+                let constant = landed_integer_constant_value(
+                    value_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let (nested_coefficient, nested_offset) = match definition {
+                    ScalarTerm::ExactIntegerAdd { .. } => (1, IntegerOffset::from_value(constant)),
+                    ScalarTerm::ExactIntegerSubtract { .. } => {
+                        (1, IntegerOffset::from_subtrahend(constant))
+                    }
+                    ScalarTerm::ExactIntegerMultiply { .. } => (
+                        nonnegative_integer_factor(value_type, constant)?,
+                        IntegerOffset::Nonnegative(0),
+                    ),
+                    _ => unreachable!("matched one exact arithmetic definition"),
+                };
+                offset = nested_offset
+                    .checked_multiply(coefficient)
+                    .and_then(|nested| nested.checked_add(offset))?;
+                coefficient = coefficient.checked_mul(nested_coefficient)?;
+                value = (**left).clone();
+                prior_axiom_count = definition_index;
+            }
+            definition @ ScalarTerm::ExactIntegerShiftLeft {
+                value_type: nested_value_type,
+                count_type,
+                value: nested_value,
+                count,
+            }
+            | definition @ ScalarTerm::ExactIntegerShiftRight {
+                value_type: nested_value_type,
+                count_type,
+                value: nested_value,
+                count,
+            } if *nested_value_type == value_type => {
+                if !saw_shift {
+                    if coefficient == 0 {
+                        let decision = if offset.is_representable(value_type) {
+                            Proposition::Truth
+                        } else {
+                            Proposition::Falsehood
+                        };
+                        constant_decision = Some(decision);
+                    } else {
+                        shifted_interval = match exact_integer_affine_preimage_interval(
+                            value_type,
+                            coefficient,
+                            offset,
+                            carrier_interval,
+                        ) {
+                            Ok(Some(interval)) => Some(interval),
+                            Ok(None) => {
+                                mathematical_empty = true;
+                                None
+                            }
+                            Err(()) => return None,
+                        };
+                    }
+                    saw_shift = true;
+                }
+                let count = landed_exact_shift_count(
+                    value_type,
+                    *count_type,
+                    count,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                if constant_decision.is_none() && !mathematical_empty {
+                    shifted_interval = match exact_integer_mixed_shift_preimage(
+                        value_type,
+                        shifted_interval?,
+                        definition,
+                        count,
+                    ) {
+                        Ok(Some(interval)) => Some(interval),
+                        Ok(None) => {
+                            mathematical_empty = true;
+                            None
+                        }
+                        Err(()) => return None,
+                    };
+                }
+                value = (**nested_value).clone();
+                prior_axiom_count = definition_index;
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 fn exact_integer_mixed_shift_chain_obligation(
@@ -3765,6 +3958,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_shift_then_arithmetic_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_cast_then_affine_chain_obligation(
             integer_type,
             left.clone(),
@@ -4149,6 +4362,25 @@ fn exact_integer_subtract_obligation(
         }
         return Proposition::Falsehood;
     };
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_shift_then_arithmetic_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
     if known_left.is_none()
         && landed_integer_constant_value(
             integer_type,
@@ -4958,6 +5190,25 @@ fn exact_integer_multiply_obligation_with_definitions(
         }
         (Some(_), Some(_)) => unreachable!("known exact-multiply operands returned above"),
     };
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_shift_then_arithmetic_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
     if chain_orientation
         && landed_integer_constant_value(
             integer_type,
@@ -10834,6 +11085,129 @@ mod tests {
             ),
             None,
             "checked affine-composition failure admits no computed-shift family",
+        );
+    }
+
+    #[test]
+    fn exact_shift_then_arithmetic_chain_replays_shifts_before_each_affine_prefix() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let i8_count = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let u16_count = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+        let root_id = ValueId::new(361).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(value_type));
+        let right = ScalarTerm::value(
+            ValueId::new(362).expect("right"),
+            ScalarType::Integer(value_type),
+        );
+        let left = ScalarTerm::value(
+            ValueId::new(363).expect("left"),
+            ScalarType::Integer(value_type),
+        );
+        let add = ScalarTerm::value(
+            ValueId::new(364).expect("add"),
+            ScalarType::Integer(value_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                right.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    value_type,
+                    i8_count,
+                    root.clone(),
+                    ScalarTerm::integer(i8_count, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("root >> 1"),
+            ),
+            Proposition::Equal(
+                left.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    value_type,
+                    u16_count,
+                    right,
+                    ScalarTerm::integer(u16_count, IntegerValue::Unsigned(2)).expect("2u16"),
+                )
+                .expect("(root >> 1) << 2"),
+            ),
+            Proposition::Equal(
+                add.clone(),
+                ScalarTerm::exact_integer_add(
+                    value_type,
+                    left,
+                    ScalarTerm::integer(value_type, IntegerValue::Unsigned(3)).expect("3u8"),
+                )
+                .expect("shifted + 3"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_shift_then_arithmetic_chain_obligation(
+                value_type,
+                add.clone(),
+                IntegerValue::Unsigned(2),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(value_type, IntegerValue::Unsigned(63)).expect("63u8"),
+            )),
+        );
+        assert_eq!(
+            exact_integer_shift_then_arithmetic_chain_obligation(
+                value_type,
+                add,
+                IntegerValue::Unsigned(2),
+                ExactIntegerAffineOperation::Multiply,
+                &[Proposition::Truth],
+                1,
+                &BTreeSet::from([root_id]),
+            ),
+            None,
+            "stale definitions cannot authorize the shift-rooted affine suffix",
+        );
+
+        let shifted = ScalarTerm::value(
+            ValueId::new(365).expect("shifted"),
+            ScalarType::Integer(value_type),
+        );
+        let zero = ScalarTerm::value(
+            ValueId::new(366).expect("zero"),
+            ScalarType::Integer(value_type),
+        );
+        let zero_definitions = vec![
+            Proposition::Equal(
+                shifted.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    value_type,
+                    i8_count,
+                    root,
+                    ScalarTerm::integer(i8_count, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("root << 1"),
+            ),
+            Proposition::Equal(
+                zero.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    value_type,
+                    shifted,
+                    ScalarTerm::integer(value_type, IntegerValue::Unsigned(0)).expect("0u8"),
+                )
+                .expect("shifted * 0"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_shift_then_arithmetic_chain_obligation(
+                value_type,
+                zero,
+                IntegerValue::Unsigned(255),
+                ExactIntegerAffineOperation::Add,
+                &zero_definitions,
+                zero_definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::Truth),
+            "A=0 decides only this outer obligation after validating the complete shift root",
         );
     }
 
