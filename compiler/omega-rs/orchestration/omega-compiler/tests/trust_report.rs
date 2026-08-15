@@ -1113,6 +1113,12 @@ machine Main::exercise(&mut self) {}
     assert!(second_requirement.contains("grant selectors: Pair"));
     assert!(second_requirement.contains("root grant (build.omg)"));
     assert!(!second_requirement.contains("STANDING WARNING"));
+    assert!(
+        !report
+            .lines()
+            .any(|line| line.starts_with("- accepted fact: Pair --")),
+        "the selected provider-slot grant must not be relabeled as a bare accepted fact:\n{report}"
+    );
 
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
     assert!(lock.contains("provider slot: Pair"));
