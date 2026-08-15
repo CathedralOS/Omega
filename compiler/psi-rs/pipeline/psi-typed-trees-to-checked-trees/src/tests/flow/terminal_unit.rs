@@ -8,6 +8,7 @@ use crate::flow::{
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
+    exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
@@ -2043,6 +2044,93 @@ fn shift_right_chain_exact_cast_classifier_accepts_heterogeneous_legal_counts_on
             None
         );
     }
+}
+
+#[test]
+fn divide_remainder_chain_exact_cast_classifier_accepts_only_carrier_total_hulls() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U16,
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U16,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            parameter(),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &accepted,
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let non_total = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        parameter(),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &non_total,
+            1,
+        ),
+        None,
+    );
+    for invalid_divisor in [0i64, -1i64] {
+        let invalid = CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactRemainder,
+            primitive_type: PrimitiveType::I16,
+            left: Box::new(CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::I16,
+            }),
+            right: Box::new(literal(
+                invalid_divisor,
+                psi_numerics::literals::LandedIntegerType::I16,
+            )),
+        };
+        assert_eq!(
+            exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test(
+                PrimitiveType::I8,
+                &invalid,
+                1,
+            ),
+            None,
+        );
+    }
+    let mistyped = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        parameter(),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &mistyped,
+            1,
+        ),
+        None,
+    );
 }
 
 #[test]

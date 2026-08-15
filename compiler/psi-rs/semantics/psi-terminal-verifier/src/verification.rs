@@ -1445,6 +1445,15 @@ fn exact_integer_cast_obligation(
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Proposition {
+    if let Some(obligation) = exact_integer_divide_remainder_chain_cast_obligation(
+        source_type,
+        target_type,
+        operand.clone(),
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     if let Some(obligation) = exact_integer_shift_right_chain_cast_obligation(
         source_type,
         target_type,
@@ -2066,6 +2075,12 @@ enum ExactIntegerAffineOperation {
     Multiply,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactIntegerDivideRemainderTransfer {
+    Divide,
+    Remainder,
+}
+
 impl IntegerOffset {
     fn from_value(value: IntegerValue) -> Self {
         match value {
@@ -2138,6 +2153,141 @@ impl IntegerOffset {
                 .is_some_and(|value| integer_type.admits(IntegerValue::Signed(value))),
             (IntegerSign::Signed, Self::Negative(value)) => signed_negative_magnitude(value)
                 .is_some_and(|value| integer_type.admits(IntegerValue::Signed(value))),
+        }
+    }
+}
+
+fn exact_integer_divide_remainder_chain_cast_obligation(
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if source_type.is_address()
+        || target_type.is_address()
+        || !matches!(source_type.bits(), 8 | 16 | 32 | 64)
+        || !matches!(target_type.bits(), 8 | 16 | 32 | 64)
+        || source_type == target_type
+        || source_type.can_widen_to(target_type)
+        || !source_type.can_exact_cast_to(target_type)
+    {
+        return None;
+    }
+    let target_interval = fixed_integer_type_interval(target_type)?;
+    let mut transfers = Vec::new();
+    let mut prior_axiom_count = semantic_axioms.len();
+    let mut followed_definition = false;
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (left, right, transfer) = match definition {
+            ScalarTerm::ExactIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == source_type => {
+                (left, right, ExactIntegerDivideRemainderTransfer::Divide)
+            }
+            ScalarTerm::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == source_type => {
+                (left, right, ExactIntegerDivideRemainderTransfer::Remainder)
+            }
+            _ => break,
+        };
+        if landed_integer_constant_value(source_type, left, semantic_axioms, definition_index)
+            .is_some()
+        {
+            break;
+        }
+        let divisor =
+            landed_integer_constant_value(source_type, right, semantic_axioms, definition_index)
+                .and_then(|value| fixed_integer_value(source_type, value))?;
+        if divisor == 0 || divisor == -1 {
+            break;
+        }
+        transfers.push((transfer, divisor));
+        value = (**left).clone();
+        prior_axiom_count = definition_index;
+        followed_definition = true;
+    }
+    if !followed_definition
+        || !matches!(
+            &value,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == source_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    let final_interval = transfers.into_iter().rev().try_fold(
+        fixed_integer_type_interval(source_type)?,
+        |interval, (transfer, divisor)| {
+            exact_integer_divide_remainder_interval_transfer(interval, transfer, divisor)
+        },
+    )?;
+    (final_interval.0 >= target_interval.0 && final_interval.1 <= target_interval.1)
+        .then_some(Proposition::Truth)
+}
+
+fn fixed_integer_type_interval(integer_type: psi_core::IntegerType) -> Option<(i128, i128)> {
+    if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    Some((
+        fixed_integer_value(integer_type, integer_type.minimum_value())?,
+        fixed_integer_value(integer_type, integer_type.maximum_value())?,
+    ))
+}
+
+fn fixed_integer_value(integer_type: psi_core::IntegerType, value: IntegerValue) -> Option<i128> {
+    match (integer_type.sign(), value) {
+        (IntegerSign::Signed, IntegerValue::Signed(value)) => Some(value),
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => i128::try_from(value).ok(),
+        _ => None,
+    }
+}
+
+fn exact_integer_divide_remainder_interval_transfer(
+    (minimum, maximum): (i128, i128),
+    transfer: ExactIntegerDivideRemainderTransfer,
+    divisor: i128,
+) -> Option<(i128, i128)> {
+    if divisor == 0 || divisor == -1 {
+        return None;
+    }
+    match transfer {
+        ExactIntegerDivideRemainderTransfer::Divide if divisor > 0 => {
+            Some((minimum / divisor, maximum / divisor))
+        }
+        ExactIntegerDivideRemainderTransfer::Divide => Some((maximum / divisor, minimum / divisor)),
+        ExactIntegerDivideRemainderTransfer::Remainder => {
+            let magnitude = divisor.checked_abs()?;
+            let remainder_maximum = magnitude.checked_sub(1)?;
+            if minimum >= 0 {
+                Some((0, maximum.min(remainder_maximum)))
+            } else if maximum <= 0 {
+                Some((minimum.max(-remainder_maximum), 0))
+            } else {
+                Some((
+                    minimum.max(-remainder_maximum),
+                    maximum.min(remainder_maximum),
+                ))
+            }
         }
     }
 }
@@ -6587,6 +6737,126 @@ mod tests {
             ),
             Proposition::Truth,
             "one zero-fill shift makes every u8 result fit i8"
+        );
+    }
+
+    #[test]
+    fn reconstructs_carrier_total_divide_remainder_chain_exact_casts() {
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let root_id = ValueId::new(451).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(u16_type));
+        let first = ScalarTerm::value(
+            ValueId::new(452).expect("first"),
+            ScalarType::Integer(u16_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(453).expect("second"),
+            ScalarType::Integer(u16_type),
+        );
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_divide(
+                u16_type,
+                root.clone(),
+                ScalarTerm::integer(u16_type, IntegerValue::Unsigned(2)).expect("2u16"),
+            )
+            .expect("root / 2u16"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_remainder(
+                u16_type,
+                first.clone(),
+                ScalarTerm::integer(u16_type, IntegerValue::Unsigned(3)).expect("3u16"),
+            )
+            .expect("first % 3u16"),
+        );
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_cast_obligation(
+                u16_type,
+                u8_type,
+                second.clone(),
+                &[first_definition.clone(), second_definition.clone()],
+                &parameters,
+            ),
+            Proposition::Truth,
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                u16_type,
+                u8_type,
+                second,
+                &[second_definition, first_definition.clone()],
+                &parameters,
+            ),
+            Proposition::Truth,
+            "out-of-order definitions do not authorize the cast",
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                u16_type,
+                u8_type,
+                first,
+                std::slice::from_ref(&first_definition),
+                &parameters,
+            ),
+            Proposition::Truth,
+            "a noncontained quotient hull stays outside the carrier-total family",
+        );
+
+        let signed_root_id = ValueId::new(461).expect("signed root");
+        let signed_root = ScalarTerm::value(signed_root_id, ScalarType::Integer(i16_type));
+        let signed_result = ScalarTerm::value(
+            ValueId::new(462).expect("signed result"),
+            ScalarType::Integer(i16_type),
+        );
+        let signed_definition = Proposition::Equal(
+            signed_result.clone(),
+            ScalarTerm::exact_integer_remainder(
+                i16_type,
+                signed_root,
+                ScalarTerm::integer(i16_type, IntegerValue::Signed(-3)).expect("-3i16"),
+            )
+            .expect("signed root % -3i16"),
+        );
+        assert_eq!(
+            exact_integer_cast_obligation(
+                i16_type,
+                i8_type,
+                signed_result,
+                std::slice::from_ref(&signed_definition),
+                &BTreeSet::from([signed_root_id]),
+            ),
+            Proposition::Truth,
+        );
+        assert_eq!(
+            exact_integer_cast_obligation(
+                u16_type,
+                i8_type,
+                ScalarTerm::value(
+                    ValueId::new(463).expect("cross result"),
+                    ScalarType::Integer(u16_type),
+                ),
+                &[Proposition::Equal(
+                    ScalarTerm::value(
+                        ValueId::new(463).expect("cross result"),
+                        ScalarType::Integer(u16_type),
+                    ),
+                    ScalarTerm::exact_integer_remainder(
+                        u16_type,
+                        root,
+                        ScalarTerm::integer(u16_type, IntegerValue::Unsigned(3)).expect("3u16"),
+                    )
+                    .expect("root % 3u16"),
+                )],
+                &parameters,
+            ),
+            Proposition::Truth,
+            "a nonnegative remainder hull may cross to a signed target",
         );
     }
 

@@ -11253,6 +11253,12 @@ fn shared_integer_runtime_parameters_with_shells(
         } if proof_shell_allowed => {
             shared_roundtrip_exact_cast_runtime_parameters(*scalar_type, operand)
                 .or_else(|| {
+                    shared_exact_divide_remainder_chain_cast_runtime_parameters(
+                        *scalar_type,
+                        operand,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_shift_right_chain_cast_runtime_parameters(*scalar_type, operand)
                 })
                 .or_else(|| {
@@ -11297,6 +11303,142 @@ fn shared_roundtrip_exact_cast_runtime_parameters(
     };
     (saw_widen && *scalar_type == target_type)
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
+}
+
+#[derive(Clone, Copy)]
+enum ExactDivideRemainderTransfer {
+    Divide,
+    Remainder,
+}
+
+fn shared_exact_divide_remainder_chain_cast_runtime_parameters(
+    target_scalar_type: ScalarType,
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_scalar_type else {
+        return None;
+    };
+    let target_interval = fixed_native_integer_interval(target_type)?;
+    let mut source_type = None;
+    let mut transfers = Vec::new();
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind:
+                kind
+                @ (LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder),
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if source_type.is_some_and(|source_type| source_type != *integer_type) {
+            return None;
+        }
+        source_type = Some(*integer_type);
+        let divisor = landed_safe_exact_divide_remainder_value(*integer_type, right)?;
+        transfers.push((
+            match kind {
+                LoweredIntegerBinaryKind::ExactDivide => ExactDivideRemainderTransfer::Divide,
+                LoweredIntegerBinaryKind::ExactRemainder => ExactDivideRemainderTransfer::Remainder,
+                _ => unreachable!("matched one exact divide/remainder operation"),
+            },
+            divisor,
+        ));
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == *integer_type => {
+                let source_interval = fixed_native_integer_interval(*root_type)?;
+                if source_interval.0 >= target_interval.0 && source_interval.1 <= target_interval.1
+                {
+                    return None;
+                }
+                let final_interval = transfers.into_iter().rev().try_fold(
+                    source_interval,
+                    |interval, (transfer, divisor)| {
+                        exact_divide_remainder_interval_transfer(interval, transfer, divisor)
+                    },
+                )?;
+                return (final_interval.0 >= target_interval.0
+                    && final_interval.1 <= target_interval.1)
+                    .then(|| {
+                        BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                    });
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn fixed_native_integer_interval(integer_type: IntegerType) -> Option<(i128, i128)> {
+    if !native_fixed_integer_type(integer_type) {
+        return None;
+    }
+    let minimum = match integer_type.minimum_value() {
+        IntegerValue::Signed(value) => value,
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok()?,
+    };
+    let maximum = match integer_type.maximum_value() {
+        IntegerValue::Signed(value) => value,
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok()?,
+    };
+    Some((minimum, maximum))
+}
+
+fn exact_divide_remainder_interval_transfer(
+    (minimum, maximum): (i128, i128),
+    transfer: ExactDivideRemainderTransfer,
+    divisor: i128,
+) -> Option<(i128, i128)> {
+    if divisor == 0 || divisor == -1 {
+        return None;
+    }
+    match transfer {
+        ExactDivideRemainderTransfer::Divide if divisor > 0 => {
+            Some((minimum / divisor, maximum / divisor))
+        }
+        ExactDivideRemainderTransfer::Divide => Some((maximum / divisor, minimum / divisor)),
+        ExactDivideRemainderTransfer::Remainder => {
+            let magnitude = divisor.checked_abs()?;
+            let remainder_maximum = magnitude.checked_sub(1)?;
+            if minimum >= 0 {
+                Some((0, maximum.min(remainder_maximum)))
+            } else if maximum <= 0 {
+                Some((minimum.max(-remainder_maximum), 0))
+            } else {
+                Some((
+                    minimum.max(-remainder_maximum),
+                    maximum.min(remainder_maximum),
+                ))
+            }
+        }
+    }
+}
+
+fn landed_safe_exact_divide_remainder_value(
+    integer_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> Option<i128> {
+    let LoweredDirectExpression::IntegerLiteral { value, scalar_type } = expression else {
+        return None;
+    };
+    if *scalar_type != ScalarType::Integer(integer_type) {
+        return None;
+    }
+    let value = match (integer_type.sign(), value) {
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => i128::try_from(*value).ok()?,
+        (IntegerSign::Signed, IntegerValue::Signed(value)) => *value,
+        _ => return None,
+    };
+    (value != 0 && value != -1).then_some(value)
 }
 
 fn shared_exact_offset_chain_cast_runtime_parameters(
@@ -12041,17 +12183,7 @@ fn safe_exact_divide_remainder_landed_literal(
     integer_type: IntegerType,
     expression: &LoweredDirectExpression,
 ) -> bool {
-    let LoweredDirectExpression::IntegerLiteral { value, scalar_type } = expression else {
-        return false;
-    };
-    if *scalar_type != ScalarType::Integer(integer_type) {
-        return false;
-    }
-    match (integer_type.sign(), value) {
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => *value != 0,
-        (IntegerSign::Signed, IntegerValue::Signed(value)) => *value != 0 && *value != -1,
-        _ => false,
-    }
+    landed_safe_exact_divide_remainder_value(integer_type, expression).is_some()
 }
 
 fn shared_exact_shift_right_chain_runtime_parameters(

@@ -415,7 +415,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         positive_subtrahend: i8,
         negative_subtrahend: i8,
         signed_count: i8,
-        enabled: bool
+        enabled: bool,
+        wide: u16
     ) -> bool
     requires input <= 255u64, input <= 250u64, input <= 253u64, input <= 252u64,
         input <= 251u64, input <= 127u64, input <= 125u64, input <= 124u64,
@@ -488,7 +489,11 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
                 && (((((small / 2u8) % 3u8) / 2u8) < 2u8)
                 && (((((input as u8) / 2u8) % 3u8) / 2u8) < 2u8)
                 && ((((signed as i8) / 2i8) % -3i8) < 3i8)
-                && ((((signed_arithmetic as u8) / 2u8) % 3u8) < 3u8)))
+                && ((((signed_arithmetic as u8) / 2u8) % 3u8) < 3u8)
+                && ((((wide / 256u16) as u8) < 255u8)
+                    && ((((wide / 2u16) % 3u16) as u8) < 3u8)
+                    && (((signed % -3i64) as i8) < 3i8)
+                    && (((wide % 3u16) as i8) < 3i8))))
             && ((small / divisor) < 6u8)
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
@@ -4474,6 +4479,135 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         }
     }
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let wide_parameter = entry.parameters[17].id;
+    let find_cast_after_divide_remainder = |parameter, integer_type, divisor, remainder: bool| {
+        operations.iter().find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let arithmetic = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let (left, right, arithmetic_obligation) = match arithmetic.kind {
+                OperationKind::ExactIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } if !remainder => (left, right, obligation),
+                OperationKind::ExactIntegerRemainder {
+                    left,
+                    right,
+                    obligation,
+                } if remainder => (left, right, obligation),
+                _ => return None,
+            };
+            (left == parameter && is_integer_constant(right, integer_type, divisor))
+                .then_some([arithmetic_obligation, cast_obligation])
+        })
+    };
+    let divide_chain_cast_obligations = find_cast_after_divide_remainder(
+        wide_parameter,
+        u16_type,
+        IntegerValue::Unsigned(256),
+        false,
+    )
+    .expect("one carrier-total divide chain feeds an exact cast");
+    let (mixed_divide_remainder_cast_obligations, mixed_cast_divisor) = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let remainder = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: remainder_obligation,
+            } = remainder.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(right, u16_type, IntegerValue::Unsigned(3)) {
+                return None;
+            }
+            let divide = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: divide_left,
+                right: divide_right,
+                obligation: divide_obligation,
+            } = divide.kind
+            else {
+                return None;
+            };
+            (divide_left == wide_parameter
+                && is_integer_constant(divide_right, u16_type, IntegerValue::Unsigned(2)))
+            .then_some((
+                [divide_obligation, remainder_obligation, cast_obligation],
+                right,
+            ))
+        })
+        .expect("one carrier-total mixed divide/remainder chain feeds an exact cast");
+    let signed_remainder_cast_obligations = find_cast_after_divide_remainder(
+        entry.parameters[4].id,
+        i64_type,
+        IntegerValue::Signed(-3),
+        true,
+    )
+    .expect("one signed carrier-total remainder feeds an exact cast");
+    let cross_remainder_cast_obligations =
+        find_cast_after_divide_remainder(wide_parameter, u16_type, IntegerValue::Unsigned(3), true)
+            .expect("one cross-sign carrier-total remainder feeds an exact cast");
+    for obligations in [
+        divide_chain_cast_obligations.as_slice(),
+        mixed_divide_remainder_cast_obligations.as_slice(),
+        signed_remainder_cast_obligations.as_slice(),
+        cross_remainder_cast_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            let operation = operations
+                .iter()
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::IntegerExactCast {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerDivide {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerRemainder {
+                            obligation: candidate,
+                            ..
+                        } if candidate == *obligation
+                    )
+                })
+                .expect("pre-cast divide/remainder obligation retains its exact operation");
+            assert_eq!(
+                TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+                1
+            );
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(evidence.route, EvidenceRoute::CertificateDerived(_))
+            }));
+        }
+    }
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let (nested_shift_right_obligations, middle_shift_count) = operations
         .iter()
@@ -6257,6 +6391,27 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == cast_then_divide_remainder_obligation
         ));
     }
+    for divide_remainder_chain_cast_obligation in divide_chain_cast_obligations
+        .into_iter()
+        .chain(mixed_divide_remainder_cast_obligations)
+        .chain(signed_remainder_cast_obligations)
+        .chain(cross_remainder_cast_obligations)
+    {
+        let mut missing_divide_remainder_chain_cast_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_divide_remainder_chain_cast_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != divide_remainder_chain_cast_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_divide_remainder_chain_cast_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == divide_remainder_chain_cast_obligation
+        ));
+    }
     for nested_shift_right_obligation in nested_shift_right_obligations {
         let mut missing_nested_shift_right_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -6602,6 +6757,31 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if cast_then_divide_remainder_obligations.contains(&obligation)
+    ));
+    let mut changed_divide_remainder_chain_cast_divisor =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_divisor = changed_divide_remainder_chain_cast_divisor
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(mixed_cast_divisor)
+        })
+        .expect("pre-cast divide/remainder landed divisor operation");
+    changed_divisor.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(300),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_divide_remainder_chain_cast_divisor,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if mixed_divide_remainder_cast_obligations.contains(&obligation)
     ));
     let mut changed_middle_factor = decode_module(&semantics).expect("decode shared semantics");
     let changed_factor = changed_middle_factor
@@ -7323,17 +7503,24 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         negative_subtrahend,
         signed_count,
         enabled,
+        wide,
     ) in [
         (
             3_u128, 4_u128, 2_u128, 1_u128, -1_i128, 2_i128, 2_i128, -2_i128, -1_i128, 200_u128,
-            55_u128, 3_i128, -3_i128, 3_i128, -3_i128, 1_i128, false,
+            55_u128, 3_i128, -3_i128, 3_i128, -3_i128, 1_i128, false, 512_u128,
         ),
         (
-            3, 4, 2, 1, -1, 2, 1, -3, -2, 100, 100, 1, -1, 1, -1, 1, true,
+            3, 4, 2, 1, -1, 2, 1, -3, -2, 100, 100, 1, -1, 1, -1, 1, true, 512,
         ),
-        (3, 5, 3, 2, 3, 3, 2, -4, -1, 254, 1, 2, -2, 2, -2, 2, true),
-        (4, 4, 2, 2, 4, 2, 3, -2, -3, 0, 255, 4, -4, 4, -4, 2, true),
-        (10, 4, 4, 1, -2, 0, 4, -5, -1, 42, 7, 5, -5, 5, -5, 1, true),
+        (
+            3, 5, 3, 2, 3, 3, 2, -4, -1, 254, 1, 2, -2, 2, -2, 2, true, 512,
+        ),
+        (
+            4, 4, 2, 2, 4, 2, 3, -2, -3, 0, 255, 4, -4, 4, -4, 2, true, 512,
+        ),
+        (
+            10, 4, 4, 1, -2, 0, 4, -5, -1, 42, 7, 5, -5, 5, -5, 1, true, 512,
+        ),
     ] {
         let mask = u128::from(u64::MAX);
         let bitwise_not = (!input) & mask;
@@ -7410,6 +7597,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     value: IntegerValue::Signed(signed_count),
                 },
                 TerminalScalarValue::Boolean(enabled),
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+                    value: IntegerValue::Unsigned(wide),
+                },
             ],
             &structural_arguments,
             &mut handler,
@@ -7441,6 +7632,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small / 2 < 3
                     && small % 2 <= 1
                     && ((small / 2) % 3) / 2 < 2
+                    && wide / 256 < 255
+                    && (wide / 2) % 3 < 3
+                    && signed % -3 < 3
+                    && wide % 3 < 3
                     && small / divisor < 6
                     && small % divisor <= small
                     && (small >> small) < 1

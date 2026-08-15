@@ -597,7 +597,23 @@ the source width, with `Q = 2^C`, the cast maps target interval `[L, U]` back to
 above source width an unsigned source yields zero; a signed source yields
 `-1` or `0`, so the cast is true for a signed target and requires `0 <= root`
 for an unsigned target. No shift proof is imported into the cast reconstruction.
-One sixth computed-cast exception accepts the unified finite left-associated
+A further computed-cast family accepts a finite nonempty left-associated
+same-source-carrier exact-divide/remainder chain rooted at one direct machine
+parameter when its result is carrier-total for the partial cast. Every right
+sibling is an independently landed same-carrier safe divisor. The verifier
+walks only prior canonical shrinking-prefix definitions, then replays them
+inner-to-outer from the full source-carrier interval: toward-zero division maps
+endpoints monotonically (reversing them for a negative divisor), while
+remainder uses the dividend-sign interval hull clipped by `abs(divisor) - 1`.
+The family is retained only when the final hull lies wholly inside the target
+carrier. No guard-sensitive or nonconvex preimage, operation proof, or evidence
+is imported into the cast; every divide/remainder prefix and the cast retain
+independent evidence. Noncontained hulls, zero, signed `-1`, runtime, computed,
+or mistyped divisors, literal-left or right-associated shapes, mixed carriers,
+local or block roots, intervening operations or casts, non-native, identity,
+widening, or invalid casts, malformed, stale, or out-of-order definitions,
+interval arithmetic failure, and stale or missing evidence remain fenced.
+A further computed-cast exception accepts the unified finite left-associated
 same-source-carrier mixed affine chain described above when it contains both an
 exact add/subtract and an exact multiply. The cast is validator-legal and
 partial, the root is one direct machine parameter, every right sibling is an
