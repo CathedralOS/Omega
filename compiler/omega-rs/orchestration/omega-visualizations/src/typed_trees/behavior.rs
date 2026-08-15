@@ -1,28 +1,53 @@
-use psi_effects::{
-    CallOperational, MachineOperational, OperationalPlan, ServiceReachInferencePlan,
-    StateOperational,
-};
+use psi_effects::{OperationalPlan, ServiceReachInferencePlan};
 use psi_language_semantics::{
     BlockingSummary, ServiceReachRowTable, ServiceReachSummary, SuspensionSummary,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
-/// The typed-tree report's normalized behavior view. Service identities and
-/// operational possibilities stay independent; the legacy flat effect set is
-/// neither exposed nor consulted by report rendering.
+/// The typed-tree report's normalized behavior view. Service identities,
+/// suspension, and blocking stay independent; the transient operational
+/// inference carrier is projected and discarded before report rendering.
 pub(super) struct TypedBehaviorPlan {
-    operational: OperationalPlan,
     service_reaches: ServiceReachInferencePlan,
+    machines: Vec<MachineBehavior>,
+    states: Vec<StateBehavior>,
+    calls: Vec<CallBehavior>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MachineBehavior {
+    symbol: SymbolHandle,
+    suspension: SuspensionSummary,
+    blocking: BlockingSummary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StateBehavior {
+    symbol: SymbolHandle,
+    suspension: SuspensionSummary,
+    blocking: BlockingSummary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CallBehavior {
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    target_symbol: SymbolHandle,
+    suspension: SuspensionSummary,
+    blocking: BlockingSummary,
 }
 
 impl TypedBehaviorPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
         let operational = psi_effects::infer_operational_may(program);
         let service_reaches = psi_effects::infer_service_reaches(program, &operational);
+        let (machines, states, calls) = project_operational_axes(&operational);
         Self {
-            operational,
             service_reaches,
+            machines,
+            states,
+            calls,
         }
     }
 
@@ -43,13 +68,10 @@ impl TypedBehaviorPlan {
             })
             .unwrap_or_default();
         let (suspension, blocking) = self
-            .machine_operations(symbol)
-            .map(|summary| {
-                (
-                    self.machine_suspension(summary),
-                    self.machine_blocking(summary),
-                )
-            })
+            .machines
+            .iter()
+            .find(|summary| summary.symbol == symbol)
+            .map(|summary| (summary.suspension, summary.blocking))
             .unwrap_or_default();
         (service_reach, suspension, blocking)
     }
@@ -67,8 +89,10 @@ impl TypedBehaviorPlan {
             })
             .unwrap_or_default();
         let (suspension, blocking) = self
-            .state_operations(symbol)
-            .map(|summary| (self.state_suspension(summary), self.state_blocking(summary)))
+            .states
+            .iter()
+            .find(|summary| summary.symbol == symbol)
+            .map(|summary| (summary.suspension, summary.blocking))
             .unwrap_or_default();
         (service_reach, suspension, blocking)
     }
@@ -97,106 +121,193 @@ impl TypedBehaviorPlan {
             })
             .unwrap_or_default();
         let (suspension, blocking) = self
-            .call_operations(state_symbol, statement_index, target_symbol)
-            .map(call_summaries)
+            .calls
+            .iter()
+            .find(|summary| {
+                summary.state_symbol == state_symbol
+                    && summary.statement_index == statement_index
+                    && summary.target_symbol == target_symbol
+            })
+            .map(|summary| (summary.suspension, summary.blocking))
             .unwrap_or_default();
         (service_reach, suspension, blocking)
     }
+}
 
-    fn machine_operations(&self, symbol: SymbolHandle) -> Option<&MachineOperational> {
-        self.operational
-            .machines()
+fn project_operational_axes(
+    operational: &OperationalPlan,
+) -> (Vec<MachineBehavior>, Vec<StateBehavior>, Vec<CallBehavior>) {
+    let mut machines = Vec::new();
+    let mut states = Vec::new();
+    let mut calls = Vec::new();
+
+    for machine in operational.machines() {
+        let machine_states = operational.states.span_or_empty(machine.states);
+        let direct_may_suspend = machine_states
             .iter()
-            .find(|summary| summary.symbol == symbol)
+            .any(|state| state_direct_may_suspend(operational, state));
+        let direct_may_block = machine_states
+            .iter()
+            .any(|state| state_direct_may_block(operational, state));
+        machines.push(MachineBehavior {
+            symbol: machine.symbol,
+            suspension: SuspensionSummary {
+                direct_may_suspend,
+                transitive_may_suspend: machine.transitive_may_suspend,
+            },
+            blocking: BlockingSummary {
+                direct_may_block,
+                transitive_may_block: machine.transitive_may_block,
+            },
+        });
+
+        for state in machine_states {
+            states.push(StateBehavior {
+                symbol: state.symbol,
+                suspension: SuspensionSummary {
+                    direct_may_suspend: state_direct_may_suspend(operational, state),
+                    transitive_may_suspend: state.transitive_may_suspend,
+                },
+                blocking: BlockingSummary {
+                    direct_may_block: state_direct_may_block(operational, state),
+                    transitive_may_block: state.transitive_may_block,
+                },
+            });
+            for call in operational.calls.span_or_empty(state.calls) {
+                calls.push(CallBehavior {
+                    state_symbol: state.symbol,
+                    statement_index: call.statement_index,
+                    target_symbol: call.target_state_symbol,
+                    suspension: SuspensionSummary {
+                        direct_may_suspend: call.direct_may_suspend,
+                        transitive_may_suspend: call.transitive_may_suspend,
+                    },
+                    blocking: BlockingSummary {
+                        direct_may_block: call.direct_may_block,
+                        transitive_may_block: call.transitive_may_block,
+                    },
+                });
+            }
+        }
     }
 
-    fn state_operations(&self, symbol: SymbolHandle) -> Option<&StateOperational> {
-        self.operational
-            .machines()
-            .iter()
-            .flat_map(|machine| self.operational.states.span_or_empty(machine.states))
-            .find(|summary| summary.symbol == symbol)
-    }
+    (machines, states, calls)
+}
 
-    fn call_operations(
-        &self,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        target_symbol: SymbolHandle,
-    ) -> Option<&CallOperational> {
-        let state = self.state_operations(state_symbol)?;
-        self.operational
+fn state_direct_may_suspend(
+    operational: &OperationalPlan,
+    state: &psi_effects::StateOperational,
+) -> bool {
+    state.direct_may_suspend
+        || operational
             .calls
             .span_or_empty(state.calls)
             .iter()
-            .find(|summary| {
-                summary.statement_index == statement_index
-                    && summary.target_state_symbol == target_symbol
-            })
-    }
-
-    fn machine_suspension(&self, machine: &MachineOperational) -> SuspensionSummary {
-        let mut direct_may_suspend = false;
-        for state in self.operational.states.span_or_empty(machine.states) {
-            direct_may_suspend |= self.state_direct_may_suspend(state);
-        }
-        SuspensionSummary {
-            direct_may_suspend,
-            transitive_may_suspend: machine.transitive_may_suspend,
-        }
-    }
-
-    fn machine_blocking(&self, machine: &MachineOperational) -> BlockingSummary {
-        let mut direct_may_block = false;
-        for state in self.operational.states.span_or_empty(machine.states) {
-            direct_may_block |= self.state_direct_may_block(state);
-        }
-        BlockingSummary {
-            direct_may_block,
-            transitive_may_block: machine.transitive_may_block,
-        }
-    }
-
-    fn state_suspension(&self, state: &StateOperational) -> SuspensionSummary {
-        SuspensionSummary {
-            direct_may_suspend: self.state_direct_may_suspend(state),
-            transitive_may_suspend: state.transitive_may_suspend,
-        }
-    }
-
-    fn state_blocking(&self, state: &StateOperational) -> BlockingSummary {
-        BlockingSummary {
-            direct_may_block: self.state_direct_may_block(state),
-            transitive_may_block: state.transitive_may_block,
-        }
-    }
-
-    fn state_direct_may_suspend(&self, state: &StateOperational) -> bool {
-        let mut direct_may_suspend = state.direct_may_suspend;
-        for call in self.operational.calls.span_or_empty(state.calls) {
-            direct_may_suspend |= call.direct_may_suspend;
-        }
-        direct_may_suspend
-    }
-
-    fn state_direct_may_block(&self, state: &StateOperational) -> bool {
-        let mut direct_may_block = state.direct_may_block;
-        for call in self.operational.calls.span_or_empty(state.calls) {
-            direct_may_block |= call.direct_may_block;
-        }
-        direct_may_block
-    }
+            .any(|call| call.direct_may_suspend)
 }
 
-fn call_summaries(call: &CallOperational) -> (SuspensionSummary, BlockingSummary) {
-    (
-        SuspensionSummary {
-            direct_may_suspend: call.direct_may_suspend,
-            transitive_may_suspend: call.transitive_may_suspend,
-        },
-        BlockingSummary {
-            direct_may_block: call.direct_may_block,
-            transitive_may_block: call.transitive_may_block,
-        },
-    )
+fn state_direct_may_block(
+    operational: &OperationalPlan,
+    state: &psi_effects::StateOperational,
+) -> bool {
+    state.direct_may_block
+        || operational
+            .calls
+            .span_or_empty(state.calls)
+            .iter()
+            .any(|call| call.direct_may_block)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_arena::HandleSpan;
+    use psi_effects::{CallOperational, MachineOperational, StateOperational};
+
+    fn operational_fixture() -> (OperationalPlan, SymbolHandle, SymbolHandle, SymbolHandle) {
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+        let target_symbol = SymbolHandle::from_arena_index(3);
+        let mut operational = OperationalPlan::default();
+        let mut calls = HandleSpan::empty();
+        operational.calls.append_to_span(
+            &mut calls,
+            CallOperational {
+                statement_index: 7,
+                target_state_symbol: target_symbol,
+                direct_may_suspend: true,
+                transitive_may_suspend: true,
+                direct_may_block: false,
+                transitive_may_block: false,
+                ..Default::default()
+            },
+        );
+        let mut states = HandleSpan::empty();
+        operational.states.append_to_span(
+            &mut states,
+            StateOperational {
+                symbol: state_symbol,
+                direct_may_block: true,
+                transitive_may_suspend: true,
+                transitive_may_block: false,
+                calls,
+                ..Default::default()
+            },
+        );
+        operational.machines.append_to_span(
+            &mut operational.root_machines,
+            MachineOperational {
+                symbol: machine_symbol,
+                transitive_may_suspend: true,
+                transitive_may_block: false,
+                states,
+                ..Default::default()
+            },
+        );
+        (operational, machine_symbol, state_symbol, target_symbol)
+    }
+
+    #[test]
+    fn projection_keeps_suspension_and_blocking_orthogonal() {
+        let (operational, machine_symbol, state_symbol, target_symbol) = operational_fixture();
+        let (machines, states, calls) = project_operational_axes(&operational);
+
+        assert_eq!(
+            machines[0],
+            MachineBehavior {
+                symbol: machine_symbol,
+                suspension: SuspensionSummary {
+                    direct_may_suspend: true,
+                    transitive_may_suspend: true,
+                },
+                blocking: BlockingSummary {
+                    direct_may_block: true,
+                    transitive_may_block: false,
+                },
+            }
+        );
+        assert_eq!(states[0].symbol, state_symbol);
+        assert!(states[0].suspension.direct_may_suspend);
+        assert!(states[0].blocking.direct_may_block);
+        assert_eq!(calls[0].target_symbol, target_symbol);
+        assert!(calls[0].suspension.transitive_may_suspend);
+        assert!(!calls[0].blocking.transitive_may_block);
+    }
+
+    #[test]
+    fn retained_axes_default_for_unknown_exact_coordinates() {
+        let (operational, _, _, _) = operational_fixture();
+        let (machines, states, calls) = project_operational_axes(&operational);
+        let behavior = TypedBehaviorPlan {
+            service_reaches: ServiceReachInferencePlan::default(),
+            machines,
+            states,
+            calls,
+        };
+        let unknown = SymbolHandle::from_arena_index(99);
+
+        assert_eq!(behavior.machine(unknown), Default::default());
+        assert_eq!(behavior.state(unknown), Default::default());
+        assert_eq!(behavior.call(unknown, 99, unknown), Default::default());
+    }
 }
