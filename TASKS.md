@@ -354,6 +354,15 @@ Remaining:
   target interval with the source carrier, and reconstructs source-root bounds;
   the cast and every shift retain separate evidence. Mathematical emptiness is
   falsehood, while checked transfer failure admits no family.
+  A unified finite exact-arithmetic prefix may now feed a finite exact-shift
+  suffix on the same fixed-native carrier when the arithmetic prefix is a
+  left-associated add/subtract/nonnegative-multiply literal chain and the
+  suffix contains at least one exact-left shift. Every left prefix maps its
+  safe interval backward through prior shifts and the checked affine form
+  `A * root + B`; every arithmetic operation, count, and left prefix retains
+  independent evidence. `A == 0` decides only the current left obligation,
+  mathematical emptiness is falsehood, and checked replay failure admits no
+  family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

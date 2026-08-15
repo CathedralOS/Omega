@@ -545,6 +545,20 @@ source-root bounds. The direct cast proof, every left-prefix proof, and every
 right count proof remain independently mandatory. Mathematical emptiness is
 canonical falsehood; checked transfer failure admits no family. Homogeneous
 post-cast shift chains stay on their narrower existing paths.
+One unified cross-family composition admits a finite nonempty left-associated
+same-carrier arithmetic prefix over exact add, subtract, and nonnegative
+multiply by landed same-carrier literals, followed by a finite nonempty shift
+suffix with independently landed heterogeneous legal counts and at least one
+exact-left shift. For every left prefix the verifier first maps its safe input
+interval backward through the prior canonical left/right shift definitions,
+then composes the arithmetic definitions as checked `A * root + B` and maps the
+surviving interval back to the direct machine parameter. `A == 0` decides only
+that left-prefix proposition from `B`; every arithmetic-prefix proof and every
+shift proof remains independently mandatory. Mathematical emptiness is
+canonical falsehood, while checked affine or interval transfer failure admits
+no family. Right-only suffixes, runtime or computed siblings/counts, negative
+factors, non-left-associated shapes, casts, shells, and non-parameter roots
+remain fenced.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
