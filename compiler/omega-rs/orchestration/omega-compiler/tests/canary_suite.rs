@@ -16153,10 +16153,11 @@ fn runtime_literal_source_cast_exit_canary_runs() {
         "omega-runtime-literal-source-cast-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("literal source cast canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("literal source cast canary should run");
 
@@ -16224,9 +16225,10 @@ fn runtime_flat_boolean_logic_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_flat_boolean_logic_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-flat-boolean-logic-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("flat-boolean-logic canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("flat-boolean-logic canary should run");
     assert_eq!(
@@ -16272,10 +16274,11 @@ fn runtime_conformance_item_exit_canary_runs() {
         "omega-runtime-conformance-item-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("conformance item canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("conformance item canary should run");
 
@@ -16557,10 +16560,11 @@ fn runtime_data_properties_exit_canary_runs() {
         "omega-runtime-data-properties-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("data properties canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("data properties canary should run");
 
@@ -16732,10 +16736,11 @@ fn runtime_unsigned_min_max_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_min_max_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-min-max-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned min/max canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsigned min/max canary should run");
 
@@ -18964,10 +18969,11 @@ fn executable_imported_domain_membership_intersection_guard_exit_canary_runs() {
         "omega-runtime-imported-domain-membership-intersection-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership intersection guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("executable imported domain membership intersection guard canary should run");
 
@@ -18989,10 +18995,11 @@ fn executable_imported_domain_membership_union_guard_exit_canary_runs() {
         "omega-runtime-imported-domain-membership-union-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership union guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("executable imported domain membership union guard canary should run");
 
@@ -19089,10 +19096,11 @@ fn executable_domain_membership_intersection_value_exit_canary_runs() {
         "omega-runtime-domain-membership-intersection-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable domain membership intersection value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("executable domain membership intersection value canary should run");
 
@@ -19114,10 +19122,11 @@ fn executable_imported_domain_membership_union_value_exit_canary_runs() {
         "omega-runtime-imported-domain-membership-union-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership union value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("executable imported domain membership union value canary should run");
 
@@ -19140,10 +19149,11 @@ fn executable_imported_domain_membership_intersection_value_exit_canary_runs() {
         "omega-runtime-imported-domain-membership-intersection-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership intersection value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("executable imported domain membership intersection value canary should run");
 
@@ -46205,6 +46215,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_narrow_signed_wrap_boundaries_exit",
     "arithmetic/runtime_saturating_narrow_divide_exit",
     "arithmetic/runtime_unsigned_high_bit_u32_ops_exit",
+    "arithmetic/runtime_unsigned_min_max_exit",
+    "data/runtime_data_properties_exit",
+    "domains/executable_domain_membership_intersection_value_exit",
+    "domains/executable_imported_domain_membership_intersection_guard_exit",
+    "domains/executable_imported_domain_membership_intersection_value_exit",
+    "domains/executable_imported_domain_membership_union_guard_exit",
+    "domains/executable_imported_domain_membership_union_value_exit",
+    "expressions/runtime_flat_boolean_logic_exit",
+    "expressions/runtime_literal_source_cast_exit",
+    "traits/runtime_conformance_item_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46731,6 +46751,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_narrow_signed_wrap_boundaries_exit",
     "arithmetic/runtime_saturating_narrow_divide_exit",
     "arithmetic/runtime_unsigned_high_bit_u32_ops_exit",
+    "arithmetic/runtime_unsigned_min_max_exit",
+    "data/runtime_data_properties_exit",
+    "domains/executable_domain_membership_intersection_value_exit",
+    "domains/executable_imported_domain_membership_intersection_guard_exit",
+    "domains/executable_imported_domain_membership_intersection_value_exit",
+    "domains/executable_imported_domain_membership_union_guard_exit",
+    "domains/executable_imported_domain_membership_union_value_exit",
+    "expressions/runtime_flat_boolean_logic_exit",
+    "expressions/runtime_literal_source_cast_exit",
+    "traits/runtime_conformance_item_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
