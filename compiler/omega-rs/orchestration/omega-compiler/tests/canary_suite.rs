@@ -33807,18 +33807,12 @@ fn runtime_stderr_write_exit_canary_runs() {
     // its text on stderr only, leaving stdout empty, and exit with the requested
     // code.
     let canary = pass_canary("text/runtime_stderr_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-stderr-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime stderr write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime stderr write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .stdout(Stdio::piped())
@@ -45620,6 +45614,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
     "text/runtime_text_builder",
+    "text/runtime_stderr_write_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_instant_elapsed_exit",
