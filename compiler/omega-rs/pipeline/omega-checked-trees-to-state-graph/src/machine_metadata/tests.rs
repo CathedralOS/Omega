@@ -130,49 +130,75 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
     assert_eq!(contained[0].type_name.as_str(), "Worker");
 }
 
+fn push_operational_contract(
+    program: &mut CheckedTrees,
+    machine_symbol: SymbolHandle,
+    checked_may_suspend: bool,
+    checked_may_block: bool,
+) {
+    program
+        .facts
+        .contract_plans
+        .machines
+        .push(psi_checked_trees::MachineContractPlan {
+            machine: machine_symbol,
+            supply_mode: Default::default(),
+            service_reach: Default::default(),
+            synchronous_invocation: Default::default(),
+            suspension: psi_language_semantics::SuspensionPlan {
+                checked_may_suspend,
+                ..Default::default()
+            },
+            blocking: psi_language_semantics::BlockingPlan {
+                checked_may_block,
+                ..Default::default()
+            },
+            closed_scalar_values: Default::default(),
+            crash: Default::default(),
+            termination: Default::default(),
+            inferred_write_frames: Vec::new(),
+            fingerprint: 0,
+        });
+}
+
+fn push_operational_flow_state(
+    program: &mut CheckedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    suspension: psi_language_semantics::SuspensionSummary,
+    blocking: psi_language_semantics::BlockingSummary,
+) {
+    program
+        .facts
+        .flow
+        .control
+        .states
+        .insert(psi_checked_trees::FlowStateFact {
+            machine_symbol,
+            state_symbol,
+            suspension,
+            blocking,
+            ..Default::default()
+        });
+}
+
 #[test]
 fn graph_metadata_publishes_suspension_without_blocking() {
     let machine_symbol = SymbolHandle::from_arena_index(21);
     let state_symbol = SymbolHandle::from_arena_index(22);
 
     let mut program = CheckedTrees::default();
-    let calls = program
-        .facts
-        .operational
-        .calls
-        .insert_many([Default::default()]);
-    {
-        let call = &mut program.facts.operational.calls.span_mut_or_empty(calls)[0];
-        call.direct_may_suspend = true;
-        call.transitive_may_suspend = true;
-    }
-    let states = program
-        .facts
-        .operational
-        .states
-        .insert_many([Default::default()]);
-    {
-        let state = &mut program.facts.operational.states.span_mut_or_empty(states)[0];
-        state.symbol = state_symbol;
-        state.transitive_may_suspend = true;
-        state.calls = calls;
-    }
-    let machines = program
-        .facts
-        .operational
-        .machines
-        .insert_many([Default::default()]);
-    {
-        let machine = &mut program
-            .facts
-            .operational
-            .machines
-            .span_mut_or_empty(machines)[0];
-        machine.symbol = machine_symbol;
-        machine.transitive_may_suspend = true;
-        machine.states = states;
-    }
-    program.facts.operational.root_machines = machines;
+    push_operational_contract(&mut program, machine_symbol, true, false);
+    push_operational_flow_state(
+        &mut program,
+        machine_symbol,
+        state_symbol,
+        psi_language_semantics::SuspensionSummary {
+            direct_may_suspend: true,
+            transitive_may_suspend: true,
+        },
+        Default::default(),
+    );
 
     assert_eq!(
         machine_suspension_summary(&program, machine_symbol),
@@ -194,6 +220,72 @@ fn graph_metadata_publishes_suspension_without_blocking() {
     );
     assert_eq!(
         state_blocking_summary(&program, state_symbol),
+        psi_language_semantics::BlockingSummary::default()
+    );
+}
+
+#[test]
+fn graph_metadata_publishes_blocking_without_suspension() {
+    let machine_symbol = SymbolHandle::from_arena_index(31);
+    let state_symbol = SymbolHandle::from_arena_index(32);
+
+    let mut program = CheckedTrees::default();
+    push_operational_contract(&mut program, machine_symbol, false, true);
+    push_operational_flow_state(
+        &mut program,
+        machine_symbol,
+        state_symbol,
+        Default::default(),
+        psi_language_semantics::BlockingSummary {
+            direct_may_block: true,
+            transitive_may_block: true,
+        },
+    );
+
+    assert_eq!(
+        machine_suspension_summary(&program, machine_symbol),
+        psi_language_semantics::SuspensionSummary::default()
+    );
+    assert_eq!(
+        machine_blocking_summary(&program, machine_symbol),
+        psi_language_semantics::BlockingSummary {
+            direct_may_block: true,
+            transitive_may_block: true,
+        }
+    );
+    assert_eq!(
+        state_suspension_summary(&program, state_symbol),
+        psi_language_semantics::SuspensionSummary::default()
+    );
+    assert_eq!(
+        state_blocking_summary(&program, state_symbol),
+        psi_language_semantics::BlockingSummary {
+            direct_may_block: true,
+            transitive_may_block: true,
+        }
+    );
+}
+
+#[test]
+fn graph_metadata_defaults_unknown_operational_symbols() {
+    let program = CheckedTrees::default();
+    let unknown_machine = SymbolHandle::from_arena_index(41);
+    let unknown_state = SymbolHandle::from_arena_index(42);
+
+    assert_eq!(
+        machine_suspension_summary(&program, unknown_machine),
+        psi_language_semantics::SuspensionSummary::default()
+    );
+    assert_eq!(
+        machine_blocking_summary(&program, unknown_machine),
+        psi_language_semantics::BlockingSummary::default()
+    );
+    assert_eq!(
+        state_suspension_summary(&program, unknown_state),
+        psi_language_semantics::SuspensionSummary::default()
+    );
+    assert_eq!(
+        state_blocking_summary(&program, unknown_state),
         psi_language_semantics::BlockingSummary::default()
     );
 }
