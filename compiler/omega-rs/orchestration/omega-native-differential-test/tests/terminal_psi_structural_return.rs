@@ -847,6 +847,112 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
 }
 
 #[test]
+fn exact_right_then_left_shift_chains_emit_on_every_native_target() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+
+        data Root {}
+        machine Root::measure(
+            token: Token,
+            value: u8,
+            signed: i8,
+            enabled: bool
+        ) -> bool
+        requires value <= 31u8, -32i8 <= signed, signed <= 31i8, 0i8 <= signed
+        {
+            ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
+                && (((value >> 1i8) << 4u16) < 255u8))
+                && ((((signed >> 1u8) << 3i16) < 127i8)
+                    && (((((signed >> 7i8) >> 1u16) << 7i32) << 1u64) < 127i8))
+                && (((((value >> 7i8) >> 1u16) << 7i32) << 7u64) < 255u8)
+                && enabled
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize mixed shifts");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed shifts");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed shifts");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type mixed shifts");
+    let checked = lower_typed_trees(typed).expect("check mixed shifts");
+    let lowered = lower_machine(&checked, "Root::measure")
+        .expect("mixed shifts reach terminal Psi with nominal cleanup");
+    let operations = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerShiftRight { .. }
+            ))
+            .count(),
+        8,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerShiftLeft { .. }
+            ))
+            .count(),
+        8,
+    );
+    verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed-shift proofs verify independently");
+    let semantics = encode_module(&lowered.semantic_module).expect("mixed-shift semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("mixed-shift proof");
+    let abstract_plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("mixed shifts cross the Omega boundary");
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::ExactIntegerShiftRight { .. }
+            ))
+            .count(),
+        8,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
+            ))
+            .count(),
+        8,
+    );
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering: {error:?}", case.target));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment: {error:?}", case.target));
+        emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission: {error:?}", case.target));
+    }
+}
+
+#[test]
 fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_targets() {
     let source = r#"
         data Helper {}

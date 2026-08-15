@@ -11237,6 +11237,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
+                .or_else(|| shared_exact_shift_right_then_left_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_shift_left_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_left_chain_runtime_parameters(expression))
         }
@@ -12364,21 +12365,103 @@ fn safe_exact_shift_landed_literal_count(
     value_type: IntegerType,
     expression: &LoweredDirectExpression,
 ) -> bool {
+    landed_exact_shift_literal_count(value_type, expression).is_some()
+}
+
+fn landed_exact_shift_literal_count(
+    value_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> Option<u128> {
     let LoweredDirectExpression::IntegerLiteral {
         value,
         scalar_type: ScalarType::Integer(count_type),
     } = expression
     else {
-        return false;
+        return None;
     };
     if !native_fixed_integer_type(*count_type) {
-        return false;
+        return None;
     }
     let count = match value {
         IntegerValue::Signed(value) => u128::try_from(*value).ok(),
         IntegerValue::Unsigned(value) => Some(*value),
     };
-    count.is_some_and(|count| count < u128::from(value_type.bits()))
+    count.filter(|count| *count < u128::from(value_type.bits()))
+}
+
+fn shared_exact_shift_right_then_left_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut value_type = None;
+    let mut cumulative_left = 0_u128;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*integer_type)
+            || value_type.is_some_and(|value_type| value_type != *integer_type)
+        {
+            return None;
+        }
+        value_type = Some(*integer_type);
+        cumulative_left =
+            cumulative_left.checked_add(landed_exact_shift_literal_count(*integer_type, right)?)?;
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+                ..
+            } => expression = nested,
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => {
+                expression = nested;
+                break;
+            }
+            _ => return None,
+        }
+    }
+
+    let value_type = value_type?;
+    let mut cumulative_right = 0_u128;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftRight,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if *integer_type != value_type {
+            return None;
+        }
+        cumulative_right = cumulative_right
+            .checked_add(landed_exact_shift_literal_count(*integer_type, right)?)?;
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == value_type => {
+                let _ = (cumulative_left, cumulative_right);
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn shared_exact_shift_left_chain_runtime_parameters(

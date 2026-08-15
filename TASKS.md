@@ -334,6 +334,14 @@ Remaining:
   restricted to the first direct-root operation when its dividend bound is
   independently available; computed and post-cast dividends import no prior
   proof authority. Literal-only chains remain on their existing paths.
+  A finite nonempty same-carrier exact-right-shift chain may now feed a finite
+  nonempty exact-left-shift chain from one direct machine-parameter root, with
+  independently landed heterogeneous legal counts. Every left prefix replays
+  cumulative left and right counts, maps its left-safe quotient interval back
+  through arithmetic/zero-fill right-shift semantics, and retains independent
+  evidence. Width-saturated unsigned chains are zero; signed chains are `-1` or
+  zero and require a nonnegative root only when a left prefix reaches the value
+  width. No prior shift proof supplies authority.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

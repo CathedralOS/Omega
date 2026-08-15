@@ -16,6 +16,7 @@ use crate::flow::{
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
+    exact_shift_right_then_left_runtime_parameter_positions_for_test,
 };
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedScalarExpression,
@@ -1968,6 +1969,130 @@ fn exact_runtime_divisor_chain_classifier_unifies_direct_and_partial_cast_roots(
     );
     assert_eq!(
         exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&invalid_cast_root, 2),
+        None,
+    );
+}
+
+#[test]
+fn exact_shift_right_then_left_classifier_accepts_only_one_ordered_mixed_chain() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let shift = |kind, value_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: value_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let right = shift(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    let mixed = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            right.clone(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    assert_eq!(
+        exact_shift_right_then_left_runtime_parameter_positions_for_test(&mixed, 1),
+        Some(vec![0]),
+    );
+
+    let homogeneous = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_right_then_left_runtime_parameter_positions_for_test(&homogeneous, 1),
+        None,
+    );
+    let reversed = shift(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_right_then_left_runtime_parameter_positions_for_test(&reversed, 1),
+        None,
+    );
+    let runtime_count = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            parameter(1, PrimitiveType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_right_then_left_runtime_parameter_positions_for_test(&runtime_count, 2),
+        None,
+    );
+    let mismatched = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U16,
+            parameter(0, PrimitiveType::U16),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_right_then_left_runtime_parameter_positions_for_test(&mismatched, 1),
+        None,
+    );
+    let address = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::Addr,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::Addr,
+            parameter(0, PrimitiveType::Addr),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_right_then_left_runtime_parameter_positions_for_test(&address, 1),
         None,
     );
 }

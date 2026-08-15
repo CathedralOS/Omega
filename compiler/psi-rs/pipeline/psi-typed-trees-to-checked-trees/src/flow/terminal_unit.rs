@@ -1772,6 +1772,12 @@ fn shared_integer_runtime_inputs_with_shells(
             };
             collect_direct()
                 .or_else(|| {
+                    shared_exact_shift_right_then_left_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_shift_left_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -3311,15 +3317,22 @@ fn safe_exact_shift_literal_count(
     value_type: PrimitiveType,
     expression: &CheckedScalarExpression,
 ) -> bool {
+    landed_exact_shift_literal_count(value_type, expression).is_some()
+}
+
+fn landed_exact_shift_literal_count(
+    value_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+) -> Option<u128> {
     let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
-        return false;
+        return None;
     };
     let maximum = match value_type {
         PrimitiveType::I8 | PrimitiveType::U8 => 7,
         PrimitiveType::I16 | PrimitiveType::U16 => 15,
         PrimitiveType::I32 | PrimitiveType::U32 => 31,
         PrimitiveType::I64 | PrimitiveType::U64 => 63,
-        _ => return false,
+        _ => return None,
     };
     let landing = match literal.landing().map(|landing| landing.landed_type) {
         Some(psi_numerics::literals::LandedIntegerType::I8)
@@ -3332,9 +3345,97 @@ fn safe_exact_shift_literal_count(
         | Some(psi_numerics::literals::LandedIntegerType::U16)
         | Some(psi_numerics::literals::LandedIntegerType::U32)
         | Some(psi_numerics::literals::LandedIntegerType::U64) => literal.value_u64(),
-        _ => return false,
+        _ => return None,
     };
-    landing.is_some_and(|count| count <= maximum)
+    landing.filter(|count| *count <= maximum).map(u128::from)
+}
+
+fn shared_exact_shift_right_then_left_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut value_type = None;
+    let mut cumulative_left = 0_u128;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactShiftLeft,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if value_type.is_some_and(|value_type| value_type != *primitive_type) {
+            return None;
+        }
+        value_type = Some(*primitive_type);
+        cumulative_left = cumulative_left
+            .checked_add(landed_exact_shift_literal_count(*primitive_type, right)?)?;
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactShiftLeft,
+                ..
+            } => expression = nested,
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => {
+                expression = nested;
+                break;
+            }
+            _ => return None,
+        }
+    }
+
+    let value_type = value_type?;
+    let mut cumulative_right = 0_u128;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactShiftRight,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if *primitive_type != value_type {
+            return None;
+        }
+        cumulative_right = cumulative_right
+            .checked_add(landed_exact_shift_literal_count(*primitive_type, right)?)?;
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if *root_type == value_type && *position < scalar_parameter_count => {
+                let _ = (cumulative_left, cumulative_right);
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_shift_right_then_left_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_shift_right_then_left_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 fn shared_exact_shift_left_chain_runtime_inputs(

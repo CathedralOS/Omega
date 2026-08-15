@@ -1652,6 +1652,34 @@ requires value <= 2147483647u32, value <= 536870911u32
     (((value << 1u8) << 2i16) << 0u32) < 4294967295u32
 }
 
+machine terminal_exact_shift_right_then_left_balanced(value: u8, enabled: bool) -> bool
+{
+    (((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8) && enabled
+}
+
+machine terminal_exact_shift_right_then_left_unsigned_bounded(value: u8, enabled: bool) -> bool
+requires value <= 31u8
+{
+    (((value >> 1i8) << 4u16) < 255u8) && enabled
+}
+
+machine terminal_exact_shift_right_then_left_signed_bounded(value: i8, enabled: bool) -> bool
+requires -32i8 <= value, value <= 31i8
+{
+    (((value >> 1u8) << 3i16) < 127i8) && enabled
+}
+
+machine terminal_exact_shift_right_then_left_signed_saturated(value: i8, enabled: bool) -> bool
+requires 0i8 <= value
+{
+    (((((value >> 7i8) >> 1u16) << 7i32) << 1u64) < 127i8) && enabled
+}
+
+machine terminal_exact_shift_right_then_left_unsigned_saturated(value: u8, enabled: bool) -> bool
+{
+    (((((value >> 7i8) >> 1u16) << 7i32) << 7u64) < 255u8) && enabled
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
