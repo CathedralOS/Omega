@@ -1,9 +1,9 @@
 // The recursive value call's result in EVERY consumer ROLE the aggregate
 // unserved-recursive-call-result sweep serves beyond the let binding: a
 // GUARD subject (`transition self.countdown(..) == 5`) and a TRANSITION
-// ARGUMENT (`true -> fwd(self.countdown(..))`). (The value-call-ARG role is NOT here:
-// nesting is loudly fenced, and the fence's bind-first spelling exposed a
-// live divergence -- see pending/calls/recursive_result_bind_first_arg.) Each countdown re-enters its own entry
+// ARGUMENT (`true -> fwd(self.countdown(..))`). The value-call-ARG role is
+// pinned separately through the bind-first spelling in
+// pass/calls/recursive_result_bind_first_arg. Each countdown re-enters its own entry
 // (transition-arg self-recursion, measure-proved) and must deliver its
 // terminal 5 through the role's slot. Exit 70; distinct exits per role.
 use omega::language::std::console;
