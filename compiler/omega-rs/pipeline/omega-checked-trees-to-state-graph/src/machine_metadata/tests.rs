@@ -149,14 +149,21 @@ fn push_operational_contract(
         });
     program
         .facts
+        .blocking
+        .machines
+        .push(psi_checked_trees::MachineBlockingFact {
+            machine: machine_symbol,
+            plan: psi_language_semantics::BlockingPlan {
+                checked_may_block,
+                ..Default::default()
+            },
+        });
+    program
+        .facts
         .contract_plans
         .machines
         .push(psi_checked_trees::MachineContractPlan {
             machine: machine_symbol,
-            blocking: psi_language_semantics::BlockingPlan {
-                checked_may_block,
-                ..Default::default()
-            },
             closed_scalar_values: Default::default(),
             crash: Default::default(),
             termination: Default::default(),

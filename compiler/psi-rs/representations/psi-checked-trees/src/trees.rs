@@ -1,5 +1,5 @@
 use crate::{
-    BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
+    BlockingFacts, BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
     DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, InvariantFacts,
     MachineContractPlans, MutationFacts, ProofFacts, QualificationFacts, ServiceReachFacts,
     SuspensionFacts, SynchronousInvocationFacts,
@@ -34,6 +34,9 @@ pub struct CheckFacts {
     /// Exact machine-keyed suspension interface and checked inference. Worker
     /// blocking remains a separate contract axis.
     pub suspensions: SuspensionFacts,
+    /// Exact machine-keyed worker-blocking interface and checked inference.
+    /// Suspension remains a separate contract axis.
+    pub blocking: BlockingFacts,
     /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
     /// commitments each machine's body makes (arithmetic-policy casts v1).
     pub qualifications: QualificationFacts,
@@ -63,6 +66,7 @@ impl CheckFacts {
         service_reaches: ServiceReachFacts,
         synchronous_invocations: SynchronousInvocationFacts,
         suspensions: SuspensionFacts,
+        blocking: BlockingFacts,
         qualifications: QualificationFacts,
         contract_plans: MachineContractPlans,
         carry: CarryFacts,
@@ -83,6 +87,7 @@ impl CheckFacts {
             service_reaches,
             synchronous_invocations,
             suspensions,
+            blocking,
             qualifications,
             contract_plans,
             carry,

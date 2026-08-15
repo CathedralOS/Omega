@@ -124,18 +124,18 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .iter()
         .find(|machine| machine.name.as_str() == "finish")
         .expect("finish machine");
-    let finish_contract = checked
+    let finish_blocking = checked
         .facts
-        .contract_plans
+        .blocking
         .for_machine(finish.symbol)
-        .expect("finish contract plan");
+        .expect("finish blocking plan");
     let finish_suspension = checked
         .facts
         .suspensions
         .for_machine(finish.symbol)
         .expect("finish suspension plan");
     assert!(finish_suspension.checked_may_suspend);
-    assert!(finish_contract.blocking.checked_may_block);
+    assert!(finish_blocking.checked_may_block);
     let finish_flow = checked
         .facts
         .flow
@@ -229,12 +229,17 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .suspensions
         .for_machine(machine.symbol)
         .expect("run_impl suspension plan");
+    let blocking = checked
+        .facts
+        .blocking
+        .for_machine(machine.symbol)
+        .expect("run_impl blocking plan");
     assert_eq!(
         suspension.interface,
         SuspensionInterface::PublishedMaySuspend(true)
     );
     assert_eq!(
-        contract.blocking.interface,
+        blocking.interface,
         BlockingInterface::PublishedMayBlock(true)
     );
     assert_eq!(

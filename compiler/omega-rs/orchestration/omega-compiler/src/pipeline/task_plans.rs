@@ -66,6 +66,12 @@ pub(super) fn elaborate_task_activation_plans(
                 target_machine.name
             ))]);
         };
+        let Some(blocking) = program.facts.blocking.for_machine(target_machine.symbol) else {
+            return Err(vec![Diagnostic::error(format!(
+                "task activation target `{}` has no checked blocking plan",
+                target_machine.name
+            ))]);
+        };
         let machine_contract = normalized_id(
             contract.fingerprint,
             MachineContractId::from_normalized_identity,
@@ -103,7 +109,7 @@ pub(super) fn elaborate_task_activation_plans(
         )?;
 
         let may_suspend = suspension.checked_may_suspend;
-        let may_block = contract.blocking.checked_may_block;
+        let may_block = blocking.checked_may_block;
         let crossings = activation_carry_crossings(program, target_machine.symbol);
         let canonical_suspension_crossings = crossings
             .subtree
@@ -970,6 +976,23 @@ mod tests {
         assert_eq!(
             diagnostics[0].message,
             "task activation target `Worker::run` has no checked suspension plan"
+        );
+
+        let mut missing_blocking = checked.clone();
+        missing_blocking
+            .facts
+            .blocking
+            .machines
+            .retain(|fact| fact.machine != activation.target_machine);
+        let diagnostics = elaborate_task_activation_plans(
+            &missing_blocking,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("missing exact target blocking facts must fail closed");
+        assert_eq!(
+            diagnostics[0].message,
+            "task activation target `Worker::run` has no checked blocking plan"
         );
     }
 }

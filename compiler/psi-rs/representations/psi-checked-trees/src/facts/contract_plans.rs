@@ -10,8 +10,8 @@
 //! halves enter the fingerprint, never inferred rows or witnesses.
 
 use psi_language_semantics::{
-    BlockingInterface, BlockingPlan, MachineSupplyMode, SuspensionInterface,
-    SynchronousInvocationInterface, TerminationGuarantee, TerminationInterface,
+    BlockingInterface, MachineSupplyMode, SuspensionInterface, SynchronousInvocationInterface,
+    TerminationGuarantee, TerminationInterface,
 };
 use psi_numerics::literals::IntegerLiteral;
 use psi_symbols::SymbolHandle;
@@ -988,8 +988,6 @@ impl MachineContractPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
-    /// Independent authored/inferred worker-blocking axis.
-    pub blocking: BlockingPlan,
     /// Source-handle-free projection of authored value clauses into the
     /// closed reflexive scalar equality subset. An unrecognized clause is
     /// retained as `None`, so consumers fail closed without reopening typed

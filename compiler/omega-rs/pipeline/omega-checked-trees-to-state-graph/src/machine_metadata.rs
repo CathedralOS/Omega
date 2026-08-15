@@ -90,9 +90,9 @@ pub(crate) fn machine_blocking_summary(
         .any(|(_, state)| state.blocking.direct_may_block);
     let transitive_may_block = program
         .facts
-        .contract_plans
+        .blocking
         .for_machine(machine_symbol)
-        .is_some_and(|contract| contract.blocking.checked_may_block);
+        .is_some_and(|plan| plan.checked_may_block);
     BlockingSummary {
         direct_may_block,
         transitive_may_block,
