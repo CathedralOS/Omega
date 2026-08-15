@@ -657,6 +657,10 @@ impl ArtifactWriter {
         let mut output = String::new();
         output.push_str("# Omega Trust\n\n");
         output.push_str(&format!(
+            "selected provider closure: {:016x}\n\n",
+            trust_report.selected_provider_closure_fingerprint
+        ));
+        output.push_str(&format!(
             "admitted commitments: {}\n\n",
             trust_report.rows.len()
         ));
@@ -2234,6 +2238,8 @@ pub struct TrustQualificationRow {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustReport {
+    /// Deterministic identity of the complete retained selected-provider set.
+    pub selected_provider_closure_fingerprint: u64,
     pub rows: Vec<TrustReportRow>,
     pub provider_requirements: Vec<TrustProviderRequirementRow>,
     pub qualifications: Vec<TrustQualificationRow>,
@@ -2492,6 +2498,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let writer = ArtifactWriter::new(&root).expect("artifact writer");
         let report = TrustReport {
+            selected_provider_closure_fingerprint: 0xabcd,
             rows: Vec::new(),
             provider_requirements: Vec::new(),
             qualifications: vec![TrustQualificationRow {
@@ -2524,6 +2531,7 @@ mod tests {
             std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
 
         assert!(output.contains("requirement owner: Base"));
+        assert!(output.contains("selected provider closure: 000000000000abcd"));
         assert!(output.contains("provider type: RootProvider"));
         assert!(output.contains("target: windows_x64"));
         assert!(output.contains("service schema: Root"));
@@ -2547,6 +2555,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let writer = ArtifactWriter::new(&root).expect("artifact writer");
         let report = TrustReport {
+            selected_provider_closure_fingerprint: 0x5678,
             rows: Vec::new(),
             provider_requirements: vec![TrustProviderRequirementRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
@@ -2581,6 +2590,7 @@ mod tests {
             std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
 
         assert!(output.contains("provider requirements: 1"));
+        assert!(output.contains("selected provider closure: 0000000000005678"));
         assert!(output.contains("provider plan: RootProvider::satisfies::Root [0000000000001234]"));
         assert!(output.contains("provider type: <free external>"));
         assert!(output.contains("target: <all>"));

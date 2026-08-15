@@ -18,9 +18,10 @@ pub(super) fn write_trust_report(
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
-    selected_provider_plans: &[String],
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut report = TrustReport::default();
+    report.selected_provider_closure_fingerprint = selected_provider_plans.normalized_identity();
     let mut recognized_provider_grants = Vec::new();
     // PRV3: derived provider plans -- one row each, dev-active with the
     // standing warning until the final build grants the plan by name (or
@@ -28,8 +29,8 @@ pub(super) fn write_trust_report(
     for plan in provider_plans {
         let leaf = plan.schema.trait_name.as_str();
         let selected = selected_provider_plans
-            .iter()
-            .any(|selected| selected == &plan.name);
+            .plan_by_identity(plan.identity_fingerprint())
+            .is_some();
         let grant_selectors = selected
             .then(|| {
                 root_grants
