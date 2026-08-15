@@ -421,7 +421,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         input <= 127u64, input <= 42u64, input <= 31u64,
         5u64 <= input, input <= 260u64,
         small <= 254u8, small <= 253u8, small <= 252u8,
-        small <= 127u8, small <= 125u8, small <= 63u8, small <= 42u8, small <= 31u8,
+        small <= 127u8, small <= 125u8, small <= 124u8,
+        small <= 63u8, small <= 42u8, small <= 31u8,
         small <= 21u8, small <= 15u8,
         small <= 7u8, 1u8 <= small, 2u8 <= small, 3u8 <= small,
         1u8 <= divisor, divisor <= small,
@@ -430,8 +431,10 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         -64i64 <= signed, signed <= 63i64, -21i64 <= signed, signed <= 21i64,
         -16i64 <= signed, signed <= 15i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
-        -126i8 <= signed_arithmetic, signed_arithmetic <= 124i8,
+        -126i8 <= signed_arithmetic, -125i8 <= signed_arithmetic,
+        signed_arithmetic <= 124i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
+        -61i8 <= signed_arithmetic, signed_arithmetic <= 66i8,
         -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
         -3i8 <= signed_arithmetic, -1i8 <= signed_arithmetic, 0i8 <= signed_arithmetic,
         1i8 <= signed_arithmetic, 0i8 <= signed_divisor,
@@ -467,6 +470,9 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small - divisor) < 4u8)
             && ((small * 2u8) < 10u8)
             && ((((small * 2u8) * 3u8) * 1u8) < 255u8)
+            && (((((small + 3u8) * 2u8) - 1u8) < 255u8))
+            && (((((small + 3u8) * 0u8) + 255u8) < 255u8))
+            && (((((signed_arithmetic + -3i8) * 2i8) - -1i8) < 127i8))
             && (((((small * 2u8) * 3u8) as i8) < 127i8))
             && (((((small * 2u8) * 0u8) as i8) < 127i8))
             && ((small * divisor) < 50u8)
@@ -2835,6 +2841,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .iter()
         .flat_map(|block| &block.operations)
         .collect::<Vec<_>>();
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let is_u8_one = |value| {
         operations.iter().any(|operation| {
             operation.result.scalar_ref().map(|result| result.id) == Some(value)
@@ -3001,6 +3008,170 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
                 )
         }));
+    }
+    let (affine_obligations, affine_factor) = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_u8_one(right) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_u8_two(middle_right) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[1].id && is_u8_three(inner_right)).then_some((
+                [inner_obligation, middle_obligation, outer_obligation],
+                middle_right,
+            ))
+        })
+        .expect("one left-associated mixed exact-affine chain is retained");
+    let zero_affine_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(right, add_type, IntegerValue::Unsigned(255)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(middle_right, add_type, IntegerValue::Unsigned(0)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[1].id && is_u8_three(inner_right)).then_some([
+                inner_obligation,
+                middle_obligation,
+                outer_obligation,
+            ])
+        })
+        .expect("a later zero factor retains every earlier affine-prefix proof");
+    let signed_affine_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(right, i8_type, IntegerValue::Signed(-1)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(middle_right, i8_type, IntegerValue::Signed(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[5].id
+                && is_integer_constant(inner_right, i8_type, IntegerValue::Signed(-3)))
+            .then_some([inner_obligation, middle_obligation, outer_obligation])
+        })
+        .expect("one signed mixed exact-affine chain is retained");
+    for obligations in [
+        affine_obligations.as_slice(),
+        zero_affine_obligations.as_slice(),
+        signed_affine_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            let operation = operations
+                .iter()
+                .find(|operation| {
+                    matches!(operation.kind,
+                        OperationKind::ExactIntegerAdd { obligation: candidate, .. }
+                        | OperationKind::ExactIntegerSubtract { obligation: candidate, .. }
+                        | OperationKind::ExactIntegerMultiply { obligation: candidate, .. }
+                        if candidate == *obligation)
+                })
+                .expect("affine obligation retains its exact operation");
+            assert_eq!(
+                TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+                1
+            );
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(evidence.route, EvidenceRoute::CertificateDerived(_))
+            }));
+        }
     }
     let bitwise_not_exact_add_obligations = entry
         .blocks
@@ -3764,7 +3935,6 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
-    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let (nested_shift_right_obligations, middle_shift_count) = operations
@@ -4697,6 +4867,25 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ),
             Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
                 if obligation == nested_multiply_obligation
+        ));
+    }
+    for affine_obligation in affine_obligations
+        .iter()
+        .chain(&zero_affine_obligations)
+        .chain(&signed_affine_obligations)
+    {
+        let mut missing_affine_proof = decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_affine_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != *affine_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_affine_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == *affine_obligation
         ));
     }
     let mut changed_middle_addend = decode_module(&semantics).expect("decode shared semantics");
@@ -5669,6 +5858,30 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_multiply_obligations[1]
+    ));
+    let mut changed_affine_factor = decode_module(&semantics).expect("decode shared semantics");
+    let changed_factor = changed_affine_factor
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(affine_factor)
+        })
+        .expect("mixed affine chain retains its landed factor operation");
+    changed_factor.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(3),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_affine_factor,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if affine_obligations.contains(&obligation)
     ));
     let mut changed_middle_shift_count =
         decode_module(&semantics).expect("decode shared semantics");

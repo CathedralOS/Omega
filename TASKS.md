@@ -292,6 +292,15 @@ Remaining:
   evidence for the target interval shifted right by its checked cumulative
   count and intersected with the source carrier; a cumulative count at least
   the target width admits only the zero root.
+  One direct fixed-native parameter may now also root a finite left-associated
+  same-carrier affine chain that contains both an exact add/subtract offset and
+  an exact multiply. Every right sibling is an independently landed
+  same-carrier literal, multiply factors are nonnegative, and every ordered
+  prefix retains independent evidence. The verifier replays each prefix as
+  `A * parameter + B` with checked nonnegative `A` and checked signed `B`, then
+  derives the carrier preimage; constant prefixes are true or false from `B`
+  alone. A later zero factor or offset cancellation cannot erase an earlier
+  proof.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

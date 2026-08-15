@@ -1,5 +1,6 @@
 use super::*;
 use crate::flow::{
+    exact_affine_chain_runtime_parameter_positions_for_test,
     exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
@@ -1917,6 +1918,78 @@ fn shift_right_chain_exact_cast_classifier_accepts_heterogeneous_legal_counts_on
 }
 
 #[test]
+fn exact_affine_chain_classifier_accepts_only_left_associated_landed_mixed_operations() {
+    let literal = |value| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::U8,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type: PrimitiveType::U8,
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U8,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let added = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        parameter(0),
+        literal(3i64),
+    );
+    let multiplied = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        added.clone(),
+        literal(2i64),
+    );
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        multiplied,
+        literal(1i64),
+    );
+    assert_eq!(
+        exact_affine_chain_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0])
+    );
+    for invalid in [
+        added,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            parameter(0),
+            literal(2i64),
+        ),
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                parameter(0),
+                literal(1i64),
+            ),
+            parameter(0),
+        ),
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            literal(2i64),
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                parameter(0),
+                literal(1i64),
+            ),
+        ),
+    ] {
+        assert_eq!(
+            exact_affine_chain_runtime_parameter_positions_for_test(&invalid, 1),
+            None
+        );
+    }
+}
+
+#[test]
 fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     let checked = checked(
         r#"
@@ -3458,6 +3531,36 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (((input + 1u8) * 2u8) < 255u8) && enabled;
             staged
         }
+        machine Root::mixed_exact_affine_u8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 124u8
+        {
+            let staged: bool = (((((input + 3u8) * 2u8) - 1u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::mixed_exact_affine_i8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -61i8 <= input, input <= 66i8
+        {
+            let staged: bool = (((((input + -3i8) * 2i8) - -1i8) < 127i8) && enabled);
+            staged
+        }
+        machine Root::zero_factor_mixed_exact_affine_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8
+        {
+            let staged: bool = (((((input + 3u8) * 0u8) + 255u8) < 255u8) && enabled);
+            staged
+        }
         machine Root::nested_exact_cast_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -4417,7 +4520,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     for machine in [
         "two_nested_exact_add_operands_integer_comparison_convergence",
         "nested_exact_add_computed_sibling_integer_comparison_convergence",
-        "nested_exact_add_feeds_multiply_integer_comparison_convergence",
         "local_exact_add_chain_integer_comparison_convergence",
     ] {
         let wider_nested_exact_add = checked
@@ -4428,6 +4530,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .expect("wider exact-add composition retains only the source-distributed fallback");
         assert!(wider_nested_exact_add.shared_boolean_convergence.is_none());
     }
+    let affine_exact_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "nested_exact_add_feeds_multiply_integer_comparison_convergence",
+        ))
+        .expect("a finite exact affine chain retains the scalar-return plan");
+    assert!(affine_exact_chain.shared_boolean_convergence.is_some());
     let deep_nested_exact_add = checked
         .facts
         .flow
@@ -4454,7 +4566,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     );
     for machine in [
         "reversed_nested_exact_subtract_integer_comparison_convergence",
-        "nested_exact_subtract_feeds_multiply_integer_comparison_convergence",
         "local_exact_subtract_chain_integer_comparison_convergence",
     ] {
         let wider_nested_exact_subtract = checked
@@ -4610,7 +4721,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "negative_factor_exact_multiply_chain_integer_comparison_convergence",
         "reversed_exact_multiply_chain_integer_comparison_convergence",
         "local_exact_multiply_chain_integer_comparison_convergence",
-        "exact_add_feeds_multiply_chain_integer_comparison_convergence",
         "widened_exact_multiply_chain_integer_comparison_convergence",
         "two_computed_exact_multiply_operands_integer_comparison_convergence",
     ] {
@@ -4801,7 +4911,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "right_associated_mixed_exact_add_subtract_chain_integer_comparison_convergence",
         "local_mixed_exact_add_subtract_chain_integer_comparison_convergence",
         "widened_mixed_exact_add_subtract_chain_integer_comparison_convergence",
-        "multiply_feeds_mixed_exact_add_subtract_chain_integer_comparison_convergence",
         "reversed_subtract_mixed_exact_add_subtract_chain_integer_comparison_convergence",
     ] {
         let fenced_mixed_chain = checked
@@ -4810,6 +4919,26 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .terminal_structural_scalar_returns
             .for_machine(machine_named(&checked, machine));
         assert!(fenced_mixed_chain.is_none_or(|plan| plan.shared_boolean_convergence.is_none()));
+    }
+    for machine in [
+        "nested_exact_add_feeds_multiply_integer_comparison_convergence",
+        "nested_exact_subtract_feeds_multiply_integer_comparison_convergence",
+        "exact_add_feeds_multiply_chain_integer_comparison_convergence",
+        "multiply_feeds_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        "mixed_exact_affine_u8_integer_comparison_convergence",
+        "mixed_exact_affine_i8_integer_comparison_convergence",
+        "zero_factor_mixed_exact_affine_integer_comparison_convergence",
+    ] {
+        let affine_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| panic!("finite exact-affine chain `{machine}` retains its plan"));
+        assert!(
+            affine_chain.shared_boolean_convergence.is_some(),
+            "finite exact-affine chain `{machine}` retains shared convergence"
+        );
     }
     let nested_exact_cast_integer_comparison = checked
         .facts

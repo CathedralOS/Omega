@@ -26,6 +26,8 @@ mod terminal_debug;
 mod terminal_scalar;
 mod terminal_unit;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_affine_chain_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_multiply_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_offset_runtime_parameter_positions_for_test;

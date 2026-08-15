@@ -482,7 +482,20 @@ checked `u128` accumulator. Cumulative factor zero or one is total; a larger
 unsigned factor reconstructs `root <= MAX / factor`, and a larger signed factor
 reconstructs both `MIN / factor <= root` and `root <= MAX / factor`. Every
 earlier multiply retains its own independently checked obligation, so a later
-zero never authorizes an unsafe earlier link. A finite same-value-carrier exact-right-shift
+zero never authorizes an unsafe earlier link. One unified affine-chain family
+admits a finite left-associated same-carrier chain containing both at least one
+exact add/subtract and at least one exact multiply. It starts at one direct
+machine parameter; every right sibling is an independently landed same-carrier
+literal, and multiply factors are nonnegative. For each shrinking prefix the
+verifier walks ordered definitions and replays `A * root + B`: addition and
+subtraction adjust the checked signed offset `B`, multiplication checked-scales
+both the nonnegative coefficient `A` and `B`. If `A > 0`, the verifier maps the
+carrier interval back with mathematical ceiling/floor division and intersects
+it with the root carrier. If `A == 0`, the current obligation is true exactly
+when `B` is carrier-representable. Every earlier prefix remains independently
+proved, so later zero factors or cancellation supply no authority. Homogeneous
+chains continue to use their narrower existing families. A finite
+same-value-carrier exact-right-shift
 chain may also continue only through its left operand from a direct machine
 parameter. Every right operand must be a landed literal in one of the current
 fixed native signed or unsigned integer count carriers and independently satisfy
@@ -504,8 +517,10 @@ nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and
 other proof-bearing compositions remain fenced. For addition, subtraction,
-their mixed chain, multiplication, and left shift, missing, reordered, reversed,
-redirected, cyclic, or stale definitions reject. For every family, stale
+their mixed offset chain, multiplication, the mixed affine chain, and left
+shift, missing, reordered, reversed, redirected, cyclic, or stale definitions
+reject. The affine family additionally rejects coefficient or offset
+composition overflow. For every family, stale
 operation/factor/divisor/count evidence and missing evidence reject. Multiply
 and left shift additionally reject cumulative arithmetic
 overflow. One
