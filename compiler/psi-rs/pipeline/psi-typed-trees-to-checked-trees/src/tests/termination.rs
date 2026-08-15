@@ -9019,6 +9019,16 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         marker: u64;
     }
 
+    data RecordWithArray {
+        values: [u64; 2];
+        marker: u64;
+    }
+
+    data RecordWithPairs {
+        values: [Pair; 1];
+        marker: u64;
+    }
+
     data GenericPair<T> {
         first: T;
         second: u64;
@@ -9040,6 +9050,7 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         target: u64;
         first: u64;
         second: u64;
+        third: u64;
     }
 
     data ReferenceMain<'storage> {
@@ -9164,6 +9175,47 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         cells
     }
 
+    machine return_after_array_field_literal_member<'cells, 'target, 'first, 'second, 'third>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        first: &'first mut u64,
+        second: &'second mut u64,
+        third: &'third mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (RecordWithArray {
+            values: [
+                compute(first) + 1,
+                identity(identity(identity(compute(second))))
+            ],
+            marker: ~compute(third)
+        }).marker;
+        cells
+    }
+
+    machine return_after_array_field_two_shells<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (RecordWithArray {
+            values: [~(compute(value) + 1), 0],
+            marker: 0
+        }).marker;
+        cells
+    }
+
+    machine return_after_record_array_record_literal_member<'cells, 'target, 'value>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (RecordWithPairs {
+            values: [Pair { first: compute(value), second: 0 }],
+            marker: 0
+        }).marker;
+        cells
+    }
+
     machine return_after_generic_literal_member<'cells, 'target, 'value>(
         cells: &'cells mut [u64; 2],
         target: &'target mut u64,
@@ -9272,6 +9324,35 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
 
     machine Main::third_aggregate_literal_member_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_third_aggregate_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::array_field_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_field_literal_member(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first,
+            &mut self.second,
+            &mut self.third
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::array_field_two_shells_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_array_field_two_shells(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::record_array_record_literal_member_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_record_array_record_literal_member(
             &mut self.cells,
             &mut self.target,
             &mut self.first
@@ -9413,10 +9494,39 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         "the literal member must share the aggregate-depth-two and reduced computation budgets while publishing every nested write"
     );
 
+    let array_field = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::array_field_literal_member_result")
+        .expect("array-field literal member machine");
+    let array_field_entry = typed
+        .machine_states(array_field)
+        .first()
+        .expect("array-field literal member entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(array_field, array_field_entry)
+            .complete_paths(),
+        Some(
+            [
+                "self.cells",
+                "self.first",
+                "self.second",
+                "self.target",
+                "self.third",
+            ]
+            .map(str::to_owned)
+            .as_slice()
+        ),
+        "the literal member must carry its reduced computation budget through the nested fixed array and publish every element and sibling write"
+    );
+
     for name in [
         "Main::wrapped_computed_literal_field_result",
         "Main::third_shell_literal_member_result",
         "Main::third_aggregate_literal_member_result",
+        "Main::array_field_two_shells_result",
+        "Main::record_array_record_literal_member_result",
         "Main::generic_literal_member_result",
         "Main::reborrow_literal_member_result",
         "Main::recursive_literal_member_result",
