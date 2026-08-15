@@ -8702,9 +8702,10 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-carrier-coerce-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier byte-write coercion canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier byte-write coercion canary should run");
     assert_eq!(
@@ -8725,10 +8726,11 @@ fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier byte write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier byte write canary should run");
 
@@ -8784,10 +8786,11 @@ fn runtime_guarded_runtime_index_increment_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-guarded-rt-idx-inc-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded runtime-index increment canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("guarded runtime-index increment canary should run");
 
@@ -8813,10 +8816,11 @@ fn runtime_guarded_element_increment_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-guarded-elem-inc-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded element increment canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("guarded element increment canary should run");
 
@@ -8841,10 +8845,11 @@ fn runtime_element_range_dataflow_exit_canary_runs() {
     let canary = pass_canary("range/runtime_element_range_dataflow_exit");
     let scratch = std::env::temp_dir().join(format!("omega-elem-range-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("element range dataflow canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("element range dataflow canary should run");
 
@@ -8869,10 +8874,11 @@ fn runtime_funnel_guard_agreement_exit_canary_runs() {
     let canary = pass_canary("range/runtime_funnel_guard_agreement_exit");
     let scratch = std::env::temp_dir().join(format!("omega-funnel-guard-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("funnel guard agreement canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("funnel guard agreement canary should run");
 
@@ -8931,10 +8937,11 @@ fn runtime_guarded_copy_narrowing_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_copy_narrowing_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guarded-copy-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded copy narrowing canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("guarded copy narrowing canary should run");
 
@@ -9013,10 +9020,11 @@ fn runtime_declared_range_index_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_declared_range_index_read_exit");
     let scratch = std::env::temp_dir().join(format!("omega-range-idx-read-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("declared range index read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("declared range index read canary should run");
 
@@ -9040,10 +9048,11 @@ fn runtime_declared_range_index_write_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-range-idx-write-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("declared range index write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("declared range index write canary should run");
 
@@ -9099,10 +9108,11 @@ fn runtime_indexed_struct_field_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_field_rmw_exit");
     let scratch = std::env::temp_dir().join(format!("omega-idx-sf-rmw-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed struct field rmw canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("indexed struct field rmw canary should run");
 
@@ -9127,10 +9137,11 @@ fn runtime_indexed_struct_field_operand_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_field_operand_exit");
     let scratch = std::env::temp_dir().join(format!("omega-idx-sf-operand-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed struct field operand canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("indexed struct field operand canary should run");
 
@@ -46123,6 +46134,17 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_whole_array_value_copy_exit",
     "collections/runtime_whole_struct_value_copy_exit",
     "collections/std_option_runtime_match_exit",
+    "collections/runtime_declared_range_index_read_exit",
+    "collections/runtime_declared_range_index_write_exit",
+    "collections/runtime_indexed_struct_field_operand_exit",
+    "collections/runtime_indexed_struct_field_rmw_exit",
+    "range/runtime_element_range_dataflow_exit",
+    "range/runtime_funnel_guard_agreement_exit",
+    "range/runtime_guarded_copy_narrowing_exit",
+    "range/runtime_guarded_element_increment_exit",
+    "range/runtime_guarded_runtime_index_increment_exit",
+    "text/runtime_bounded_carrier_byte_write_exit",
+    "text/runtime_carrier_byte_write_width_coercion",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46608,6 +46630,17 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_whole_array_value_copy_exit",
     "collections/runtime_whole_struct_value_copy_exit",
     "collections/std_option_runtime_match_exit",
+    "collections/runtime_declared_range_index_read_exit",
+    "collections/runtime_declared_range_index_write_exit",
+    "collections/runtime_indexed_struct_field_operand_exit",
+    "collections/runtime_indexed_struct_field_rmw_exit",
+    "range/runtime_element_range_dataflow_exit",
+    "range/runtime_funnel_guard_agreement_exit",
+    "range/runtime_guarded_copy_narrowing_exit",
+    "range/runtime_guarded_element_increment_exit",
+    "range/runtime_guarded_runtime_index_increment_exit",
+    "text/runtime_bounded_carrier_byte_write_exit",
+    "text/runtime_carrier_byte_write_width_coercion",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
