@@ -491,6 +491,16 @@ machine Main::exercise(&mut self) {{
     compile(options()).expect("granted axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
     assert!(lock.contains("accepted fact: admitted_axis"));
+    let report =
+        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
+    let admitted_row = report
+        .lines()
+        .find(|line| line.starts_with("- accepted fact: admitted_axis --"))
+        .expect("nongeneric accepted row");
+    assert!(
+        !admitted_row.contains("accepted template:"),
+        "nongeneric accepted rows have no universal template identity:\n{admitted_row}"
+    );
 
     std::fs::write(project.join("main.omg"), main_with("suspends;")).expect("rewrite main.omg");
     let message = format!(
@@ -557,6 +567,28 @@ machine Main::exercise(&mut self) {{
             .count(),
         1,
         "one universal template grant should produce one receipt:\n{lock}"
+    );
+    let receipt_identity = lock
+        .lines()
+        .find(|line| line.contains("accepted fact: admitted"))
+        .and_then(|line| line.split_once("  "))
+        .map(|(identity, _)| identity)
+        .expect("accepted template receipt identity");
+    let report =
+        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
+    let admitted_rows = report
+        .lines()
+        .filter(|line| line.starts_with("- accepted fact: admitted --"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        admitted_rows.len(),
+        1,
+        "one universal template grant should produce one trust row:\n{report}"
+    );
+    assert!(
+        admitted_rows[0].contains(&format!("accepted template: {receipt_identity}")),
+        "the trust row must publish the exact receipt identity:\n{}",
+        admitted_rows[0]
     );
     let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
         .expect("machine contract manifest written");

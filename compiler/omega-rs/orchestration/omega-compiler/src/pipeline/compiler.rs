@@ -498,6 +498,8 @@ impl Compiler {
             &provider_plans,
             &selected_provider_plan_facts,
         )?;
+        let generic_accepted_template_fingerprints =
+            crate::pipeline::trust_report::GenericAcceptedTemplateFingerprints::capture(&typed);
         crate::pipeline::wire_report::write_wire_protocol_report(
             &self.options,
             &typed,
@@ -553,6 +555,7 @@ impl Compiler {
             &build_config.grants,
             &provider_plans,
             &checked.selected_provider_plans,
+            &generic_accepted_template_fingerprints,
         )?;
         crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
             Arc::get_mut(&mut checked.program)
