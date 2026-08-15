@@ -31,7 +31,7 @@ machine Main::roll(
     }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     self.tally.calls = 40;
     self.tally.pad = 0;
 
