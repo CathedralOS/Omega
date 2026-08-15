@@ -10,8 +10,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_extents::{
-    AddressSpaceId, Extent, ExtentLineageId, ExtentLoan, ExtentProvenanceId, ExtentRights,
-    ExtentRootOrigin, LoanPolarity, MappingEraId,
+    AddressSpaceId, Extent, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId,
+    ExtentLineageId, ExtentLoan, ExtentProvenanceId, ExtentRights, ExtentRootOrigin, LoanPolarity,
+    MappingEraId, ProviderExistingContentGrant,
 };
 use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use psi_layout_plans::{
@@ -2045,6 +2046,75 @@ impl OwnedPlacementRejection {
     }
 }
 
+/// Provider-validated existing Stable content whose exact Extent authority is
+/// retained by the accepted placement admission.
+///
+/// This is the first content-establishing owned carrier. It deliberately has
+/// no route back to a bare Extent: checked destruction or move-out must land
+/// before retirement can establish `Vacant` and release the storage authority.
+#[derive(Debug)]
+#[must_use = "established owned placed content retains linear Extent and content custody"]
+pub struct EstablishedOwnedPlacement {
+    admission: OwnedPlacementAdmission,
+    validity_receipt: ExtentContentValidityReceiptId,
+    custody_receipt: ExtentContentCustodyReceiptId,
+}
+
+impl EstablishedOwnedPlacement {
+    pub const fn admission(&self) -> PlacementAdmissionId {
+        self.admission.identity
+    }
+
+    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
+        &self.admission.placement_plan
+    }
+
+    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+        self.admission.profile_receipt
+    }
+
+    pub const fn resources(&self) -> &PlacementResourceCompatibility {
+        &self.admission.resources
+    }
+
+    pub const fn extent(&self) -> &Extent {
+        &self.admission.extent
+    }
+
+    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
+        self.validity_receipt
+    }
+
+    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
+        self.custody_receipt
+    }
+}
+
+/// Failed Stable adoption preserves both linear inputs for a corrected retry
+/// or explicit cancellation.
+#[derive(Debug)]
+pub struct OwnedStableAdoptionError {
+    admission: OwnedPlacementAdmission,
+    content: ProviderExistingContentGrant,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl OwnedStableAdoptionError {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        OwnedPlacementAdmission,
+        ProviderExistingContentGrant,
+        AccessPlanDiagnostic,
+    ) {
+        (self.admission, self.content, self.diagnostic)
+    }
+}
+
 /// A plan-qualified interpretation of one borrowed concrete range.
 #[derive(Debug)]
 pub struct PlacedView<'extent> {
@@ -2532,6 +2602,91 @@ pub fn admit_owned_placement(
         }),
         Err(diagnostic) => Err(OwnedPlacementRejection { extent, diagnostic }),
     }
+}
+
+/// Establish provider-validated existing content through the Stable adoption
+/// route.
+///
+/// The content grant was minted only while the corresponding provider root
+/// authority was consumed. Adoption independently binds its admitted
+/// interpretation to the actual normalized placement and rejects any drift in
+/// origin, lineage, or geometry. External and Atomic observations use their
+/// own future adoption routes and cannot pass through this Stable transition.
+pub fn adopt_owned_stable(
+    admission: OwnedPlacementAdmission,
+    content: ProviderExistingContentGrant,
+) -> Result<EstablishedOwnedPlacement, OwnedStableAdoptionError> {
+    let diagnostic = validate_owned_stable_adoption(&admission, &content);
+    if let Err(diagnostic) = diagnostic {
+        return Err(OwnedStableAdoptionError {
+            admission,
+            content,
+            diagnostic,
+        });
+    }
+    Ok(EstablishedOwnedPlacement {
+        admission,
+        validity_receipt: content.validity_receipt(),
+        custody_receipt: content.custody_receipt(),
+    })
+}
+
+fn validate_owned_stable_adoption(
+    admission: &OwnedPlacementAdmission,
+    content: &ProviderExistingContentGrant,
+) -> Result<(), AccessPlanDiagnostic> {
+    let extent = &admission.extent;
+    if content.interpretation().normalized_identity()
+        != admission.placement_plan.identity().normalized_identity()
+    {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content interpretation does not match the admitted placement".into(),
+        ));
+    }
+    if content.origin() != extent.origin() {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content origin does not match the admitted Extent".into(),
+        ));
+    }
+    if content.lineage_root() != extent.lineage_root() {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content lineage does not match the admitted Extent".into(),
+        ));
+    }
+    if content.base() != extent.base() || content.length() != extent.length() {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content geometry does not match the admitted Extent".into(),
+        ));
+    }
+    if content.address_space() != extent.address_space() {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content address space does not match the admitted Extent".into(),
+        ));
+    }
+    if content.provenance() != extent.provenance() {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content provenance does not match the admitted Extent".into(),
+        ));
+    }
+    if content.era() != extent.era() {
+        return Err(AccessPlanDiagnostic(
+            "provider existing-content mapping era does not match the admitted Extent".into(),
+        ));
+    }
+    if let Some(descriptor) = admission
+        .placement_plan
+        .access()
+        .field_descriptors()
+        .iter()
+        .find(|descriptor| descriptor.observation() != ObservationModel::Stable)
+    {
+        return Err(AccessPlanDiagnostic(format!(
+            "field `{}` uses {:?} observation and cannot enter the Stable adoption route",
+            descriptor.field(),
+            descriptor.observation()
+        )));
+    }
+    Ok(())
 }
 
 fn validate_placement_admission(
@@ -3926,6 +4081,21 @@ mod tests {
         provider: u64,
         lineage: u64,
     ) -> psi_extents::Extent {
+        uart_root_grant(provider, lineage)
+            .mint(base, length)
+            .expect("UART extent")
+    }
+
+    fn uart_root_grant(provider: u64, lineage: u64) -> psi_extents::ExtentRootGrant {
+        uart_root_grant_with_mapping(provider, lineage, 5, 6)
+    }
+
+    fn uart_root_grant_with_mapping(
+        provider: u64,
+        lineage: u64,
+        provenance: u64,
+        era: u64,
+    ) -> psi_extents::ExtentRootGrant {
         psi_extents::ExtentRootGrant::from_admitted_provider(
             provider_issuance(provider),
             extent_id(
@@ -3934,11 +4104,9 @@ mod tests {
             ),
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_rights(&[3, 4]),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            extent_id(provenance, ExtentProvenanceId::from_normalized_identity),
+            extent_id(era, psi_extents::MappingEraId::from_normalized_identity),
         )
-        .mint(base, length)
-        .expect("UART extent")
     }
 
     fn uart_resource_profile(
@@ -3989,6 +4157,85 @@ mod tests {
                 reach: reach.clone(),
             }],
         }
+    }
+
+    fn stable_word_placement() -> ValidatedPlacementPlan {
+        let layout = LayoutPlanReport {
+            schema_identity: 0x5ab1e,
+            entries: vec![LayoutFieldEntryReport {
+                field: "word".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(4),
+            align: 4,
+        };
+        validate_placement_plan(PlacementPlan {
+            access: access_plan(
+                &layout,
+                &[(
+                    "word",
+                    FieldAccess::Stable {
+                        transfer_width_bits: 32,
+                        read: true,
+                        write: true,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            layout,
+            reach: BoundaryReach::default(),
+        })
+        .expect("Stable word placement")
+    }
+
+    fn stable_word_profile(extent: &Extent) -> AdmittedResourceProfile {
+        ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(91).expect("profile receipt"),
+            extent,
+            extent_rights(&[3]),
+            BoundaryReach::default(),
+        )
+        .expect("Stable resource-profile grant")
+        .admit(ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 0,
+                length: extent.length(),
+                stable: StableCapability::ReadWrite,
+                external: ExternalCapability::None,
+                atomic: AtomicCapability::None,
+                reach: BoundaryReach::default(),
+            }],
+        })
+        .expect("admitted Stable resource profile")
+    }
+
+    fn provider_existing_content(
+        plan: &ValidatedPlacementPlan,
+        base: u64,
+        length: u64,
+        lineage: u64,
+        receipt_seed: u64,
+    ) -> (Extent, ProviderExistingContentGrant) {
+        uart_root_grant(1, lineage)
+            .mint_provider_existing_content(
+                base,
+                length,
+                extent_id(
+                    plan.identity().normalized_identity(),
+                    psi_extents::ExtentContentInterpretationId::from_normalized_identity,
+                ),
+                extent_id(
+                    receipt_seed,
+                    ExtentContentValidityReceiptId::from_normalized_identity,
+                ),
+                extent_id(
+                    receipt_seed + 1,
+                    ExtentContentCustodyReceiptId::from_normalized_identity,
+                ),
+            )
+            .expect("provider existing-content extent")
     }
 
     fn admit_uart<'extent>(
@@ -4057,6 +4304,142 @@ mod tests {
         assert_eq!(returned.length(), 8);
         assert_eq!(returned.origin(), origin);
         assert_eq!(returned.lineage_root(), lineage);
+    }
+
+    #[test]
+    fn provider_existing_content_establishes_owned_stable_placement() {
+        let plan = stable_word_placement();
+        let (extent, content) = provider_existing_content(&plan, 0xa000, 4, 92, 93);
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(95).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+
+        let established =
+            adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
+        assert_eq!(established.admission().normalized_identity(), 95);
+        assert_eq!(established.placement_plan().identity(), plan.identity());
+        assert_eq!(established.extent().base(), 0xa000);
+        assert_eq!(established.extent().length(), 4);
+        assert_eq!(established.validity_receipt().normalized_identity(), 93);
+        assert_eq!(established.custody_receipt().normalized_identity(), 94);
+    }
+
+    #[test]
+    fn provider_existing_content_cannot_replay_across_extent_roots() {
+        let plan = stable_word_placement();
+        let (_source_extent, content) = provider_existing_content(&plan, 0xa100, 4, 96, 97);
+        let coincident = uart_extent_with_lineage(0xa100, 4, 98);
+        let returned_origin = coincident.origin();
+        let returned_lineage = coincident.lineage_root();
+        let profile = stable_word_profile(&coincident);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(99).expect("admission"),
+            coincident,
+            &plan,
+            &profile,
+        )
+        .expect("coincident root admission");
+
+        let rejection = adopt_owned_stable(admission, content)
+            .expect_err("existing-content authority must not replay across roots");
+        assert!(rejection.diagnostic().0.contains("lineage"));
+        let (admission, content, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains("lineage"));
+        assert_eq!(content.lineage_root().normalized_identity(), 96);
+        let returned = admission.withdraw();
+        assert_eq!(returned.origin(), returned_origin);
+        assert_eq!(returned.lineage_root(), returned_lineage);
+    }
+
+    #[test]
+    fn provider_existing_content_cannot_replay_after_mapping_era_drift() {
+        let plan = stable_word_placement();
+        let (_source_extent, content) = provider_existing_content(&plan, 0xa180, 4, 108, 109);
+        let drifted = uart_root_grant_with_mapping(1, 108, 5, 110)
+            .mint(0xa180, 4)
+            .expect("same-root geometry in a later mapping era");
+        assert_eq!(content.origin(), drifted.origin());
+        assert_eq!(content.lineage_root(), drifted.lineage_root());
+        assert_eq!(
+            (content.base(), content.length()),
+            (drifted.base(), drifted.length())
+        );
+        assert_eq!(content.address_space(), drifted.address_space());
+        assert_eq!(content.provenance(), drifted.provenance());
+        assert_ne!(content.era(), drifted.era());
+        let profile = stable_word_profile(&drifted);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(111).expect("admission"),
+            drifted,
+            &plan,
+            &profile,
+        )
+        .expect("drifted mapping admission");
+
+        let rejection = adopt_owned_stable(admission, content)
+            .expect_err("existing-content authority must not replay after mapping-era drift");
+        assert!(rejection.diagnostic().0.contains("mapping era"));
+        let (admission, content, _) = rejection.into_parts();
+        assert_eq!(content.era().normalized_identity(), 6);
+        assert_eq!(admission.withdraw().era().normalized_identity(), 110);
+    }
+
+    #[test]
+    fn provider_existing_content_must_name_the_actual_placement() {
+        let plan = stable_word_placement();
+        let (extent, content) = uart_root_grant(1, 100)
+            .mint_provider_existing_content(
+                0xa200,
+                4,
+                extent_id(
+                    plan.identity().normalized_identity() + 1,
+                    psi_extents::ExtentContentInterpretationId::from_normalized_identity,
+                ),
+                extent_id(
+                    101,
+                    ExtentContentValidityReceiptId::from_normalized_identity,
+                ),
+                extent_id(102, ExtentContentCustodyReceiptId::from_normalized_identity),
+            )
+            .expect("provider existing-content extent");
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(103).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+
+        let rejection = adopt_owned_stable(admission, content)
+            .expect_err("provider interpretation must match the actual admitted placement");
+        assert!(rejection.diagnostic().0.contains("interpretation"));
+    }
+
+    #[test]
+    fn provider_content_does_not_turn_external_placement_into_stable_adoption() {
+        let plan = uart_placement_plan();
+        let (extent, content) = provider_existing_content(&plan, 0xa300, 12, 104, 105);
+        let profile = uart_resource_profile_for_extent(&extent, &uart_reach());
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(107).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned External admission");
+
+        let rejection = adopt_owned_stable(admission, content)
+            .expect_err("External observation needs its distinct adopt route");
+        assert!(
+            rejection.diagnostic().0.contains("External")
+                && rejection.diagnostic().0.contains("Stable adoption")
+        );
     }
 
     #[test]
