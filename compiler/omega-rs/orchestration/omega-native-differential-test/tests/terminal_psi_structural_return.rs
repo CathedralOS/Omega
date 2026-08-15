@@ -935,6 +935,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small >> small) < 1u8)
                 && ((signed_arithmetic >> signed_divisor) < 4i8)
                 && ((((small >> 1i8) >> 2u16) >> 0i32) < 2u8)
+                && (((((small >> 1i8) >> 2u16) >> 0i32) as i8) < 127i8)
+                && (((small >> 0i8) as i8) < 127i8)
                 && ((((small << 1i8) << 2u16) << 0i32) < 255u8)
                 && (((((small << 1i8) << 2u16) << 0i32) as i8) < 127i8)
                 && (((small << 0i8) as i8) < 127i8)
@@ -2392,6 +2394,108 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                     psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
                 )
         }));
+    }
+    let shift_right_then_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(count, IntegerValue::Signed(0)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: middle_value,
+                count: middle_count,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(middle_count, IntegerValue::Unsigned(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_value == terminal_entry.parameters[1].id
+                && has_integer_constant(inner_count, IntegerValue::Signed(1)))
+            .then_some([
+                inner_obligation,
+                middle_obligation,
+                outer_obligation,
+                cast_obligation,
+            ])
+        })
+        .expect("native path retains one complete pre-cast exact-right-shift chain");
+    let zero_shift_right_then_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            let shift = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation: shift_obligation,
+            } = shift.kind
+            else {
+                return None;
+            };
+            (value == terminal_entry.parameters[1].id
+                && has_integer_constant(count, IntegerValue::Signed(0)))
+            .then_some([shift_obligation, cast_obligation])
+        })
+        .expect("native path retains one zero-count right shift and its following cast");
+    for obligations in [
+        shift_right_then_cast_obligations.as_slice(),
+        zero_shift_right_then_cast_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
     }
     let nested_shift_left_obligations = operations
         .iter()

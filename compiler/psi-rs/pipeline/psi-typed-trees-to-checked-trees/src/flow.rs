@@ -41,6 +41,8 @@ pub(crate) use terminal_unit::exact_offset_chain_cast_runtime_parameter_position
 pub(crate) use terminal_unit::exact_shift_left_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_shift_left_chain_runtime_parameter_positions_for_test;
+#[cfg(test)]
+pub(crate) use terminal_unit::exact_shift_right_chain_cast_runtime_parameter_positions_for_test;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
