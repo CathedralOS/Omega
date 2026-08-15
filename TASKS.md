@@ -515,8 +515,10 @@ compiler concept is introduced.
   service reach, suspension, blocking, termination, mutation, and trust. The
   state graph and checked-tree visualization now consume suspension and blocking
   independently from exact flow-state and machine-contract facts while service
-  reach stays on its dedicated facts; remove the remaining umbrella carriers
-  after their consumers migrate.
+  reach stays on its dedicated facts. Provider approval now consumes exact
+  checked-flow call coordinates directly and no longer replays the operational
+  umbrella; remove the remaining umbrella carriers after their consumers
+  migrate.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows. The
