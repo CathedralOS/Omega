@@ -864,6 +864,9 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             signed_wide: i16,
             post_signed: i16,
             post_unsigned: u16,
+            affine_unsigned: u8,
+            affine_signed: i8,
+            zero_root: u8,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -873,7 +876,12 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             0i16 <= signed_wide, signed_wide <= 127i16,
             0i16 <= post_signed, post_signed <= 255i16,
             post_signed <= 127i16, post_signed <= 63i16,
-            post_unsigned <= 127u16, post_unsigned <= 63u16
+            post_unsigned <= 127u16, post_unsigned <= 63u16,
+            affine_unsigned <= 252u8, affine_unsigned <= 124u8,
+            affine_unsigned <= 60u8,
+            affine_signed <= 124i8, -67i8 <= affine_signed,
+            affine_signed <= 60i8, -35i8 <= affine_signed, affine_signed <= 28i8,
+            zero_root <= 0u8
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -886,6 +894,9 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && ((((signed_wide >> 1u8) << 2i16) as u8) < 255u8)
                 && ((((((post_signed as u8) << 1i8) >> 2u16) << 3i32) < 255u8))
                 && (((((post_unsigned as i8) << 1u8) >> 2i16) < 127i8))
+                && ((((((affine_unsigned + 3u8) * 2u8) >> 1i8) << 2u16) < 255u8))
+                && ((((((affine_signed - -3i8) * 2i8) >> 1u16) << 2i32) < 127i8))
+                && ((((((zero_root + 255u8) * 0u8) << 1u8) >> 1i16) < 255u8))
                 && enabled
         }
     "#;
@@ -913,7 +924,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        15,
+        18,
     );
     assert_eq!(
         operations
@@ -923,7 +934,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        17,
+        20,
     );
     assert_eq!(
         operations
@@ -931,6 +942,33 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             .filter(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
             .count(),
         4,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation.kind, OperationKind::ExactIntegerAdd { .. }))
+            .count(),
+        2,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerSubtract { .. }
+            ))
+            .count(),
+        1,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerMultiply { .. }
+            ))
+            .count(),
+        3,
     );
     verify_module(
         &lowered.semantic_module,
@@ -952,7 +990,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        15,
+        18,
     );
     assert_eq!(
         abstract_plan
@@ -964,7 +1002,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        17,
+        20,
     );
     assert_eq!(
         abstract_plan
@@ -977,6 +1015,48 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             ))
             .count(),
         4,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| {
+                matches!(
+                    operation,
+                    TerminalAbstractOperation::WrappingIntegerAdd { .. }
+                )
+            })
+            .count(),
+        2,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| {
+                matches!(
+                    operation,
+                    TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+                )
+            })
+            .count(),
+        1,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| {
+                matches!(
+                    operation,
+                    TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+                )
+            })
+            .count(),
+        3,
     );
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)

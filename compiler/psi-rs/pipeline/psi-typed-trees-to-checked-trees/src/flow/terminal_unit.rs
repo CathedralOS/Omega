@@ -1692,6 +1692,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_arithmetic_then_shift_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_shift_right_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1791,6 +1797,12 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_cast_then_mixed_shift_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_arithmetic_then_shift_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -3478,6 +3490,110 @@ fn shared_exact_mixed_shift_chain_runtime_inputs(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_arithmetic_then_shift_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut value_type = None;
+    let mut saw_left = false;
+    loop {
+        let (kind, primitive_type, left, right) = match expression {
+            CheckedScalarExpression::IntegerBinary {
+                kind: kind @ CheckedIntegerBinaryKind::ExactShiftLeft,
+                primitive_type,
+                left,
+                right,
+            }
+            | CheckedScalarExpression::IntegerBinary {
+                kind: kind @ CheckedIntegerBinaryKind::ExactShiftRight,
+                primitive_type,
+                left,
+                right,
+            } => (kind, primitive_type, left, right),
+            _ => return None,
+        };
+        if value_type.is_some_and(|value_type| value_type != *primitive_type)
+            || landed_exact_shift_literal_count(*primitive_type, right).is_none()
+        {
+            return None;
+        }
+        value_type = Some(*primitive_type);
+        saw_left |= *kind == CheckedIntegerBinaryKind::ExactShiftLeft;
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactShiftLeft | CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            arithmetic if saw_left => {
+                expression = arithmetic;
+                break;
+            }
+            _ => return None,
+        }
+    }
+
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                kind @ (CheckedIntegerBinaryKind::ExactAdd
+                | CheckedIntegerBinaryKind::ExactSubtract
+                | CheckedIntegerBinaryKind::ExactMultiply),
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if Some(*primitive_type) != value_type
+            || match kind {
+                CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract => {
+                    !exact_offset_landed_literal(*primitive_type, right)
+                }
+                CheckedIntegerBinaryKind::ExactMultiply => {
+                    !nonnegative_exact_multiply_literal(*primitive_type, right)
+                }
+                _ => unreachable!("matched one exact arithmetic operation"),
+            }
+        {
+            return None;
+        }
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactAdd
+                    | CheckedIntegerBinaryKind::ExactSubtract
+                    | CheckedIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if Some(*root_type) == value_type && *position < scalar_parameter_count => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_arithmetic_then_shift_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_arithmetic_then_shift_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 fn shared_exact_cast_then_mixed_shift_runtime_inputs(

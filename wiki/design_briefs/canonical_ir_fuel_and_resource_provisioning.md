@@ -217,6 +217,10 @@ The converse mixed-only family charges one direct partial exact cast and every
 retained post-cast shift separately. Replaying each left prefix through the
 ordered target-carrier definitions and intersecting with the source carrier is
 verifier work and adds no executable fuel.
+A retained finite exact-arithmetic prefix followed by a finite shift suffix
+charges every add, subtract, multiply, and shift operation separately. Replaying
+each left prefix through prior shifts and the checked affine form is verifier
+work and adds no executable fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

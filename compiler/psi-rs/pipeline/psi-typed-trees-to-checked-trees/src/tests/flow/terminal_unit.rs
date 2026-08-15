@@ -2,6 +2,7 @@ use super::*;
 use crate::flow::{
     exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
+    exact_arithmetic_then_shift_runtime_parameter_positions_for_test,
     exact_cast_then_affine_runtime_parameter_positions_for_test,
     exact_cast_then_divide_remainder_runtime_parameter_positions_for_test,
     exact_cast_then_mixed_shift_runtime_parameter_positions_for_test,
@@ -2203,6 +2204,128 @@ fn exact_mixed_shift_classifier_accepts_finite_ordered_alternation() {
     );
     assert_eq!(
         exact_mixed_shift_chain_runtime_parameter_positions_for_test(&address, 1),
+        None,
+    );
+}
+
+#[test]
+fn exact_arithmetic_then_shift_classifier_unifies_affine_prefix_shapes() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let affine = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            affine,
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+
+    let homogeneous_offset = operation(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(0i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&homogeneous_offset, 1),
+        Some(vec![0]),
+    );
+    let outer_right = operation(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        homogeneous_offset,
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    assert_eq!(
+        exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&outer_right, 1),
+        Some(vec![0]),
+    );
+
+    let right_only = operation(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&right_only, 1),
+        None,
+    );
+
+    let runtime_count = operation(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::U8,
+            parameter(0, PrimitiveType::U8),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        parameter(1, PrimitiveType::U8),
+    );
+    assert_eq!(
+        exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&runtime_count, 2),
+        None,
+    );
+
+    let negative_factor = operation(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::I8,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I8,
+            parameter(0, PrimitiveType::I8),
+            literal(-1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_arithmetic_then_shift_runtime_parameter_positions_for_test(&negative_factor, 1),
         None,
     );
 }
@@ -5612,7 +5735,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "computed_count_exact_shift_left_chain_integer_comparison_convergence",
         "local_exact_shift_left_chain_integer_comparison_convergence",
         "widened_exact_shift_left_chain_integer_comparison_convergence",
-        "exact_add_feeds_shift_left_chain_integer_comparison_convergence",
     ] {
         let fenced_shift_left_chain = checked
             .facts
@@ -5626,6 +5748,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             });
         assert!(fenced_shift_left_chain.shared_boolean_convergence.is_none());
     }
+    let arithmetic_then_shift = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "exact_add_feeds_shift_left_chain_integer_comparison_convergence",
+        ))
+        .expect("the arithmetic-prefix exact-left-shift chain retains its scalar-return plan");
+    assert!(arithmetic_then_shift.shared_boolean_convergence.is_some());
     for carrier in ["u8", "i8"] {
         let machine =
             format!("mixed_exact_add_subtract_chain_{carrier}_integer_comparison_convergence");
