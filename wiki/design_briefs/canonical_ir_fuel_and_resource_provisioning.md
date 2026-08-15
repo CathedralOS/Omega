@@ -237,6 +237,11 @@ every retained source operation, the partial cast, and every retained target
 operation separately. Checked affine composition, ordered shift replay, and
 source/target carrier intersection are verifier work and add no executable
 fuel.
+The consolidated divide/remainder cross-cast family charges every retained
+source operation, the partial cast, and every retained target operation.
+Carrier-total quotient/remainder hull replay, target safe-interval replay, and
+hull containment or disjointness checks are verifier work and add no executable
+fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

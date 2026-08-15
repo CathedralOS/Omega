@@ -399,6 +399,16 @@ Remaining:
   the current obligation after full shape validation. Mathematical emptiness
   is falsehood, while checked composition or interval-transfer failure admits
   no family. Empty-sided shapes remain on their narrower existing paths.
+  A consolidated divide/remainder cross-cast family now covers all four
+  compositions between one nonempty landed-literal exact-divide/remainder
+  chain and one nonempty affine or shift chain. When divide/remainder precedes
+  the cast, the existing carrier-total quotient/remainder hull must fit the
+  target carrier; each target prefix is true when that full hull lies inside
+  its reconstructed safe interval, false when disjoint, and otherwise remains
+  unadmitted rather than inventing a guard-sensitive nonconvex preimage. In the
+  converse direction, the source affine or shift chain and cast reconstruct by
+  their existing rules while every target divisor proof stays independent.
+  Every source operation, cast, and target operation retains separate evidence.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

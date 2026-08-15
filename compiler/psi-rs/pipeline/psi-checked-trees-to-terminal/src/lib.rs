@@ -11144,6 +11144,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct(left, right)
                 .or_else(|| shared_exact_shift_then_arithmetic_runtime_parameters(expression))
+                .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
@@ -11167,6 +11168,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_shift_then_arithmetic_runtime_parameters(expression))
+                .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
@@ -11190,6 +11192,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_shift_then_arithmetic_runtime_parameters(expression))
+                .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
@@ -11212,6 +11215,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_cast_shift_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_mixed_shift_runtime_parameters(expression))
@@ -11233,6 +11237,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
+                .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_runtime_divisor_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_divide_remainder_runtime_parameters(expression))
                 .or_else(|| shared_exact_divide_remainder_chain_runtime_parameters(expression))
@@ -11252,6 +11257,7 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_cast_shift_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_mixed_shift_runtime_parameters(expression))
@@ -12984,6 +12990,157 @@ fn shared_exact_affine_shift_cast_sandwich_runtime_parameters(
                         _ => return None,
                     }
                 }
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactCrossCastChainFamily {
+    DivideRemainder,
+    Affine,
+    Shift,
+}
+
+fn lowered_exact_cross_cast_chain_family(
+    expression: &LoweredDirectExpression,
+) -> Option<ExactCrossCastChainFamily> {
+    match expression {
+        LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+            ..
+        } => Some(ExactCrossCastChainFamily::DivideRemainder),
+        LoweredDirectExpression::IntegerBinary {
+            kind:
+                LoweredIntegerBinaryKind::ExactAdd
+                | LoweredIntegerBinaryKind::ExactSubtract
+                | LoweredIntegerBinaryKind::ExactMultiply,
+            ..
+        } => Some(ExactCrossCastChainFamily::Affine),
+        LoweredDirectExpression::IntegerBinary {
+            kind:
+                LoweredIntegerBinaryKind::ExactShiftLeft | LoweredIntegerBinaryKind::ExactShiftRight,
+            ..
+        } => Some(ExactCrossCastChainFamily::Shift),
+        _ => None,
+    }
+}
+
+fn lowered_exact_cross_cast_chain_link<'a>(
+    expression: &'a LoweredDirectExpression,
+    family: ExactCrossCastChainFamily,
+) -> Option<(psi_core::IntegerType, &'a LoweredDirectExpression)> {
+    match (family, expression) {
+        (
+            ExactCrossCastChainFamily::DivideRemainder,
+            LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            },
+        ) if safe_exact_divide_remainder_landed_literal(*integer_type, right) => {
+            Some((*integer_type, left))
+        }
+        (
+            ExactCrossCastChainFamily::Affine,
+            LoweredDirectExpression::IntegerBinary {
+                kind:
+                    kind @ (LoweredIntegerBinaryKind::ExactAdd
+                    | LoweredIntegerBinaryKind::ExactSubtract
+                    | LoweredIntegerBinaryKind::ExactMultiply),
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            },
+        ) if match kind {
+            LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract => {
+                exact_offset_landed_literal(*integer_type, right)
+            }
+            LoweredIntegerBinaryKind::ExactMultiply => {
+                nonnegative_exact_multiply_landed_literal(*integer_type, right)
+            }
+            _ => false,
+        } =>
+        {
+            Some((*integer_type, left))
+        }
+        (
+            ExactCrossCastChainFamily::Shift,
+            LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactShiftLeft | LoweredIntegerBinaryKind::ExactShiftRight,
+                scalar_type: ScalarType::Integer(integer_type),
+                left,
+                right,
+            },
+        ) if landed_exact_shift_literal_count(*integer_type, right).is_some() => {
+            Some((*integer_type, left))
+        }
+        _ => None,
+    }
+}
+
+fn lowered_exact_cross_cast_parameter_root(
+    mut expression: &LoweredDirectExpression,
+    family: ExactCrossCastChainFamily,
+) -> Option<(psi_core::IntegerType, usize)> {
+    let mut chain_type = None;
+    loop {
+        let (integer_type, left) = lowered_exact_cross_cast_chain_link(expression, family)?;
+        if !native_fixed_integer_type(integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != integer_type)
+        {
+            return None;
+        }
+        chain_type = Some(integer_type);
+        match left {
+            nested if lowered_exact_cross_cast_chain_family(nested) == Some(family) => {
+                expression = nested;
+            }
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type => return Some((integer_type, *position)),
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_divide_remainder_cross_cast_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let outer_family = lowered_exact_cross_cast_chain_family(expression)?;
+    let mut target_type = None;
+    loop {
+        let (integer_type, left) = lowered_exact_cross_cast_chain_link(expression, outer_family)?;
+        if !native_fixed_integer_type(integer_type)
+            || target_type.is_some_and(|target_type| target_type != integer_type)
+        {
+            return None;
+        }
+        target_type = Some(integer_type);
+        match left {
+            nested if lowered_exact_cross_cast_chain_family(nested) == Some(outer_family) => {
+                expression = nested;
+            }
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if Some(*cast_target_type) == target_type => {
+                let source_family = lowered_exact_cross_cast_chain_family(operand)?;
+                if (outer_family == ExactCrossCastChainFamily::DivideRemainder)
+                    == (source_family == ExactCrossCastChainFamily::DivideRemainder)
+                {
+                    return None;
+                }
+                let (_, position) =
+                    lowered_exact_cross_cast_parameter_root(operand, source_family)?;
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    position,
+                )]));
             }
             _ => return None,
         }

@@ -616,6 +616,28 @@ interval-transfer failure admits no family. Empty-sided shapes remain on their
 narrower paths. Carrier drift, runtime or computed affine siblings/counts,
 negative factors, invalid or repeated casts, intervening operations,
 noncanonical roots, and stale or malformed definitions remain fenced.
+One consolidated divide/remainder cross-cast family admits all four nonempty
+compositions between a landed-literal exact-divide/remainder chain and an
+affine or shift chain across one validator-legal partial fixed-native exact
+cast. When divide/remainder precedes the cast, the verifier replays the complete
+source chain from the full source carrier using toward-zero quotient and
+dividend-sign remainder hull transfer. That hull must lie wholly in the target
+carrier. Each target affine prefix or target-left prefix then reconstructs its
+own safe target interval by the established checked affine or ordered shift
+replay: a hull wholly inside that interval is truth, a disjoint hull is
+canonical falsehood, and partial overlap admits no family because it would
+require a guard-sensitive nonconvex source preimage. A zero target affine
+coefficient decides only its current proposition after the complete source,
+cast, and target shape is validated. In the converse direction, source affine
+or shift chains and the cast use their existing independent reconstruction,
+while every target divide/remainder operation depends only on its own landed
+safe divisor. Every source operation, cast, and target operation retains
+separate evidence. Zero, signed `-1`, runtime, computed, or mistyped divisors;
+runtime or computed affine siblings or counts; negative factors; invalid,
+widening, or repeated casts; carrier drift; empty sides; intervening
+operations; nonparameter roots; malformed definitions; and checked transfer
+failure remain fenced. Existing narrower and runtime-divisor families are
+unchanged.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
