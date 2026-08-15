@@ -18618,7 +18618,8 @@ fn runtime_call_value_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-carrier-return-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("bounded-carrier return-value canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45172,6 +45173,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/guarded_value_call_arm_exit",
     "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_call_guard",
+    "calls/runtime_call_value",
     "calls/runtime_exit_code_exit",
     "calls/runtime_inline_recursive_walk_exit",
     "calls/runtime_let_mut_reassign_exit",
