@@ -3156,6 +3156,7 @@ fn primitive_computed_value_preserves_transparent_result(
                     active_states,
                     parameters,
                     aliases,
+                    TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
                     remaining_computed_depth - 1,
                 )
             }
@@ -3189,7 +3190,9 @@ fn primitive_computed_value_preserves_transparent_result(
 /// projected array literal whose contextual fixed-array type is unavailable
 /// after the scalar projection. Effectful primitive fields may use only the
 /// computation budget left after the member projection itself. Nested
-/// aggregates and any shell that would reset or exceed that shared budget stay
+/// aggregates consume the same explicit aggregate-depth budget as ordinary
+/// aggregate assignments while retaining that reduced computation budget.
+/// Any shell or nested literal that would reset or exceed either budget stays
 /// outside this narrow cohort.
 #[allow(clippy::too_many_arguments)]
 fn concrete_literal_member_operand_preserves_transparent_result(
@@ -3200,8 +3203,12 @@ fn concrete_literal_member_operand_preserves_transparent_result(
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_aggregate_depth: usize,
     remaining_computed_depth: usize,
 ) -> bool {
+    if remaining_aggregate_depth == 0 {
+        return false;
+    }
     let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
     else {
         return false;
@@ -3225,6 +3232,19 @@ fn concrete_literal_member_operand_preserves_transparent_result(
                         parameters,
                         aliases,
                     ),
+                    ExpressionNode::StructLiteral(_) if remaining_aggregate_depth > 1 => {
+                        concrete_literal_member_operand_preserves_transparent_result(
+                            program,
+                            current_machine,
+                            field.value,
+                            symbols,
+                            active_states,
+                            parameters,
+                            aliases,
+                            remaining_aggregate_depth - 1,
+                            remaining_computed_depth,
+                        )
+                    }
                     ExpressionNode::Binary(_)
                     | ExpressionNode::Cast(_)
                     | ExpressionNode::Indexed(_)
