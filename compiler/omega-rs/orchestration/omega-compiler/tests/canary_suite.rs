@@ -11879,10 +11879,11 @@ fn runtime_equatable_scalar_not_equals_guard_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable scalar != guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable scalar != guard canary should run");
 
@@ -11908,10 +11909,11 @@ fn runtime_case_membership_mixed_shape_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("mixed-shape membership canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("mixed-shape membership canary should run");
 
@@ -11936,10 +11938,11 @@ fn runtime_wire_roundtrip_repeated_max_one_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("repeated max-one wire canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("repeated max-one wire canary should run");
 
@@ -11960,9 +11963,10 @@ fn runtime_wire_roundtrip_utf8_exit_canary_runs() {
     // adversarial half is the pinned soundness hole).
     let canary = pass_canary("wire/runtime_wire_roundtrip_utf8_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wireutf8-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 wire roundtrip canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("utf8 wire roundtrip canary should run");
     assert_eq!(
@@ -11980,9 +11984,10 @@ fn runtime_wire_utf8_edge_verdicts_exit_canary_runs() {
     // surrogate / beyond-max / truncated all INVALID.
     let canary = pass_canary("wire/runtime_wire_utf8_edge_verdicts_exit");
     let scratch = std::env::temp_dir().join(format!("omega-utf8edge-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 edge canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("utf8 edge canary should run");
     assert_eq!(
@@ -11999,9 +12004,10 @@ fn runtime_wire_utf8_invalid_refused_exit_canary_runs() {
     // Adversarial 0xFF 0xFF refuses with verdict Invalid on every engine.
     let canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
     let scratch = std::env::temp_dir().join(format!("omega-utf8ref-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 refusal canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("utf8 refusal canary should run");
     assert_eq!(
@@ -12018,9 +12024,10 @@ fn runtime_wire_schema_as_value_type_exit_canary_runs() {
     // A numbered data serves as a plain program type + encodes from itself.
     let canary = pass_canary("wire/runtime_wire_schema_as_value_type_exit");
     let scratch = std::env::temp_dir().join(format!("omega-schemaval-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("schema-as-value canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("schema-as-value canary should run");
     assert_eq!(
@@ -12038,9 +12045,10 @@ fn runtime_wire_decode_let_compare_exit_canary_runs() {
     // (the wire selection clears the static-value table).
     let canary = pass_canary("wire/runtime_wire_decode_let_compare_exit");
     let scratch = std::env::temp_dir().join(format!("omega-declc-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("decode-let-compare canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("decode-let-compare canary should run");
     assert_eq!(
@@ -12062,10 +12070,11 @@ fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-repeated-string-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("repeated-then-string wire canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("repeated-then-string wire canary should run");
 
@@ -12089,10 +12098,11 @@ fn runtime_wire_roundtrip_nested_and_repeated_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-nested-repeated-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested-and-repeated wire canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested-and-repeated wire canary should run");
 
@@ -46055,9 +46065,19 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "time/runtime_time_elapsed_since_exit",
     "time/runtime_checked_time_arith_exit",
     "time/runtime_sleep_for_exit",
+    "traits/runtime_equatable_scalar_not_equals_guard_exit",
+    "data/runtime_case_membership_mixed_shape_exit",
     "versioning/runtime_version_migration_exit",
     "versioning/runtime_versioned_match_zii_exit",
     "versioning/runtime_versioned_three_era_match_zii_exit",
+    "wire/runtime_wire_roundtrip_repeated_max_one_exit",
+    "wire/runtime_wire_roundtrip_utf8_exit",
+    "wire/runtime_wire_utf8_edge_verdicts_exit",
+    "wire/runtime_wire_utf8_invalid_refused_exit",
+    "wire/runtime_wire_schema_as_value_type_exit",
+    "wire/runtime_wire_decode_let_compare_exit",
+    "wire/runtime_wire_encode_repeated_then_string_exit",
+    "wire/runtime_wire_roundtrip_nested_and_repeated_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
