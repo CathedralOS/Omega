@@ -448,6 +448,64 @@ machine Main::exercise(&mut self) {{
 }
 
 #[test]
+fn granted_axiom_receipt_drifts_on_published_contract_axis_edit() {
+    let project =
+        std::env::temp_dir().join(format!("omega-axiom-axis-lock-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+machine build(b: &mut Build) {
+    b.accept_boundary<admitted_axis>();
+}
+"#,
+    )
+    .expect("write build.omg");
+    let main_with = |axis: &str| {
+        format!(
+            r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Console; }}
+
+boundary machine admitted_axis()
+{axis}
+ensures true;
+
+machine Main::exercise(&mut self) {{
+    self.console.exit_process(70);
+}}
+"#
+        )
+    };
+    std::fs::write(project.join("main.omg"), main_with("")).expect("write main.omg");
+
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    };
+    compile(options()).expect("granted axiom project should compile");
+    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    assert!(lock.contains("accepted fact: admitted_axis"));
+
+    std::fs::write(project.join("main.omg"), main_with("suspends;")).expect("rewrite main.omg");
+    let message = format!(
+        "{:?}",
+        compile(options()).expect_err("published contract-axis drift should refuse")
+    );
+    assert!(
+        message.contains("granted statement drifted"),
+        "expected the drift refusal, got: {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
     let project =
         std::env::temp_dir().join(format!("omega-generic-axiom-lock-{}", std::process::id()));
