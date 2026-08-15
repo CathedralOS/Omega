@@ -21804,13 +21804,8 @@ fn runtime_float_compare_bool_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_compare_bool_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-fcmpbool-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float compare bool canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("float compare bool canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("float compare bool canary should run");
@@ -45478,6 +45473,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_count_proven_range_exit",
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
+    "arithmetic/runtime_float_compare_bool_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
