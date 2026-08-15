@@ -1626,6 +1626,127 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((retained - 1u8) - 1u8) - 1u8) < 5u8) && enabled;
             staged
         }
+        machine Root::mixed_exact_divide_remainder_chain_u8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2u8) % 3u8) / 2u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_u16_integer_comparison_convergence(
+            token: Token,
+            input: u16,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2u16) % 3u16) / 2u16) < 5u16) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_u32_integer_comparison_convergence(
+            token: Token,
+            input: u32,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2u32) % 3u32) / 2u32) < 5u32) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_u64_integer_comparison_convergence(
+            token: Token,
+            input: u64,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2u64) % 3u64) / 2u64) < 5u64) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_i8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2i8) % 3i8) / 2i8) < 5i8) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_i16_integer_comparison_convergence(
+            token: Token,
+            input: i16,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2i16) % 3i16) / 2i16) < 5i16) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_i32_integer_comparison_convergence(
+            token: Token,
+            input: i32,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2i32) % 3i32) / 2i32) < 5i32) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_divide_remainder_chain_i64_integer_comparison_convergence(
+            token: Token,
+            input: i64,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((((input / 2i64) % 3i64) / 2i64) < 5i64) && enabled;
+            staged
+        }
+        machine Root::computed_divisor_exact_divide_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            divisor: u8,
+            enabled: bool
+        ) -> bool
+        requires 1u8 <= divisor
+        {
+            let staged: bool = (((input / 2u8) / divisor) < 5u8) && enabled;
+            staged
+        }
+        machine Root::local_exact_divide_remainder_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        {
+            let retained: u8 = input;
+            let staged: bool = ((((retained / 2u8) % 3u8) / 2u8) < 5u8) && enabled;
+            staged
+        }
+        machine Root::exact_add_feeds_divide_remainder_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 254u8
+        {
+            let staged: bool = (((((input + 1u8) / 2u8) % 3u8) < 5u8) && enabled);
+            staged
+        }
+        machine Root::computed_right_exact_divide_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = ((input / ((input % 2u8) + 1u8)) < 5u8) && enabled;
+            staged
+        }
+        machine Root::signed_negative_one_exact_divide_chain_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        {
+            let staged: bool = (((input / 2i8) / -1i8) < 5i8) && enabled;
+            staged
+        }
         machine Root::two_nested_exact_add_operands_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -2507,6 +2628,44 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .is_none(),
         "a computed subtraction sibling remains outside the terminal scalar-return plan"
     );
+    for carrier in ["u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"] {
+        let machine =
+            format!("mixed_exact_divide_remainder_chain_{carrier}_integer_comparison_convergence");
+        let divide_remainder_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, &machine))
+            .unwrap_or_else(|| {
+                panic!(
+                    "the {carrier} finite mixed exact-divide/remainder chain retains the scalar-return plan"
+                )
+            });
+        assert!(divide_remainder_chain.shared_boolean_convergence.is_some());
+    }
+    for machine in [
+        "computed_divisor_exact_divide_chain_integer_comparison_convergence",
+        "local_exact_divide_remainder_chain_integer_comparison_convergence",
+        "exact_add_feeds_divide_remainder_chain_integer_comparison_convergence",
+        "computed_right_exact_divide_integer_comparison_convergence",
+        "signed_negative_one_exact_divide_chain_integer_comparison_convergence",
+    ] {
+        let fenced_divide_remainder_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| {
+                panic!(
+                    "fenced exact-divide/remainder composition `{machine}` retains only source-distributed fallback"
+                )
+            });
+        assert!(
+            fenced_divide_remainder_chain
+                .shared_boolean_convergence
+                .is_none()
+        );
+    }
     let nested_exact_cast_integer_comparison = checked
         .facts
         .flow

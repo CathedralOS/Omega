@@ -460,6 +460,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small * divisor) < 50u8)
             && ((small / 2u8) < 3u8)
             && ((small % 2u8) <= 1u8)
+            && ((((small / 2u8) % 3u8) / 2u8) < 2u8)
             && ((small / divisor) < 6u8)
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
@@ -2808,6 +2809,17 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         })
     };
+    let is_u8_two = |value| {
+        operations.iter().any(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(value)
+                && matches!(
+                    operation.kind,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(2)
+                    }
+                )
+        })
+    };
     let is_u8_three = |value| {
         operations.iter().any(|operation| {
             operation.result.scalar_ref().map(|result| result.id) == Some(value)
@@ -2989,6 +3001,72 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         nested_subtract_obligations[2]
     );
     for obligation in nested_subtract_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let (nested_divide_remainder_obligations, middle_divisor) = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerDivide {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_u8_two(right) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerRemainder {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_u8_three(middle_right) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[1].id && is_u8_two(inner_right)).then_some((
+                [inner_obligation, middle_obligation, outer_obligation],
+                middle_right,
+            ))
+        })
+        .expect("a finite mixed exact-divide/remainder chain is retained");
+    assert_ne!(
+        nested_divide_remainder_obligations[0],
+        nested_divide_remainder_obligations[1]
+    );
+    assert_ne!(
+        nested_divide_remainder_obligations[1],
+        nested_divide_remainder_obligations[2]
+    );
+    assert_ne!(
+        nested_divide_remainder_obligations[0],
+        nested_divide_remainder_obligations[2]
+    );
+    for obligation in nested_divide_remainder_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
@@ -3967,6 +4045,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == nested_subtract_obligation
         ));
     }
+    for nested_divide_remainder_obligation in nested_divide_remainder_obligations {
+        let mut missing_nested_divide_remainder_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_nested_divide_remainder_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != nested_divide_remainder_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_nested_divide_remainder_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == nested_divide_remainder_obligation
+        ));
+    }
     let mut missing_widen_exact_subtract_proof =
         decode_proof_bundle(&proof).expect("decode shared proof");
     missing_widen_exact_subtract_proof
@@ -4004,6 +4098,30 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_subtract_obligations[1]
+    ));
+    let mut changed_middle_divisor = decode_module(&semantics).expect("decode shared semantics");
+    let changed_divisor = changed_middle_divisor
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(middle_divisor)
+        })
+        .expect("middle exact-remainder landed divisor operation");
+    changed_divisor.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(0),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_middle_divisor,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == nested_divide_remainder_obligations[1]
     ));
     let mut changed_nested_widen_subtract_bound =
         decode_module(&semantics).expect("decode shared semantics");
@@ -4589,6 +4707,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small * divisor < 50
                     && small / 2 < 3
                     && small % 2 <= 1
+                    && ((small / 2) % 3) / 2 < 2
                     && small / divisor < 6
                     && small % divisor <= small
                     && (small >> small) < 1

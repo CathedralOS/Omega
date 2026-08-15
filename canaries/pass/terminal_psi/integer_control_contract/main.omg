@@ -1360,6 +1360,12 @@ requires 1u8 <= value, 2u8 <= value, 3u8 <= value
     staged
 }
 
+machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) -> bool
+{
+    let staged: bool = ((((value / 2u8) % 3u8) / 2u8) < 2u8) && enabled;
+    staged
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
