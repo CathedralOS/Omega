@@ -63,13 +63,16 @@ pub(super) fn write_trust_report(
             provenance: provenance.to_owned(),
             standing_warning: !granted,
         });
+        let mut bound_methods = Vec::with_capacity(plan.rows.len());
         for row in &plan.rows {
-            let method = plan
+            let (method_index, method) = plan
                 .schema
                 .methods
                 .iter()
-                .find(|method| plan.schema.row_binds_method(row, method))
+                .enumerate()
+                .find(|(_, method)| plan.schema.row_binds_method(row, method))
                 .expect("validated provider rows bind one exact schema requirement");
+            bound_methods.push((method_index, method));
             report
                 .provider_requirements
                 .push(TrustProviderRequirementRow {
@@ -87,7 +90,10 @@ pub(super) fn write_trust_report(
                     standing_warning: !granted,
                 });
         }
-        for method in &plan.schema.methods {
+        // Preserve schema declaration order while excluding every unbound
+        // requirement from a partial candidate's qualification blast radius.
+        bound_methods.sort_unstable_by_key(|(method_index, _)| *method_index);
+        for (_, method) in bound_methods {
             for claim in &method.entry_claims {
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
