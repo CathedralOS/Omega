@@ -125,8 +125,11 @@ fn entry_capability_manifest(
     };
 
     let contract = program.facts.contract_plans.for_machine(machine_symbol);
-    let service_reach = contract
-        .map(|contract| contract.service_reach.checked_inferred)
+    let service_reach = program
+        .facts
+        .service_reaches
+        .for_machine(machine_symbol)
+        .map(|reach| reach.inferred_transitive)
         .map(|row| {
             let reaches = &program.facts.service_reaches;
             reaches
@@ -179,7 +182,7 @@ fn entry_machine_named(
 #[cfg(test)]
 mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
-    use psi_checked_trees::{CheckedTrees, MachineContractPlan};
+    use psi_checked_trees::{CheckedTrees, MachineContractPlan, MachineServiceReachRows};
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachInterface,
         ServiceReachPlan, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
@@ -232,6 +235,18 @@ mod tests {
             .services
             .intern(SymbolHandle::from_arena_index(21), "PortIo");
         let service_row = services.rows.intern(vec![machine_control, port_io]);
+        services.machines.append_to_span(
+            &mut services.root_machines,
+            MachineServiceReachRows {
+                machine: machine_symbol,
+                interface: ServiceReachInterface::InternalInferred,
+                published_ceiling: psi_language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                inferred_direct: service_row,
+                inferred_transitive: service_row,
+                effective: service_row,
+                states: Default::default(),
+            },
+        );
 
         program
             .facts
@@ -240,10 +255,9 @@ mod tests {
             .push(MachineContractPlan {
                 machine: machine_symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
-                service_reach: ServiceReachPlan {
-                    interface: ServiceReachInterface::InternalInferred,
-                    checked_inferred: service_row,
-                },
+                // Deliberately conflicting legacy source: the capability
+                // manifest must read reach only from independent facts.
+                service_reach: ServiceReachPlan::default(),
                 synchronous_invocation: Default::default(),
                 suspension: SuspensionPlan {
                     interface: SuspensionInterface::InternalInferred,

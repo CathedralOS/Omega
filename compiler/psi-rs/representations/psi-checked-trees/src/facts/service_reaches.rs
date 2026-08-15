@@ -46,6 +46,10 @@ impl ServiceReachFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineServiceReachRows {
     pub machine: SymbolHandle,
+    /// Exact public/private interface from symbol-resolved inference. This is
+    /// not reconstructed from `published_ceiling`, because a public empty
+    /// ceiling and private empty inference share the same row contents.
+    pub interface: psi_language_semantics::ServiceReachInterface,
     pub published_ceiling: ServiceReachRowId,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,

@@ -1,7 +1,7 @@
 use omega_compiler::compile_to_checked;
 use psi_language_semantics::{
-    BlockingInterface, SuspensionInterface, SynchronousInvocationInterface, TerminationGuarantee,
-    TerminationInterface,
+    BlockingInterface, ServiceReachInterface, SuspensionInterface, SynchronousInvocationInterface,
+    TerminationGuarantee, TerminationInterface,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -174,12 +174,18 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
                 .as_str()
         })
         .collect::<Vec<_>>();
+    assert_eq!(reach.interface, ServiceReachInterface::InternalInferred);
     let contract = checked
         .facts
         .contract_plans
         .for_machine(machine.symbol)
         .expect("run_impl contract plan");
-    let published_services = match contract.service_reach.interface {
+    let contract_reach = checked
+        .facts
+        .service_reaches
+        .for_machine(machine.symbol)
+        .expect("run_impl service reach");
+    let published_services = match contract_reach.interface {
         psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => checked
             .facts
             .service_reaches
@@ -201,6 +207,11 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
             panic!("provider contract must publish its service ceiling")
         }
     };
+    assert_eq!(contract.service_reach.interface, contract_reach.interface);
+    assert_eq!(
+        contract.service_reach.checked_inferred,
+        contract_reach.inferred_transitive
+    );
     assert_eq!(published_services, ["Clock", "Storage"]);
     assert_eq!(reached_names, ["Clock", "Storage"]);
     assert_eq!(

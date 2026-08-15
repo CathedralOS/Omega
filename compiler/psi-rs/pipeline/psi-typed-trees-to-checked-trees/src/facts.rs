@@ -201,7 +201,9 @@ fn build_contract_plans(
     let invocation_inference = psi_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
-        let published_service_row = machine.service_reach_row;
+        let published_service_row = service_fact
+            .map(|fact| fact.published_ceiling)
+            .unwrap_or(psi_language_semantics::ServiceReachRowTable::EMPTY_ROW);
         let published_service_names = service_reaches
             .rows
             .services(published_service_row)
@@ -209,20 +211,8 @@ fn build_contract_plans(
             .filter_map(|service| service_reaches.services.definition(*service))
             .map(|definition| definition.name.clone())
             .collect::<Vec<_>>();
-        let publishes_service_contract = machine.supply_mode
-            != psi_language_semantics::MachineSupplyMode::CheckedBody
-            || !program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .is_empty();
         let service_reach = psi_language_semantics::ServiceReachPlan {
-            interface: if publishes_service_contract {
-                psi_language_semantics::ServiceReachInterface::PublishedCeiling(
-                    published_service_row,
-                )
-            } else {
-                psi_language_semantics::ServiceReachInterface::InternalInferred
-            },
+            interface: service_fact.map(|fact| fact.interface).unwrap_or_default(),
             checked_inferred: service_fact
                 .map(|fact| fact.inferred_transitive)
                 .unwrap_or(psi_language_semantics::ServiceReachRowTable::EMPTY_ROW),
@@ -1486,6 +1476,7 @@ fn build_service_reach_facts(
             .machines
             .map(|machine| psi_checked_trees::MachineServiceReachRows {
                 machine: machine.machine,
+                interface: machine.interface,
                 published_ceiling: machine.published,
                 inferred_direct: machine.inferred_direct,
                 inferred_transitive: machine.inferred_transitive,
