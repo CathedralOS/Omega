@@ -454,15 +454,18 @@ bound, `divisor <= -2` upper bound, or joint `divisor <= -1` and
 operation; one proof-bearing exact operation may also appear as the innermost
 operation beneath up to two bitwise-not, integer-widening, or proof-free binary
 shells, and distinct binary subtrees may each contain one independently proved
-exact leaf. One bounded exception lets one same-carrier exact-add result feed
-one further exact add: the inner operation has one landed constant addend and a
-direct scalar parameter or landed constant operand, and the outer sibling is
-another landed constant. Terminal order retains both operations and both
-obligation IDs. The verifier uses the prior inner-result equality to reconstruct
-the outer constant-combined safety premise, then checks distinct evidence for
-each operation. Deeper chains, two proof-bearing operands to one operation,
-computed addends, and every other proof-bearing composition remain fenced. One
-separate computed-cast exception accepts a direct fixed-integer parameter
+exact leaf. A finite same-carrier exact-add chain may instead have a direct
+machine-parameter root when every non-chain sibling is a landed literal
+constant. Terminal retains every add and obligation. The verifier walks only
+prior left-to-right definitions with a shrinking prefix, combines the constants
+as a checked mathematical sign and magnitude, rejects accumulator overflow or
+a magnitude beyond the carrier span, and reconstructs and checks every
+operation's evidence independently. Two computed
+operands, nonconstant siblings, local or block-parameter roots, subtraction,
+multiplication, and other proof-bearing compositions remain fenced. Missing,
+reordered, reversed, redirected, cyclic, or stale definitions and missing
+evidence reject. One separate computed-cast exception accepts a direct
+fixed-integer parameter
 widened through any finite chain of valid fixed-carrier widenings and then
 exactly narrowed back to its original carrier. Terminal retains every ordered
 `IntegerWiden` and the `IntegerExactCast`. The verifier walks only prior

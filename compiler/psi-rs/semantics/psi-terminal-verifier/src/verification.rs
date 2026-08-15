@@ -856,6 +856,7 @@ fn reconstruct_machine_semantics(
                     else {
                         unreachable!("validator requires exact-add integer result type")
                     };
+                    let definition_axiom_count = axioms.len();
                     let mut available_bounds = axioms.clone();
                     available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -866,6 +867,8 @@ fn reconstruct_machine_semantics(
                                 value_term(left),
                                 value_term(right),
                                 &available_bounds,
+                                definition_axiom_count,
+                                &machine_parameter_values,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1710,11 +1713,163 @@ fn integer_value_cmp(left: IntegerValue, right: IntegerValue) -> std::cmp::Order
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntegerOffset {
+    Nonnegative(u128),
+    Negative(u128),
+}
+
+impl IntegerOffset {
+    fn from_value(value: IntegerValue) -> Self {
+        match value {
+            IntegerValue::Unsigned(value) => Self::Nonnegative(value),
+            IntegerValue::Signed(value) if value < 0 => Self::Negative(value.unsigned_abs()),
+            IntegerValue::Signed(value) => Self::Nonnegative(value as u128),
+        }
+    }
+
+    fn checked_add(self, right: Self) -> Option<Self> {
+        match (self, right) {
+            (Self::Nonnegative(left), Self::Nonnegative(right)) => {
+                left.checked_add(right).map(Self::Nonnegative)
+            }
+            (Self::Negative(left), Self::Negative(right)) => {
+                left.checked_add(right).map(Self::Negative)
+            }
+            (Self::Nonnegative(left), Self::Negative(right)) => Some(if left >= right {
+                Self::Nonnegative(left - right)
+            } else {
+                Self::Negative(right - left)
+            }),
+            (Self::Negative(left), Self::Nonnegative(right)) => Some(if right >= left {
+                Self::Nonnegative(right - left)
+            } else {
+                Self::Negative(left - right)
+            }),
+        }
+    }
+
+    const fn magnitude(self) -> u128 {
+        match self {
+            Self::Nonnegative(value) | Self::Negative(value) => value,
+        }
+    }
+
+    fn is_representable(self, integer_type: psi_core::IntegerType) -> bool {
+        match (integer_type.sign(), self) {
+            (IntegerSign::Unsigned, Self::Nonnegative(value)) => {
+                integer_type.admits(IntegerValue::Unsigned(value))
+            }
+            (IntegerSign::Unsigned, Self::Negative(_)) => false,
+            (IntegerSign::Signed, Self::Nonnegative(value)) => i128::try_from(value)
+                .ok()
+                .is_some_and(|value| integer_type.admits(IntegerValue::Signed(value))),
+            (IntegerSign::Signed, Self::Negative(value)) => signed_negative_magnitude(value)
+                .is_some_and(|value| integer_type.admits(IntegerValue::Signed(value))),
+        }
+    }
+}
+
+fn signed_negative_magnitude(magnitude: u128) -> Option<i128> {
+    if magnitude == 1_u128 << 127 {
+        Some(i128::MIN)
+    } else {
+        i128::try_from(magnitude).ok().and_then(i128::checked_neg)
+    }
+}
+
+fn integer_type_span(integer_type: psi_core::IntegerType) -> u128 {
+    if integer_type.bits() == 128 {
+        u128::MAX
+    } else {
+        (1_u128 << integer_type.bits()) - 1
+    }
+}
+
+fn landed_integer_constant_value(
+    integer_type: psi_core::IntegerType,
+    term: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+    prior_axiom_count: usize,
+) -> Option<IntegerValue> {
+    let (known_type, value) = term.integer_value().or_else(|| {
+        semantic_axioms[..prior_axiom_count.min(semantic_axioms.len())]
+            .iter()
+            .rev()
+            .find_map(|axiom| match axiom {
+                Proposition::Equal(left, right) if left == term => right.integer_value(),
+                _ => None,
+            })
+    })?;
+    (known_type == integer_type && integer_type.admits(value)).then_some(value)
+}
+
+fn exact_integer_add_offset_obligation(
+    integer_type: psi_core::IntegerType,
+    variable: ScalarTerm,
+    offset: IntegerOffset,
+) -> Proposition {
+    if offset.magnitude() > integer_type_span(integer_type) {
+        return Proposition::Falsehood;
+    }
+    match (integer_type.sign(), offset) {
+        (_, IntegerOffset::Nonnegative(0)) | (_, IntegerOffset::Negative(0)) => Proposition::Truth,
+        (IntegerSign::Unsigned, IntegerOffset::Nonnegative(offset)) => {
+            let IntegerValue::Unsigned(maximum) = integer_type.maximum_value() else {
+                unreachable!("unsigned type has unsigned maximum")
+            };
+            let boundary = ScalarTerm::integer(
+                integer_type,
+                IntegerValue::Unsigned(maximum.checked_sub(offset).expect("offset fits span")),
+            )
+            .expect("exact-add unsigned boundary remains in the carrier");
+            Proposition::LessOrEqual(variable, boundary)
+        }
+        (IntegerSign::Unsigned, IntegerOffset::Negative(_)) => Proposition::Falsehood,
+        (IntegerSign::Signed, IntegerOffset::Nonnegative(offset)) => {
+            let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
+                unreachable!("signed type has signed maximum")
+            };
+            let boundary = if offset <= maximum as u128 {
+                maximum - offset as i128
+            } else {
+                signed_negative_magnitude(offset - maximum as u128)
+                    .expect("offset within the carrier span has a signed boundary")
+            };
+            Proposition::LessOrEqual(
+                variable,
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(boundary))
+                    .expect("exact-add signed upper boundary remains in the carrier"),
+            )
+        }
+        (IntegerSign::Signed, IntegerOffset::Negative(offset)) => {
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                unreachable!("signed type has signed minimum")
+            };
+            let minimum_magnitude = minimum.unsigned_abs();
+            let boundary = if offset < minimum_magnitude {
+                signed_negative_magnitude(minimum_magnitude - offset)
+                    .expect("offset within the carrier span has a signed boundary")
+            } else {
+                i128::try_from(offset - minimum_magnitude)
+                    .expect("offset within the carrier span has a signed boundary")
+            };
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(boundary))
+                    .expect("exact-add signed lower boundary remains in the carrier"),
+                variable,
+            )
+        }
+    }
+}
+
 fn exact_integer_add_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1725,9 +1880,9 @@ fn exact_integer_add_obligation(
             Proposition::Falsehood
         };
     }
-    let (mut variable, mut constant) = match (known_left, known_right) {
-        (Some(constant), None) => (right, constant),
-        (None, Some(constant)) => (left, constant),
+    let (mut variable, constant, constant_term) = match (known_left, known_right) {
+        (Some(constant), None) => (right, constant, left),
+        (None, Some(constant)) => (left, constant, right),
         (None, None) => {
             if integer_type.sign() == IntegerSign::Unsigned {
                 if let Some(bound) = semantic_axioms.iter().rev().find(|axiom| match axiom {
@@ -1799,72 +1954,97 @@ fn exact_integer_add_obligation(
         }
         (Some(_), Some(_)) => unreachable!("known exact-add operands returned above"),
     };
-    if let Some((nested_variable, nested_constant)) = semantic_axioms
-        .iter()
-        .rev()
-        .find_map(|axiom| match axiom {
-            Proposition::Equal(left, right) if left == &variable => Some(right),
-            Proposition::Equal(left, right) if right == &variable => Some(left),
-            _ => None,
-        })
-        .and_then(|definition| {
+    let original_variable = variable.clone();
+    let original_offset = IntegerOffset::from_value(constant);
+    let mut offset = original_offset;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let may_follow_chain = landed_integer_constant_value(
+        integer_type,
+        &constant_term,
+        semantic_axioms,
+        prior_axiom_count,
+    ) == Some(constant);
+    let mut followed_definition = false;
+    if may_follow_chain {
+        for _ in 0..prior_axiom_count {
+            let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, axiom)| match axiom {
+                    Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                    _ => None,
+                })
+            else {
+                break;
+            };
             let ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
                 right,
             } = definition
             else {
-                return None;
+                break;
             };
             if *scalar_type != integer_type {
-                return None;
+                break;
             }
-            match (
-                known_integer_term_value(integer_type, left, semantic_axioms),
-                known_integer_term_value(integer_type, right, semantic_axioms),
-            ) {
-                (Some(constant), None) => Some(((**right).clone(), constant)),
-                (None, Some(constant)) => Some(((**left).clone(), constant)),
-                _ => None,
+            let known_left = landed_integer_constant_value(
+                integer_type,
+                left,
+                semantic_axioms,
+                definition_index,
+            );
+            let known_right = landed_integer_constant_value(
+                integer_type,
+                right,
+                semantic_axioms,
+                definition_index,
+            );
+            let (nested_variable, nested_constant) = match (known_left, known_right) {
+                (Some(left), None) => ((**right).clone(), left),
+                (None, Some(right)) => ((**left).clone(), right),
+                (Some(left), Some(right)) => {
+                    let Some(base) = integer_type.exact_add(left, right) else {
+                        return Proposition::Falsehood;
+                    };
+                    let Some(total) = offset.checked_add(IntegerOffset::from_value(base)) else {
+                        return Proposition::Falsehood;
+                    };
+                    return if total.is_representable(integer_type) {
+                        Proposition::Truth
+                    } else {
+                        Proposition::Falsehood
+                    };
+                }
+                (None, None) => break,
+            };
+            let Some(combined) = offset.checked_add(IntegerOffset::from_value(nested_constant))
+            else {
+                return Proposition::Falsehood;
+            };
+            if combined.magnitude() > integer_type_span(integer_type) {
+                return Proposition::Falsehood;
             }
-        })
-        && let Some(combined_constant) = integer_type.exact_add(nested_constant, constant)
+            offset = combined;
+            variable = nested_variable;
+            prior_axiom_count = definition_index;
+            followed_definition = true;
+        }
+    }
+    if followed_definition
+        && !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type && machine_parameter_values.contains(id)
+        )
     {
-        variable = nested_variable;
-        constant = combined_constant;
+        variable = original_variable;
+        offset = original_offset;
     }
-    match (integer_type.sign(), constant) {
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
-        | (IntegerSign::Signed, IntegerValue::Signed(0)) => Proposition::Truth,
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(constant)) => {
-            let IntegerValue::Unsigned(maximum) = integer_type.maximum_value() else {
-                unreachable!("unsigned type has unsigned maximum")
-            };
-            let boundary =
-                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(maximum - constant))
-                    .expect("exact-add unsigned boundary remains in the carrier");
-            Proposition::LessOrEqual(variable, boundary)
-        }
-        (IntegerSign::Signed, IntegerValue::Signed(constant)) if constant > 0 => {
-            let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
-                unreachable!("signed type has signed maximum")
-            };
-            let boundary =
-                ScalarTerm::integer(integer_type, IntegerValue::Signed(maximum - constant))
-                    .expect("exact-add signed upper boundary remains in the carrier");
-            Proposition::LessOrEqual(variable, boundary)
-        }
-        (IntegerSign::Signed, IntegerValue::Signed(constant)) => {
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
-                unreachable!("signed type has signed minimum")
-            };
-            let boundary =
-                ScalarTerm::integer(integer_type, IntegerValue::Signed(minimum - constant))
-                    .expect("exact-add signed lower boundary remains in the carrier");
-            Proposition::LessOrEqual(boundary, variable)
-        }
-        _ => Proposition::Falsehood,
-    }
+    exact_integer_add_offset_obligation(integer_type, variable, offset)
 }
 
 fn is_maximum_minus(
@@ -3395,6 +3575,8 @@ mod tests {
                 left.clone(),
                 right.clone(),
                 std::slice::from_ref(&bound),
+                0,
+                &BTreeSet::new(),
             ),
             bound.clone()
         );
@@ -3417,17 +3599,187 @@ mod tests {
             ScalarTerm::exact_integer_add(integer_type, input.clone(), one.clone())
                 .expect("u8 exact add term"),
         );
+        let machine_parameters = BTreeSet::from([ValueId::new(1).expect("input")]);
         assert_eq!(
             exact_integer_add_obligation(
                 integer_type,
                 inner_result,
                 one,
                 std::slice::from_ref(&inner_definition),
+                1,
+                &machine_parameters,
             ),
             Proposition::LessOrEqual(
                 input,
                 ScalarTerm::integer(integer_type, IntegerValue::Unsigned(253)).expect("253u8"),
             )
+        );
+    }
+
+    #[test]
+    fn reconstructs_a_finite_ordered_exact_add_chain_and_rejects_broken_definitions() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let input_id = ValueId::new(1).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(integer_type));
+        let first = ScalarTerm::value(
+            ValueId::new(2).expect("first"),
+            ScalarType::Integer(integer_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(3).expect("second"),
+            ScalarType::Integer(integer_type),
+        );
+        let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_add(integer_type, input.clone(), one.clone())
+                .expect("first exact add"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_add(integer_type, first.clone(), one.clone())
+                .expect("second exact add"),
+        );
+        let parameters = BTreeSet::from([input_id]);
+        let expected = Proposition::LessOrEqual(
+            input,
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(252)).expect("252u8"),
+        );
+        let reconstruct = |axioms: &[Proposition], parameters: &BTreeSet<ValueId>| {
+            exact_integer_add_obligation(
+                integer_type,
+                second.clone(),
+                one.clone(),
+                axioms,
+                axioms.len(),
+                parameters,
+            )
+        };
+        assert_eq!(
+            reconstruct(
+                &[first_definition.clone(), second_definition.clone()],
+                &parameters
+            ),
+            expected
+        );
+        assert_ne!(
+            reconstruct(std::slice::from_ref(&second_definition), &parameters),
+            expected
+        );
+        assert_ne!(
+            reconstruct(
+                &[second_definition.clone(), first_definition.clone()],
+                &parameters
+            ),
+            expected
+        );
+        let reversed_second = match second_definition.clone() {
+            Proposition::Equal(left, right) => Proposition::Equal(right, left),
+            _ => unreachable!("exact-add definition is an equality"),
+        };
+        assert_ne!(
+            reconstruct(&[first_definition.clone(), reversed_second], &parameters),
+            expected
+        );
+        let redirected_second = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(2)).expect("2u8"),
+        );
+        assert_ne!(
+            reconstruct(&[first_definition.clone(), redirected_second], &parameters),
+            expected
+        );
+        let cyclic_first = Proposition::Equal(
+            first,
+            ScalarTerm::exact_integer_add(integer_type, second.clone(), one.clone())
+                .expect("cyclic exact add"),
+        );
+        assert_ne!(
+            reconstruct(&[cyclic_first, second_definition.clone()], &parameters),
+            expected
+        );
+        assert_ne!(
+            reconstruct(&[first_definition, second_definition], &BTreeSet::new(),),
+            expected
+        );
+    }
+
+    #[test]
+    fn reconstructs_wide_signed_offsets_cancellation_and_magnitude_overflow() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let input_id = ValueId::new(1).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(i8_type));
+        let first = ScalarTerm::value(
+            ValueId::new(2).expect("first"),
+            ScalarType::Integer(i8_type),
+        );
+        let positive = ScalarTerm::integer(i8_type, IntegerValue::Signed(127)).expect("127i8");
+        let negative = ScalarTerm::integer(i8_type, IntegerValue::Signed(-127)).expect("-127i8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_add(i8_type, input.clone(), positive.clone())
+                .expect("first signed exact add"),
+        );
+        let parameters = BTreeSet::from([input_id]);
+        assert_eq!(
+            exact_integer_add_obligation(
+                i8_type,
+                first.clone(),
+                positive,
+                std::slice::from_ref(&first_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                input,
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(-127)).expect("-127i8"),
+            )
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                i8_type,
+                first,
+                negative,
+                std::slice::from_ref(&first_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::Truth
+        );
+
+        let i128_type = IntegerType::new(IntegerSign::Signed, 128).expect("i128");
+        let wide_input_id = ValueId::new(11).expect("wide input");
+        let wide_input = ScalarTerm::value(wide_input_id, ScalarType::Integer(i128_type));
+        let wide_first = ScalarTerm::value(
+            ValueId::new(12).expect("wide first"),
+            ScalarType::Integer(i128_type),
+        );
+        let wide_second = ScalarTerm::value(
+            ValueId::new(13).expect("wide second"),
+            ScalarType::Integer(i128_type),
+        );
+        let maximum =
+            ScalarTerm::integer(i128_type, IntegerValue::Signed(i128::MAX)).expect("i128 maximum");
+        let wide_first_definition = Proposition::Equal(
+            wide_first.clone(),
+            ScalarTerm::exact_integer_add(i128_type, wide_input, maximum.clone())
+                .expect("wide first exact add"),
+        );
+        let wide_second_definition = Proposition::Equal(
+            wide_second.clone(),
+            ScalarTerm::exact_integer_add(i128_type, wide_first, maximum.clone())
+                .expect("wide second exact add"),
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                i128_type,
+                wide_second,
+                maximum,
+                &[wide_first_definition, wide_second_definition],
+                2,
+                &BTreeSet::from([wide_input_id]),
+            ),
+            Proposition::Falsehood
         );
     }
 
@@ -3450,7 +3802,14 @@ mod tests {
         let bound = Proposition::LessOrEqual(left.clone(), remainder);
         let axioms = vec![nonnegative.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_add_obligation(integer_type, left, right.clone(), &axioms,),
+            exact_integer_add_obligation(
+                integer_type,
+                left,
+                right.clone(),
+                &axioms,
+                0,
+                &BTreeSet::new(),
+            ),
             canonical_conjunction(vec![nonnegative.clone(), bound])
         );
         assert_eq!(
@@ -3484,7 +3843,14 @@ mod tests {
         let bound = Proposition::LessOrEqual(remainder, left.clone());
         let axioms = vec![nonpositive.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_add_obligation(integer_type, left.clone(), right.clone(), &axioms,),
+            exact_integer_add_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                0,
+                &BTreeSet::new(),
+            ),
             canonical_conjunction(vec![nonpositive.clone(), bound])
         );
         assert_eq!(

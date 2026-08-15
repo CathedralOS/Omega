@@ -1554,6 +1554,17 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((input + 1u8) + 1u8) + 1u8) < 5u8) && enabled;
             staged
         }
+        machine Root::local_exact_add_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8
+        {
+            let retained: u8 = input;
+            let staged: bool = ((((retained + 1u8) + 1u8) + 1u8) < 5u8) && enabled;
+            staged
+        }
         machine Root::two_nested_exact_add_operands_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -2364,10 +2375,10 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .is_some()
     );
     for machine in [
-        "deep_nested_exact_add_integer_comparison_convergence",
         "two_nested_exact_add_operands_integer_comparison_convergence",
         "nested_exact_add_computed_sibling_integer_comparison_convergence",
         "nested_exact_add_feeds_multiply_integer_comparison_convergence",
+        "local_exact_add_chain_integer_comparison_convergence",
     ] {
         let wider_nested_exact_add = checked
             .facts
@@ -2377,6 +2388,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .expect("wider exact-add composition retains only the source-distributed fallback");
         assert!(wider_nested_exact_add.shared_boolean_convergence.is_none());
     }
+    let deep_nested_exact_add = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "deep_nested_exact_add_integer_comparison_convergence",
+        ))
+        .expect("a finite exact-add chain retains the scalar-return plan");
+    assert!(deep_nested_exact_add.shared_boolean_convergence.is_some());
     let nested_exact_cast_integer_comparison = checked
         .facts
         .flow
