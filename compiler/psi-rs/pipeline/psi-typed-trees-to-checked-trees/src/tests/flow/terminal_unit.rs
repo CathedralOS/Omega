@@ -1,5 +1,6 @@
 use super::*;
 use crate::flow::{
+    exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
     exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
@@ -1990,6 +1991,59 @@ fn exact_affine_chain_classifier_accepts_only_left_associated_landed_mixed_opera
 }
 
 #[test]
+fn affine_chain_exact_cast_classifier_reuses_only_the_unified_mixed_family() {
+    let literal = |value| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::U16,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U16,
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U16,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let added = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        parameter(),
+        literal(3i64),
+    );
+    let affine = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            added.clone(),
+            literal(2i64),
+        ),
+        literal(1i64),
+    );
+    assert_eq!(
+        exact_affine_chain_cast_runtime_parameter_positions_for_test(PrimitiveType::U8, &affine, 1,),
+        Some(vec![0]),
+    );
+    assert_eq!(
+        exact_affine_chain_cast_runtime_parameter_positions_for_test(PrimitiveType::U8, &added, 1,),
+        None,
+        "homogeneous chains remain on the narrower computed-cast classifiers",
+    );
+    assert_eq!(
+        exact_affine_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::Addr,
+            &affine,
+            1,
+        ),
+        None,
+    );
+}
+
+#[test]
 fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     let checked = checked(
         r#"
@@ -3561,6 +3615,36 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = (((((input + 3u8) * 0u8) + 255u8) < 255u8) && enabled);
             staged
         }
+        machine Root::mixed_exact_affine_chain_cast_u8_to_i8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8, input <= 124u8, input <= 125u8, input <= 61u8
+        {
+            let staged: bool = ((((((input + 3u8) * 2u8) - 1u8) as i8) < 127i8) && enabled);
+            staged
+        }
+        machine Root::mixed_exact_affine_chain_cast_i8_to_u8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -125i8 <= input, -61i8 <= input, input <= 66i8, 3i8 <= input
+        {
+            let staged: bool = ((((((input - 3i8) * 2i8) + 1i8) as u8) < 255u8) && enabled);
+            staged
+        }
+        machine Root::zero_factor_mixed_exact_affine_chain_cast_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 252u8
+        {
+            let staged: bool = ((((((input + 3u8) * 0u8) + 127u8) as i8) < 127i8) && enabled);
+            staged
+        }
         machine Root::nested_exact_cast_integer_comparison_convergence(
             token: Token,
             input: u64,
@@ -4928,6 +5012,9 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "mixed_exact_affine_u8_integer_comparison_convergence",
         "mixed_exact_affine_i8_integer_comparison_convergence",
         "zero_factor_mixed_exact_affine_integer_comparison_convergence",
+        "mixed_exact_affine_chain_cast_u8_to_i8_integer_comparison_convergence",
+        "mixed_exact_affine_chain_cast_i8_to_u8_integer_comparison_convergence",
+        "zero_factor_mixed_exact_affine_chain_cast_integer_comparison_convergence",
     ] {
         let affine_chain = checked
             .facts

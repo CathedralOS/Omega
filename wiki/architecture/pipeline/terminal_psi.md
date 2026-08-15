@@ -597,6 +597,24 @@ the source width, with `Q = 2^C`, the cast maps target interval `[L, U]` back to
 above source width an unsigned source yields zero; a signed source yields
 `-1` or `0`, so the cast is true for a signed target and requires `0 <= root`
 for an unsigned target. No shift proof is imported into the cast reconstruction.
+One sixth computed-cast exception accepts the unified finite left-associated
+same-source-carrier mixed affine chain described above when it contains both an
+exact add/subtract and an exact multiply. The cast is validator-legal and
+partial, the root is one direct machine parameter, every right sibling is an
+independently landed same-carrier literal, and multiply factors are
+nonnegative. The verifier follows only prior canonical shrinking-prefix
+definitions and replays the full operand as `A * root + B` with checked
+coefficient and offset composition. For `A > 0`, it maps the target carrier
+back to `[ceil((TARGET_MIN-B)/A), floor((TARGET_MAX-B)/A)]` and intersects that
+interval with the source carrier. For `A == 0`, only the cast is true exactly
+when `B` is target-representable. No arithmetic-prefix proof is imported into
+cast reconstruction, so later zero or cancellation cannot erase an earlier
+obligation. Homogeneous chains remain on their narrower computed-cast paths.
+Literal-left, reversed, or right-associated shapes, runtime, computed,
+negative, or mistyped factors/siblings, mixed or non-native carriers, local or
+block roots, intervening shells, operations, or casts, invalid or widening
+casts, malformed or stale definitions, coefficient/offset overflow, and stale
+or missing evidence remain fenced.
 Conversely, one
 validator-legal partial fixed-native exact cast of a direct machine parameter
 may root a finite
