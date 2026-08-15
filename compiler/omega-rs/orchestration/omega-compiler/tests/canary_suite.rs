@@ -17615,10 +17615,11 @@ fn mutual_cycle_tail_admitted_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-mutual-tail-admitted-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("admitted mutual tail cycle should compile natively");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("admitted mutual tail cycle should run");
 
@@ -17656,10 +17657,11 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-landed-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("landed-ops const-fold canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("landed-ops const-fold canary should run");
 
@@ -17696,10 +17698,11 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-shr-arg-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-right arg-delivery canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("shift-right arg-delivery canary should run");
 
@@ -17735,10 +17738,11 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-div-arg-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("divide/mod arg-delivery canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("divide/mod arg-delivery canary should run");
 
@@ -17774,10 +17778,11 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned min/max local canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsigned min/max local canary should run");
 
@@ -17814,10 +17819,11 @@ fn unsigned_min_max_operand_position_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-minmax-operand-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("operand-position min/max canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("operand-position min/max canary should run");
 
@@ -17853,10 +17859,11 @@ fn suffix_boundary_magnitudes_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-suffix-boundary-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("suffix boundary canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("suffix boundary canary should run");
 
@@ -17888,10 +17895,11 @@ fn float_value_call_return_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-float-vret-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float return canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float return canary should run");
 
@@ -17926,10 +17934,11 @@ fn expansion_float_local_guard_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-exp-float-guard-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("expansion float guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("expansion float guard canary should run");
 
@@ -18010,10 +18019,11 @@ fn f32_chain_per_op_rounding_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-f32-chain-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32 chain canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32 chain canary should run");
 
@@ -46075,6 +46085,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/mutual_cycle_tail_admitted_exit",
+    "arithmetic/const_fold_unsigned_landed_ops_exit",
+    "arithmetic/const_fold_unsigned_shift_right_arg_exit",
+    "arithmetic/const_fold_unsigned_divide_arg_exit",
+    "arithmetic/unsigned_min_max_wrapping_local_exit",
+    "arithmetic/unsigned_min_max_operand_position_exit",
+    "arithmetic/suffix_boundary_magnitudes_exit",
+    "calls/float_value_call_return_exit",
+    "float/expansion_float_local_guard_exit",
+    "float/f32_chain_per_op_rounding_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
