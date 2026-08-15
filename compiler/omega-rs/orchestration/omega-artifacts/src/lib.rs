@@ -669,6 +669,14 @@ impl ArtifactWriter {
             if let Some(fingerprint) = row.machine_contract_fingerprint {
                 output.push_str(&format!(" -- machine contract: {fingerprint:016x}"));
             }
+            if let Some(service_reach) = &row.machine_service_reach {
+                output.push_str(" -- service reach: ");
+                if service_reach.is_empty() {
+                    output.push_str("none");
+                } else {
+                    output.push_str(&service_reach.join(", "));
+                }
+            }
             if row.standing_warning {
                 output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
             }
@@ -2129,6 +2137,10 @@ pub struct TrustReportRow {
     /// Domains, provider commitments, and unmatched imported grants have no
     /// machine contract and retain `None` rather than a synthesized identity.
     pub machine_contract_fingerprint: Option<u64>,
+    /// Exact published service-reach ceiling for one local accepted machine.
+    /// `Some(Vec::new())` is the explicit public negative guarantee; rows that
+    /// do not describe a local accepted machine retain `None`.
+    pub machine_service_reach: Option<Vec<String>>,
     /// Dev-active rows warn until the root grants them.
     pub standing_warning: bool,
 }
@@ -2491,10 +2503,61 @@ mod tests {
 
     use super::{
         ArtifactWriter, TrustProviderRealization, TrustProviderRequirementRow,
-        TrustQualificationRow, TrustReport, WireFieldRelevance, WireFieldReportEntry,
-        build_backend_surface_report, external_root_records_manifest_json, push_wire_field_table,
-        value_placement_json,
+        TrustQualificationRow, TrustReport, TrustReportRow, WireFieldRelevance,
+        WireFieldReportEntry, build_backend_surface_report, external_root_records_manifest_json,
+        push_wire_field_table, value_placement_json,
     };
+
+    #[test]
+    fn accepted_machine_service_reach_distinguishes_public_empty_from_non_machine_rows() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-trust-accepted-reach-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let writer = ArtifactWriter::new(&root).expect("artifact writer");
+        let report = TrustReport {
+            rows: vec![
+                TrustReportRow {
+                    commitment: "accepted fact: quiet_axiom".to_owned(),
+                    provenance: "root grant (build.omg)".to_owned(),
+                    machine_contract_fingerprint: Some(0xabcd),
+                    machine_service_reach: Some(Vec::new()),
+                    standing_warning: false,
+                },
+                TrustReportRow {
+                    commitment: "domain introduction: Meters".to_owned(),
+                    provenance: "root grant (build.omg)".to_owned(),
+                    machine_contract_fingerprint: None,
+                    machine_service_reach: None,
+                    standing_warning: false,
+                },
+            ],
+            ..Default::default()
+        };
+
+        writer
+            .write_trust_report(&report)
+            .expect("trust report output");
+        let output =
+            std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
+        let accepted = output
+            .lines()
+            .find(|line| line.contains("accepted fact: quiet_axiom"))
+            .expect("accepted fact row");
+        let domain = output
+            .lines()
+            .find(|line| line.contains("domain introduction: Meters"))
+            .expect("domain row");
+
+        assert!(accepted.contains("service reach: none"));
+        assert!(!domain.contains("service reach:"));
+        std::fs::remove_dir_all(root).expect("remove test artifact directory");
+    }
 
     #[test]
     fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identity() {
