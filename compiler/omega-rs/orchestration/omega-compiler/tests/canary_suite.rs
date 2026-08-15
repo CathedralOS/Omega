@@ -8513,9 +8513,10 @@ fn runtime_crc32_exit_canary_runs() {
     // is 891568578, verified against zlib -> exit 70.
     let canary = pass_canary("text/runtime_crc32_exit");
     let scratch = std::env::temp_dir().join(format!("omega-crc32-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("crc32 canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("crc32 canary should run");
     assert_eq!(
@@ -8535,9 +8536,10 @@ fn runtime_base64_encode_exit_canary_runs() {
     // exit 70.
     let canary = pass_canary("text/runtime_base64_encode_exit");
     let scratch = std::env::temp_dir().join(format!("omega-base64-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("base64 encode canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("base64 encode canary should run");
     assert_eq!(
@@ -8557,9 +8559,10 @@ fn runtime_run_length_encode_exit_canary_runs() {
     // field). "aaabbbbcc" -> "a3b4c2", six output bytes checked -> exit 70.
     let canary = pass_canary("text/runtime_run_length_encode_exit");
     let scratch = std::env::temp_dir().join(format!("omega-rle-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("run-length encode canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("run-length encode canary should run");
     assert_eq!(
@@ -8579,9 +8582,10 @@ fn runtime_binary_format_exit_canary_runs() {
     // all eight bytes checked -> exit 70.
     let canary = pass_canary("text/runtime_binary_format_exit");
     let scratch = std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("binary format canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("binary format canary should run");
     assert_eq!(
@@ -8602,9 +8606,10 @@ fn runtime_substring_search_exit_canary_runs() {
     let canary = pass_canary("text/runtime_substring_search_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-substring-search-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("substring search canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("substring search canary should run");
     assert_eq!(
@@ -45960,6 +45965,11 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "text/runtime_base64_encode_exit",
+    "text/runtime_binary_format_exit",
+    "text/runtime_crc32_exit",
+    "text/runtime_run_length_encode_exit",
+    "text/runtime_substring_search_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_instant_elapsed_exit",
@@ -46329,6 +46339,11 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "text/runtime_base64_encode_exit",
+    "text/runtime_binary_format_exit",
+    "text/runtime_crc32_exit",
+    "text/runtime_run_length_encode_exit",
+    "text/runtime_substring_search_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_fs_mtime_interop_windows_exit",
