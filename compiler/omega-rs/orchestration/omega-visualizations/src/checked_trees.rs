@@ -1203,12 +1203,17 @@ fn qualification_subject(program: &CheckedTrees, fact: &psi_facts::Fact) -> Stri
             FactPlace::TypeReference(type_reference) => {
                 program.display_type_reference(type_reference)
             }
-            FactPlace::Unknown | FactPlace::Place(_) => "<unknown>".to_owned(),
+            FactPlace::Unknown => {
+                panic!("qualification evidence must retain a semantic subject position")
+            }
+            FactPlace::Place(_) => unreachable!("place subject handled above"),
         };
     };
     let place = program.facts.semantic.places.get(place);
     let mut subject = match place.root {
-        PlaceRoot::Unknown => "<unknown>".to_owned(),
+        PlaceRoot::Unknown => {
+            panic!("qualification evidence must retain a semantic subject position")
+        }
         PlaceRoot::Symbol(symbol) => qualification_symbol_label(program, symbol),
         PlaceRoot::Expression(expression) => program.expression_table.display_name(expression),
         PlaceRoot::TypeReference(type_reference) => program.display_type_reference(type_reference),
@@ -3261,9 +3266,9 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_blocking_summary,
         machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
-        qualification_requirement_identity, specialization_instance_contract_fingerprint,
-        task_activation_manifest_json, validate_qualification_receipt,
-        validate_vacuous_qualification_use,
+        qualification_requirement_identity, qualification_subject,
+        specialization_instance_contract_fingerprint, task_activation_manifest_json,
+        validate_qualification_receipt, validate_vacuous_qualification_use,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3274,7 +3279,8 @@ mod tests {
         SuspensionCrossingCarryFact, VacuousQualificationUse,
     };
     use psi_facts::{
-        Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
+        Fact, FactOrigin, FactPayload, FactPlace, Place, PlaceRoot, ProgramPoint,
+        QualificationEvidence,
     };
     use psi_language_semantics::content::{
         ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
@@ -4036,6 +4042,35 @@ mod tests {
         qualification_evidence_manifest_json(
             &program,
             &omega_effects::SelectedProviderPlanFacts::default(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain a semantic subject position")]
+    fn qualification_manifest_rejects_unknown_subject() {
+        qualification_subject(
+            &CheckedTrees::default(),
+            &Fact {
+                place: FactPlace::Unknown,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain a semantic subject position")]
+    fn qualification_manifest_rejects_unknown_place_root() {
+        let mut program = CheckedTrees::default();
+        let place = program.facts.semantic.append_place(Place {
+            root: PlaceRoot::Unknown,
+            segments: Default::default(),
+        });
+        qualification_subject(
+            &program,
+            &Fact {
+                place: FactPlace::Place(place),
+                ..Default::default()
+            },
         );
     }
 
