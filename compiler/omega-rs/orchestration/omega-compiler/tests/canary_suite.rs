@@ -10172,18 +10172,12 @@ stderr:
 #[test]
 fn runtime_post_clauses_return_type_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_post_clauses_return_type_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-post-clauses-ret-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("post-clauses return type canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("post-clauses return type canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27542,13 +27536,8 @@ fn runtime_value_call_return_types_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call return-types canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call return-types canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
