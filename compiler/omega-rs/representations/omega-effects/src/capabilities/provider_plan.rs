@@ -121,7 +121,7 @@ pub enum ProviderBinding {
     /// Dynamic-library import (`DllImport { module, symbol }`).
     Import { library: String, symbol: String },
     /// Direct system call by number.
-    Syscall { number: u32 },
+    Syscall { number: i64 },
     /// A compiler-known operation furnished by the selected target package.
     /// The name is canonical `BoundaryTrait::method` identity; ABI planning
     /// validates that the target already owns the matching lowering.
@@ -858,7 +858,16 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::Syscall { .. } => {}
+                ProviderBinding::Syscall { number } => {
+                    if u32::try_from(*number).is_err() {
+                        errors.push(format!(
+                            "provider binding `{}::{}` has syscall number {number}, but the target syscall plan requires a value in 0..={}",
+                            self.schema.trait_name,
+                            row.method,
+                            u32::MAX,
+                        ));
+                    }
+                }
                 ProviderBinding::CompilerIntrinsic { name } => {
                     if name.is_empty() {
                         errors.push(format!(
@@ -1578,6 +1587,9 @@ mod tests {
                 symbol: "WriteFile".to_owned(),
             },
             ProviderBinding::Syscall { number: 0 },
+            ProviderBinding::Syscall {
+                number: i64::from(u32::MAX),
+            },
             ProviderBinding::CompilerIntrinsic {
                 name: "Console::write_line".to_owned(),
             },
@@ -1637,6 +1649,13 @@ mod tests {
                     symbol: String::new(),
                 },
                 "import has no exact symbol identity",
+            ),
+            (ProviderBinding::Syscall { number: -1 }, "syscall number -1"),
+            (
+                ProviderBinding::Syscall {
+                    number: i64::from(u32::MAX) + 1,
+                },
+                "target syscall plan requires a value in 0..=4294967295",
             ),
             (
                 ProviderBinding::CompilerIntrinsic {
