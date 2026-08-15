@@ -3,7 +3,7 @@
 //! own-package declarations are dev-active (grant locality v1) and carry
 //! the standing warning until a root grant (GR3) flips their provenance.
 
-use omega_compiler::CompileOptions;
+use omega_compiler::{CompileOptions, compile_to_checked};
 
 fn compile(
     options: CompileOptions,
@@ -586,11 +586,95 @@ machine Main::exercise(&mut self) {
     assert!(requirement_row.contains("requirement owner: Flags"));
     assert!(requirement_row.contains("provider type: <free external>"));
     assert!(requirement_row.contains("target: <all>"));
+    assert!(requirement_row.contains("calling plan: <none>"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
     assert!(requirement_row.contains("method: open_read"));
     assert!(requirement_row.contains("realization: vtable slot 1"));
     assert!(requirement_row.contains("grant selectors: none"));
     assert!(requirement_row.contains("STANDING WARNING"));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn provider_requirement_rows_retain_exact_calling_plan_identity() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-provider-calling-plan-trust-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"use omega::language::std::calling;
+
+data NoResultPolicy {}
+NoResultPolicyCallingPolicy: NoResultPolicy satisfies CallingPolicy;
+
+machine NoResultPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.has_result {
+        true -> reject()
+        _ -> accept()
+    }
+
+    state accept() -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.stack_alignment = 16;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "return values are not supported",
+            },
+        }
+    }
+}
+
+boundary trait Tick: Calling<NoResultPolicy> { machine tick(); }
+machine tick_leaf() satisfies Tick::tick via Binding::VtableSlot(1);
+
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let checked = compile_to_checked(&project.join("main.omg"), None)
+        .expect("calling-policy provider should check");
+    let tick = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Tick")
+        .expect("Tick boundary trait");
+    let expected = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+        .expect("Tick service schema")
+        .methods[0]
+        .calling_plan_fingerprint
+        .expect("evaluated calling-plan identity");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("calling-policy provider should compile");
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    let requirement = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Tick [")
+                && line.contains("requirement identity:")
+        })
+        .expect("Tick provider requirement row");
+    assert!(requirement.contains(&format!("calling plan: {expected:016x}")));
 
     let _ = std::fs::remove_dir_all(&project);
 }
