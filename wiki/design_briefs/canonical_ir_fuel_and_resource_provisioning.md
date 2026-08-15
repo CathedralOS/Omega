@@ -232,6 +232,11 @@ The finite shift/cast/shift sandwich follows the same rule: every source shift,
 the partial cast, and every target shift is retained and charged separately.
 Ordered target replay, carrier intersection, and ordered source replay are
 verifier work and add no executable fuel.
+The consolidated heterogeneous affine/shift cast sandwiches likewise charge
+every retained source operation, the partial cast, and every retained target
+operation separately. Checked affine composition, ordered shift replay, and
+source/target carrier intersection are verifier work and add no executable
+fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

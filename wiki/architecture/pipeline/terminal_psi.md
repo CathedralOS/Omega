@@ -599,6 +599,23 @@ Mathematical emptiness is falsehood, while checked composition or interval
 failure admits no family. Empty sides stay on narrower existing paths; carrier
 drift, runtime or computed siblings, negative factors, intervening operations,
 nested casts, and non-parameter roots remain fenced.
+One consolidated heterogeneous sandwich admits either a finite nonempty source
+affine chain followed by one validator-legal partial fixed-native exact cast
+and a finite nonempty target shift chain, or a finite nonempty source shift
+chain followed by the cast and a finite nonempty target affine chain. Affine
+chains retain independently landed same-carrier add/subtract/nonnegative-
+multiply literals; shift chains retain independently landed heterogeneous
+legal counts. Each target-left obligation or target-affine prefix replays its
+own ordered definitions to the cast, intersects target and source carriers,
+then replays the complete source affine or shift prefix to the direct machine
+parameter. Every source operation, cast, and target operation remains an
+independent proof obligation. A zero affine coefficient decides only the
+current obligation after complete shape validation. Mathematical empty
+preimages are canonical falsehood; checked composition, count accumulation, or
+interval-transfer failure admits no family. Empty-sided shapes remain on their
+narrower paths. Carrier drift, runtime or computed affine siblings/counts,
+negative factors, invalid or repeated casts, intervening operations,
+noncanonical roots, and stale or malformed definitions remain fenced.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
