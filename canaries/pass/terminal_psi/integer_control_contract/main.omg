@@ -1432,6 +1432,25 @@ requires value <= 255u16, value <= 127u16, value <= 42u16
     staged
 }
 
+machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
+requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
+{
+    ((((((value as u8) + 3u8) * 2u8) - 1u8) < 255u8) && enabled)
+}
+
+machine terminal_exact_cast_then_zero_affine_chain(value: u16, enabled: bool) -> bool
+requires value <= 255u16, value <= 252u16
+{
+    ((((((value as u8) + 3u8) * 0u8) + 255u8) < 255u8) && enabled)
+}
+
+machine terminal_signed_exact_cast_then_mixed_affine_chain(value: i16, enabled: bool) -> bool
+requires -128i16 <= value, value <= 127i16, -125i16 <= value,
+    -61i16 <= value, value <= 66i16
+{
+    ((((((value as i8) - 3i8) * 2i8) + 1i8) < 127i8) && enabled)
+}
+
 machine terminal_literal_multiply_chain_then_exact_cast(value: u8, enabled: bool) -> bool
 requires value <= 127u8, value <= 42u8, value <= 21u8
 {

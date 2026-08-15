@@ -305,6 +305,13 @@ Remaining:
   target interval through `(A, B)` and intersects it with the source carrier;
   `A == 0` decides only the cast from target representability of `B`, while all
   earlier arithmetic-prefix evidence remains mandatory.
+  The converse unified family is now retained as well: one validator-legal
+  partial fixed-native exact cast of a direct parameter may root a finite
+  nonempty same-target-carrier affine chain containing both offset and multiply
+  operations. The verifier independently reconstructs every prefix through
+  checked `(A, B)` composition and the target/source interval intersection;
+  `A == 0` decides only the current prefix from target representability of `B`,
+  while cast and earlier arithmetic evidence remain mandatory.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

@@ -3015,6 +3015,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_cast_then_offset_obligation(
             integer_type,
             left.clone(),
@@ -3380,6 +3400,26 @@ fn exact_integer_subtract_obligation(
         return Proposition::Falsehood;
     };
     if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
         && landed_integer_constant_value(
             integer_type,
             &right,
@@ -3752,6 +3792,148 @@ fn exact_integer_affine_chain_obligation(
     ))
 }
 
+fn exact_integer_cast_then_affine_chain_obligation(
+    target_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if target_type.is_address() || !matches!(target_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let (mut coefficient, mut offset) = match initial_operation {
+        ExactIntegerAffineOperation::Add => (1, IntegerOffset::from_value(initial_constant)),
+        ExactIntegerAffineOperation::Subtract => {
+            (1, IntegerOffset::from_subtrahend(initial_constant))
+        }
+        ExactIntegerAffineOperation::Multiply => (
+            nonnegative_integer_factor(target_type, initial_constant)?,
+            IntegerOffset::Nonnegative(0),
+        ),
+    };
+    let mut saw_offset = initial_operation != ExactIntegerAffineOperation::Multiply;
+    let mut saw_multiply = initial_operation == ExactIntegerAffineOperation::Multiply;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })?;
+        let (left, right, nested_coefficient, nested_offset, operation) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    target_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                ExactIntegerAffineOperation::Add,
+            ),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_subtrahend(landed_integer_constant_value(
+                    target_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                ExactIntegerAffineOperation::Subtract,
+            ),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => (
+                left,
+                right,
+                nonnegative_integer_factor(
+                    target_type,
+                    landed_integer_constant_value(
+                        target_type,
+                        right,
+                        semantic_axioms,
+                        definition_index,
+                    )?,
+                )?,
+                IntegerOffset::Nonnegative(0),
+                ExactIntegerAffineOperation::Multiply,
+            ),
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: cast_target_type,
+                operand,
+            } if saw_offset
+                && saw_multiply
+                && *cast_target_type == target_type
+                && !source_type.is_address()
+                && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                && *source_type != target_type
+                && !source_type.can_widen_to(target_type)
+                && source_type.can_exact_cast_to(target_type)
+                && matches!(
+                    operand.as_ref(),
+                    ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Integer(root_type),
+                    } if *root_type == *source_type && machine_parameter_values.contains(id)
+                ) =>
+            {
+                return Some(exact_integer_affine_target_interval_obligation(
+                    *source_type,
+                    target_type,
+                    (**operand).clone(),
+                    coefficient,
+                    offset,
+                ));
+            }
+            _ => return None,
+        };
+        if landed_integer_constant_value(target_type, left, semantic_axioms, definition_index)
+            .is_some()
+            || landed_integer_constant_value(target_type, right, semantic_axioms, definition_index)
+                .is_none()
+        {
+            return None;
+        }
+        let Some(composed_offset) = nested_offset
+            .checked_multiply(coefficient)
+            .and_then(|nested| nested.checked_add(offset))
+        else {
+            return Some(Proposition::Falsehood);
+        };
+        let Some(composed_coefficient) = coefficient.checked_mul(nested_coefficient) else {
+            return Some(Proposition::Falsehood);
+        };
+        coefficient = composed_coefficient;
+        offset = composed_offset;
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+        saw_offset |= operation != ExactIntegerAffineOperation::Multiply;
+        saw_multiply |= operation == ExactIntegerAffineOperation::Multiply;
+    }
+    None
+}
+
 fn exact_integer_affine_interval_obligation(
     integer_type: psi_core::IntegerType,
     root: ScalarTerm,
@@ -4026,6 +4208,25 @@ fn exact_integer_multiply_obligation_with_definitions(
         }
         (Some(_), Some(_)) => unreachable!("known exact-multiply operands returned above"),
     };
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_affine_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
     if chain_orientation
         && landed_integer_constant_value(
             integer_type,
@@ -8651,6 +8852,103 @@ mod tests {
             ),
             Proposition::Falsehood,
             "cumulative product overflow fails closed"
+        );
+    }
+
+    #[test]
+    fn mixed_affine_chain_after_partial_cast_reconstructs_each_prefix_independently() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root_id = ValueId::new(701).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("value"),
+                ScalarType::Integer(target_type),
+            )
+        };
+        let cast = value(702);
+        let added = value(703);
+        let multiplied = value(704);
+        let definitions = vec![
+            Proposition::Equal(
+                cast.clone(),
+                ScalarTerm::integer_exact_cast(source_type, target_type, root.clone())
+                    .expect("u16 to u8 exact cast"),
+            ),
+            Proposition::Equal(
+                added.clone(),
+                ScalarTerm::exact_integer_add(
+                    target_type,
+                    cast.clone(),
+                    ScalarTerm::integer(target_type, IntegerValue::Unsigned(3)).expect("3u8"),
+                )
+                .expect("cast + 3"),
+            ),
+            Proposition::Equal(
+                multiplied.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    target_type,
+                    added.clone(),
+                    ScalarTerm::integer(target_type, IntegerValue::Unsigned(2)).expect("2u8"),
+                )
+                .expect("added * 2"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                target_type,
+                added.clone(),
+                ScalarTerm::integer(target_type, IntegerValue::Unsigned(2)).expect("2u8"),
+                &definitions[..2],
+                2,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(124)).expect("124u16"),
+            ),
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                target_type,
+                multiplied,
+                ScalarTerm::integer(target_type, IntegerValue::Unsigned(1)).expect("1u8"),
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(source_type, IntegerValue::Unsigned(125)).expect("125u16"),
+            ),
+        );
+        assert_eq!(
+            exact_integer_cast_then_affine_chain_obligation(
+                target_type,
+                added,
+                IntegerValue::Unsigned(0),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions[..2],
+                2,
+                &parameters,
+            ),
+            Some(Proposition::Truth),
+            "zero collapse discharges only the current arithmetic prefix",
+        );
+        assert_eq!(
+            exact_integer_cast_then_affine_chain_obligation(
+                target_type,
+                value(705),
+                IntegerValue::Unsigned(1),
+                ExactIntegerAffineOperation::Subtract,
+                &[definitions[1].clone(), definitions[0].clone()],
+                2,
+                &parameters,
+            ),
+            None,
+            "reordered or stale definitions cannot authorize the walk",
         );
     }
 

@@ -651,6 +651,24 @@ computed, negative, or mistyped factors, mixed carriers, local or block roots,
 intervening operations or casts, non-native or invalid casts, malformed or
 stale definitions, cumulative-product overflow, and stale or missing evidence
 remain fenced.
+A direct validator-legal partial fixed-native exact cast may instead root the
+unified finite nonempty left-associated same-target-carrier affine chain when
+both an exact add/subtract offset and an exact multiply occur. Every right
+sibling is an independently landed target-carrier literal, and multiply
+factors are nonnegative. The cast retains its independent direct
+representability proof. For every arithmetic prefix, the verifier follows only
+prior canonical shrinking-prefix definitions to the cast and composes the
+checked affine form `A * source + B`. Positive `A` maps the target interval
+back through ceiling/floor division and intersects it with the source carrier;
+`A == 0` makes only the current prefix true or false from target
+representability of `B`. No cast or earlier arithmetic evidence is imported,
+so later zero factors or cancellation cannot erase an earlier obligation.
+Homogeneous offset and multiply chains remain on their narrower paths.
+Literal-left, reversed, or right-associated shapes, runtime, computed,
+negative, or mistyped siblings, mixed carriers, local or block roots,
+intervening operations or casts, non-native or invalid casts, malformed or
+stale definitions, coefficient/offset overflow, and stale or missing evidence
+remain fenced.
 A direct validator-legal partial fixed-native exact cast may also root a finite
 nonempty left-associated same-value-carrier exact-left-shift chain. Every right
 operand is an independently landed fixed-native signed or unsigned count,

@@ -184,6 +184,10 @@ A direct partial exact cast followed by a finite nonempty same-target-carrier
 exact-multiply literal chain follows the same rule: the cast and every multiply
 operation are charged separately, while cumulative-product interval proofs add
 no executable work.
+A direct partial exact cast followed by the unified finite same-target-carrier
+mixed affine chain likewise charges the cast and every retained add, subtract,
+and multiply separately. Replaying checked cumulative coefficients and offsets
+for each prefix adds no executable work.
 A direct partial exact cast followed by a finite nonempty exact-left-shift
 literal chain also charges the cast and every shift operation separately;
 cumulative-count source-interval proofs add no executable work.

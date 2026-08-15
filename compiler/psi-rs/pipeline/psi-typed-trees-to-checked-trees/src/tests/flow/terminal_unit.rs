@@ -2,6 +2,7 @@ use super::*;
 use crate::flow::{
     exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
+    exact_cast_then_affine_runtime_parameter_positions_for_test,
     exact_cast_then_multiply_runtime_parameter_positions_for_test,
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
@@ -2041,6 +2042,67 @@ fn affine_chain_exact_cast_classifier_reuses_only_the_unified_mixed_family() {
         ),
         None,
     );
+}
+
+#[test]
+fn exact_cast_then_affine_classifier_accepts_only_the_unified_mixed_family() {
+    let literal = |value| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::U8,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let cast = || CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U16,
+        }),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U8,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let added = operation(CheckedIntegerBinaryKind::ExactAdd, cast(), literal(3i64));
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            added.clone(),
+            literal(2i64),
+        ),
+        literal(1i64),
+    );
+    assert_eq!(
+        exact_cast_then_affine_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+    for invalid in [
+        added,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            cast(),
+            literal(2i64),
+        ),
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            operation(CheckedIntegerBinaryKind::ExactAdd, cast(), literal(1i64)),
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U8,
+            },
+        ),
+    ] {
+        assert_eq!(
+            exact_cast_then_affine_runtime_parameter_positions_for_test(&invalid, 1),
+            None,
+        );
+    }
 }
 
 #[test]
