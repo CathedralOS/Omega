@@ -133,7 +133,17 @@ explicitly trusted, its enumerable primitive judgments and artifact-decoding
 dependencies must enter the executable trust ledger rather than being implied by
 successful certificate checks.
 
-## Q8 — Erased-evidence establishment for placed views
+## Q8 — Placed-view establishment and erased evidence
+
+The source and checked contract for placement establishment is not yet closed.
+The guide shows `Placement::admit<P, T>(...)` followed by `adopt`, `initialize`,
+or `validate`, but no approved source type/signature owns the opaque admitted
+intermediate, its borrowed-versus-owned failure return, or the exact evidence
+passed into each establishment route. Choose that contract before the compiler
+turns the current Rust foundation carriers into source operations. It must keep
+admission distinct from live content, preserve the exact qualified Extent and
+provider/profile/admission identities, and return every linear input on
+failure.
 
 `Placed<P, T>` may interpret backing as a semantic `T` whose declaration
 contains `[erased]` fields. The settled representation law gives those bindings

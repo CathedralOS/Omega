@@ -145,7 +145,11 @@ Owners:
 - Derive borrowed/owned `Placed<P, T>` establishment and retirement from
   `Extent in Granted`, using ordinary subrange borrows. Implement `Stable`
   adopt/initialize/validate and `External` adopt; owned destruction returns
-  `Granted & Vacant` before allocator integration.
+  `Granted & Vacant` before allocator integration. Source establishment is
+  design-blocked on owner Q8: the admitted intermediate and failure signatures
+  are unsettled, and schemas with erased fields additionally need exact
+  evidence-term establishment. Continue the internal authority, layout, and
+  access engineering that does not depend on that source contract.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
