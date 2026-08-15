@@ -45186,6 +45186,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/record_pattern_bind_all_exit",
     "data/record_pattern_double_underscore_field",
     "memory/repr_native_stable_layout",
+    "wire/wire_data_field_numbers",
     "traits/equatable_sum_stale_payload_exit",
     "traits/ring_requirement_satisfies_exit",
     "traits/runtime_trait_default_dispatch_exit",
