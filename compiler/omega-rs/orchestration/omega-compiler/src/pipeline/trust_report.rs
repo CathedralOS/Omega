@@ -62,10 +62,11 @@ pub(super) fn write_trust_report(
             .count();
         report.rows.push(TrustReportRow {
             commitment: format!(
-                "provider plan: {} [{:016x}] coverage {covered}/{}",
+                "provider plan: {} [{:016x}] coverage {covered}/{} selected: {}",
                 plan.name,
                 plan.identity_fingerprint(),
-                plan.schema.methods.len()
+                plan.schema.methods.len(),
+                if selected { "yes" } else { "no" },
             ),
             provenance: provenance.to_owned(),
             standing_warning: !granted,
@@ -85,6 +86,7 @@ pub(super) fn write_trust_report(
                 .push(TrustProviderRequirementRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: row.requirement_identity.clone(),
                     method: row.method.clone(),
@@ -106,6 +108,7 @@ pub(super) fn write_trust_report(
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: method.requirement_identity.clone(),
                     method: method.name.clone(),
@@ -126,6 +129,7 @@ pub(super) fn write_trust_report(
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: method.requirement_identity.clone(),
                     method: method.name.clone(),
