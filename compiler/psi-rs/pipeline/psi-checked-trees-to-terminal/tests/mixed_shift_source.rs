@@ -36,6 +36,9 @@ const SOURCE: &str = r#"
         shift_affine_unsigned: u8,
         shift_affine_signed: i8,
         shift_zero_root: u8,
+        sandwich_unsigned: u16,
+        sandwich_signed: i16,
+        sandwich_right_only: u16,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -54,7 +57,13 @@ const SOURCE: &str = r#"
         shift_affine_unsigned <= 127u8, shift_affine_unsigned <= 63u8,
         -64i8 <= shift_affine_signed, shift_affine_signed <= 63i8,
         -32i8 <= shift_affine_signed, shift_affine_signed <= 31i8,
-        shift_zero_root <= 127u8
+        shift_zero_root <= 127u8,
+        sandwich_unsigned <= 32767u16, sandwich_unsigned <= 127u16,
+        sandwich_unsigned <= 63u16,
+        -16384i16 <= sandwich_signed, sandwich_signed <= 16383i16,
+        0i16 <= sandwich_signed, sandwich_signed <= 127i16,
+        sandwich_signed <= 63i16,
+        sandwich_right_only <= 32767u16, sandwich_right_only <= 127u16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -73,6 +82,9 @@ const SOURCE: &str = r#"
             && ((((((shift_affine_unsigned >> 1i8) << 2u16) + 3u8) * 2u8) < 255u8))
             && ((((((shift_affine_signed >> 1u8) << 2i16) - -3i8) * 2i8) < 127i8))
             && (((((shift_zero_root << 1u8) * 0u8) + 255u8) <= 255u8))
+            && (((((sandwich_unsigned >> 1i8) << 2u16) as u8) >> 1i32) << 2u64) < 255u8
+            && (((((sandwich_signed >> 1u8) << 2i16) as u8) >> 1u32) << 2i64) < 255u8
+            && (((sandwich_right_only << 1u8) as u8) >> 1i16) < 255u8
             && enabled
     }
 "#;
@@ -103,6 +115,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let post_signed_parameter = entry.parameters[4].id;
     let affine_unsigned_parameter = entry.parameters[6].id;
     let shift_affine_unsigned_parameter = entry.parameters[9].id;
+    let sandwich_unsigned_parameter = entry.parameters[12].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -138,7 +151,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        20,
+        25,
     );
     assert_eq!(
         operations
@@ -148,10 +161,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        23,
+        28,
     );
-    assert_eq!(shift_obligations.len(), 43);
-    assert_eq!(proof_obligations.len(), 59);
+    assert_eq!(shift_obligations.len(), 53);
+    assert_eq!(proof_obligations.len(), 72);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -444,6 +457,48 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let mut redirected_sandwich = decode_module(&semantics).expect("decode mixed-shift module");
+    let sandwich_source_right = redirected_sandwich
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerShiftRight { value, .. }
+                if value == sandwich_unsigned_parameter =>
+            {
+                operation.result.scalar().map(|result| result.id)
+            }
+            _ => None,
+        })
+        .expect("sandwich retains its source exact-right definition");
+    let sandwich_source_left = redirected_sandwich
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::ExactIntegerShiftLeft { value, .. }
+                    if value == sandwich_source_right
+            )
+        })
+        .expect("sandwich retains its source exact-left definition");
+    let OperationKind::ExactIntegerShiftLeft { value, .. } = &mut sandwich_source_left.kind else {
+        unreachable!("selected sandwich exact-left definition")
+    };
+    *value = wide_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_sandwich,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -493,6 +548,18 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value"),
                 value: IntegerValue::Unsigned(0),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
             },
             TerminalScalarValue::Boolean(enabled),
         ]

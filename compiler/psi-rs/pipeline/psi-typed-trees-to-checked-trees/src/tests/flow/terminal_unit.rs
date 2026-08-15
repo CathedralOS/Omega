@@ -18,6 +18,7 @@ use crate::flow::{
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
     exact_runtime_divisor_chain_runtime_parameter_positions_for_test,
+    exact_shift_cast_shift_runtime_parameter_positions_for_test,
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
@@ -2206,6 +2207,109 @@ fn exact_mixed_shift_classifier_accepts_finite_ordered_alternation() {
     );
     assert_eq!(
         exact_mixed_shift_chain_runtime_parameter_positions_for_test(&address, 1),
+        None,
+    );
+}
+
+#[test]
+fn exact_shift_cast_shift_classifier_unifies_both_nonempty_sides() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U16,
+    };
+    let shift = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let source = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U16,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U16,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    let cast = CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(source),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let accepted = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        shift(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            cast,
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    assert_eq!(
+        exact_shift_cast_shift_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+
+    let homogeneous_source = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U16,
+        parameter(),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    let right_only_target = shift(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type: PrimitiveType::U8,
+            operand: Box::new(homogeneous_source),
+            range: psi_checked_trees::CheckedIntegerRange::default(),
+        },
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    assert_eq!(
+        exact_shift_cast_shift_runtime_parameter_positions_for_test(&right_only_target, 1),
+        Some(vec![0]),
+    );
+
+    let empty_source = shift(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::U8,
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type: PrimitiveType::U8,
+            operand: Box::new(parameter()),
+            range: psi_checked_trees::CheckedIntegerRange::default(),
+        },
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_shift_cast_shift_runtime_parameter_positions_for_test(&empty_source, 1),
+        None,
+    );
+
+    let runtime_count = shift(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        right_only_target,
+        CheckedScalarExpression::Parameter {
+            position: 1,
+            primitive_type: PrimitiveType::U8,
+        },
+    );
+    assert_eq!(
+        exact_shift_cast_shift_runtime_parameter_positions_for_test(&runtime_count, 2),
         None,
     );
 }

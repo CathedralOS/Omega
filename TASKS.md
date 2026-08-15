@@ -381,6 +381,14 @@ Remaining:
   mandatory. A zero coefficient on either side decides only the current
   proposition after full ordered shape validation; mathematical emptiness is
   falsehood and checked replay failure admits no family.
+  A unified finite exact-shift/cast/exact-shift sandwich may likewise cross one
+  validator-legal partial fixed-native cast, with nonempty left-associated
+  shift chains on both sides and independently landed heterogeneous legal
+  counts. Every source shift, cast, and target shift keeps separate mandatory
+  evidence. Each target-left prefix replays its target definitions to the cast,
+  intersects the surviving interval with the source carrier, then replays the
+  complete source chain to the direct parameter. Mathematical emptiness is
+  falsehood; checked transfer failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

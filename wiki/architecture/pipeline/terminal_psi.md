@@ -545,6 +545,19 @@ source-root bounds. The direct cast proof, every left-prefix proof, and every
 right count proof remain independently mandatory. Mathematical emptiness is
 canonical falsehood; checked transfer failure admits no family. Homogeneous
 post-cast shift chains stay on their narrower existing paths.
+The unified sandwich permits nonempty finite exact-shift chains on both sides
+of one validator-legal partial fixed-native cast. Counts remain independently
+landed, heterogeneous, legal fixed-native literals, and either side may be
+homogeneous or mixed. Each target-left prefix replays all prior target shifts
+to the cast, intersects the surviving target interval with the source carrier,
+then replays the complete source shift chain to a direct machine parameter.
+The source shift obligations, cast obligation, and every target shift
+obligation remain independent; no evidence is imported. Mathematical empty
+preimages are canonical falsehood, while checked transfer failure admits no
+family. Empty-sided shapes remain on their one-sided paths; runtime/computed or
+illegal counts, invalid or repeated casts, carrier drift, intervening
+operations, noncanonical roots, and stale or malformed definitions remain
+fenced.
 One unified cross-family composition admits a finite nonempty left-associated
 same-carrier arithmetic prefix over exact add, subtract, and nonnegative
 multiply by landed same-carrier literals, followed by a finite nonempty shift
