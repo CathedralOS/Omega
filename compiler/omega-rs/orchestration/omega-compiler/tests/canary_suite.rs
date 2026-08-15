@@ -21919,13 +21919,8 @@ fn zii_default_string_equality_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-ziistr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("zii string equality canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("zii string equality canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("zii string equality canary should run");
@@ -45454,6 +45449,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "structs/deep_nested_write_paths_exit",
     "core/zii_default_composite_exit",
     "text/zii_string_host_write_exit",
+    "text/zii_default_string_equality_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
