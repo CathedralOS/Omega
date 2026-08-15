@@ -12128,10 +12128,11 @@ fn runtime_const_array_length_transitive_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("transitive const length canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("transitive const length canary should run");
 
@@ -12159,10 +12160,11 @@ fn runtime_const_array_length_bare_call_arm_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bare-call-arm const length canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bare-call-arm const length canary should run");
 
@@ -12190,10 +12192,11 @@ fn runtime_method_view_write_after_last_use_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("method-view write-after-last-use canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("method-view write-after-last-use canary should run");
 
@@ -12217,10 +12220,11 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-view-of-view-chain-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("view-of-view chain canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("view-of-view chain canary should run");
 
@@ -12267,10 +12271,11 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shrinking slice recursion canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("shrinking slice recursion canary should run");
 
@@ -12296,10 +12301,11 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire encode canary should run");
 
@@ -12324,10 +12330,11 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_encode_era_discriminator_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire era discriminator canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire era discriminator canary should run");
 
@@ -12383,10 +12390,11 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_roundtrip_primitive_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-roundtrip-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire roundtrip canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire roundtrip canary should run");
 
@@ -12409,10 +12417,11 @@ fn runtime_wire_decode_ranged_field_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-ranged-decode-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged wire decode canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("ranged wire decode canary should run");
 
@@ -12437,10 +12446,11 @@ fn runtime_wire_decode_ranged_repeated_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged repeated wire decode canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("ranged repeated wire decode canary should run");
 
@@ -46024,7 +46034,11 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_free_machine_value_call_exit",
     "calls/runtime_record_forwarding_statement_call_exit",
     "calls/runtime_value_position_branching_call_exit",
+    "comptime/runtime_const_array_length_bare_call_arm_exit",
+    "comptime/runtime_const_array_length_transitive_exit",
     "domains/utf8_return_view_equals_exit",
+    "borrow/runtime_method_view_write_after_last_use_exit",
+    "borrow/runtime_view_of_view_chain_exit",
     "expressions/runtime_16bit_cast_exit",
     "expressions/runtime_float_arithmetic_exit",
     "expressions/runtime_float_comparison_exit",
@@ -46065,6 +46079,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "time/runtime_time_elapsed_since_exit",
     "time/runtime_checked_time_arith_exit",
     "time/runtime_sleep_for_exit",
+    "termination/runtime_shrinking_slice_recursion_exit",
     "traits/runtime_equatable_scalar_not_equals_guard_exit",
     "data/runtime_case_membership_mixed_shape_exit",
     "versioning/runtime_version_migration_exit",
@@ -46078,6 +46093,11 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_decode_let_compare_exit",
     "wire/runtime_wire_encode_repeated_then_string_exit",
     "wire/runtime_wire_roundtrip_nested_and_repeated_exit",
+    "wire/runtime_wire_encode_primitive_exit",
+    "wire/runtime_wire_encode_era_discriminator_exit",
+    "wire/runtime_wire_roundtrip_primitive_exit",
+    "wire/runtime_wire_decode_ranged_field_exit",
+    "wire/runtime_wire_decode_ranged_repeated_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
