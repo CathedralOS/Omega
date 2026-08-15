@@ -21143,13 +21143,8 @@ fn runtime_divide_min_edge_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_divide_min_edge_guard_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-divmin-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("divide min-edge guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("divide min-edge guard canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("divide min-edge guard canary should run");
@@ -21172,13 +21167,8 @@ fn runtime_nested_unsigned_witness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_nested_unsigned_witness_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-nestuns-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested unsigned witness canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested unsigned witness canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested unsigned witness canary should run");
@@ -21651,13 +21641,8 @@ fn float_to_int_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/float_to_int_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f2isat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating float->int canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("saturating float->int canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("saturating float->int canary should run");
@@ -21680,13 +21665,8 @@ fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/float_to_int_unsigned_narrow_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f2i-shapes-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned/narrow Saturating float->int canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("unsigned/narrow Saturating float->int canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("unsigned/narrow Saturating float->int canary should run");
@@ -23914,13 +23894,8 @@ fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_min_max_guard_subject_hoist_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-minguard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("min/max guard-subject hoist canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("min/max guard-subject hoist canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("min/max guard-subject hoist canary should run");
@@ -24065,13 +24040,8 @@ fn runtime_min_guard_true_false_pair_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_min_guard_true_false_pair_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-minpair-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("min guard true/false pair canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("min guard true/false pair canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("min guard true/false pair canary should run");
@@ -27360,20 +27330,14 @@ fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
 #[test]
 fn runtime_value_call_single_execution_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_single_execution_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-value-call-single-execution-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call single-execution canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call single-execution canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27430,20 +27394,14 @@ stderr:
 #[test]
 fn runtime_transition_subject_call_single_evaluation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_transition_subject_call_single_evaluation_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-transition-subject-call-single-evaluation-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("transition-subject single-evaluation canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("transition-subject single-evaluation canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27499,20 +27457,14 @@ fn runtime_nonplace_record_pattern_single_evaluation_exit_canary_runs() {
 #[test]
 fn runtime_effectful_subject_single_evaluation_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_effectful_subject_single_evaluation_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-effectful-subject-single-evaluation-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("effectful-subject single-evaluation canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("effectful-subject single-evaluation canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -27572,20 +27524,14 @@ fn runtime_statement_call_single_execution_exit_canary_runs() {
 #[test]
 fn runtime_assignment_call_post_mutation_value_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_assignment_call_post_mutation_value_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-assignment-call-post-mutation-value-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("assignment-call post-mutation value canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("assignment-call post-mutation value canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -46245,6 +46191,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_local_boolean_transition_argument_exit",
     "control_flow/runtime_local_scalar_comparison_value_exit",
     "control_flow/runtime_local_string_comparison_value_exit",
+    "arithmetic/float_to_int_saturating_exit",
+    "arithmetic/float_to_int_unsigned_narrow_saturating_exit",
+    "arithmetic/runtime_divide_min_edge_guard_exit",
+    "arithmetic/runtime_nested_unsigned_witness_exit",
+    "calls/runtime_assignment_call_post_mutation_value_exit",
+    "calls/runtime_min_guard_true_false_pair_exit",
+    "calls/runtime_min_max_guard_subject_hoist_exit",
+    "calls/runtime_transition_subject_call_single_evaluation_exit",
+    "calls/runtime_value_call_single_execution_exit",
+    "control_flow/runtime_effectful_subject_single_evaluation_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46791,6 +46747,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_local_boolean_transition_argument_exit",
     "control_flow/runtime_local_scalar_comparison_value_exit",
     "control_flow/runtime_local_string_comparison_value_exit",
+    "arithmetic/float_to_int_saturating_exit",
+    "arithmetic/float_to_int_unsigned_narrow_saturating_exit",
+    "arithmetic/runtime_divide_min_edge_guard_exit",
+    "arithmetic/runtime_nested_unsigned_witness_exit",
+    "calls/runtime_assignment_call_post_mutation_value_exit",
+    "calls/runtime_min_guard_true_false_pair_exit",
+    "calls/runtime_min_max_guard_subject_hoist_exit",
+    "calls/runtime_transition_subject_call_single_evaluation_exit",
+    "calls/runtime_value_call_single_execution_exit",
+    "control_flow/runtime_effectful_subject_single_evaluation_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",

@@ -29,7 +29,7 @@ machine Main::next(
     }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     self.tally.calls = 40;
     self.tally.pad = 0;
     let v: u32 = self.next(&mut self.tally);
