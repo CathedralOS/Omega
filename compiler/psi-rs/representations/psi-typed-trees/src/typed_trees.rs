@@ -170,8 +170,14 @@ pub struct MachineSpecialization {
     /// under a fresh symbol. Consumers must key executable/elaborated work by
     /// this symbol rather than guessing from specialization order.
     pub instance: psi_symbols::SymbolHandle,
+    /// Readable source-oriented spellings retained for diagnostics only.
     pub type_arguments: Vec<String>,
     pub const_arguments: Vec<String>,
+    /// Ordered canonical static identities used to construct the
+    /// specialization fingerprint. These are retained independently from the
+    /// readable spellings above and are never reconstructed from them.
+    pub type_argument_identities: Vec<String>,
+    pub const_argument_identities: Vec<String>,
     pub machine_arguments: Vec<psi_symbols::SymbolHandle>,
     /// Exact package-scoped conformances selected for explicit proof-static
     /// evidence binders. Separate from callable machine arguments.

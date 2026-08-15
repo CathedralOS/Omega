@@ -538,6 +538,7 @@ machine build(b: &mut Build) {
             r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
 trait Ranked {{ machine Self::before(&self, other: &Self) -> bool; }}
 data Card {{ rank: i32; }}
+domain<T, const N: u64> T::Quantity<N>;
 Ascending: Card satisfies Ranked {{
     machine before(&self, other: &Card) -> bool {{ self.rank < other.rank }}
 }}
@@ -549,13 +550,13 @@ data Main {{ console: Console; first: Card; second: Card; }}
 machine selected_first(value: &Card) {{}}
 machine selected_second(value: &Card) ensures true {{}}
 
-boundary machine admitted<T, Order: T satisfies Ranked, machine F>(value: &T)
+boundary machine admitted<T, const N: u64, Order: T satisfies Ranked, machine F>(value: &T) -> i64 in Quantity<N>
 where machine F(item: &T){requirement_clause};
 ensures true;
 
 machine Main::exercise(&mut self) {{
-    admitted<Card, Ascending, selected_first>(&self.first);
-    admitted<Card, Descending, selected_second>(&self.second);
+    let first_receipt: i64 in Quantity<1> = admitted<Card, Ascending, selected_first>(&self.first);
+    let second_receipt: i64 in Quantity<2> = admitted<Card, Descending, selected_second>(&self.second);
     self.console.exit_process(70);
 }}
 "#
@@ -622,6 +623,21 @@ machine Main::exercise(&mut self) {{
     assert!(
         instance_rows
             .iter()
+            .all(|line| line.contains("type argument identities: named(name(Card))")),
+        "each instance must retain its exact normalized type identity"
+    );
+    assert!(
+        instance_rows
+            .iter()
+            .any(|line| line.contains("const argument identities: named(name(1))"))
+            && instance_rows
+                .iter()
+                .any(|line| line.contains("const argument identities: named(name(2))")),
+        "each instance must retain its exact normalized const identity"
+    );
+    assert!(
+        instance_rows
+            .iter()
             .all(|line| !line.contains("machine argument contracts: none")),
         "each instance must retain its selected machine contract identity"
     );
@@ -634,6 +650,9 @@ machine Main::exercise(&mut self) {{
     let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
         .expect("machine contract manifest written");
     assert!(manifest.contains("\"accepted_template_commitment\": \"admitted\""));
+    assert!(manifest.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
+    assert!(manifest.contains("\"const_argument_identities\": [\"named(name(1))\"]"));
+    assert!(manifest.contains("\"const_argument_identities\": [\"named(name(2))\"]"));
     assert!(manifest.contains("\"machine_argument_contract_fingerprints\": [\"0x"));
 
     // Changing the authored machine-parameter contract changes the universal
