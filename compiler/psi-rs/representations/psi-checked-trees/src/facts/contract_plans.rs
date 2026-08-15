@@ -989,8 +989,6 @@ impl MachineContractPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
-    /// How the machine is supplied (checked body / requirement / boundary).
-    pub supply_mode: MachineSupplyMode,
     /// EFX: the durable symbol-resolved service contract.
     pub service_reach: ServiceReachPlan,
     /// Direct synchronous boundary edges, kept separate from service reach.

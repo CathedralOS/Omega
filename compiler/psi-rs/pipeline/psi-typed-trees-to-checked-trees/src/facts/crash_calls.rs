@@ -776,7 +776,13 @@ fn infer_private_body_summaries(
     let mut nodes = plans
         .iter()
         .filter(|target| {
-            target.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+            program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == target.machine)
+                .is_some_and(|machine| {
+                    machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+                })
                 && target.crash.published().is_empty()
         })
         .filter_map(|target| {
@@ -805,9 +811,16 @@ fn infer_private_body_summaries(
                     .iter()
                     .find(|plan| plan.machine == invocation.target_machine)
                 {
-                    plan.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
-                        || !plan.crash.published().is_empty()
-                        || viable_machines.contains(&invocation.target_machine)
+                    program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == plan.machine)
+                        .is_some_and(|machine| {
+                            machine.supply_mode
+                                != psi_language_semantics::MachineSupplyMode::CheckedBody
+                                || !plan.crash.published().is_empty()
+                                || viable_machines.contains(&invocation.target_machine)
+                        })
                 } else {
                     crash_capsules.iter().any(|capsule| {
                         capsule.target_machine() == invocation.target_machine
@@ -895,7 +908,8 @@ fn infer_private_body_summaries(
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
-                if target_plan.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+                if target_machine.supply_mode
+                    == psi_language_semantics::MachineSupplyMode::CheckedBody
                     && target_plan.crash.published().is_empty()
                 {
                     private_dependencies.push(PrivateSummaryDependency {
@@ -911,6 +925,7 @@ fn infer_private_body_summaries(
                             exact_integer_casts,
                         ),
                         recursive: private_dependency_reaches(
+                            program,
                             &nodes,
                             plans,
                             invocation.target_machine,
@@ -1108,6 +1123,7 @@ fn inferred_direct_body_crash_buckets(
 }
 
 fn private_dependency_reaches(
+    program: &TypedTrees,
     nodes: &[SummaryNode],
     plans: &[psi_checked_trees::MachineContractPlan],
     start: SymbolHandle,
@@ -1131,8 +1147,15 @@ fn private_dependency_reaches(
                 .iter()
                 .find(|plan| plan.machine == invocation.target_machine)
                 .filter(|plan| {
-                    plan.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
-                        && plan.crash.published().is_empty()
+                    program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == plan.machine)
+                        .is_some_and(|machine| {
+                            machine.supply_mode
+                                == psi_language_semantics::MachineSupplyMode::CheckedBody
+                                && plan.crash.published().is_empty()
+                        })
                 })
                 .map(|_| invocation.target_machine)
         }));
