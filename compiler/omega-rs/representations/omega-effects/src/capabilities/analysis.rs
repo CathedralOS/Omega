@@ -11,7 +11,18 @@ use psi_typed_trees::TypedTrees;
 use crate::capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
-use psi_effects::OperationalPlan;
+
+/// Exact checked call identity supplied by orchestration. Provider approval
+/// depends only on call topology and target identity; service reach and the
+/// independent suspension/blocking axes never participate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundaryCallCoordinate {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+}
 
 /// A boundary call whose exact capability has no approved provider edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,36 +63,30 @@ pub fn build_boundary_provider_approval_registry(
 /// Audits every resolved boundary call against exact provider approval.
 pub fn audit_boundary_provider_calls(
     program: &TypedTrees,
-    operational: &OperationalPlan,
+    calls: impl IntoIterator<Item = BoundaryCallCoordinate>,
     registry: &BoundaryProviderApprovalRegistry,
 ) -> Vec<UnapprovedBoundaryCall> {
     let mut unapproved = Vec::new();
 
-    for machine in operational.machines() {
-        for state in operational.states.span_or_empty(machine.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                let Some(boundary_trait_symbol) =
-                    boundary_trait_symbol(program, call.target_state_symbol)
-                else {
-                    continue;
-                };
+    for call in calls {
+        let Some(boundary_trait_symbol) = boundary_trait_symbol(program, call.target_state_symbol)
+        else {
+            continue;
+        };
 
-                match registry.authorize_boundary_call(boundary_trait_symbol) {
-                    BoundaryCallApproval::Unapproved => {
-                        unapproved.push(UnapprovedBoundaryCall {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                            boundary_trait_symbol,
-                            statement_index: call.statement_index,
-                            call_ordinal: call.call_ordinal,
-                        });
-                    }
-                    BoundaryCallApproval::Approved => {}
-                }
+        match registry.authorize_boundary_call(boundary_trait_symbol) {
+            BoundaryCallApproval::Unapproved => {
+                unapproved.push(UnapprovedBoundaryCall {
+                    machine_symbol: call.machine_symbol,
+                    state_symbol: call.state_symbol,
+                    boundary_trait_symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                });
             }
+            BoundaryCallApproval::Approved => {}
         }
     }
-
     unapproved
 }
 

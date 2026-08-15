@@ -8,11 +8,20 @@ pub(super) fn check_boundary_provider_approval(
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;
     let registry = omega_effects::build_boundary_provider_approval_registry(program);
-    let unapproved = omega_effects::audit_boundary_provider_calls(
-        program,
-        &checked.facts.operational,
-        &registry,
-    );
+    let flow = &checked.facts.flow.control;
+    let calls = flow.states.iter().flat_map(|(_, state)| {
+        flow.calls
+            .span_or_empty(state.calls)
+            .iter()
+            .map(move |call| omega_effects::BoundaryCallCoordinate {
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                target_state_symbol: call.target_symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+            })
+    });
+    let unapproved = omega_effects::audit_boundary_provider_calls(program, calls, &registry);
 
     if unapproved.is_empty() {
         return Ok(());
