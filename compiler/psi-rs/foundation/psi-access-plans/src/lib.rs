@@ -2088,6 +2088,47 @@ impl EstablishedOwnedPlacement {
     pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
         self.custody_receipt
     }
+
+    /// Purely project one accepted Stable field through a shared borrow of
+    /// this provider-established owned placement.
+    ///
+    /// The returned accessor retains this entire carrier, including its
+    /// content-validity and custody evidence, through any sealed primitive
+    /// request derived from it.
+    pub fn project<'view>(
+        &'view self,
+        key: AccessFieldKey,
+    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
+        self.project_with(key, BorrowPolarity::Shared)
+    }
+
+    /// Purely project one accepted Stable field through an exclusive borrow
+    /// of this provider-established owned placement.
+    pub fn project_mut<'view>(
+        &'view mut self,
+        key: AccessFieldKey,
+    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
+        self.project_with(key, BorrowPolarity::Exclusive)
+    }
+
+    fn project_with<'view>(
+        &'view self,
+        key: AccessFieldKey,
+        current_borrow: BorrowPolarity,
+    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
+        project_placed_field(
+            &self.admission.placement_plan,
+            self.admission.profile_receipt,
+            &self.admission.resources,
+            self.admission.identity,
+            self.admission.extent.base(),
+            key,
+            current_borrow,
+            BorrowPolarity::Exclusive,
+            Some(ObservationModel::Stable),
+            PlacementAuthorityRef::EstablishedOwned(self),
+        )
+    }
 }
 
 /// Failed Stable adoption preserves both linear inputs for a corrected retry
@@ -2167,46 +2208,82 @@ impl<'extent> PlacedView<'extent> {
             LoanPolarity::Shared => BorrowPolarity::Shared,
             LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
         };
-        let descriptor = self
-            .plan
-            .access
-            .field_descriptor(key)
-            .cloned()
-            .ok_or_else(|| {
-                AccessPlanDiagnostic(format!(
-                    "field key in canonical slot {} does not expose a placed accessor",
-                    key.slot()
-                ))
-            })?;
-        let supply = self.resources.field(key).ok_or_else(|| {
+        project_placed_field(
+            &self.plan,
+            self.profile_receipt,
+            &self.resources,
+            self.admission,
+            self.loan.base(),
+            key,
+            current_borrow,
+            source_loan,
+            None,
+            PlacementAuthorityRef::Borrowed(&self.loan),
+        )
+    }
+}
+
+/// Private lifetime witness for the exact authority that justified a placed
+/// access. Owned Stable access retains the whole established carrier rather
+/// than reducing provider content custody to a bare Extent reference.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+enum PlacementAuthorityRef<'view, 'extent> {
+    Borrowed(&'view ExtentLoan<'extent>),
+    EstablishedOwned(&'view EstablishedOwnedPlacement),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn project_placed_field<'view, 'extent>(
+    plan: &ValidatedPlacementPlan,
+    profile_receipt: ResourceProfileReceiptId,
+    resources: &PlacementResourceCompatibility,
+    admission: PlacementAdmissionId,
+    base: u64,
+    key: AccessFieldKey,
+    current_borrow: BorrowPolarity,
+    source_loan: BorrowPolarity,
+    required_observation: Option<ObservationModel>,
+    authority: PlacementAuthorityRef<'view, 'extent>,
+) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+    let descriptor = plan.access.field_descriptor(key).cloned().ok_or_else(|| {
+        AccessPlanDiagnostic(format!(
+            "field key in canonical slot {} does not expose a placed accessor",
+            key.slot()
+        ))
+    })?;
+    if required_observation.is_some_and(|required| descriptor.observation() != required) {
+        return Err(AccessPlanDiagnostic(format!(
+            "field `{}` observation is not valid for established owned Stable access",
+            descriptor.field()
+        )));
+    }
+    let supply = resources.field(key).ok_or_else(|| {
+        AccessPlanDiagnostic(format!(
+            "field `{}` has no sealed resource compatibility",
+            descriptor.field()
+        ))
+    })?;
+    let primitive_address = base
+        .checked_add(descriptor.container_byte_offset())
+        .ok_or_else(|| {
             AccessPlanDiagnostic(format!(
-                "field `{}` has no sealed resource compatibility",
+                "field `{}` primitive address overflows address width",
                 descriptor.field()
             ))
         })?;
-        let primitive_address = self
-            .loan
-            .base()
-            .checked_add(descriptor.container_byte_offset())
-            .ok_or_else(|| {
-                AccessPlanDiagnostic(format!(
-                    "field `{}` primitive address overflows address width",
-                    descriptor.field()
-                ))
-            })?;
-        Ok(PlacedFieldProjection {
-            descriptor,
-            current_borrow,
-            source_loan,
-            primitive_address,
-            plan: self.plan.identity(),
-            profile_receipt: self.profile_receipt,
-            supply: supply.clone(),
-            reach: self.plan.reach.clone(),
-            admission: self.admission,
-            _loan: &self.loan,
-        })
-    }
+    Ok(PlacedFieldProjection {
+        descriptor,
+        current_borrow,
+        source_loan,
+        primitive_address,
+        plan: plan.identity(),
+        profile_receipt,
+        supply: supply.clone(),
+        reach: plan.reach.clone(),
+        admission,
+        _authority: authority,
+    })
 }
 
 /// Pure field projection from one placed view.
@@ -2225,7 +2302,7 @@ pub struct PlacedFieldProjection<'view, 'extent> {
     supply: EffectiveFieldSupply,
     reach: BoundaryReach,
     admission: PlacementAdmissionId,
-    _loan: &'view ExtentLoan<'extent>,
+    _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
 impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
@@ -2374,13 +2451,14 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             supply: self.supply.clone(),
             reach: self.reach.clone(),
             admission: self.admission,
-            _loan: self._loan,
+            _authority: self._authority,
         })
     }
 }
 
 /// Sealed lowering input carrying both authorized field geometry and the
-/// actual extent borrow from which its polarity was derived.
+/// exact borrowed or established-owned authority from which its polarity was
+/// derived.
 #[derive(Debug)]
 pub struct PlacedFieldAccess<'view, 'extent> {
     access: AuthorizedFieldAccess,
@@ -2390,7 +2468,7 @@ pub struct PlacedFieldAccess<'view, 'extent> {
     supply: EffectiveFieldSupply,
     reach: BoundaryReach,
     admission: PlacementAdmissionId,
-    _loan: &'view ExtentLoan<'extent>,
+    _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
 impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
@@ -2434,7 +2512,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             source_loan,
             operation,
             reach: self.reach,
-            _loan: self._loan,
+            _authority: self._authority,
         }
     }
 }
@@ -2460,7 +2538,7 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     source_loan: BorrowPolarity,
     operation: AccessOperation,
     reach: BoundaryReach,
-    _loan: &'view ExtentLoan<'extent>,
+    _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
 impl PrimitiveAccessRequest<'_, '_> {
@@ -4238,6 +4316,27 @@ mod tests {
             .expect("provider existing-content extent")
     }
 
+    fn established_stable_word(
+        base: u64,
+        lineage: u64,
+        receipt_seed: u64,
+        admission_identity: u64,
+    ) -> (ValidatedPlacementPlan, EstablishedOwnedPlacement) {
+        let plan = stable_word_placement();
+        let (extent, content) = provider_existing_content(&plan, base, 4, lineage, receipt_seed);
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(admission_identity).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+        let established =
+            adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
+        (plan, established)
+    }
+
     fn admit_uart<'extent>(
         identity: u64,
         loan: ExtentLoan<'extent>,
@@ -4327,6 +4426,65 @@ mod tests {
         assert_eq!(established.extent().length(), 4);
         assert_eq!(established.validity_receipt().normalized_identity(), 93);
         assert_eq!(established.custody_receipt().normalized_identity(), 94);
+    }
+
+    #[test]
+    fn established_owned_stable_shared_projection_seals_a_read_request() {
+        let (plan, established) = established_stable_word(0xa400, 112, 113, 115);
+        let projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let request = projection
+            .read()
+            .expect("Stable shared read")
+            .into_primitive_request();
+
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 115);
+        assert_eq!(request.profile_receipt().normalized_identity(), 91);
+        assert_eq!(
+            request.effective_supply().kind(),
+            EffectiveSupplyKind::Stable
+        );
+        assert_eq!(request.primitive_address(), 0xa400);
+        assert_eq!(request.field(), "word");
+        assert_eq!(request.observation(), ObservationModel::Stable);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+        assert_eq!(request.operation(), AccessOperation::Read);
+    }
+
+    #[test]
+    fn established_owned_stable_exclusive_projection_seals_a_write_request() {
+        let (plan, mut established) = established_stable_word(0xa500, 116, 117, 119);
+        let mut projection = established
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable projection");
+        let request = projection
+            .write()
+            .expect("Stable exclusive write")
+            .into_primitive_request();
+
+        assert_eq!(request.primitive_address(), 0xa500);
+        assert_eq!(request.observation(), ObservationModel::Stable);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Exclusive);
+        assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+        assert_eq!(request.operation(), AccessOperation::Write);
+    }
+
+    #[test]
+    fn established_owned_stable_shared_projection_rejects_write() {
+        let (plan, established) = established_stable_word(0xa600, 120, 121, 123);
+        let mut projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+
+        let rejection = projection
+            .write()
+            .expect_err("shared current borrow must not authorize Stable write");
+        assert!(rejection.0.contains("Shared current borrow"));
+        assert_eq!(established.validity_receipt().normalized_identity(), 121);
+        assert_eq!(established.custody_receipt().normalized_identity(), 122);
     }
 
     #[test]
