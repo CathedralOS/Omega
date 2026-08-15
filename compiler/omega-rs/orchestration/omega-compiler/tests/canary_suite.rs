@@ -45425,6 +45425,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_f32_field_guard_exit",
     "arithmetic/runtime_u64_guarded_cap_store_exit",
     "arithmetic/runtime_nested_payload_range_narrowing_exit",
+    "arithmetic/runtime_arithmetic_guard",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
