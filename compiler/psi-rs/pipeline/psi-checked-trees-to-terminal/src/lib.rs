@@ -11239,10 +11239,15 @@ fn shared_roundtrip_exact_cast_runtime_parameters(
     let LoweredDirectExpression::IntegerWiden { operand, .. } = operand else {
         return None;
     };
+    let operand = match operand.as_ref() {
+        LoweredDirectExpression::Parameter { .. } => operand.as_ref(),
+        LoweredDirectExpression::IntegerWiden { operand, .. } => operand.as_ref(),
+        _ => return None,
+    };
     let LoweredDirectExpression::Parameter {
         position,
         scalar_type,
-    } = operand.as_ref()
+    } = operand
     else {
         return None;
     };

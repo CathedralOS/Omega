@@ -48,11 +48,12 @@ machine Main::main(&mut self) {
     state widen_unsigned_guard(&mut self) {
         self.small = 200;
         // Unsigned widening zero-extends 200 rather than sign-extending it.
-        // The direct cast pair separately pins a computed exact-cast premise:
-        // widen the runtime byte to u16, then narrow it back to its original
-        // carrier without a range assumption or policy conversion.
+        // The direct cast round trips separately pin computed exact-cast
+        // premises: widen the runtime byte through one or two carriers, then
+        // narrow it back without a range assumption or policy conversion.
         transition widen_u8_to_i32(self.small as u8) == 200
-            && ((self.small as u16) as u8) == 200 {
+            && ((self.small as u16) as u8) == 200
+            && (((self.small as u16) as u32) as u8) == 200 {
             true -> good()
             _ -> bad()
         }
