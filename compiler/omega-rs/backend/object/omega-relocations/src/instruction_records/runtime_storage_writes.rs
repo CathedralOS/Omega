@@ -206,6 +206,11 @@ pub(super) fn collect_runtime_storage_write_relocations(
                                 inner_index_byte_size,
                             )
                         }
+                        omega_instruction_selection::WritePlaceShape::PointeeDoubleIndexed {
+                            ..
+                        } => unreachable!(
+                            "pointee-double-indexed binary writes refuse during aarch64 encoding"
+                        ),
                         omega_instruction_selection::WritePlaceShape::Unsupported
                             if frame_indexed.is_some() =>
                         {
@@ -445,6 +450,11 @@ pub(super) fn collect_runtime_storage_write_relocations(
                                 inner_index_byte_size,
                             )
                         }
+                        omega_instruction_selection::WritePlaceShape::PointeeDoubleIndexed {
+                            ..
+                        } => unreachable!(
+                            "pointee-double-indexed convert writes refuse during aarch64 encoding"
+                        ),
                         omega_instruction_selection::WritePlaceShape::Unsupported
                             if frame_indexed.is_some() =>
                         {

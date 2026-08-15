@@ -765,6 +765,7 @@ pub fn encode_runtime_text_buffer_materialize_to_place(
             Architecture::Aarch64,
             WritePlaceShape::MachineIndexed { .. }
             | WritePlaceShape::MachineDoubleIndexed { .. }
+            | WritePlaceShape::PointeeDoubleIndexed { .. }
             | WritePlaceShape::Unsupported,
         ) => Err(Diagnostic::error(
             "MaterializeTextBufferToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",

@@ -3256,6 +3256,19 @@ enum CompilerBodyPlaceCopyShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    FromPointeeDoubleIndexed {
+        descriptor_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     PointeePair {
         source_pointer_byte_offset: usize,
         source_field_byte_offset: usize,
@@ -3646,6 +3659,18 @@ enum CompilerBodyPlaceIntegerWriteShape {
     },
     MachineDoubleIndexed {
         base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+    },
+    PointeeDoubleIndexed {
+        descriptor_offset: usize,
         outer_index_region: omega_target_operations::RuntimeStorageRegion,
         outer_index_offset: usize,
         outer_index_byte_size: usize,
@@ -4317,6 +4342,33 @@ fn validate_compiler_function_instruction_boundaries(
                                     } => omega_isa_aarch64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
                                         pointer_byte_offset,
                                         field_byte_offset,
+                                        target_offset,
+                                        byte_count,
+                                    )?,
+                                    CompilerBodyPlaceCopyShape::FromPointeeDoubleIndexed {
+                                        descriptor_offset,
+                                        outer_index_region,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_region,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                        target_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_from_runtime_pointee_double_indexed_to_runtime_storage(
+                                        descriptor_offset,
+                                        outer_index_region,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_region,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                        target.region,
                                         target_offset,
                                         byte_count,
                                     )?,
@@ -5166,6 +5218,31 @@ fn validate_compiler_function_instruction_boundaries(
                                     outer_stride,
                                     inner_index_offset,
                                     inner_index_region,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
+                                CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed {
+                                    descriptor_offset,
+                                    outer_index_region,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_region,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_pointee_double_indexed_integer_write(
+                                    descriptor_offset,
+                                    outer_index_region,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_region,
+                                    inner_index_offset,
                                     inner_index_byte_size,
                                     inner_stride,
                                     field_byte_offset,
@@ -6386,7 +6463,8 @@ fn validate_compiler_function_instruction_boundaries(
                                         field_byte_offset,
                                         &literal,
                                     )?,
-                                    CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
+                                    CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
                                         "aarch64 bounded-buffer literal-append shape checked above"
                                     ),
                                 },
@@ -9946,6 +10024,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::FromPointee { .. } => {
                             omega_isa_x86_64::copy_places_from_pointee_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::FromPointeeDoubleIndexed { .. } => {
+                            omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
+                        }
                         CompilerBodyPlaceCopyShape::PointeePair { .. } => {
                             omega_isa_x86_64::copy_places_pointee_pair_clobbers(byte_count)
                         }
@@ -10064,6 +10145,15 @@ fn compiler_instruction_footprint(
                             field_byte_offset,
                             target_offset,
                             byte_count,
+                        ),
+                        CompilerBodyPlaceCopyShape::FromPointeeDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => omega_isa_aarch64::runtime_storage_copy_from_runtime_pointee_double_indexed_clobbers(
+                            target.region,
+                            outer_index_region,
+                            inner_index_region,
                         ),
                         CompilerBodyPlaceCopyShape::PointeePair {
                             source_field_byte_offset,
@@ -10267,6 +10357,14 @@ fn compiler_instruction_footprint(
                                 inner_index_region,
                             )
                         }
+                        CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => omega_isa_aarch64::runtime_pointee_double_indexed_integer_write_clobbers(
+                            outer_index_region,
+                            inner_index_region,
+                        ),
                         CompilerBodyPlaceIntegerWriteShape::General => return None,
                     },
                 },
@@ -12355,6 +12453,21 @@ fn compiler_place_copy_address_sites(
         }
         Architecture::Aarch64 => match compiler_body_place_copy_shape(&source, &target)? {
             CompilerBodyPlaceCopyShape::PointeePair { .. } => Ok(vec![(0, source.region)]),
+            CompilerBodyPlaceCopyShape::FromPointeeDoubleIndexed {
+                outer_index_region,
+                inner_index_region,
+                ..
+            } => {
+                let mut sites = vec![(0, source.region)];
+                let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+                if target.region == machine
+                    || outer_index_region == machine
+                    || inner_index_region == machine
+                {
+                    sites.push((32, machine));
+                }
+                Ok(sites)
+            }
             CompilerBodyPlaceCopyShape::FromIndexed {
                 index_region,
                 element_byte_size,
@@ -12758,6 +12871,34 @@ fn compiler_body_place_copy_shape(
     {
         return Ok(CompilerBodyPlaceCopyShape::Direct {
             source_offset,
+            target_offset,
+        });
+    }
+    if let Some(target_offset) = target.const_offset()
+        && let Ok((
+            descriptor_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        )) = compiler_pointee_double_indexed_place_offsets(source)
+    {
+        return Ok(CompilerBodyPlaceCopyShape::FromPointeeDoubleIndexed {
+            descriptor_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
             target_offset,
         });
     }
@@ -13618,6 +13759,32 @@ fn compiler_body_place_integer_write_shape(
         return Ok(CompilerBodyPlaceIntegerWriteShape::General);
     }
     if let Ok((
+        descriptor_offset,
+        outer_index_region,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_index_region,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        field_byte_offset,
+    )) = compiler_pointee_double_indexed_place_offsets(target)
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed {
+            descriptor_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        });
+    }
+    if let Ok((
         base_byte_offset,
         outer_index_region,
         outer_index_offset,
@@ -13698,6 +13865,92 @@ fn compiler_body_place_integer_write_shape(
         }),
         _ => Ok(CompilerBodyPlaceIntegerWriteShape::General),
     }
+}
+
+#[allow(clippy::type_complexity)]
+fn compiler_pointee_double_indexed_place_offsets(
+    place: &omega_target_operations::Place,
+) -> Result<
+    (
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+    ),
+    Diagnostic,
+> {
+    if place.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return Err(Diagnostic::error(
+            "final pointee-double-indexed place is not frame-rooted",
+        ));
+    }
+    let mut descriptor_offset = 0usize;
+    let mut field_byte_offset = 0usize;
+    let mut dereferenced = false;
+    let mut indices = Vec::new();
+    for step in place.steps() {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) if !dereferenced => {
+                descriptor_offset = descriptor_offset.checked_add(*offset).ok_or_else(|| {
+                    Diagnostic::error("final pointee-double-indexed descriptor offset overflows")
+                })?;
+            }
+            omega_target_operations::PlaceStep::ConstOffset(offset) => {
+                field_byte_offset = field_byte_offset.checked_add(*offset).ok_or_else(|| {
+                    Diagnostic::error("final pointee-double-indexed field offset overflows")
+                })?;
+            }
+            omega_target_operations::PlaceStep::Deref if !dereferenced => dereferenced = true,
+            omega_target_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+            } if dereferenced && indices.len() < 2 => indices.push((
+                *index_region,
+                *index_offset,
+                *index_byte_size,
+                *element_byte_size,
+            )),
+            _ => {
+                return Err(Diagnostic::error(
+                    "final pointee-double-indexed place has an unsupported path step",
+                ));
+            }
+        }
+    }
+    if !dereferenced {
+        return Err(Diagnostic::error(
+            "final pointee-double-indexed place has no dereference",
+        ));
+    }
+    let [
+        (outer_region, outer_offset, outer_size, outer_stride),
+        (inner_region, inner_offset, inner_size, inner_stride),
+    ] = indices.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "final pointee-double-indexed place does not have exactly two indices",
+        ));
+    };
+    Ok((
+        descriptor_offset,
+        *outer_region,
+        *outer_offset,
+        *outer_size,
+        *outer_stride,
+        *inner_region,
+        *inner_offset,
+        *inner_size,
+        *inner_stride,
+        field_byte_offset,
+    ))
 }
 
 fn compiler_body_place_write_shape_with_cross_region_frame_base(
@@ -13884,7 +14137,8 @@ fn encode_compiler_place_address_write(
                 field_byte_offset,
                 target_offset,
             ),
-            CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address row retained an unsupported source shape",
             )),
         },
@@ -13942,7 +14196,8 @@ fn compiler_place_address_write_register_writes(
                     target_offset,
                 ),
             ),
-            CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address footprint retained an unsupported source shape",
             )),
         },
@@ -15036,6 +15291,19 @@ fn compiler_place_integer_write_address_sites(
                     omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 ));
             }
+            if let CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed {
+                outer_index_region,
+                inner_index_region,
+                ..
+            } = shape
+                && (outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+                    || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine)
+            {
+                sites.push((
+                    omega_isa_aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+                    omega_target_operations::RuntimeStorageRegion::Machine,
+                ));
+            }
             Ok(sites)
         }
     }
@@ -15166,7 +15434,8 @@ fn compiler_place_address_write_address_sites(
                     omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 ),
             ]),
-            CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address recipe retained an unsupported source",
             )),
         },
@@ -16310,7 +16579,8 @@ fn aarch64_bounded_buffer_write_relocation_sites(
             }
         }
         CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {}
-        CompilerBodyPlaceIntegerWriteShape::General => {
+        CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed { .. }
+        | CompilerBodyPlaceIntegerWriteShape::General => {
             return Err(Diagnostic::error(
                 "final aarch64 bounded-buffer write retained an unsupported target",
             ));
@@ -16429,7 +16699,8 @@ fn encode_aarch64_bounded_buffer_source_append(
             field_byte_offset,
             source,
         ),
-        CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+        CompilerBodyPlaceIntegerWriteShape::PointeeDoubleIndexed { .. }
+        | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
             "final aarch64 bounded-buffer source append retained an unsupported target",
         )),
     }
@@ -21312,6 +21583,68 @@ mod tests {
             vec![
                 (0, RuntimeStorageRegion::Machine),
                 (8, RuntimeStorageRegion::RuntimeFrame),
+            ]
+        );
+    }
+
+    #[test]
+    fn pointee_double_indexed_replay_uses_frame_root_and_one_shared_machine_site() {
+        use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+
+        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 0)
+            .with_step(PlaceStep::Deref)
+            .and_then(|place| place.with_step(PlaceStep::ConstOffset(4)))
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 24,
+                    index_byte_size: 8,
+                    element_byte_size: 8,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 32,
+                    index_byte_size: 8,
+                    element_byte_size: 2,
+                })
+            })
+            .expect("pointee double-indexed source");
+        let target = Place::at(RuntimeStorageRegion::Machine, 40);
+
+        assert!(matches!(
+            compiler_body_place_copy_shape(&source, &target)
+                .expect("classify final pointee double-indexed copy"),
+            CompilerBodyPlaceCopyShape::FromPointeeDoubleIndexed { .. }
+        ));
+        assert_eq!(
+            compiler_place_copy_address_sites(
+                omega_target::Architecture::Aarch64,
+                source,
+                target,
+                2,
+            )
+            .expect("pointee double-indexed copy sites"),
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (32, RuntimeStorageRegion::Machine),
+            ]
+        );
+        assert_eq!(
+            compiler_place_integer_write_address_sites(
+                omega_target::Architecture::Aarch64,
+                source,
+                omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
+                    target: source,
+                    value: 17,
+                    byte_size: 2,
+                },
+            )
+            .expect("pointee double-indexed integer-write sites"),
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (32, RuntimeStorageRegion::Machine),
             ]
         );
     }

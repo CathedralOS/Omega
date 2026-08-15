@@ -1,4 +1,4 @@
-//! End-to-end oracle for a plan-laid outer fixed array whose validated
+//! End-to-end oracles for plan-laid outer fixed arrays whose validated
 //! destinations retain a constant physical stride larger than element width.
 
 use omega_compiler::{
@@ -13,6 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const PRIMITIVE_CANARY: &str = "layouts/runtime_plan_laid_tiled_outer_array_view_exit";
 const RECORD_CANARY: &str = "layouts/runtime_plan_laid_tiled_record_array_view_exit";
+const NESTED_ARRAY_CANARY: &str = "layouts/runtime_plan_laid_tiled_nested_array_view_exit";
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -121,6 +122,11 @@ fn gapped_record_outer_array_interprets_runs_natively_and_cross_compiles() {
 }
 
 #[test]
+fn gapped_nested_array_outer_array_interprets_runs_natively_and_cross_compiles() {
+    assert_runtime_canary(NESTED_ARRAY_CANARY, "plan-laid-gapped-nested-array");
+}
+
+#[test]
 fn gapped_record_outer_array_materializes_from_checked_owned_value() {
     let canary = repo_root().join("canaries/pass").join(RECORD_CANARY);
     let host = omega_target::TargetProfile::host();
@@ -161,5 +167,45 @@ fn gapped_record_outer_array_materializes_from_checked_owned_value() {
         [
             0, 0, 0, 0, 2, 1, 0, 0, 6, 5, 4, 3, 0, 0, 0, 0, 8, 7, 0, 0, 12, 11, 10, 9,
         ]
+    );
+}
+
+#[test]
+fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
+    let canary = repo_root().join("canaries/pass").join(NESTED_ARRAY_CANARY);
+    let host = omega_target::TargetProfile::host();
+    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
+        .expect("gapped nested-array canary should reach checked trees");
+    let layout = compute_layout_plan(&checked.typed, "TiledNestedArray::plan", "Samples")
+        .expect("gapped nested-array plan should validate");
+
+    let mut little = [0xa5; 20];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("checked owned nested array should materialize little-endian");
+    assert_eq!(
+        little,
+        [0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 5, 6, 7, 8, 0, 0, 0, 0,]
+    );
+
+    let mut big = [0xa5; 20];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &layout,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("checked owned nested array should materialize big-endian");
+    assert_eq!(
+        big,
+        [0, 0, 0, 0, 2, 1, 4, 3, 0, 0, 0, 0, 6, 5, 8, 7, 0, 0, 0, 0,]
     );
 }

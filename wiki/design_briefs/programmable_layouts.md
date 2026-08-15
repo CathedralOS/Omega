@@ -108,9 +108,11 @@ The same normalized geometry may feed different compiler-owned consumers:
 - mutable byte-region record views for recursively fact-free fixed records
   (implemented with nested plan-laid field write-through, including stacked
   fixed indexing and mutation below recursively nested primitive-array or
-  fixed-record-array fields
-  through their whole `At` extent, in both native and interpreter execution,
-  plus x86-64/AArch64 compile rails);
+  fixed-record-array fields through their whole `At` extent, plus two runtime
+  indices through a plan-laid gapped outer fixed array of recursively fixed
+  arrays while retaining distinct plan-derived outer and compiler-derived inner
+  strides, in both native and interpreter execution, plus x86-64/AArch64
+  compile rails);
 - placed-view projection over an authorized external extent; or
 - ordinary scalar materialization into fixed dictated structures. The
   normalized foundation also admits atomic aggregate materialization when the

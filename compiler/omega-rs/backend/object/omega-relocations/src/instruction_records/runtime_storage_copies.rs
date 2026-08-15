@@ -128,6 +128,26 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 context.storage_region_symbol_handle(target.region),
                             );
                         }
+                        omega_instruction_selection::CopyPlacesShape::FromPointeeDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            if target.region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                                || outer_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.machine_storage_symbol_handle(),
+                                );
+                            }
+                        }
                         omega_instruction_selection::CopyPlacesShape::PointeePair { .. } => {
                             // Both pointer slots are frame-resident (the
                             // decompose's precondition); the retired
@@ -748,6 +768,24 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                         context.input.target.architecture,
                                     ),
                                     context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                        }
+                        omega_instruction_selection::WritePlaceShape::PointeeDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            if outer_index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.machine_storage_symbol_handle(),
                                 );
                             }
                         }

@@ -130,7 +130,10 @@ Owners:
   fixed array tiled by exactly one compiler-sized element `At` at one validated
   constant destination stride. Compiler-derived strides and offsets drive the
   interpreter and all three native target paths. Mutable fact-free byte views
-  write and reread through those same extents. Typed owned materialization
+  write and reread through those same extents, including two runtime indices
+  through a gapped outer fixed array of recursively fixed arrays while
+  retaining the plan-derived outer stride and compiler-derived inner stride.
+  Typed owned materialization
   derives complete bytes from the exact schema (or a checked zero-argument Psi
   evaluator) while Omega supplies byte order, zeroes padding, and validates
   completely before mutation.
