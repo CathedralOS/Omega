@@ -7,7 +7,8 @@
 
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
-    ArtifactWriter, TrustProviderRequirementRow, TrustQualificationRow, TrustReport, TrustReportRow,
+    ArtifactWriter, TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow,
+    TrustReport, TrustReportRow,
 };
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
@@ -91,6 +92,7 @@ pub(super) fn write_trust_report(
                     synchronous_invocations: method.synchronous_invocations.clone(),
                     may_suspend: method.may_suspend,
                     may_block: method.may_block,
+                    realization: trust_provider_realization(&row.binding),
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
                     standing_warning: !granted,
@@ -218,4 +220,39 @@ pub(super) fn write_trust_report(
     writer
         .write_trust_report(&report)
         .map_err(|diagnostic| vec![diagnostic])
+}
+
+fn trust_provider_realization(
+    binding: &omega_effects::provider_plan::ProviderBinding,
+) -> TrustProviderRealization {
+    use omega_effects::provider_plan::ProviderBinding;
+
+    match binding {
+        ProviderBinding::Import { library, symbol } => TrustProviderRealization::Import {
+            library: library.clone(),
+            symbol: symbol.clone(),
+        },
+        ProviderBinding::Syscall { number } => {
+            TrustProviderRealization::Syscall { number: *number }
+        }
+        ProviderBinding::CompilerIntrinsic { name } => {
+            TrustProviderRealization::CompilerIntrinsic { name: name.clone() }
+        }
+        ProviderBinding::VtableSlot { index } => {
+            TrustProviderRealization::VtableSlot { index: *index }
+        }
+        ProviderBinding::VtableField { table, field } => TrustProviderRealization::VtableField {
+            table: table.clone(),
+            field: field.clone(),
+        },
+        ProviderBinding::TableFunction { table, field } => {
+            TrustProviderRealization::TableFunction {
+                table: table.clone(),
+                field: field.clone(),
+            }
+        }
+        ProviderBinding::CheckedAdapter { machine } => TrustProviderRealization::CheckedAdapter {
+            machine: machine.clone(),
+        },
+    }
 }
