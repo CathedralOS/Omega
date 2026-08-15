@@ -11203,15 +11203,19 @@ fn shared_integer_runtime_parameters_with_shells(
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+            scalar_type: ScalarType::Integer(_),
             left,
             right,
-            ..
         } if proof_shell_allowed => {
-            let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
-            parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right, 0, false,
-            )?);
-            Some(parameters)
+            let collect_direct = || {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                Some(parameters)
+            };
+            collect_direct()
+                .or_else(|| shared_exact_shift_left_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. } if remaining_shells > 0 => {
             shared_integer_runtime_parameters_with_shells(
@@ -11507,7 +11511,7 @@ fn shared_exact_shift_right_chain_runtime_parameters(
         };
         if !native_fixed_integer_type(*value_type)
             || chain_type.is_some_and(|chain_type| chain_type != *value_type)
-            || !safe_exact_shift_right_landed_literal_count(*value_type, right)
+            || !safe_exact_shift_landed_literal_count(*value_type, right)
         {
             return None;
         }
@@ -11533,7 +11537,7 @@ fn shared_exact_shift_right_chain_runtime_parameters(
     }
 }
 
-fn safe_exact_shift_right_landed_literal_count(
+fn safe_exact_shift_landed_literal_count(
     value_type: IntegerType,
     expression: &LoweredDirectExpression,
 ) -> bool {
@@ -11552,6 +11556,49 @@ fn safe_exact_shift_right_landed_literal_count(
         IntegerValue::Unsigned(value) => Some(*value),
     };
     count.is_some_and(|count| count < u128::from(value_type.bits()))
+}
+
+fn shared_exact_shift_left_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_operation = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+            scalar_type: ScalarType::Integer(value_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*value_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *value_type)
+            || !safe_exact_shift_landed_literal_count(*value_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*value_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftLeft,
+                ..
+            } => {
+                saw_nested_operation = true;
+                expression = nested;
+            }
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if saw_nested_operation && *root_type == *value_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn native_fixed_integer_type(integer_type: IntegerType) -> bool {

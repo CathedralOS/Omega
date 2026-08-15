@@ -210,10 +210,17 @@ Remaining:
   link. A finite same-value-carrier exact-right-shift chain may likewise
   continue only through its left operand, with an independently landed fixed
   native integer count satisfying `0 <= count < value width` at every link.
+  A finite same-value-carrier exact-left-shift chain may likewise continue only
+  through its left operand, with independently landed fixed native integer
+  counts satisfying `0 <= count < value width`; count carriers may differ.
+  The verifier accumulates those counts with checked arithmetic and derives the
+  carrier-tight bound on the direct root for every prefix, including the
+  zero-only root when the cumulative count reaches the value width.
   A finite same-carrier exact-multiply chain may continue only through its left
   operand, with an explicitly landed same-carrier nonnegative literal factor at
-  every link. All five forms require a direct machine-parameter root. The
-  verifier walks ordered definitions for addition/subtraction/multiplication
+  every link. All six forms require a direct machine-parameter root. The
+  verifier walks ordered definitions for addition, subtraction, multiplication,
+  and left shift
   and reconstructs every retained operation's safety obligation independently;
   multiplication accumulates nonnegative factors with checked arithmetic and
   derives carrier-tight root bounds, while divide/remainder and right-shift

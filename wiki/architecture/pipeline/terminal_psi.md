@@ -482,16 +482,26 @@ fixed native signed or unsigned integer count carriers and independently satisfy
 `0 <= count < value width`; count carriers may differ between links. Each
 divide/remainder or right-shift obligation reconstructs independently from its
 own safe landed divisor or count, so no producer-definition traversal supplies
-authority. Terminal retains every operation and obligation, and every
+authority. A finite same-value-carrier exact-left-shift chain may also continue
+only through its left operand from a direct machine parameter. Each right
+operand must likewise be an independently landed in-range fixed native integer
+count, and count carriers may differ. The verifier follows only prior
+left-to-right definitions with a shrinking prefix, accumulates counts in a
+checked `u128`, and reconstructs every link from the cumulative count: zero is
+total; `0 < cumulative < width` requires `root <= MAX >> cumulative` for
+unsigned roots and `MIN >> cumulative <= root <= MAX >> cumulative` for signed
+roots; cumulative counts at least the width require the root to equal zero.
+Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
-block-parameter roots, exact left shift, exact operations outside the admitted
-chain family, and other
-proof-bearing compositions remain fenced. For addition/subtraction/multiplication,
+block-parameter roots, exact operations outside the admitted chain family, and
+other proof-bearing compositions remain fenced. For addition, subtraction,
+multiplication, and left shift,
 missing, reordered, reversed, redirected, cyclic, or stale definitions reject; for every
 family, stale operation/factor/divisor/count evidence and missing evidence
-reject. Multiply additionally rejects cumulative-factor overflow. One
+reject. Multiply and left shift additionally reject cumulative arithmetic
+overflow. One
 separate computed-cast exception accepts a direct
 fixed-integer parameter
 widened through any finite chain of valid fixed-carrier widenings and then
