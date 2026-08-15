@@ -11515,10 +11515,11 @@ fn runtime_free_machine_struct_return_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine struct return canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("free-machine struct return canary should run");
 
@@ -11544,10 +11545,11 @@ fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-mut-arg-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine mut-arg value call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("free-machine mut-arg value call canary should run");
 
@@ -11575,10 +11577,11 @@ fn runtime_free_machine_looping_value_call_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-looping-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("looping free-machine value call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("looping free-machine value call canary should run");
 
@@ -11599,10 +11602,11 @@ fn runtime_numeric_cast_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-numeric-cast-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("numeric cast canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("numeric cast canary should run");
 
@@ -11628,10 +11632,11 @@ fn runtime_widened_comparison_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-widened-cmp-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("widened comparison canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("widened comparison canary should run");
 
@@ -11657,10 +11662,11 @@ fn runtime_widened_bitwise_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("widened bitwise canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("widened bitwise canary should run");
 
@@ -11681,10 +11687,11 @@ fn runtime_16bit_cast_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-16bit-cast-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("16-bit cast canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("16-bit cast canary should run");
 
@@ -45994,11 +46001,18 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
+    "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_struct_arg_exit",
+    "calls/runtime_free_machine_struct_return_exit",
+    "calls/runtime_free_machine_value_call_mut_arg_exit",
     "calls/runtime_free_machine_value_call_exit",
     "calls/runtime_record_forwarding_statement_call_exit",
     "calls/runtime_value_position_branching_call_exit",
     "domains/utf8_return_view_equals_exit",
+    "expressions/runtime_16bit_cast_exit",
+    "expressions/runtime_numeric_cast_exit",
+    "expressions/runtime_widened_bitwise_exit",
+    "expressions/runtime_widened_comparison_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_bitwise_guard_exit",
     "operators/runtime_bitwise_operators_exit",
@@ -46394,8 +46408,13 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "calls/runtime_free_machine_looping_value_call_exit",
+    "calls/runtime_free_machine_value_call_mut_arg_exit",
     "calls/runtime_free_machine_value_call_exit",
     "domains/utf8_return_view_equals_exit",
+    "expressions/runtime_16bit_cast_exit",
+    "expressions/runtime_widened_bitwise_exit",
+    "expressions/runtime_widened_comparison_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
     "text/runtime_bounded_carrier_pointee_guard_exit",
