@@ -5417,8 +5417,9 @@ fn value_call_as_host_arg_exit_canary_runs() {
     let canary = pass_canary("calls/value_call_as_host_arg_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-value-call-host-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
 
-    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested value call used as a host argument should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -5440,8 +5441,9 @@ fn computed_host_arg_exit_canary_runs() {
     let canary = pass_canary("calls/computed_host_arg_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-computed-host-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
 
-    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed scalar host argument should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -5471,8 +5473,9 @@ fn computed_host_cast_arg_exit_canary_runs() {
     let canary = pass_canary("calls/computed_host_cast_arg_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-computed-host-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
 
-    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed cast host argument should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -5495,8 +5498,9 @@ fn computed_host_builtin_arg_exit_canary_runs() {
         "omega-computed-host-builtin-{}",
         std::process::id()
     ));
+    let _ = fs::remove_dir_all(&scratch);
 
-    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed builtin host argument should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -5519,8 +5523,9 @@ fn computed_host_indexed_arg_exit_canary_runs() {
         "omega-computed-host-indexed-{}",
         std::process::id()
     ));
+    let _ = fs::remove_dir_all(&scratch);
 
-    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime-indexed host argument should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
