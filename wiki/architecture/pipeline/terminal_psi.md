@@ -459,15 +459,23 @@ machine-parameter root when every non-chain sibling is a landed literal
 constant. A finite same-carrier exact-subtract chain may likewise have a direct
 machine-parameter root, but only the left operand continues the chain and every
 right operand is a landed literal constant; reversed subtraction is not a
-chain. Terminal retains every operation and obligation. The verifier walks only
-prior left-to-right definitions with a shrinking prefix, combines addition
-constants or mathematical negations of subtrahends as a checked sign and
-magnitude, rejects accumulator overflow or a magnitude beyond the carrier span,
-and reconstructs and checks every operation's evidence independently. Two
-computed operands, nonconstant siblings, local or block-parameter roots,
-multiplication, mixed exact operations, and other proof-bearing compositions
-remain fenced. Missing, reordered, reversed, redirected, cyclic, or stale
-definitions and missing evidence reject. One separate computed-cast exception accepts a direct
+chain. A finite same-carrier chain may also mix exact divide and remainder,
+continue only through its left operand from a direct machine parameter, and use
+only landed nonzero unsigned divisors or landed signed divisors other than `0`
+and `-1`. Terminal retains every operation and obligation. For addition and
+subtraction, the verifier walks only prior left-to-right definitions with a
+shrinking prefix, combines constants or mathematical negations of subtrahends
+as a checked sign and magnitude, and rejects accumulator overflow or a
+magnitude beyond the carrier span. Each divide/remainder obligation instead
+reconstructs `Truth` independently from its own safe landed divisor; no
+producer-definition traversal supplies authority. Every operation's evidence
+is checked independently. Two computed operands, nonconstant siblings,
+right-associated or reversed shapes, local or block-parameter roots,
+multiplication, exact operations outside the admitted chain family, and other
+proof-bearing compositions remain fenced. For addition/subtraction, missing,
+reordered, reversed, redirected, cyclic, or stale definitions reject; for every
+family, stale operation/divisor evidence and missing evidence reject. One
+separate computed-cast exception accepts a direct
 fixed-integer parameter
 widened through any finite chain of valid fixed-carrier widenings and then
 exactly narrowed back to its original carrier. Terminal retains every ordered

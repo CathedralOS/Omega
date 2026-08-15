@@ -200,9 +200,14 @@ Remaining:
   and every native target. A finite same-carrier exact-add chain may have a
   landed literal sibling at each link, while a finite exact-subtract chain may
   continue only through its left operand and must have a landed literal right
-  operand at each link. Both require a direct machine-parameter root; the
-  verifier walks ordered definitions and reconstructs every retained
-  operation's safety obligation independently. One direct
+  operand at each link. A finite same-carrier chain may also mix exact divide
+  and remainder while continuing only through its left operand, with a landed
+  nonzero unsigned divisor or signed divisor other than `0` and `-1` at every
+  link. All three forms require a direct machine-parameter root. The verifier
+  walks ordered definitions for addition/subtraction and reconstructs every
+  retained operation's safety obligation independently; divide/remainder links
+  need no producer-definition authority because each safe landed divisor
+  independently reconstructs `Truth`. One direct
   fixed-integer parameter may also pass through a finite chain of valid
   widenings and then exactly narrow back to its original carrier; Terminal
   retains every operation and independently derives the narrowing obligation

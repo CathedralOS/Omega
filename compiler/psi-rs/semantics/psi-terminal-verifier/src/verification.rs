@@ -4625,6 +4625,26 @@ mod tests {
     }
 
     #[test]
+    fn mixed_exact_divide_remainder_chain_reconstructs_each_safe_divisor_independently() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root = ScalarTerm::value(ValueId::new(1).expect("root"), ScalarType::Integer(u8_type));
+        let two = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let three = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(3)).expect("3u8");
+        let inner =
+            ScalarTerm::exact_integer_divide(u8_type, root, two.clone()).expect("root / 2u8");
+        assert_eq!(
+            exact_integer_remainder_obligation(u8_type, inner.clone(), three.clone(), &[]),
+            Proposition::Truth
+        );
+        let middle =
+            ScalarTerm::exact_integer_remainder(u8_type, inner, three).expect("(root / 2u8) % 3u8");
+        assert_eq!(
+            exact_integer_divide_obligation(u8_type, middle, two, &[]),
+            Proposition::Truth
+        );
+    }
+
+    #[test]
     fn wrapping_divide_reconstructs_known_nonzero_divisor_safety() {
         let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let value = ScalarTerm::value(

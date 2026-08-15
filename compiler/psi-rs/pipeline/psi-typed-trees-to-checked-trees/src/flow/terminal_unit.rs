@@ -1612,15 +1612,27 @@ fn shared_integer_runtime_inputs_with_shells(
             left,
             right,
         } if proof_shell_allowed => {
-            let mut inputs =
-                shared_integer_runtime_inputs_with_shells(left, scalar_parameter_count, 0, false)?;
-            inputs.extend(shared_integer_runtime_inputs_with_shells(
-                right,
-                scalar_parameter_count,
-                0,
-                false,
-            )?);
-            Some(inputs)
+            let collect_direct = || {
+                let mut inputs = shared_integer_runtime_inputs_with_shells(
+                    left,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?;
+                inputs.extend(shared_integer_runtime_inputs_with_shells(
+                    right,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?);
+                Some(inputs)
+            };
+            collect_direct().or_else(|| {
+                shared_exact_divide_remainder_chain_runtime_inputs(
+                    expression,
+                    scalar_parameter_count,
+                )
+            })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactShiftLeft,
@@ -1818,6 +1830,71 @@ fn shared_exact_subtract_chain_runtime_inputs(
             }
             _ => return None,
         }
+    }
+}
+
+fn shared_exact_divide_remainder_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_operation = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || !safe_exact_divide_remainder_literal(*primitive_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+                ..
+            } => {
+                saw_nested_operation = true;
+                expression = nested;
+            }
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if saw_nested_operation
+                && *root_type == *primitive_type
+                && *position < scalar_parameter_count =>
+            {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn safe_exact_divide_remainder_literal(
+    primitive_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+) -> bool {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return false;
+    };
+    match primitive_type {
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64 => {
+            literal.value_u64().is_some_and(|value| value != 0)
+        }
+        PrimitiveType::I8 | PrimitiveType::I16 | PrimitiveType::I32 | PrimitiveType::I64 => literal
+            .value_i64()
+            .is_some_and(|value| value != 0 && value != -1),
+        _ => false,
     }
 }
 

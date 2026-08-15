@@ -918,6 +918,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small * divisor) < 50u8)
                 && ((small / 2u8) < 3u8)
                 && ((small % 2u8) <= 1u8)
+                && ((((small / 2u8) % 3u8) / 2u8) < 2u8)
                 && ((small / divisor) < 6u8)
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
@@ -1751,6 +1752,74 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let operations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let has_u8_constant = |id, expected| {
+        operations.iter().any(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(id)
+                && matches!(
+                    operation.kind,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(value)
+                    } if value == expected
+                )
+        })
+    };
+    let nested_divide_remainder_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerDivide {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(right, 2) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerRemainder {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(middle_right, 3) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == terminal_entry.parameters[1].id && has_u8_constant(inner_right, 2))
+                .then_some([inner_obligation, middle_obligation, outer_obligation])
+        })
+        .expect("native path retains the finite mixed exact-divide/remainder chain");
+    for obligation in nested_divide_remainder_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     assert_eq!(
         terminal_entry
             .blocks

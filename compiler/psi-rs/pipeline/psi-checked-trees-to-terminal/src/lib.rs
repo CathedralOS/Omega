@@ -11173,11 +11173,15 @@ fn shared_integer_runtime_parameters_with_shells(
             left,
             right,
         } if proof_shell_allowed => {
-            let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
-            parameters.extend(shared_integer_runtime_parameters_with_shells(
-                right, 0, false,
-            )?);
-            Some(parameters)
+            let collect_direct = || {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                Some(parameters)
+            };
+            collect_direct()
+                .or_else(|| shared_exact_divide_remainder_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactShiftLeft,
@@ -11343,6 +11347,68 @@ fn shared_exact_subtract_chain_runtime_parameters(
             }
             _ => return None,
         }
+    }
+}
+
+fn shared_exact_divide_remainder_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_operation = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if integer_type.is_address()
+            || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+            || !safe_exact_divide_remainder_landed_literal(*integer_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*integer_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
+                ..
+            } => {
+                saw_nested_operation = true;
+                expression = nested;
+            }
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if saw_nested_operation && *root_type == *integer_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn safe_exact_divide_remainder_landed_literal(
+    integer_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> bool {
+    let LoweredDirectExpression::IntegerLiteral { value, scalar_type } = expression else {
+        return false;
+    };
+    if *scalar_type != ScalarType::Integer(integer_type) {
+        return false;
+    }
+    match (integer_type.sign(), value) {
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => *value != 0,
+        (IntegerSign::Signed, IntegerValue::Signed(value)) => *value != 0 && *value != -1,
+        _ => false,
     }
 }
 
