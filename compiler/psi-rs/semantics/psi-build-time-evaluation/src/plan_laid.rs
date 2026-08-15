@@ -33,7 +33,8 @@ use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};
 use psi_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use psi_typed_trees::{
-    PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField, PlanLaidLayout, TypedTrees,
+    PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField, PlanLaidLayout,
+    PlanLaidRepeatedField, TypedTrees,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -304,6 +305,7 @@ pub fn compute_plan_laid_layouts(
         let mut offsets = vec![None; field_count];
         let mut bit_fields = Vec::<PlanLaidBitField>::new();
         let mut integer_fields = Vec::<PlanLaidIntegerField>::new();
+        let mut repeated_fields = Vec::<PlanLaidRepeatedField>::new();
         for (field_index, (field_name, field_type)) in schema_fields.iter().enumerate() {
             let field_entries = report
                 .entries
@@ -352,6 +354,66 @@ pub fn compute_plan_laid_layouts(
                             stored_width,
                             interpretation,
                         ),
+                    });
+                }
+                entries
+                    if entries.len() > 1
+                        && entries.iter().all(|entry| {
+                            matches!(entry.placement, LayoutPlacementReport::At { .. })
+                        }) =>
+                {
+                    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(element_count),
+                        ..
+                    } = typed.type_reference_table.type_reference(*field_type)
+                    else {
+                        return Err(vec![Diagnostic::error(format!(
+                            "plan-laid value type `{}`: field `{field_name}` has repeated byte placements but is not a literal outer fixed array",
+                            record.synthetic_name
+                        ))]);
+                    };
+                    if entries.len() != *element_count {
+                        return Err(vec![Diagnostic::error(format!(
+                            "plan-laid value type `{}`: field `{field_name}` has {} element placements but its outer fixed array has {element_count} elements",
+                            record.synthetic_name,
+                            entries.len()
+                        ))]);
+                    }
+                    let mut element_offsets = entries
+                        .iter()
+                        .map(|entry| match entry.placement {
+                            LayoutPlacementReport::At { offset } => offset,
+                            _ => unreachable!("repeated placements were filtered to At"),
+                        })
+                        .collect::<Vec<_>>();
+                    element_offsets.sort_unstable();
+                    let stride = element_offsets[1] - element_offsets[0];
+                    if stride == 0
+                        || element_offsets
+                            .windows(2)
+                            .any(|pair| pair[1] - pair[0] != stride)
+                    {
+                        return Err(vec![Diagnostic::error(format!(
+                            "plan-laid value type `{}`: field `{field_name}` does not retain one positive constant destination stride",
+                            record.synthetic_name
+                        ))]);
+                    }
+                    offsets[field_index] = Some(
+                        usize::try_from(element_offsets[0]).map_err(|_| {
+                            vec![Diagnostic::error(format!(
+                                "plan-laid value type `{}`: repeated field offset {} cannot be represented on this compiler host",
+                                record.synthetic_name, element_offsets[0]
+                            ))]
+                        })?,
+                    );
+                    repeated_fields.push(PlanLaidRepeatedField {
+                        field_index,
+                        element_stride: usize::try_from(stride).map_err(|_| {
+                            vec![Diagnostic::error(format!(
+                                "plan-laid value type `{}`: repeated field stride {stride} cannot be represented on this compiler host",
+                                record.synthetic_name
+                            ))]
+                        })?,
                     });
                 }
                 entries
@@ -446,6 +508,7 @@ pub fn compute_plan_laid_layouts(
             offsets,
             bit_fields,
             integer_fields,
+            repeated_fields,
             size,
             align,
         });

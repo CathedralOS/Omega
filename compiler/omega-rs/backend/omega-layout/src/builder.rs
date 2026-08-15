@@ -4,7 +4,8 @@ use crate::sizing::{
 };
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
-    MachineLayout, StoredIntegerLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
+    MachineLayout, RepeatedFieldLayout, StoredIntegerLayout, TypeLayout, TypeLayoutDescriptor,
+    VariantLayout,
 };
 use omega_target::NativeTarget;
 use psi_arena::Arena;
@@ -89,6 +90,7 @@ struct LayoutBuilder<'program> {
     fields: Arena<FieldLayout>,
     bit_fields: Vec<BitFieldLayout>,
     stored_integers: Vec<StoredIntegerLayout>,
+    repeated_fields: Vec<RepeatedFieldLayout>,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
     /// definition symbol paired with the canonical display of its type
     /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
@@ -202,6 +204,7 @@ impl<'program> LayoutBuilder<'program> {
             fields: Arena::with_capacity(field_capacity),
             bit_fields: Vec::new(),
             stored_integers: Vec::new(),
+            repeated_fields: Vec::new(),
             generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
@@ -219,6 +222,7 @@ impl<'program> LayoutBuilder<'program> {
             fields: self.fields,
             bit_fields: self.bit_fields,
             stored_integers: self.stored_integers,
+            repeated_fields: self.repeated_fields,
             machine_layouts: self.machine_layouts,
             variants: self.variants,
         }
@@ -429,6 +433,22 @@ impl<'program> LayoutBuilder<'program> {
                     stored_width_bits: integer_field.stored_width_bits,
                     interpretation: integer_field.interpretation,
                     write_is_total: integer_field.write_is_total,
+                });
+            }
+            for repeated_field in &plan.repeated_fields {
+                let Some(field) = self
+                    .fields
+                    .span(fields)
+                    .and_then(|fields| fields.get(repeated_field.field_index))
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "plan-laid data `{}` has no field at repeated-placement index {}",
+                        definition.name, repeated_field.field_index
+                    )));
+                };
+                self.repeated_fields.push(RepeatedFieldLayout {
+                    field: field.symbol,
+                    element_stride: repeated_field.element_stride,
                 });
             }
 

@@ -197,6 +197,15 @@ pub struct StoredIntegerLayout {
     pub write_is_total: bool,
 }
 
+/// Physical spacing between consecutive elements of one plan-laid outer
+/// fixed-array field. The field's ordinary layout retains the semantic array
+/// width; only indexing that outer array consumes this stride.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepeatedFieldLayout {
+    pub field: SymbolHandle,
+    pub element_stride: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantLayout {
     pub symbol: SymbolHandle,
@@ -295,6 +304,7 @@ pub struct LayoutPlan {
     pub fields: Arena<FieldLayout>,
     pub bit_fields: Vec<BitFieldLayout>,
     pub stored_integers: Vec<StoredIntegerLayout>,
+    pub repeated_fields: Vec<RepeatedFieldLayout>,
     pub machine_layouts: Arena<MachineLayout>,
     pub variants: Arena<VariantLayout>,
 }
@@ -306,6 +316,12 @@ impl LayoutPlan {
 
     pub fn stored_integer(&self, field: SymbolHandle) -> Option<&StoredIntegerLayout> {
         self.stored_integers
+            .iter()
+            .find(|layout| layout.field == field)
+    }
+
+    pub fn repeated_field(&self, field: SymbolHandle) -> Option<&RepeatedFieldLayout> {
+        self.repeated_fields
             .iter()
             .find(|layout| layout.field == field)
     }

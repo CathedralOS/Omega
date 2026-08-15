@@ -813,9 +813,9 @@ fn resolve_runtime_frame_base_indexed_stored_integer_projection_in_table(
         indexed.collection,
     )?;
     let owned_element: TypeLayoutDescriptor;
-    let (array_prefix_offset, element_descriptor) =
+    let (array_prefix_offset, element_descriptor, element_stride) =
         if let Some(element) = inline_fixed_array_element_type(&collection_slot.type_descriptor) {
-            (0usize, element)
+            (0usize, element, None)
         } else {
             let path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
             if path.len() <= 1 {
@@ -845,7 +845,11 @@ fn resolve_runtime_frame_base_indexed_stored_integer_projection_in_table(
                 )?;
             }
             owned_element = inline_fixed_array_element_type(cursor.type_descriptor())?.clone();
-            (cursor.byte_offset(), &owned_element)
+            (
+                cursor.byte_offset(),
+                &owned_element,
+                cursor.repeated_element_stride(),
+            )
         };
     let index_place = resolve_runtime_storage_place_in_table(
         input,
@@ -883,7 +887,7 @@ fn resolve_runtime_frame_base_indexed_stored_integer_projection_in_table(
                 .checked_add(array_prefix_offset)?,
             index_offset: index_place.byte_offset,
             index_byte_size: index_place.byte_count,
-            element_byte_size: element_layout.size,
+            element_byte_size: element_stride.unwrap_or(element_layout.size),
             field_byte_offset,
         },
     )
@@ -954,7 +958,7 @@ fn resolve_runtime_machine_indexed_stored_integer_projection_in_table(
             index_region: index_place.region,
             index_offset: index_place.byte_offset,
             index_byte_size: index_place.byte_count,
-            element_byte_size: element_layout.size,
+            element_byte_size: collection.element_stride.unwrap_or(element_layout.size),
             field_byte_offset,
         },
     )
@@ -2524,7 +2528,9 @@ fn resolve_runtime_pointee_indexed_target_from_path(
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
         index_byte_size: index_place.byte_count,
-        element_byte_size: element_layout.size,
+        element_byte_size: collection_cursor
+            .repeated_element_stride()
+            .unwrap_or(element_layout.size),
         field_byte_offset: collection_cursor
             .byte_offset()
             .checked_add(element_field_offset)?,
@@ -2629,7 +2635,9 @@ fn resolve_runtime_pointee_indexed_stored_integer_projection_in_table(
             index_region: index_place.region,
             index_offset: index_place.byte_offset,
             index_byte_size: index_place.byte_count,
-            element_byte_size: element_layout.size,
+            element_byte_size: collection_cursor
+                .repeated_element_stride()
+                .unwrap_or(element_layout.size),
             field_byte_offset,
         },
     )
@@ -2849,9 +2857,9 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_with_index_region_in_tab
     // field's prefix offset + element descriptor; a direct array slot
     // (`arr[k]`) walks zero steps and keeps prefix 0.
     let member_element_descriptor: TypeLayoutDescriptor;
-    let (array_prefix_offset, element_descriptor) =
+    let (array_prefix_offset, element_descriptor, element_stride) =
         if let Some(element) = inline_fixed_array_element_type(&collection_slot.type_descriptor) {
-            (0usize, element)
+            (0usize, element, None)
         } else {
             let path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
             if path.len() <= 1 {
@@ -2883,7 +2891,11 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_with_index_region_in_tab
             let prefix_offset = cursor.byte_offset();
             member_element_descriptor =
                 inline_fixed_array_element_type(cursor.type_descriptor())?.clone();
-            (prefix_offset, &member_element_descriptor)
+            (
+                prefix_offset,
+                &member_element_descriptor,
+                cursor.repeated_element_stride(),
+            )
         };
     let index_place = resolve_runtime_storage_place_in_table(
         input,
@@ -2916,7 +2928,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_with_index_region_in_tab
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
         index_byte_size: index_place.byte_count,
-        element_byte_size: element_layout.size,
+        element_byte_size: element_stride.unwrap_or(element_layout.size),
         field_byte_offset,
         byte_count: field_layout.size,
         is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
@@ -3257,11 +3269,13 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
         outer_index_region: outer_place.region,
         outer_index_offset: outer_place.byte_offset,
         outer_index_byte_size: outer_place.byte_count,
-        outer_stride: row_layout.size,
+        outer_stride: collection.element_stride.unwrap_or(row_layout.size),
         inner_index_region: inner_place.region,
         inner_index_offset: inner_place.byte_offset,
         inner_index_byte_size: inner_place.byte_count,
-        inner_stride: element_layout.size,
+        inner_stride: cursor
+            .repeated_element_stride()
+            .unwrap_or(element_layout.size),
         field_byte_offset: between_offset + suffix_offset,
         byte_count: leaf_layout.size,
         is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&leaf_descriptor),
@@ -3349,7 +3363,7 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
         index_byte_size: index_place.byte_count,
-        element_byte_size: element_layout.size,
+        element_byte_size: collection.element_stride.unwrap_or(element_layout.size),
         field_byte_offset,
         byte_count: field_layout.size,
         is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
@@ -3429,8 +3443,9 @@ fn resolve_machine_owned_collection_with_const_prefix_in_table(
     }
     let element_layout = descriptor_layout(input, element_type);
     Some(MachineOwnedCollectionTarget {
-        byte_offset: base.byte_offset + index * element_layout.size,
+        byte_offset: base.byte_offset + index * base.element_stride.unwrap_or(element_layout.size),
         type_descriptor: element_type.clone(),
+        element_stride: None,
     })
 }
 
@@ -4377,7 +4392,8 @@ fn resolve_runtime_fixed_indexed_place_in_table(
     }
     let element_descriptor = inline_fixed_array_element_type(&collection.type_descriptor)?;
     let element_layout = descriptor_layout(input, element_descriptor);
-    let element_offset = index.checked_mul(element_layout.size)?;
+    let element_offset =
+        index.checked_mul(collection.element_stride.unwrap_or(element_layout.size))?;
     let root_field = FieldLayout {
         symbol: SymbolHandle::invalid(),
         name: "".into(),

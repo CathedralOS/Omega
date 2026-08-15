@@ -6351,7 +6351,7 @@ impl<'program> Evaluator<'program> {
             return Ok(Some(Value::Int((remaining / stride) as i64)));
         }
         let Some(projection) =
-            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame)?
+            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame, None)?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable aggregate recast `{}`",
@@ -6412,7 +6412,7 @@ impl<'program> Evaluator<'program> {
             return Ok(true);
         }
         let Some(projection) =
-            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame)?
+            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame, None)?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable aggregate recast `{}`",
@@ -7435,6 +7435,12 @@ impl<'program> Evaluator<'program> {
                 cells,
                 base_offset + field_offset,
                 visiting,
+                plan.and_then(|plan| {
+                    plan.repeated_fields
+                        .iter()
+                        .find(|repeated| repeated.field_index == field_index)
+                        .map(|repeated| repeated.element_stride)
+                }),
             )? {
                 value
             } else {
@@ -7462,6 +7468,7 @@ impl<'program> Evaluator<'program> {
             cells,
             base_offset,
             &mut HashSet::new(),
+            None,
         )
     }
 
@@ -7511,6 +7518,7 @@ impl<'program> Evaluator<'program> {
         cells: &[Cell],
         base_offset: usize,
         visiting: &mut HashSet<String>,
+        outer_stride: Option<usize>,
     ) -> EvalResult<Option<Value>> {
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
             return self
@@ -7525,16 +7533,23 @@ impl<'program> Evaluator<'program> {
             TypeReferenceNode::Constrained { base_type, .. }
             | TypeReferenceNode::Reference {
                 referee: base_type, ..
-            } => self.assemble_record_view_type_inner(*base_type, cells, base_offset, visiting),
+            } => self.assemble_record_view_type_inner(
+                *base_type,
+                cells,
+                base_offset,
+                visiting,
+                outer_stride,
+            ),
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
             } => {
-                let Some((stride, _)) =
+                let Some((semantic_stride, _)) =
                     self.record_view_type_layout(*element_type, &mut HashSet::new())
                 else {
                     return Ok(None);
                 };
+                let stride = outer_stride.unwrap_or(semantic_stride);
                 let mut values = Vec::with_capacity(*length);
                 for index in 0..*length {
                     let Some(offset) = stride
@@ -7548,6 +7563,7 @@ impl<'program> Evaluator<'program> {
                         cells,
                         offset,
                         visiting,
+                        None,
                     )?
                     else {
                         return Ok(None);
@@ -7578,6 +7594,7 @@ impl<'program> Evaluator<'program> {
                         cells,
                         offset,
                         visiting,
+                        None,
                     )?
                     else {
                         return Ok(None);
@@ -7680,6 +7697,7 @@ impl<'program> Evaluator<'program> {
             TypeReferenceHandle,
             usize,
             Option<psi_typed_trees::PlanLaidIntegerField>,
+            Option<psi_typed_trees::PlanLaidRepeatedField>,
         )>,
     > {
         let data = self.find_data_by_name(type_name)?;
@@ -7696,7 +7714,7 @@ impl<'program> Evaluator<'program> {
             fields.push((field.name.as_str().to_owned(), field.type_reference));
             layouts.push(layout);
         }
-        let (offsets, integer_fields) = if let Some(plan) = self
+        let (offsets, integer_fields, repeated_fields) = if let Some(plan) = self
             .program
             .plan_laid_layouts
             .iter()
@@ -7705,7 +7723,11 @@ impl<'program> Evaluator<'program> {
             if plan.offsets.len() != fields.len() {
                 return None;
             }
-            (plan.offsets.clone(), plan.integer_fields.clone())
+            (
+                plan.offsets.clone(),
+                plan.integer_fields.clone(),
+                plan.repeated_fields.clone(),
+            )
         } else {
             let mut offsets = Vec::with_capacity(fields.len());
             let mut offset = 0usize;
@@ -7714,7 +7736,7 @@ impl<'program> Evaluator<'program> {
                 offsets.push(offset);
                 offset = offset.checked_add(size)?;
             }
-            (offsets, Vec::new())
+            (offsets, Vec::new(), Vec::new())
         };
         Some(
             fields
@@ -7726,7 +7748,11 @@ impl<'program> Evaluator<'program> {
                         .iter()
                         .find(|integer| integer.field_index == field_index)
                         .copied();
-                    (name, type_reference, offset, stored_integer)
+                    let repeated_field = repeated_fields
+                        .iter()
+                        .find(|repeated| repeated.field_index == field_index)
+                        .copied();
+                    (name, type_reference, offset, stored_integer, repeated_field)
                 })
                 .collect(),
         )
@@ -7744,11 +7770,11 @@ impl<'program> Evaluator<'program> {
         else {
             return Ok(None);
         };
-        let (_, field_type, field_offset, stored_integer) = self
+        let (_, field_type, field_offset, stored_integer, repeated_field) = self
             .record_view_fields(type_name)
             .unwrap_or_default()
             .into_iter()
-            .find(|(name, _, _, _)| name == field_name)
+            .find(|(name, _, _, _, _)| name == field_name)
             .ok_or_else(|| {
                 Halt::Trap(format!(
                     "record view `{type_name}` has no field `{field_name}`"
@@ -7764,7 +7790,14 @@ impl<'program> Evaluator<'program> {
                 stored_integer,
             }));
         }
-        self.record_view_type_projection(field_type, rest, offset, region_len, frame)
+        self.record_view_type_projection(
+            field_type,
+            rest,
+            offset,
+            region_len,
+            frame,
+            repeated_field.map(|repeated| repeated.element_stride),
+        )
     }
 
     fn record_view_type_projection(
@@ -7774,6 +7807,7 @@ impl<'program> Evaluator<'program> {
         base_offset: usize,
         region_len: usize,
         frame: &Frame,
+        outer_stride: Option<usize>,
     ) -> EvalResult<Option<MutableRecordProjection>> {
         if path.is_empty() {
             return Ok(Some(MutableRecordProjection {
@@ -7810,6 +7844,7 @@ impl<'program> Evaluator<'program> {
                             base_offset,
                             region_len,
                             frame,
+                            outer_stride,
                         );
                     }
                     TypeReferenceNode::FixedArray {
@@ -7835,16 +7870,24 @@ impl<'program> Evaluator<'program> {
                         "record-view array index {index} out of bounds for length {length}"
                     ));
                 }
-                let Some((stride, _)) =
+                let Some((semantic_stride, _)) =
                     self.record_view_type_layout(element_type, &mut HashSet::new())
                 else {
                     return Ok(None);
                 };
+                let stride = outer_stride.unwrap_or(semantic_stride);
                 let offset = stride
                     .checked_mul(index)
                     .and_then(|delta| base_offset.checked_add(delta))
                     .ok_or_else(|| Halt::Trap("record-view array offset overflow".to_owned()))?;
-                self.record_view_type_projection(element_type, rest, offset, region_len, frame)
+                self.record_view_type_projection(
+                    element_type,
+                    rest,
+                    offset,
+                    region_len,
+                    frame,
+                    None,
+                )
             }
         }
     }
@@ -7866,7 +7909,7 @@ impl<'program> Evaluator<'program> {
                 "cannot lay out mutable record recast `{type_name}`"
             ));
         };
-        for (name, type_reference, field_offset, stored_integer) in field_specs {
+        for (name, type_reference, field_offset, stored_integer, repeated_field) in field_specs {
             let Some(field_cell) = fields.get(&name) else {
                 return trap(format!(
                     "record value written through `{type_name}` has no field `{name}`"
@@ -7886,7 +7929,13 @@ impl<'program> Evaluator<'program> {
                     field_value,
                 )?;
             } else {
-                self.write_record_view_type(type_reference, cells, offset, field_value)?;
+                self.write_record_view_type_with_outer_stride(
+                    type_reference,
+                    cells,
+                    offset,
+                    field_value,
+                    repeated_field.map(|repeated| repeated.element_stride),
+                )?;
             }
         }
         Ok(())
@@ -7959,6 +8008,23 @@ impl<'program> Evaluator<'program> {
         base_offset: usize,
         value: Value,
     ) -> EvalResult<()> {
+        self.write_record_view_type_with_outer_stride(
+            type_reference,
+            cells,
+            base_offset,
+            value,
+            None,
+        )
+    }
+
+    fn write_record_view_type_with_outer_stride(
+        &self,
+        type_reference: TypeReferenceHandle,
+        cells: &[Cell],
+        base_offset: usize,
+        value: Value,
+        outer_stride: Option<usize>,
+    ) -> EvalResult<()> {
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
             let domain = self
                 .program
@@ -7974,7 +8040,13 @@ impl<'program> Evaluator<'program> {
             TypeReferenceNode::Constrained { base_type, .. }
             | TypeReferenceNode::Reference {
                 referee: base_type, ..
-            } => self.write_record_view_type(*base_type, cells, base_offset, value),
+            } => self.write_record_view_type_with_outer_stride(
+                *base_type,
+                cells,
+                base_offset,
+                value,
+                outer_stride,
+            ),
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
@@ -7988,11 +8060,12 @@ impl<'program> Evaluator<'program> {
                         values.len()
                     ));
                 }
-                let Some((stride, _)) =
+                let Some((semantic_stride, _)) =
                     self.record_view_type_layout(*element_type, &mut HashSet::new())
                 else {
                     return trap("cannot lay out mutable record array element");
                 };
+                let stride = outer_stride.unwrap_or(semantic_stride);
                 for (index, value) in values.into_iter().enumerate() {
                     let offset = stride
                         .checked_mul(index)

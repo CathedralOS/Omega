@@ -44,6 +44,7 @@ pub(in crate::selection) struct NestedFieldLayoutCursor<'layout> {
     layout: TypeLayout,
     bit_field: Option<&'layout omega_layout::BitFieldLayout>,
     stored_integer: Option<&'layout omega_layout::StoredIntegerLayout>,
+    repeated_field: Option<&'layout omega_layout::RepeatedFieldLayout>,
 }
 
 impl<'layout> NestedFieldLayoutCursor<'layout> {
@@ -57,6 +58,7 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
             layout: root_field.layout,
             bit_field: None,
             stored_integer: None,
+            repeated_field: None,
         }
     }
 
@@ -85,21 +87,29 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
         self.stored_integer
     }
 
+    pub(in crate::selection) fn repeated_element_stride(self) -> Option<usize> {
+        self.repeated_field.map(|layout| layout.element_stride)
+    }
+
     pub(in crate::selection) fn from_indexed_fixed_array_element(
         cursor: Self,
         index: usize,
         element_type: &'layout TypeLayoutDescriptor,
         element_layout: TypeLayout,
     ) -> Self {
+        let element_stride = cursor
+            .repeated_element_stride()
+            .unwrap_or(element_layout.size);
         Self {
-            byte_offset: cursor.byte_offset + element_layout.size * index,
-            containing_byte_offset: cursor.byte_offset + element_layout.size * index,
+            byte_offset: cursor.byte_offset + element_stride * index,
+            containing_byte_offset: cursor.byte_offset + element_stride * index,
             type_symbol: element_type.storage_symbol(),
             type_name: "",
             type_descriptor: element_type,
             layout: element_layout,
             bit_field: None,
             stored_integer: None,
+            repeated_field: None,
         }
     }
 }
@@ -236,6 +246,7 @@ fn resolve_nested_field_layout_step_internal<'layout>(
         layout: field.layout,
         bit_field: layouts.bit_field(field.symbol),
         stored_integer,
+        repeated_field: layouts.repeated_field(field.symbol),
     };
 
     if let Some(index) = field_segment.index {
@@ -247,7 +258,10 @@ fn resolve_nested_field_layout_step_internal<'layout>(
             size: next.layout.size / length,
             alignment: next.layout.alignment,
         };
-        next.byte_offset += element_layout.size * index;
+        let element_stride = next
+            .repeated_element_stride()
+            .unwrap_or(element_layout.size);
+        next.byte_offset += element_stride * index;
         next.containing_byte_offset = next.byte_offset;
         next.type_symbol = element_type.storage_symbol();
         next.type_name = "";
@@ -255,6 +269,7 @@ fn resolve_nested_field_layout_step_internal<'layout>(
         next.layout = element_layout;
         next.bit_field = None;
         next.stored_integer = None;
+        next.repeated_field = None;
     }
 
     Some(next)

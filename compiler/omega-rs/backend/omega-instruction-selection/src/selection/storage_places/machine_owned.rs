@@ -22,6 +22,7 @@ use psi_symbols::SymbolHandle;
 pub(in crate::selection) struct MachineOwnedCollectionTarget {
     pub(in crate::selection) byte_offset: usize,
     pub(in crate::selection) type_descriptor: TypeLayoutDescriptor,
+    pub(in crate::selection) element_stride: Option<usize>,
 }
 
 pub(in crate::selection) fn resolve_machine_owned_place(
@@ -282,6 +283,7 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     Some(MachineOwnedCollectionTarget {
         byte_offset: machine_base_offset + cursor.byte_offset(),
         type_descriptor: cursor.type_descriptor().clone(),
+        element_stride: cursor.repeated_element_stride(),
     })
 }
 
