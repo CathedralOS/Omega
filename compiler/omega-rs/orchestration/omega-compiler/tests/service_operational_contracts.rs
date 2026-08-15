@@ -180,11 +180,6 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         })
         .collect::<Vec<_>>();
     assert_eq!(reach.interface, ServiceReachInterface::InternalInferred);
-    let contract = checked
-        .facts
-        .contract_plans
-        .for_machine(machine.symbol)
-        .expect("run_impl contract plan");
     let contract_reach = checked
         .facts
         .service_reaches
@@ -234,6 +229,11 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .blocking
         .for_machine(machine.symbol)
         .expect("run_impl blocking plan");
+    let termination = checked
+        .facts
+        .termination
+        .for_machine(machine.symbol)
+        .expect("run_impl termination plan");
     assert_eq!(
         suspension.interface,
         SuspensionInterface::PublishedMaySuspend(true)
@@ -243,7 +243,7 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         BlockingInterface::PublishedMayBlock(true)
     );
     assert_eq!(
-        contract.termination.interface,
+        termination.interface,
         TerminationInterface::Published(TerminationGuarantee::Terminates {
             premises: Vec::new(),
         })

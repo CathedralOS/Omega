@@ -997,10 +997,6 @@ pub struct MachineContractPlan {
     /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
     /// not survive into the published carrier; sites do not enter identity.
     pub crash: CrashPlan,
-    /// Public omission, private derivation, and the implementation witness
-    /// remain distinct within one normalized termination plan. Only the
-    /// interface contributes to this contract's public fingerprint.
-    pub termination: psi_language_semantics::MachineTerminationPlan,
     /// The deterministic identity over the published halves above. Stable
     /// across prover-strength changes and body edits that keep the declared
     /// surface.

@@ -1458,10 +1458,9 @@ fn inferred_completion_never_publishes_a_promise() {
     assert_eq!(
         checked
             .facts
-            .contract_plans
+            .termination
             .for_machine(inferred)
             .expect("inferred local summary")
-            .termination
             .checked_summary,
         TerminationGuarantee::Terminates {
             premises: Vec::new()
@@ -1470,10 +1469,9 @@ fn inferred_completion_never_publishes_a_promise() {
     assert_eq!(
         checked
             .facts
-            .contract_plans
+            .termination
             .for_machine(inferred)
             .expect("inferred contract plan")
-            .termination
             .interface,
         psi_language_semantics::TerminationInterface::InternalDerived,
         "body inference must never redefine the published contract"
@@ -1481,10 +1479,9 @@ fn inferred_completion_never_publishes_a_promise() {
     assert_eq!(
         checked
             .facts
-            .contract_plans
+            .termination
             .for_machine(promised)
             .expect("promised contract plan")
-            .termination
             .interface,
         psi_language_semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
             premises: Vec::new()

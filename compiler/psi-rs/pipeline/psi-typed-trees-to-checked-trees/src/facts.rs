@@ -72,6 +72,8 @@ pub(crate) fn build_check_facts(
     // EFX: worker blocking is published independently from suspension and
     // retains public negative guarantees separately from private inference.
     let blocking = build_blocking_facts(program, &operational);
+    // TPR/EFX: termination is published as an independent exact-machine root.
+    let termination = build_termination_facts(program);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
     let mutation = build_mutation_facts(program);
@@ -83,6 +85,7 @@ pub(crate) fn build_check_facts(
         &synchronous_invocations,
         &suspensions,
         &blocking,
+        &termination,
         &flow,
         &operators,
         &validation_facts.exact_integer_casts,
@@ -108,10 +111,24 @@ pub(crate) fn build_check_facts(
         synchronous_invocations,
         suspensions,
         blocking,
+        termination,
         qualifications,
         contract_plans,
         carry,
     ))
+}
+
+fn build_termination_facts(program: &TypedTrees) -> psi_checked_trees::TerminationFacts {
+    psi_checked_trees::TerminationFacts {
+        machines: program
+            .machines()
+            .iter()
+            .map(|machine| psi_checked_trees::MachineTerminationFact {
+                machine: machine.symbol,
+                plan: crate::checks::termination::build_checked_termination_plan(program, machine),
+            })
+            .collect(),
+    }
 }
 
 fn build_blocking_facts(
@@ -325,6 +342,7 @@ fn build_contract_plans(
     synchronous_invocations: &psi_checked_trees::SynchronousInvocationFacts,
     suspensions: &psi_checked_trees::SuspensionFacts,
     blocking: &psi_checked_trees::BlockingFacts,
+    termination: &psi_checked_trees::TerminationFacts,
     flow: &psi_checked_trees::FlowFacts,
     operators: &psi_checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
@@ -352,8 +370,9 @@ fn build_contract_plans(
         let blocking = blocking
             .for_machine(machine.symbol)
             .expect("every checked machine must publish blocking facts");
-        let termination =
-            crate::checks::termination::build_checked_termination_plan(program, machine);
+        let termination = termination
+            .for_machine(machine.symbol)
+            .expect("every checked machine must publish termination facts");
         // Slice 2: the declared requires/ensures facts in a CANONICAL,
         // clause-order-independent encoding (each fact serializes to a
         // stable byte form; the set sorts before folding). Parameter
@@ -456,7 +475,6 @@ fn build_contract_plans(
             machine: machine.symbol,
             closed_scalar_values,
             crash,
-            termination,
             fingerprint,
         });
     }
