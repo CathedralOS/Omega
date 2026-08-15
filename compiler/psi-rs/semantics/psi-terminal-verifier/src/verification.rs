@@ -1643,6 +1643,16 @@ fn exact_integer_shift_left_obligation(
         semantic_axioms,
         definition_axiom_count,
     ) {
+        if let Some(obligation) = exact_integer_shift_right_then_left_obligation(
+            value_type,
+            value.clone(),
+            count_value,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        ) {
+            return obligation;
+        }
         if let Some(obligation) = exact_integer_cast_then_shift_left_chain_obligation(
             value_type,
             value.clone(),
@@ -1694,6 +1704,158 @@ fn exact_integer_shift_left_obligation(
     let maximum_count = known_maximum.unwrap_or_else(|| u32::from(value_type.bits() - 1));
     append_exact_shift_left_value_bounds(&mut bounds, value_type, value, maximum_count);
     canonical_conjunction(bounds)
+}
+
+fn exact_integer_shift_right_then_left_obligation(
+    value_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    count: u128,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if value_type.is_address() || !matches!(value_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let mut cumulative_left = count;
+    let mut cumulative_right = 0_u128;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut saw_right = false;
+    for _ in 0..=prior_axiom_count {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type: nested_value_type,
+                count_type,
+                value: nested_value,
+                count: nested_count,
+            } if !saw_right && *nested_value_type == value_type => {
+                let nested_count = landed_exact_shift_count(
+                    value_type,
+                    *count_type,
+                    nested_count,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let Some(total) = cumulative_left.checked_add(nested_count) else {
+                    return Some(Proposition::Falsehood);
+                };
+                cumulative_left = total;
+                value = (**nested_value).clone();
+                prior_axiom_count = definition_index;
+            }
+            ScalarTerm::ExactIntegerShiftRight {
+                value_type: nested_value_type,
+                count_type,
+                value: nested_value,
+                count: nested_count,
+            } if *nested_value_type == value_type => {
+                let nested_count = landed_exact_shift_count(
+                    value_type,
+                    *count_type,
+                    nested_count,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let Some(total) = cumulative_right.checked_add(nested_count) else {
+                    return Some(Proposition::Falsehood);
+                };
+                cumulative_right = total;
+                value = (**nested_value).clone();
+                prior_axiom_count = definition_index;
+                saw_right = true;
+            }
+            _ => return None,
+        }
+        if saw_right
+            && matches!(
+                &value,
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(root_type),
+                } if *root_type == value_type && machine_parameter_values.contains(id)
+            )
+        {
+            return Some(exact_integer_shift_right_then_left_interval_obligation(
+                value_type,
+                value,
+                cumulative_left,
+                cumulative_right,
+            ));
+        }
+    }
+    None
+}
+
+fn exact_integer_shift_right_then_left_interval_obligation(
+    value_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    cumulative_left: u128,
+    cumulative_right: u128,
+) -> Proposition {
+    let width = u128::from(value_type.bits());
+    if cumulative_left == 0 {
+        return Proposition::Truth;
+    }
+    if cumulative_right >= width {
+        return match value_type.sign() {
+            IntegerSign::Unsigned => Proposition::Truth,
+            IntegerSign::Signed if cumulative_left < width => Proposition::Truth,
+            IntegerSign::Signed => {
+                exact_integer_source_interval_obligation(value_type, root, 0, i128::MAX)
+            }
+        };
+    }
+    if cumulative_left <= cumulative_right {
+        return Proposition::Truth;
+    }
+
+    let (quotient_minimum, quotient_maximum) = if cumulative_left >= width {
+        (0, 0)
+    } else {
+        let left = u32::try_from(cumulative_left).expect("count below native width fits u32");
+        match value_type.sign() {
+            IntegerSign::Unsigned => {
+                let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
+                    unreachable!("unsigned fixed integer type has an unsigned maximum")
+                };
+                let Some(maximum) = i128::try_from(maximum >> left).ok() else {
+                    return Proposition::Falsehood;
+                };
+                (0, maximum)
+            }
+            IntegerSign::Signed => {
+                let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                    (value_type.minimum_value(), value_type.maximum_value())
+                else {
+                    unreachable!("signed fixed integer type has signed bounds")
+                };
+                (minimum >> left, maximum >> left)
+            }
+        }
+    };
+    let right = u32::try_from(cumulative_right).expect("count below native width fits u32");
+    let Some(scale) = 1_i128.checked_shl(right) else {
+        return Proposition::Falsehood;
+    };
+    let Some(root_minimum) = quotient_minimum.checked_mul(scale) else {
+        return Proposition::Falsehood;
+    };
+    let Some(root_maximum) = quotient_maximum
+        .checked_add(1)
+        .and_then(|exclusive| exclusive.checked_mul(scale))
+        .and_then(|exclusive| exclusive.checked_sub(1))
+    else {
+        return Proposition::Falsehood;
+    };
+    exact_integer_source_interval_obligation(value_type, root, root_minimum, root_maximum)
 }
 
 fn exact_integer_cast_then_shift_left_chain_obligation(
@@ -9582,6 +9744,157 @@ mod tests {
         assert_eq!(
             exact_integer_shift_obligation(value_type, unsigned_count_type, eight, &[]),
             Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn exact_shift_right_then_left_reconstructs_every_prefix_from_ordered_definitions() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
+        let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let unsigned_count_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+        let root_id = ValueId::new(301).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(value_type));
+        let right_one_id = ValueId::new(302).expect("right one");
+        let right_one = ScalarTerm::value(right_one_id, ScalarType::Integer(value_type));
+        let right_two_id = ValueId::new(303).expect("right two");
+        let right_two = ScalarTerm::value(right_two_id, ScalarType::Integer(value_type));
+        let left_one_id = ValueId::new(304).expect("left one");
+        let left_one = ScalarTerm::value(left_one_id, ScalarType::Integer(value_type));
+        let one = ScalarTerm::integer(signed_count_type, IntegerValue::Signed(1)).expect("1i8");
+        let two =
+            ScalarTerm::integer(unsigned_count_type, IntegerValue::Unsigned(2)).expect("2u16");
+        let definitions = vec![
+            Proposition::Equal(
+                right_one.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    value_type,
+                    signed_count_type,
+                    root.clone(),
+                    one.clone(),
+                )
+                .expect("root >> 1"),
+            ),
+            Proposition::Equal(
+                right_two.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    value_type,
+                    unsigned_count_type,
+                    right_one,
+                    two,
+                )
+                .expect("(root >> 1) >> 2"),
+            ),
+            Proposition::Equal(
+                left_one.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    value_type,
+                    signed_count_type,
+                    right_two,
+                    one.clone(),
+                )
+                .expect("right chain << 1"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_shift_right_then_left_obligation(
+                value_type,
+                left_one,
+                1,
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::Truth),
+            "cumulative left two is carrier-total after cumulative right three",
+        );
+
+        let right = ScalarTerm::value(
+            ValueId::new(305).expect("right"),
+            ScalarType::Integer(value_type),
+        );
+        let one_right_definition = vec![Proposition::Equal(
+            right.clone(),
+            ScalarTerm::exact_integer_shift_right(
+                value_type,
+                signed_count_type,
+                root.clone(),
+                one.clone(),
+            )
+            .expect("root >> 1"),
+        )];
+        let maximum = ScalarTerm::integer(value_type, IntegerValue::Unsigned(31)).expect("31u8");
+        assert_eq!(
+            exact_integer_shift_right_then_left_obligation(
+                value_type,
+                right.clone(),
+                4,
+                &one_right_definition,
+                one_right_definition.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::LessOrEqual(root.clone(), maximum)),
+        );
+        assert_eq!(
+            exact_integer_shift_right_then_left_obligation(
+                value_type,
+                right,
+                4,
+                &one_right_definition,
+                one_right_definition.len(),
+                &BTreeSet::new(),
+            ),
+            None,
+            "a local or unregistered root cannot acquire machine-parameter bounds",
+        );
+    }
+
+    #[test]
+    fn exact_shift_right_then_left_handles_signed_preimages_and_saturation() {
+        let signed_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_root = ScalarTerm::value(
+            ValueId::new(311).expect("signed root"),
+            ScalarType::Integer(signed_type),
+        );
+        let minimum = ScalarTerm::integer(signed_type, IntegerValue::Signed(-32)).expect("-32i8");
+        let maximum = ScalarTerm::integer(signed_type, IntegerValue::Signed(31)).expect("31i8");
+        assert_eq!(
+            exact_integer_shift_right_then_left_interval_obligation(
+                signed_type,
+                signed_root.clone(),
+                3,
+                1,
+            ),
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(minimum, signed_root.clone()),
+                Proposition::LessOrEqual(signed_root.clone(), maximum),
+            ]),
+        );
+        let zero = ScalarTerm::integer(signed_type, IntegerValue::Signed(0)).expect("0i8");
+        assert_eq!(
+            exact_integer_shift_right_then_left_interval_obligation(
+                signed_type,
+                signed_root.clone(),
+                8,
+                8,
+            ),
+            Proposition::LessOrEqual(zero, signed_root),
+            "after signed saturation only a nonnegative root produces zero for a width-sized left chain",
+        );
+
+        let unsigned_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_root = ScalarTerm::value(
+            ValueId::new(312).expect("unsigned root"),
+            ScalarType::Integer(unsigned_type),
+        );
+        assert_eq!(
+            exact_integer_shift_right_then_left_interval_obligation(
+                unsigned_type,
+                unsigned_root,
+                u128::MAX,
+                8,
+            ),
+            Proposition::Truth,
+            "an unsigned right chain saturated to zero stays exact through any left prefix",
         );
     }
 
