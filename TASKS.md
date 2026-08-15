@@ -526,8 +526,9 @@ compiler concept is introduced.
   independently from exact flow-state and machine-contract facts while service
   reach stays on its dedicated facts. Provider approval now consumes exact
   checked-flow call coordinates directly and no longer replays the operational
-  umbrella; remove the remaining umbrella carriers after their consumers
-  migrate.
+  umbrella. The published checked operational root is retired; its plan remains
+  only as a transient validation and independent-fact construction input.
+  Continue removing umbrella carriers after their remaining consumers migrate.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows. The
