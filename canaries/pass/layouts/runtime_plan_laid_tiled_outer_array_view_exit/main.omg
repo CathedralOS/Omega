@@ -1,0 +1,62 @@
+// One validated `At` destination per element gives this outer fixed-array
+// field a physical stride of four bytes while each u16 element remains two
+// semantic bytes wide. Both literal and runtime indexing must preserve that
+// distinction through mutable byte views.
+use omega::language::std::console;
+use omega::language::core::layout;
+
+data TiledArray { entries: [FieldEntry; 64]; }
+
+machine TiledArray::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 12 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    self.entries[2] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 3,
+        size_fixed: 16,
+        size_is_dynamic: false,
+        align: 2,
+    }
+}
+
+data Samples { values: [u16; 3]; }
+data TiledView { value: TiledArray<Samples>; }
+
+data Main {
+    console: Console;
+    bytes: [u8; 16];
+    index: u64;
+    observed: u16;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut TiledView = &mut self.bytes[0] as &mut TiledView;
+    view.value.values[0] = 0x0201;
+    self.index = 1;
+    view.value.values[self.index] = 0x0403;
+    self.observed = view.value.values[self.index];
+    self.index = 2;
+    view.value.values[self.index] = 0x0605;
+    transition self.observed == 0x0403
+        && self.bytes[4] == 1 && self.bytes[5] == 2
+        && self.bytes[6] == 0 && self.bytes[7] == 0
+        && self.bytes[8] == 3 && self.bytes[9] == 4
+        && self.bytes[10] == 0 && self.bytes[11] == 0
+        && self.bytes[12] == 5 && self.bytes[13] == 6 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

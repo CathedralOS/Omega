@@ -1160,6 +1160,7 @@ fn mutable_record_representation_inner(
     }
 
     let mut fields = Vec::new();
+    let mut field_types = Vec::new();
     for member in program.data_members(data) {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
             visiting.remove(name);
@@ -1178,6 +1179,7 @@ fn mutable_record_representation_inner(
             return None;
         };
         fields.push(representation);
+        field_types.push(field.type_reference);
     }
 
     let mut has_stored_integer_projection = fields
@@ -1208,6 +1210,29 @@ fn mutable_record_representation_inner(
             field.align = field.align.min(stored_size.max(1));
             field.leaves[0].size = stored_size;
             has_stored_integer_projection = true;
+        }
+        for repeated_field in &plan.repeated_fields {
+            let field_type = *field_types.get(repeated_field.field_index)?;
+            let TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(element_count),
+            } = program.type_reference_table.type_reference(field_type)
+            else {
+                visiting.remove(name);
+                return None;
+            };
+            let element = mutable_record_type_representation(
+                program,
+                *element_type,
+                visiting,
+                allow_stored_integer_projection,
+            )?;
+            let repeated = repeat_representation_with_stride(
+                &element,
+                *element_count,
+                repeated_field.element_stride,
+            )?;
+            *fields.get_mut(repeated_field.field_index)? = repeated;
         }
         if fields.iter().zip(&plan.offsets).any(|(field, offset)| {
             offset
@@ -1340,6 +1365,40 @@ fn repeat_representation(
     let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
     for index in 0..count {
         let base = element.size.checked_mul(index)?;
+        for leaf in &element.leaves {
+            leaves.push(MutableRecordLeaf {
+                offset: base.checked_add(leaf.offset)?,
+                size: leaf.size,
+                facts: leaf.facts.clone(),
+            });
+        }
+    }
+    Some(MutableRecordRepresentation {
+        size,
+        align: element.align,
+        leaves,
+        has_stored_integer_projection: element.has_stored_integer_projection,
+    })
+}
+
+fn repeat_representation_with_stride(
+    element: &MutableRecordRepresentation,
+    count: usize,
+    stride: usize,
+) -> Option<MutableRecordRepresentation> {
+    if count > 1 && stride < element.size {
+        return None;
+    }
+    let size = if count == 0 {
+        0
+    } else {
+        stride
+            .checked_mul(count.checked_sub(1)?)?
+            .checked_add(element.size)?
+    };
+    let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
+    for index in 0..count {
+        let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
             leaves.push(MutableRecordLeaf {
                 offset: base.checked_add(leaf.offset)?,

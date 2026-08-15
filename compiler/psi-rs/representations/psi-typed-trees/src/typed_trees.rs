@@ -212,9 +212,20 @@ pub struct PlanLaidLayout {
     /// their semantic carrier. The validated plan has already proved that
     /// every stored bit pattern decodes into the carrier.
     pub integer_fields: Vec<PlanLaidIntegerField>,
+    /// Outer fixed-array fields whose validated plan places one complete
+    /// compiler-sized element at each destination in one constant-stride
+    /// sequence. The ordinary field offset remains the first destination;
+    /// consumers use this row only while indexing that outer array.
+    pub repeated_fields: Vec<PlanLaidRepeatedField>,
     /// Total value size (fixed by the value-type gate).
     pub size: usize,
     pub align: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlanLaidRepeatedField {
+    pub field_index: usize,
+    pub element_stride: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
