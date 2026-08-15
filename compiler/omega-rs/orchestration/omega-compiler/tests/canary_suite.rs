@@ -29799,20 +29799,14 @@ fn runtime_dispatch_slice_element_terminal_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_result_binary_terminal_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_result_binary_terminal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-result-binary-terminal-exit-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime_dispatch_result_binary_terminal_exit should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime_dispatch_result_binary_terminal_exit should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -29833,20 +29827,14 @@ fn runtime_dispatch_result_binary_terminal_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_result_multi_arm_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_result_multi_arm_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-result-multi-arm-exit-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime_dispatch_result_multi_arm_exit should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime_dispatch_result_multi_arm_exit should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -29867,20 +29855,14 @@ fn runtime_dispatch_result_multi_arm_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_result_guard_subject_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_result_guard_subject_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-result-guard-subject-exit-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime_dispatch_result_guard_subject_exit should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime_dispatch_result_guard_subject_exit should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -29904,20 +29886,14 @@ fn runtime_dispatch_result_guard_subject_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_result_transition_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_result_transition_arg_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-dispatch-result-transition-arg-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dispatch result transition-arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dispatch result transition-arg canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -29941,20 +29917,14 @@ fn runtime_dispatch_result_transition_arg_exit_canary_runs() {
 #[test]
 fn runtime_dispatched_effectful_reentrant_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatched_effectful_reentrant_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-dispatched-effectful-reentrant-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dispatched effectful re-entrant canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dispatched effectful re-entrant canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -30048,20 +30018,14 @@ fn runtime_dispatch_machine_array_slice_arg_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_result_field_terminal_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_result_field_terminal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-dispatch-result-field-terminal-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dispatch result field-terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dispatch result field-terminal canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -30082,20 +30046,14 @@ fn runtime_dispatch_result_field_terminal_exit_canary_runs() {
 #[test]
 fn runtime_nested_called_machine_loop_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nested_called_machine_loop_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-nested-called-machine-loop-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime nested called machine loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime nested called machine loop canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33303,13 +33261,8 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-entry-lets-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("post-entry-lets canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("post-entry-lets canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33441,13 +33394,8 @@ fn runtime_post_entry_deep_chain_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-entry-deep-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("post-entry deep-chain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("post-entry deep-chain canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33486,13 +33434,8 @@ fn runtime_post_entry_chained_let_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-entry-chained-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("post-entry chained-let canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("post-entry chained-let canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -46155,6 +46098,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_multiarm_same_named_locals_exit",
     "calls/runtime_nested_value_call_in_substate_exit",
     "calls/runtime_value_call_self_field_enum_match_exit",
+    "calls/runtime_dispatch_result_binary_terminal_exit",
+    "calls/runtime_dispatch_result_multi_arm_exit",
+    "calls/runtime_dispatch_result_guard_subject_exit",
+    "calls/runtime_dispatch_result_transition_arg_exit",
+    "calls/runtime_dispatched_effectful_reentrant_exit",
+    "calls/runtime_dispatch_result_field_terminal_exit",
+    "calls/runtime_nested_called_machine_loop_exit",
+    "calls/runtime_value_callee_post_entry_lets_exit",
+    "calls/runtime_post_entry_deep_chain_exit",
+    "calls/runtime_post_entry_chained_let_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46721,6 +46674,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_multiarm_same_named_locals_exit",
     "calls/runtime_nested_value_call_in_substate_exit",
     "calls/runtime_value_call_self_field_enum_match_exit",
+    "calls/runtime_dispatch_result_binary_terminal_exit",
+    "calls/runtime_dispatch_result_multi_arm_exit",
+    "calls/runtime_dispatch_result_guard_subject_exit",
+    "calls/runtime_dispatch_result_transition_arg_exit",
+    "calls/runtime_dispatched_effectful_reentrant_exit",
+    "calls/runtime_dispatch_result_field_terminal_exit",
+    "calls/runtime_nested_called_machine_loop_exit",
+    "calls/runtime_value_callee_post_entry_lets_exit",
+    "calls/runtime_post_entry_deep_chain_exit",
+    "calls/runtime_post_entry_chained_let_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
