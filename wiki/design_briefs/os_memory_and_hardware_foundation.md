@@ -657,7 +657,10 @@ uart.transmit.write(byte);
 Projection is pure. The operation consumes a sealed lowering authorization
 binding plan identity, receipt, exact loan, field, address, width, observation,
 borrow polarity, lifetime, reach, and atomic ordering when applicable. No
-public primitive accepts an arbitrary base or offset.
+public primitive accepts an arbitrary base or offset. The target-neutral
+foundation specializes that carrier linearly for ordinary Stable read/write,
+External read/take/write, or one exact Atomic family and ordering; failure
+returns the unchanged sealed request and its custody authority.
 
 Each operation retains a logical field extent and a physical effect footprint.
 Conflict checking uses the latter: non-consuming reads share; destructive reads
