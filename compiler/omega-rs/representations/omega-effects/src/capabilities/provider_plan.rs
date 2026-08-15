@@ -777,6 +777,29 @@ impl ProviderPlan {
                         claim.parameter_index,
                     ));
                 }
+                if claim.effective_carry != psi_language_semantics::CarryPolicy::STRICT {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` entry claim for parameter {} and domain `{}` is not born-strict",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        claim.parameter_index,
+                        claim.domain,
+                    ));
+                }
+            }
+            for (index, pair) in method.entry_claims.windows(2).enumerate() {
+                let left = (pair[0].parameter_index, pair[0].domain.as_str());
+                let right = (pair[1].parameter_index, pair[1].domain.as_str());
+                if left >= right {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` entry claims are not strictly increasing at indexes {index} and {}",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        index + 1,
+                    ));
+                }
             }
             if method.has_result != method.result_type_identity.is_some() {
                 errors.push(format!(
@@ -805,6 +828,23 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` result claim has no exact semantic domain identity",
                         self.name, self.schema.trait_name, method.name,
+                    ));
+                }
+                if claim.effective_carry != psi_language_semantics::CarryPolicy::STRICT {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` result claim for domain `{}` is not born-strict",
+                        self.name, self.schema.trait_name, method.name, claim.domain,
+                    ));
+                }
+            }
+            for (index, pair) in method.result_claims.windows(2).enumerate() {
+                if pair[0].domain.as_str() >= pair[1].domain.as_str() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` result claims are not strictly increasing at indexes {index} and {}",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        index + 1,
                     ));
                 }
             }
@@ -1458,6 +1498,125 @@ mod tests {
                 .validate_candidate_against_schema()
                 .iter()
                 .any(|error| error.contains("result has no exact semantic type identity"))
+        );
+    }
+
+    #[test]
+    fn schema_validation_requires_canonical_born_strict_claims() {
+        fn entry_claim(
+            parameter_index: usize,
+            domain: &str,
+            predicate_body: psi_language_semantics::DomainPredicateBody,
+        ) -> ServiceEntryClaim {
+            ServiceEntryClaim {
+                parameter_index,
+                domain: domain.to_owned(),
+                predicate_body,
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+                authority_flow: ServiceEntryAuthorityFlow::Accepts,
+            }
+        }
+
+        let mut valid = windows_console_plan();
+        valid.schema.methods[0].parameter_count = 2;
+        valid.schema.methods[0].parameter_type_identities =
+            vec!["FirstToken".to_owned(), "SecondToken".to_owned()];
+        valid.schema.methods[0].entry_claims = vec![
+            entry_claim(
+                0,
+                "Domain::Alpha",
+                psi_language_semantics::DomainPredicateBody::Bodyless,
+            ),
+            entry_claim(
+                0,
+                "Domain::Beta",
+                psi_language_semantics::DomainPredicateBody::Present,
+            ),
+            entry_claim(
+                1,
+                "Domain::Alpha",
+                psi_language_semantics::DomainPredicateBody::Bodyless,
+            ),
+        ];
+        valid.schema.methods[1].result_claims = vec![
+            ServiceResultClaim {
+                domain: "Domain::Alpha".to_owned(),
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            },
+            ServiceResultClaim {
+                domain: "Domain::Beta".to_owned(),
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            },
+        ];
+        assert!(
+            valid.validate_candidate_against_schema().is_empty(),
+            "canonical claims allow multiple domains per parameter and the same domain at different positions"
+        );
+        assert!(
+            windows_console_plan()
+                .validate_candidate_against_schema()
+                .is_empty(),
+            "empty claim vectors remain valid"
+        );
+
+        let mut permissive_entry = valid.clone();
+        permissive_entry.schema.methods[0].entry_claims[0].effective_carry =
+            psi_language_semantics::CarryPolicy::PERMISSIVE;
+        assert!(
+            permissive_entry
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("entry claim") && error.contains("not born-strict"))
+        );
+
+        let mut permissive_result = valid.clone();
+        permissive_result.schema.methods[1].result_claims[0].effective_carry =
+            psi_language_semantics::CarryPolicy::PERMISSIVE;
+        assert!(
+            permissive_result
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result claim") && error.contains("not born-strict"))
+        );
+
+        let mut duplicate_entry = valid.clone();
+        duplicate_entry.schema.methods[0].entry_claims[1] =
+            duplicate_entry.schema.methods[0].entry_claims[0].clone();
+        assert!(
+            duplicate_entry
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("entry claims are not strictly increasing"))
+        );
+
+        let mut out_of_order_entry = valid.clone();
+        out_of_order_entry.schema.methods[0].entry_claims.swap(0, 1);
+        assert!(
+            out_of_order_entry
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("entry claims are not strictly increasing"))
+        );
+
+        let mut duplicate_result = valid.clone();
+        duplicate_result.schema.methods[1].result_claims[1] =
+            duplicate_result.schema.methods[1].result_claims[0].clone();
+        assert!(
+            duplicate_result
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result claims are not strictly increasing"))
+        );
+
+        let mut out_of_order_result = valid;
+        out_of_order_result.schema.methods[1]
+            .result_claims
+            .swap(0, 1);
+        assert!(
+            out_of_order_result
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("result claims are not strictly increasing"))
         );
     }
 
