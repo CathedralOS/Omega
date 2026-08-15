@@ -152,6 +152,7 @@ pub fn qualification_evidence_manifest_json(
         if index > 0 {
             json.push(',');
         }
+        let requirement_identity = qualification_requirement_identity(program, &fact.evidence);
         validate_qualification_receipt(
             selected_provider_plans,
             fact.evidence.origin,
@@ -175,7 +176,7 @@ pub fn qualification_evidence_manifest_json(
             json.push_str("null");
         }
         json.push_str(",\n      \"requirement\": ");
-        if fact.evidence.requirement_symbol.is_valid() {
+        if requirement_identity.is_some() {
             push_json_string(
                 &mut json,
                 &qualification_symbol_label(program, fact.evidence.requirement_symbol),
@@ -184,12 +185,8 @@ pub fn qualification_evidence_manifest_json(
             json.push_str("null");
         }
         json.push_str(",\n      \"requirement_identity\": ");
-        if fact.evidence.requirement_symbol.is_valid() {
-            push_json_string(
-                &mut json,
-                &qualification_requirement_identity(program, fact.evidence.requirement_symbol)
-                    .expect("admitted qualification evidence must name an exact trait requirement"),
-            );
+        if let Some(requirement_identity) = requirement_identity {
+            push_json_string(&mut json, &requirement_identity);
         } else {
             json.push_str("null");
         }
@@ -1255,19 +1252,37 @@ fn qualification_symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> S
 
 fn qualification_requirement_identity(
     program: &CheckedTrees,
-    requirement_symbol: SymbolHandle,
+    evidence: &psi_facts::QualificationEvidence,
 ) -> Option<String> {
-    program.traits().iter().find_map(|definition| {
-        program
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|requirement| requirement.symbol == requirement_symbol)
-            .map(|requirement| {
-                program
-                    .normalized_trait_requirement_overload_identity(definition, requirement)
-                    .identity()
-            })
-    })
+    if evidence.origin != psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt {
+        assert!(
+            !evidence.requirement_symbol.is_valid(),
+            "non-admitted qualification evidence must not name a boundary requirement",
+        );
+        return None;
+    }
+    assert!(
+        evidence.requirement_symbol.is_valid(),
+        "admitted qualification evidence must name an exact boundary requirement",
+    );
+    program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .find_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|requirement| requirement.symbol == evidence.requirement_symbol)
+                .map(|requirement| {
+                    program
+                        .normalized_trait_requirement_overload_identity(definition, requirement)
+                        .identity()
+                })
+        })
+        .or_else(|| {
+            panic!("admitted qualification evidence must name an exact boundary requirement")
+        })
 }
 
 fn machine_overload_identity(
@@ -3242,8 +3257,9 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_blocking_summary,
         machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
-        specialization_instance_contract_fingerprint, task_activation_manifest_json,
-        validate_qualification_receipt, validate_vacuous_qualification_use,
+        qualification_requirement_identity, specialization_instance_contract_fingerprint,
+        task_activation_manifest_json, validate_qualification_receipt,
+        validate_vacuous_qualification_use,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3474,6 +3490,29 @@ mod tests {
             }],
             origin_package: "omega::providers::storage".to_owned(),
         }
+    }
+
+    fn push_qualification_requirement(
+        program: &mut CheckedTrees,
+        is_boundary: bool,
+    ) -> SymbolHandle {
+        let mut owner = TraitDefinition {
+            symbol: SymbolHandle::from_arena_index(70),
+            is_boundary,
+            name: Identifier::generated("StorageBase"),
+            ..Default::default()
+        };
+        let requirement = SymbolHandle::from_arena_index(71);
+        program.typed.push_trait_machine_signature(
+            &mut owner,
+            StateSignature {
+                symbol: requirement,
+                name: Identifier::generated("transfer"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(owner);
+        requirement
     }
 
     #[test]
@@ -3890,6 +3929,7 @@ mod tests {
         )
         .expect("complete selected provider plan");
         let mut program = CheckedTrees::default();
+        let requirement = push_qualification_requirement(&mut program, true);
         let place = program.facts.semantic.append_symbol_place(subject);
         program.facts.semantic.append_fact(Fact {
             place: FactPlace::Place(place),
@@ -3903,7 +3943,7 @@ mod tests {
             evidence: QualificationEvidence {
                 origin: QualificationEvidenceOrigin::AdmittedReceipt,
                 source_symbol: provider,
-                requirement_symbol: SymbolHandle::invalid(),
+                requirement_symbol: requirement,
                 receipt_identity,
             },
             payload: FactPayload::DomainMembership {
@@ -3924,7 +3964,7 @@ mod tests {
             evidence: QualificationEvidence {
                 origin: QualificationEvidenceOrigin::AdmittedReceipt,
                 source_symbol: provider,
-                requirement_symbol: SymbolHandle::invalid(),
+                requirement_symbol: requirement,
                 receipt_identity: 0,
             },
             payload: FactPayload::DomainMembership {
@@ -3945,8 +3985,10 @@ mod tests {
         assert!(json.contains("\"origin\": \"admitted_receipt\""));
         assert!(json.contains("\"program_point\": \"call_ensures\""));
         assert!(json.contains("\"source\": \"#6\""));
-        assert!(json.contains("\"requirement\": null"));
-        assert!(json.contains("\"requirement_identity\": null"));
+        assert!(json.contains("\"requirement\": \"#71\""));
+        assert!(
+            json.contains("\"requirement_identity\": \"named-callable(path(StorageBase::transfer)")
+        );
         assert!(json.contains(&format!(
             "\"receipt_identity\": \"0x{receipt_identity:016x}\""
         )));
@@ -3976,6 +4018,48 @@ mod tests {
             &selected,
             QualificationEvidenceOrigin::Prover,
             plan.identity_fingerprint(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact boundary requirement")]
+    fn qualification_manifest_rejects_admitted_evidence_without_requirement() {
+        qualification_requirement_identity(
+            &CheckedTrees::default(),
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact boundary requirement")]
+    fn qualification_manifest_rejects_admitted_ordinary_trait_requirement() {
+        let mut program = CheckedTrees::default();
+        let requirement = push_qualification_requirement(&mut program, false);
+        qualification_requirement_identity(
+            &program,
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                requirement_symbol: requirement,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "non-admitted qualification evidence must not name")]
+    fn qualification_manifest_rejects_requirement_on_non_admitted_evidence() {
+        let mut program = CheckedTrees::default();
+        let requirement = push_qualification_requirement(&mut program, true);
+        qualification_requirement_identity(
+            &program,
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::Prover,
+                requirement_symbol: requirement,
+                ..Default::default()
+            },
         );
     }
 
