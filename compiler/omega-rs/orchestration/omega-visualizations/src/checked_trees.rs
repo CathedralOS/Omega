@@ -340,6 +340,7 @@ pub fn qualification_evidence_manifest_json(
         if index > 0 {
             json.push(',');
         }
+        let semantic_domain_name = validate_vacuous_qualification_use(program, use_fact);
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(
             &mut json,
@@ -367,17 +368,36 @@ pub fn qualification_evidence_manifest_json(
         json.push_str(",\n      \"semantic_domain_id\": ");
         json.push_str(&use_fact.semantic_domain.0.to_string());
         json.push_str(",\n      \"semantic_domain\": ");
-        push_json_string(
-            &mut json,
-            program
-                .semantic_domains
-                .name(use_fact.semantic_domain)
-                .unwrap_or("<unknown>"),
-        );
+        push_json_string(&mut json, semantic_domain_name);
         json.push_str("\n    }");
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn validate_vacuous_qualification_use<'program>(
+    program: &'program CheckedTrees,
+    use_fact: &psi_checked_trees::VacuousQualificationUse,
+) -> &'program str {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == use_fact.machine)
+        .expect("vacuous qualification use must name an exact owning machine");
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == use_fact.state)
+        .expect("vacuous qualification use state must belong to its exact owning machine");
+    program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == use_fact.domain)
+        .expect("vacuous qualification use must name an exact declared domain");
+    program
+        .semantic_domains
+        .name(use_fact.semantic_domain)
+        .expect("vacuous qualification use must name a registered semantic-domain instance")
 }
 
 /// Render the authored owner of an exact inherited requirement. The selected
@@ -3199,6 +3219,7 @@ mod tests {
         machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
+        validate_vacuous_qualification_use,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3226,6 +3247,7 @@ mod tests {
         TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
+    use psi_typed_trees::domain::DomainDefinition;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::signature::StateSignature;
@@ -3328,6 +3350,61 @@ mod tests {
             program.typed.push_machine(machine);
         }
         (program, owner, owner_state, other_state)
+    }
+
+    fn vacuous_qualification_fixture() -> (
+        CheckedTrees,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SemanticDomainId,
+    ) {
+        let machine_symbol = SymbolHandle::from_arena_index(60);
+        let state_symbol = SymbolHandle::from_arena_index(61);
+        let other_state_symbol = SymbolHandle::from_arena_index(63);
+        let domain_symbol = SymbolHandle::from_arena_index(64);
+        let mut program = CheckedTrees::default();
+        for (machine, state, machine_name, state_name) in [
+            (machine_symbol, state_symbol, "Main::main", "main"),
+            (
+                SymbolHandle::from_arena_index(62),
+                other_state_symbol,
+                "Other::run",
+                "run",
+            ),
+        ] {
+            let mut definition = Machine {
+                symbol: machine,
+                name: Identifier::generated(machine_name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut definition,
+                State {
+                    symbol: state,
+                    name: Identifier::generated(state_name),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(definition);
+        }
+        let semantic_domain = program.typed.semantic_domains.intern("i64::Distance<1000>");
+        let declaration_domain = program.typed.semantic_domains.intern("i64::Distance");
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: domain_symbol,
+            name: Identifier::generated("i64::Distance"),
+            semantic_id: declaration_domain,
+            ..Default::default()
+        });
+        (
+            program,
+            machine_symbol,
+            state_symbol,
+            other_state_symbol,
+            domain_symbol,
+            semantic_domain,
+        )
     }
 
     #[test]
@@ -3885,23 +3962,18 @@ mod tests {
 
     #[test]
     fn qualification_manifest_retains_vacuous_use_owner_overload_identity() {
-        let machine_symbol = SymbolHandle::from_arena_index(7);
-        let state_symbol = SymbolHandle::from_arena_index(8);
-        let mut program = CheckedTrees::default();
-        let mut machine = Machine {
-            symbol: machine_symbol,
-            name: Identifier::generated("Main::main"),
-            ..Default::default()
-        };
-        program.typed.push_machine_state(
-            &mut machine,
-            State {
-                symbol: state_symbol,
-                name: Identifier::generated("main"),
-                ..Default::default()
-            },
+        let (mut program, machine_symbol, state_symbol, _, domain_symbol, semantic_domain) =
+            vacuous_qualification_fixture();
+        assert_ne!(
+            program
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.symbol == domain_symbol)
+                .expect("declared domain")
+                .semantic_id,
+            semantic_domain,
+            "the declared family and selected indexed instance remain independent",
         );
-        program.typed.push_machine(machine);
         program
             .facts
             .qualifications
@@ -3911,8 +3983,8 @@ mod tests {
                 state: state_symbol,
                 statement_index: 3,
                 expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
-                domain: SymbolHandle::invalid(),
-                semantic_domain: SemanticDomainId(41),
+                domain: domain_symbol,
+                semantic_domain,
             });
 
         let json = qualification_evidence_manifest_json(
@@ -3920,10 +3992,63 @@ mod tests {
             &omega_effects::SelectedProviderPlanFacts::default(),
         );
 
-        assert!(json.contains("\"machine\": \"#7\""));
+        assert!(json.contains("\"machine\": \"#60\""));
         assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Main::main)"));
         assert!(json.contains("\"statement_index\": 3"));
-        assert!(json.contains("\"semantic_domain_id\": 41"));
+        assert!(json.contains(&format!("\"semantic_domain_id\": {}", semantic_domain.0)));
+        assert!(json.contains("\"semantic_domain\": \"i64::Distance<1000>\""));
+    }
+
+    #[test]
+    #[should_panic(expected = "state must belong to its exact owning machine")]
+    fn qualification_manifest_rejects_cross_machine_vacuous_state() {
+        let (program, machine, _, other_state, domain, semantic_domain) =
+            vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state: other_state,
+                statement_index: 0,
+                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                domain,
+                semantic_domain,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact declared domain")]
+    fn qualification_manifest_rejects_missing_vacuous_domain() {
+        let (program, machine, state, _, _, semantic_domain) = vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state,
+                statement_index: 0,
+                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                domain: SymbolHandle::from_arena_index(99),
+                semantic_domain,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name a registered semantic-domain instance")]
+    fn qualification_manifest_rejects_unknown_vacuous_semantic_domain() {
+        let (program, machine, state, _, domain, _) = vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state,
+                statement_index: 0,
+                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                domain,
+                semantic_domain: SemanticDomainId(99),
+            },
+        );
     }
 
     #[test]
