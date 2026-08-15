@@ -165,8 +165,9 @@ Owners:
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/write, External read/take/write, or one exact
   Atomic operation and ordering while preserving the original authority on
-  rejection. Connect admitted whole-container External and atomic transfers to
-  both native backends through those sealed requests.
+  rejection. Connecting those admitted events to Terminal Psi and both native
+  backends is design-blocked on owner Q15: the canonical installed placed-root
+  authority and read/take/write/atomic value-custody contract are unsettled.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
 
