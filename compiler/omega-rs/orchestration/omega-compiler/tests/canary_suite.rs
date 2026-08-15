@@ -2937,13 +2937,8 @@ fn runtime_record_view_place_address_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime record-view place-address canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime record-view place-address canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("runtime record-view place-address canary should run");
