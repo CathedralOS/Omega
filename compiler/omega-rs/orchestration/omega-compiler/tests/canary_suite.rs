@@ -45180,6 +45180,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_compare_pair_dispatch_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/record_pattern_arm_rename_guard_exit",
+    "control_flow/state_transition_chain",
     "data/record_pattern_bind_all_exit",
     "data/record_pattern_double_underscore_field",
     "memory/repr_native_stable_layout",
