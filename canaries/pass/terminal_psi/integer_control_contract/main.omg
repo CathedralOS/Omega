@@ -1799,6 +1799,33 @@ requires value <= 32767u16, value <= 127u16
     ((((((value << 1u8) as u8) * 0u8) + 255u8) <= 255u8) && enabled)
 }
 
+machine terminal_exact_divide_cast_affine(value: u16, enabled: bool) -> bool
+{
+    (((((value % 64u16) as i8) + 1i8) < 127i8) && enabled)
+}
+
+machine terminal_exact_divide_cast_shift(value: u16, enabled: bool) -> bool
+{
+    (((((value % 64u16) as u8) << 2u8) < 255u8) && enabled)
+}
+
+machine terminal_exact_signed_divide_cast_shift(value: i16, enabled: bool) -> bool
+{
+    ((((((value / 512i16) as i8) >> 1u16) << 1i32) < 127i8) && enabled)
+}
+
+machine terminal_exact_affine_cast_divide(value: u16, enabled: bool) -> bool
+requires value <= 65534u16, value <= 32766u16, value <= 126u16
+{
+    (((((((value + 1u16) * 2u16) as u8) / 2u8) % 3u8) < 3u8) && enabled)
+}
+
+machine terminal_exact_shift_cast_remainder(value: u16, enabled: bool) -> bool
+requires value <= 32767u16, value <= 127u16
+{
+    (((((((value >> 1i8) << 2u16) as u8) / 2u8) % 3u8) < 3u8) && enabled)
+}
+
 machine terminal_exact_arithmetic_then_shift_unsigned(value: u8, enabled: bool) -> bool
 requires value <= 252u8, value <= 124u8, value <= 60u8
 {

@@ -82,6 +82,18 @@ certified. Unsupported relations fail closed.
 | Exact divide/remainder | a known safe divisor; `1 <= divisor`; `divisor <= -2`; or `divisor <= -1` together with `MIN + 1 <= dividend`. In a retained finite mixed divide/remainder chain, every link reconstructs independently from its own safe divisor; an earlier result definition is an operand, not proof authority. One direct partial fixed-native cast may root the same finite chain: the cast retains independent representability evidence and every prefix remains independently true from only its own divisor proof. Either root form may contain direct same-carrier runtime divisors when at least one occurs: each runtime divisor independently supplies its positive or at-most-`-2` proposition, while the joint `-1`/dividend exception is available only to the first direct-root operation whose dividend bound is independently reconstructed. Computed and post-cast dividends import no such authority. |
 | Wrapping/Saturating divide/remainder | a known nonzero divisor, `1 <= divisor`, `divisor <= -2`, or `divisor <= -1`; policy defines the signed `MIN`/`-1` result |
 
+The consolidated divide/remainder cross-cast rule admits a nonempty landed-
+literal exact-divide/remainder chain on either side of one partial fixed-native
+cast when the other side is a nonempty affine or shift chain. When
+divide/remainder precedes the cast, the toward-zero quotient and dividend-sign
+remainder hull of the full source carrier must fit the target carrier. Each
+target-affine or target-left safe interval containing that complete hull is
+truth; a disjoint interval is falsehood; partial overlap remains unadmitted
+because it would require a guard-sensitive nonconvex preimage. In the converse
+direction, the source affine or shift chain and cast reconstruct independently,
+and each target divide/remainder proposition depends only on its own landed
+safe divisor. No operation imports another operation's proof or evidence.
+
 Path facts must reach the operation through verified terminal control. Count
 masking, machine overflow behavior, or a producer claim cannot discharge an
 obligation. The verifier passes only the reconstructed proposition and exact

@@ -13,6 +13,7 @@ use crate::flow::{
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
+    exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test,
     exact_mixed_shift_chain_runtime_parameter_positions_for_test,
@@ -2423,6 +2424,165 @@ fn exact_affine_shift_cast_sandwich_classifier_accepts_both_directions() {
     );
     assert_eq!(
         exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test(&runtime_count, 2),
+        None,
+    );
+}
+
+#[test]
+fn exact_divide_remainder_cross_cast_classifier_accepts_all_four_compositions() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U16,
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cast = |operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let source_divide_remainder = || {
+        binary(
+            CheckedIntegerBinaryKind::ExactRemainder,
+            PrimitiveType::U16,
+            binary(
+                CheckedIntegerBinaryKind::ExactDivide,
+                PrimitiveType::U16,
+                parameter(),
+                literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+            ),
+            literal(64i64, psi_numerics::literals::LandedIntegerType::U16),
+        )
+    };
+    let divide_cast_affine = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U8,
+            cast(source_divide_remainder()),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(
+            &divide_cast_affine,
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let divide_cast_shift = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U8,
+            cast(source_divide_remainder()),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U32),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(
+            &divide_cast_shift,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    let source_affine = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U16,
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U16,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    let affine_cast_divide = binary(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            PrimitiveType::U8,
+            cast(source_affine),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(
+            &affine_cast_divide,
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let source_shift = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U16,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::U16,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    let shift_cast_remainder = binary(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::U8,
+        cast(source_shift),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(
+            &shift_cast_remainder,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    let runtime_divisor = binary(
+        CheckedIntegerBinaryKind::ExactShiftLeft,
+        PrimitiveType::U8,
+        cast(binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            PrimitiveType::U16,
+            parameter(),
+            CheckedScalarExpression::Parameter {
+                position: 1,
+                primitive_type: PrimitiveType::U16,
+            },
+        )),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(&runtime_divisor, 2,),
+        None,
+    );
+    let empty_source = binary(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::U8,
+        cast(parameter()),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(&empty_source, 1),
         None,
     );
 }

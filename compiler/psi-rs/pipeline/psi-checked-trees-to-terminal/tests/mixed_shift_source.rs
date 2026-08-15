@@ -45,6 +45,11 @@ const SOURCE: &str = r#"
         shift_cast_affine_unsigned: u16,
         shift_cast_affine_signed: i16,
         shift_cast_affine_zero: u16,
+        divide_cast_affine: u16,
+        divide_cast_shift: u16,
+        divide_cast_shift_signed: i16,
+        affine_cast_divide: u16,
+        shift_cast_remainder: u16,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -90,7 +95,12 @@ const SOURCE: &str = r#"
         shift_cast_affine_signed <= 127i16,
         shift_cast_affine_signed <= 63i16,
         shift_cast_affine_zero <= 32767u16,
-        shift_cast_affine_zero <= 127u16
+        shift_cast_affine_zero <= 127u16,
+        affine_cast_divide <= 65534u16,
+        affine_cast_divide <= 32766u16,
+        affine_cast_divide <= 126u16,
+        shift_cast_remainder <= 32767u16,
+        shift_cast_remainder <= 127u16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -118,6 +128,11 @@ const SOURCE: &str = r#"
             && ((((((shift_cast_affine_unsigned >> 1i8) << 2u16) as u8) + 3u8) * 2u8) < 255u8)
             && ((((((shift_cast_affine_signed >> 1u8) << 2i16) as u8) + 3u8) * 2u8) < 255u8)
             && (((((shift_cast_affine_zero << 1u8) as u8) * 0u8) + 255u8) <= 255u8)
+            && ((((divide_cast_affine % 64u16) as i8) + 1i8) < 127i8)
+            && ((((divide_cast_shift % 64u16) as u8) << 2u8) < 255u8)
+            && (((((divide_cast_shift_signed / 512i16) as i8) >> 1u16) << 1i32) < 127i8)
+            && ((((((affine_cast_divide + 1u16) * 2u16) as u8) / 2u8) % 3u8) < 3u8)
+            && ((((((shift_cast_remainder >> 1i8) << 2u16) as u8) / 2u8) % 3u8) < 3u8)
             && enabled
     }
 "#;
@@ -151,6 +166,8 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let sandwich_unsigned_parameter = entry.parameters[12].id;
     let affine_cast_shift_unsigned_parameter = entry.parameters[15].id;
     let shift_cast_affine_unsigned_parameter = entry.parameters[18].id;
+    let divide_cast_affine_parameter = entry.parameters[21].id;
+    let affine_cast_divide_parameter = entry.parameters[24].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -173,6 +190,8 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             | OperationKind::ExactIntegerAdd { obligation, .. }
             | OperationKind::ExactIntegerSubtract { obligation, .. }
             | OperationKind::ExactIntegerMultiply { obligation, .. }
+            | OperationKind::ExactIntegerDivide { obligation, .. }
+            | OperationKind::ExactIntegerRemainder { obligation, .. }
             | OperationKind::ExactIntegerShiftLeft { obligation, .. }
             | OperationKind::ExactIntegerShiftRight { obligation, .. } => Some(obligation),
             _ => None,
@@ -186,7 +205,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        29,
+        31,
     );
     assert_eq!(
         operations
@@ -196,10 +215,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        34,
+        37,
     );
-    assert_eq!(shift_obligations.len(), 63);
-    assert_eq!(proof_obligations.len(), 100);
+    assert_eq!(shift_obligations.len(), 68);
+    assert_eq!(proof_obligations.len(), 120);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -592,6 +611,62 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let mut mistyped_divide_cast_affine =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let divide_source = mistyped_divide_cast_affine
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::ExactIntegerRemainder { left, .. }
+                    if left == divide_cast_affine_parameter
+            )
+        })
+        .expect("divide-to-affine sandwich retains its source remainder definition");
+    let OperationKind::ExactIntegerRemainder { left, .. } = &mut divide_source.kind else {
+        unreachable!("selected divide-to-affine remainder definition")
+    };
+    *left = value_parameter;
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &mistyped_divide_cast_affine,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+
+    let mut mistyped_affine_cast_divide =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let affine_source = mistyped_affine_cast_divide
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::ExactIntegerAdd { left, .. }
+                    if left == affine_cast_divide_parameter
+            )
+        })
+        .expect("affine-to-divide sandwich retains its source add definition");
+    let OperationKind::ExactIntegerAdd { left, .. } = &mut affine_source.kind else {
+        unreachable!("selected affine-to-divide add definition")
+    };
+    *left = value_parameter;
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &mistyped_affine_cast_divide,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -673,6 +748,26 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
