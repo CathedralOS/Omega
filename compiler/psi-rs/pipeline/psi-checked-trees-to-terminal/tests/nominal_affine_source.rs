@@ -465,6 +465,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
             && ((signed_arithmetic >> signed_divisor) < 4i8)
+            && ((((small >> 1i8) >> 2u16) >> 0i32) < 2u8)
             && ((small << 1u8) < 11u8)
             && ((small << count) < 29u8)
             && ((small << signed_count) < 255u8)
@@ -2831,6 +2832,16 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         })
     };
+    let is_integer_constant = |value, integer_type, expected| {
+        operations.iter().any(|operation| {
+            operation.result.scalar_ref().is_some_and(|result| {
+                result.id == value && result.scalar_type == ScalarType::Integer(integer_type)
+            }) && matches!(
+                operation.kind,
+                OperationKind::IntegerConstant { value } if value == expected
+            )
+        })
+    };
     let (nested_add_obligations, middle_addend, outer_addend) = operations
         .iter()
         .find_map(|outer| {
@@ -3067,6 +3078,77 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         nested_divide_remainder_obligations[2]
     );
     for obligation in nested_divide_remainder_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let (nested_shift_right_obligations, middle_shift_count) = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(count, i32_type, IntegerValue::Signed(0)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: middle_value,
+                count: middle_count,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_integer_constant(middle_count, u16_type, IntegerValue::Unsigned(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_value == entry.parameters[1].id
+                && is_integer_constant(inner_count, i8_type, IntegerValue::Signed(1)))
+            .then_some((
+                [inner_obligation, middle_obligation, outer_obligation],
+                middle_count,
+            ))
+        })
+        .expect("a finite exact-shift-right chain with distinct count carriers is retained");
+    assert_ne!(
+        nested_shift_right_obligations[0],
+        nested_shift_right_obligations[1]
+    );
+    assert_ne!(
+        nested_shift_right_obligations[1],
+        nested_shift_right_obligations[2]
+    );
+    assert_ne!(
+        nested_shift_right_obligations[0],
+        nested_shift_right_obligations[2]
+    );
+    for obligation in nested_shift_right_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
@@ -4061,6 +4143,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == nested_divide_remainder_obligation
         ));
     }
+    for nested_shift_right_obligation in nested_shift_right_obligations {
+        let mut missing_nested_shift_right_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_nested_shift_right_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != nested_shift_right_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_nested_shift_right_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == nested_shift_right_obligation
+        ));
+    }
     let mut missing_widen_exact_subtract_proof =
         decode_proof_bundle(&proof).expect("decode shared proof");
     missing_widen_exact_subtract_proof
@@ -4122,6 +4220,31 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_divide_remainder_obligations[1]
+    ));
+    let mut changed_middle_shift_count =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_shift_count = changed_middle_shift_count
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(middle_shift_count)
+        })
+        .expect("middle exact-shift-right landed count operation");
+    changed_shift_count.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(8),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_middle_shift_count,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == nested_shift_right_obligations[1]
     ));
     let mut changed_nested_widen_subtract_bound =
         decode_module(&semantics).expect("decode shared semantics");
@@ -4712,6 +4835,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small % divisor <= small
                     && (small >> small) < 1
                     && (signed_arithmetic >> signed_divisor) < 4
+                    && (((small >> 1) >> 2) >> 0) < 2
                     && (small << 1) < 11
                     && (small << count) < 29
                     && (small << signed_count) < 255

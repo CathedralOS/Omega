@@ -203,11 +203,14 @@ Remaining:
   operand at each link. A finite same-carrier chain may also mix exact divide
   and remainder while continuing only through its left operand, with a landed
   nonzero unsigned divisor or signed divisor other than `0` and `-1` at every
-  link. All three forms require a direct machine-parameter root. The verifier
-  walks ordered definitions for addition/subtraction and reconstructs every
-  retained operation's safety obligation independently; divide/remainder links
-  need no producer-definition authority because each safe landed divisor
-  independently reconstructs `Truth`. One direct
+  link. A finite same-value-carrier exact-right-shift chain may likewise
+  continue only through its left operand, with an independently landed fixed
+  native integer count satisfying `0 <= count < value width` at every link.
+  All four forms require a direct machine-parameter root. The verifier walks
+  ordered definitions for addition/subtraction and reconstructs every retained
+  operation's safety obligation independently; divide/remainder and right-shift
+  links need no producer-definition authority because each safe landed divisor
+  or count reconstructs independently. One direct
   fixed-integer parameter may also pass through a finite chain of valid
   widenings and then exactly narrow back to its original carrier; Terminal
   retains every operation and independently derives the narrowing obligation

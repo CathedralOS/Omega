@@ -788,6 +788,7 @@ fn reconstruct_machine_semantics(
                                 value_type,
                                 count_type,
                                 value_term(count),
+                                &axioms,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1523,7 +1524,19 @@ fn exact_integer_shift_obligation(
     value_type: psi_core::IntegerType,
     count_type: psi_core::IntegerType,
     count: ScalarTerm,
+    semantic_axioms: &[Proposition],
 ) -> Proposition {
+    if let Some(count) = known_integer_term_value(count_type, &count, semantic_axioms) {
+        let count = match count {
+            IntegerValue::Signed(count) => u128::try_from(count).ok(),
+            IntegerValue::Unsigned(count) => Some(count),
+        };
+        return if count.is_some_and(|count| count < u128::from(value_type.bits())) {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
     let mut bounds = Vec::with_capacity(2);
     if count_type.minimum_value() != IntegerValue::Unsigned(0)
         && integer_value_cmp(count_type.minimum_value(), IntegerValue::Unsigned(0)).is_lt()
@@ -1567,7 +1580,8 @@ fn exact_integer_shift_left_obligation(
         return canonical_conjunction(bounds);
     }
 
-    let count_bounds = exact_integer_shift_obligation(value_type, count_type, count.clone());
+    let count_bounds =
+        exact_integer_shift_obligation(value_type, count_type, count.clone(), semantic_axioms);
     let mut bounds = match count_bounds {
         Proposition::Truth => Vec::new(),
         Proposition::Conjunction(bounds) => bounds,
@@ -4641,6 +4655,36 @@ mod tests {
         assert_eq!(
             exact_integer_divide_obligation(u8_type, middle, two, &[]),
             Proposition::Truth
+        );
+    }
+
+    #[test]
+    fn exact_shift_right_chain_counts_reconstruct_without_value_definitions() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
+        let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let unsigned_count_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+        let one = ScalarTerm::integer(signed_count_type, IntegerValue::Signed(1)).expect("1i8");
+        let two =
+            ScalarTerm::integer(unsigned_count_type, IntegerValue::Unsigned(2)).expect("2u16");
+        assert_eq!(
+            exact_integer_shift_obligation(value_type, signed_count_type, one, &[]),
+            Proposition::Truth
+        );
+        assert_eq!(
+            exact_integer_shift_obligation(value_type, unsigned_count_type, two, &[]),
+            Proposition::Truth
+        );
+        let negative_one =
+            ScalarTerm::integer(signed_count_type, IntegerValue::Signed(-1)).expect("-1i8");
+        let eight =
+            ScalarTerm::integer(unsigned_count_type, IntegerValue::Unsigned(8)).expect("8u16");
+        assert_eq!(
+            exact_integer_shift_obligation(value_type, signed_count_type, negative_one, &[]),
+            Proposition::Falsehood
+        );
+        assert_eq!(
+            exact_integer_shift_obligation(value_type, unsigned_count_type, eight, &[]),
+            Proposition::Falsehood
         );
     }
 

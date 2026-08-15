@@ -11155,8 +11155,7 @@ fn shared_integer_runtime_parameters_with_shells(
             collect_direct().or_else(|| shared_exact_subtract_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
-            kind:
-                LoweredIntegerBinaryKind::ExactMultiply | LoweredIntegerBinaryKind::ExactShiftRight,
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
             left,
             right,
             ..
@@ -11166,6 +11165,22 @@ fn shared_integer_runtime_parameters_with_shells(
                 right, 0, false,
             )?);
             Some(parameters)
+        }
+        LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftRight,
+            scalar_type: ScalarType::Integer(_),
+            left,
+            right,
+        } if proof_shell_allowed => {
+            let collect_direct = || {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                Some(parameters)
+            };
+            collect_direct()
+                .or_else(|| shared_exact_shift_right_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactDivide | LoweredIntegerBinaryKind::ExactRemainder,
@@ -11410,6 +11425,74 @@ fn safe_exact_divide_remainder_landed_literal(
         (IntegerSign::Signed, IntegerValue::Signed(value)) => *value != 0 && *value != -1,
         _ => false,
     }
+}
+
+fn shared_exact_shift_right_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_operation = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactShiftRight,
+            scalar_type: ScalarType::Integer(value_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*value_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *value_type)
+            || !safe_exact_shift_right_landed_literal_count(*value_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*value_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => {
+                saw_nested_operation = true;
+                expression = nested;
+            }
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if saw_nested_operation && *root_type == *value_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn safe_exact_shift_right_landed_literal_count(
+    value_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> bool {
+    let LoweredDirectExpression::IntegerLiteral {
+        value,
+        scalar_type: ScalarType::Integer(count_type),
+    } = expression
+    else {
+        return false;
+    };
+    if !native_fixed_integer_type(*count_type) {
+        return false;
+    }
+    let count = match value {
+        IntegerValue::Signed(value) => u128::try_from(*value).ok(),
+        IntegerValue::Unsigned(value) => Some(*value),
+    };
+    count.is_some_and(|count| count < u128::from(value_type.bits()))
+}
+
+fn native_fixed_integer_type(integer_type: IntegerType) -> bool {
+    !integer_type.is_address() && matches!(integer_type.bits(), 8 | 16 | 32 | 64)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
