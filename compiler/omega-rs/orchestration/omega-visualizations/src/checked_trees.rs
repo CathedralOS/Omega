@@ -1778,7 +1778,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push_str(",\n        \"crashes\": ");
             push_crash_plan_json(&mut json, &contract.crash);
             json.push_str(",\n        \"termination\": ");
-            push_termination_interface_json(&mut json, &contract.termination.interface);
+            let termination = program
+                .facts
+                .termination
+                .for_machine(machine.symbol)
+                .expect("every checked machine must publish termination facts");
+            push_termination_interface_json(&mut json, &termination.interface);
             json.push_str("\n      }");
         } else {
             json.push_str("}");
@@ -2021,22 +2026,31 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push(']');
             has_implementation_field = true;
         }
-        if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
+        if program
+            .facts
+            .contract_plans
+            .for_machine(machine.symbol)
+            .is_some()
+        {
             if has_implementation_field {
                 json.push(',');
             }
+            let termination = program
+                .facts
+                .termination
+                .for_machine(machine.symbol)
+                .expect("every checked machine must publish termination facts");
             json.push_str("\n        \"checked_termination\": ");
-            push_termination_json(&mut json, &contract.termination.checked_summary);
+            push_termination_json(&mut json, &termination.checked_summary);
             json.push_str(",\n        \"resolved_ranking_view\": ");
             push_json_string(
                 &mut json,
-                contract
-                    .termination
+                termination
                     .implementation_witness
                     .as_ref()
                     .map_or("", |witness| witness.view_path.as_str()),
             );
-            if let Some(witness) = contract.termination.implementation_witness.as_ref() {
+            if let Some(witness) = termination.implementation_witness.as_ref() {
                 json.push_str(",\n        \"ranking_witness\": {\n          \"subjects\": [");
                 push_json_strings(&mut json, &witness.subjects);
                 json.push_str("],\n          \"view\": ");
@@ -3189,13 +3203,20 @@ mod tests {
             });
         program
             .facts
+            .termination
+            .machines
+            .push(psi_checked_trees::MachineTerminationFact {
+                machine,
+                plan: Default::default(),
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine,
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
-                termination: Default::default(),
                 fingerprint: 0,
             });
     }
@@ -4156,13 +4177,11 @@ mod tests {
             });
         program
             .facts
-            .contract_plans
+            .termination
             .machines
-            .push(MachineContractPlan {
+            .push(psi_checked_trees::MachineTerminationFact {
                 machine: symbol,
-                closed_scalar_values: Default::default(),
-                crash,
-                termination: MachineTerminationPlan {
+                plan: MachineTerminationPlan {
                     interface: psi_language_semantics::TerminationInterface::Published(
                         TerminationGuarantee::NoGuarantee,
                     ),
@@ -4177,6 +4196,15 @@ mod tests {
                         rank_range: None,
                     }),
                 },
+            });
+        program
+            .facts
+            .contract_plans
+            .machines
+            .push(MachineContractPlan {
+                machine: symbol,
+                closed_scalar_values: Default::default(),
+                crash,
                 fingerprint: 0x1234,
             });
         program.facts.contract_plans.crash_capsules.push(

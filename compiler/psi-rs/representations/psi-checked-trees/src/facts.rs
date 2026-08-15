@@ -11,6 +11,7 @@ mod qualifications;
 mod service_reaches;
 mod suspensions;
 mod synchronous_invocations;
+mod termination;
 
 pub use blocking::*;
 pub use carry::*;
@@ -25,3 +26,4 @@ pub use qualifications::*;
 pub use service_reaches::*;
 pub use suspensions::*;
 pub use synchronous_invocations::*;
+pub use termination::*;

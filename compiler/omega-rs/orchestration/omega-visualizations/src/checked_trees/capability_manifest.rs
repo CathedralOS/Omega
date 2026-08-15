@@ -279,18 +279,25 @@ mod tests {
             });
         program
             .facts
+            .termination
+            .machines
+            .push(psi_checked_trees::MachineTerminationFact {
+                machine: machine_symbol,
+                plan: psi_language_semantics::MachineTerminationPlan {
+                    interface: psi_language_semantics::TerminationInterface::Published(
+                        TerminationGuarantee::NoGuarantee,
+                    ),
+                    ..Default::default()
+                },
+            });
+        program
+            .facts
             .contract_plans
             .machines
             .push(MachineContractPlan {
                 machine: machine_symbol,
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
-                termination: psi_language_semantics::MachineTerminationPlan {
-                    interface: psi_language_semantics::TerminationInterface::Published(
-                        TerminationGuarantee::NoGuarantee,
-                    ),
-                    ..Default::default()
-                },
                 fingerprint: 0,
             });
 

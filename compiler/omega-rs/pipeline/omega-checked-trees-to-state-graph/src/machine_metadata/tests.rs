@@ -166,7 +166,6 @@ fn push_operational_contract(
             machine: machine_symbol,
             closed_scalar_values: Default::default(),
             crash: Default::default(),
-            termination: Default::default(),
             fingerprint: 0,
         });
 }
