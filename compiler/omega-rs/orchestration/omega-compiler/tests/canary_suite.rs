@@ -13170,9 +13170,10 @@ fn runtime_float_negative_ops_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-float-negative-ops-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float negative ops canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float negative ops canary should run");
     assert_eq!(
@@ -13192,9 +13193,10 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float32_array_conversion_exit");
     let scratch = std::env::temp_dir().join(format!("omega-float32-array-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32 array + conversion canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32 array + conversion canary should run");
     assert_eq!(
@@ -13216,9 +13218,10 @@ fn runtime_value_call_let_combine_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_let_combine_exit");
     let scratch = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-call let-combine canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("value-call let-combine canary should run");
     assert_eq!(
@@ -13240,9 +13243,10 @@ fn runtime_float_nan_comparison_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_nan_comparison_exit");
     let scratch = std::env::temp_dir().join(format!("omega-float-nan-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float NaN comparison canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("float NaN comparison canary should run");
     assert_eq!(
@@ -13263,9 +13267,10 @@ fn runtime_saturating_domain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_saturating_domain_exit");
     let scratch = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating domain canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating domain canary should run");
     assert_eq!(
@@ -13285,9 +13290,10 @@ fn runtime_i64_signed_arithmetic_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_i64_signed_arithmetic_exit");
     let scratch = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("i64 signed arithmetic canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("i64 signed arithmetic canary should run");
     assert_eq!(
@@ -13308,9 +13314,10 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_cast_sign_zero_extension_exit");
     let scratch = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast sign/zero extension canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("cast sign/zero extension canary should run");
     assert_eq!(
@@ -13330,9 +13337,10 @@ fn runtime_bitwise_high_ops_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_bitwise_high_ops_exit");
     let scratch = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bitwise high ops canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bitwise high ops canary should run");
     assert_eq!(
@@ -13353,9 +13361,10 @@ fn runtime_unsigned_high_comparison_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-high-cmp-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned high comparison canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsigned high comparison canary should run");
     assert_eq!(
@@ -13377,9 +13386,10 @@ fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-signed-mod-shift-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("signed modulo/shift edges canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("signed modulo/shift edges canary should run");
     assert_eq!(
@@ -46038,12 +46048,21 @@ fn compile_rooted_canary_for_target(
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/bare_name_scopes",
     "arithmetic/const_fold_overflow_compiles",
+    "arithmetic/runtime_bitwise_high_ops_exit",
+    "arithmetic/runtime_cast_sign_zero_extension_exit",
+    "arithmetic/runtime_float32_array_conversion_exit",
+    "arithmetic/runtime_float_nan_comparison_exit",
+    "arithmetic/runtime_float_negative_ops_exit",
+    "arithmetic/runtime_i64_signed_arithmetic_exit",
     "arithmetic/runtime_i64_min_literal_exit",
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "arithmetic/runtime_expression_range_bound_exit",
     "arithmetic/runtime_ranged_bitwise_and_mask_exit",
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
+    "arithmetic/runtime_saturating_domain_exit",
+    "arithmetic/runtime_signed_modulo_shift_edges_exit",
     "arithmetic/runtime_u64_max_literal_exit",
+    "arithmetic/runtime_unsigned_high_comparison_exit",
     "constants/runtime_scoped_const_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
@@ -46053,6 +46072,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_free_machine_value_call_mut_arg_exit",
     "calls/runtime_free_machine_value_call_exit",
     "calls/runtime_record_forwarding_statement_call_exit",
+    "calls/runtime_value_call_let_combine_exit",
     "calls/runtime_multi_arm_value_transition_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_value_position_branching_call_exit",
