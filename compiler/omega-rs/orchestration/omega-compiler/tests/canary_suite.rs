@@ -12475,10 +12475,11 @@ fn runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("noncanonical bool wire decode canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("noncanonical bool wire decode canary should run");
 
@@ -12503,10 +12504,11 @@ fn runtime_wire_decode_rejects_noncanonical_varint_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("noncanonical varint wire decode canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("noncanonical varint wire decode canary should run");
 
@@ -12531,10 +12533,11 @@ fn runtime_wire_decode_rejects_scalar_width_overflow_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("scalar width overflow wire decode canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("scalar width overflow wire decode canary should run");
 
@@ -12561,10 +12564,11 @@ fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_roundtrip_nested_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire nested roundtrip canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire nested roundtrip canary should run");
 
@@ -12590,10 +12594,11 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-nested-length-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire bad-nested-length canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire bad-nested-length canary should run");
 
@@ -12620,10 +12625,11 @@ fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-repeated-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire repeated roundtrip canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire repeated roundtrip canary should run");
 
@@ -12654,10 +12660,11 @@ fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire repeated overflow canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire repeated overflow canary should run");
 
@@ -12681,10 +12688,11 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_decode_rejects_wrong_era_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-wrong-era-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire wrong-era canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire wrong-era canary should run");
 
@@ -12709,10 +12717,11 @@ fn runtime_wire_encode_string_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_encode_string_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode string canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire encode string canary should run");
 
@@ -12739,10 +12748,11 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-byte-slice-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode byte-slice canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire encode byte-slice canary should run");
 
@@ -46098,6 +46108,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_roundtrip_primitive_exit",
     "wire/runtime_wire_decode_ranged_field_exit",
     "wire/runtime_wire_decode_ranged_repeated_exit",
+    "wire/runtime_wire_decode_rejects_noncanonical_bool_exit",
+    "wire/runtime_wire_decode_rejects_noncanonical_varint_exit",
+    "wire/runtime_wire_decode_rejects_scalar_width_overflow_exit",
+    "wire/runtime_wire_roundtrip_nested_exit",
+    "wire/runtime_wire_decode_rejects_bad_nested_length_exit",
+    "wire/runtime_wire_roundtrip_repeated_exit",
+    "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
+    "wire/runtime_wire_decode_rejects_wrong_era_exit",
+    "wire/runtime_wire_encode_string_exit",
+    "wire/runtime_wire_encode_byte_slice_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
