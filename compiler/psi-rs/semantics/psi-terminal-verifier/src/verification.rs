@@ -2050,6 +2050,13 @@ enum ExactIntegerOffsetOperation {
     Subtract,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactIntegerAffineOperation {
+    Add,
+    Subtract,
+    Multiply,
+}
+
 impl IntegerOffset {
     fn from_value(value: IntegerValue) -> Self {
         match value {
@@ -2084,6 +2091,24 @@ impl IntegerOffset {
             } else {
                 Self::Negative(left - right)
             }),
+        }
+    }
+
+    fn checked_multiply(self, factor: u128) -> Option<Self> {
+        if factor == 0 {
+            return Some(Self::Nonnegative(0));
+        }
+        match self {
+            Self::Nonnegative(value) => value.checked_mul(factor).map(Self::Nonnegative),
+            Self::Negative(value) => value.checked_mul(factor).map(Self::Negative),
+        }
+    }
+
+    const fn negated(self) -> Self {
+        match self {
+            Self::Nonnegative(0) | Self::Negative(0) => Self::Nonnegative(0),
+            Self::Nonnegative(value) => Self::Negative(value),
+            Self::Negative(value) => Self::Nonnegative(value),
         }
     }
 
@@ -2865,6 +2890,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_mixed_add_subtract_chain_obligation(
             integer_type,
             left.clone(),
@@ -3215,6 +3260,25 @@ fn exact_integer_subtract_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_mixed_add_subtract_chain_obligation(
             integer_type,
             left.clone(),
@@ -3407,6 +3471,224 @@ fn exact_integer_mixed_add_subtract_chain_obligation(
     ))
 }
 
+fn exact_integer_affine_chain_obligation(
+    integer_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let (mut coefficient, mut offset) = match initial_operation {
+        ExactIntegerAffineOperation::Add => (1, IntegerOffset::from_value(initial_constant)),
+        ExactIntegerAffineOperation::Subtract => {
+            (1, IntegerOffset::from_subtrahend(initial_constant))
+        }
+        ExactIntegerAffineOperation::Multiply => (
+            nonnegative_integer_factor(integer_type, initial_constant)?,
+            IntegerOffset::Nonnegative(0),
+        ),
+    };
+    let mut saw_offset = initial_operation != ExactIntegerAffineOperation::Multiply;
+    let mut saw_multiply = initial_operation == ExactIntegerAffineOperation::Multiply;
+    let mut followed_definition = false;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (left, right, nested_coefficient, nested_offset, operation) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                ExactIntegerAffineOperation::Add,
+            ),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                1,
+                IntegerOffset::from_subtrahend(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                ExactIntegerAffineOperation::Subtract,
+            ),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                nonnegative_integer_factor(
+                    integer_type,
+                    landed_integer_constant_value(
+                        integer_type,
+                        right,
+                        semantic_axioms,
+                        definition_index,
+                    )?,
+                )?,
+                IntegerOffset::Nonnegative(0),
+                ExactIntegerAffineOperation::Multiply,
+            ),
+            _ => break,
+        };
+        if landed_integer_constant_value(integer_type, left, semantic_axioms, definition_index)
+            .is_some()
+            || landed_integer_constant_value(integer_type, right, semantic_axioms, definition_index)
+                .is_none()
+        {
+            break;
+        }
+        let Some(composed_offset) = nested_offset
+            .checked_multiply(coefficient)
+            .and_then(|nested| nested.checked_add(offset))
+        else {
+            return Some(Proposition::Falsehood);
+        };
+        let Some(composed_coefficient) = coefficient.checked_mul(nested_coefficient) else {
+            return Some(Proposition::Falsehood);
+        };
+        coefficient = composed_coefficient;
+        offset = composed_offset;
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+        followed_definition = true;
+        saw_offset |= operation != ExactIntegerAffineOperation::Multiply;
+        saw_multiply |= operation == ExactIntegerAffineOperation::Multiply;
+    }
+    if !followed_definition
+        || !saw_offset
+        || !saw_multiply
+        || !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    Some(exact_integer_affine_interval_obligation(
+        integer_type,
+        variable,
+        coefficient,
+        offset,
+    ))
+}
+
+fn exact_integer_affine_interval_obligation(
+    integer_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    coefficient: u128,
+    offset: IntegerOffset,
+) -> Proposition {
+    if coefficient == 0 {
+        return if offset.is_representable(integer_type) {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
+    let minimum = IntegerOffset::from_value(integer_type.minimum_value());
+    let maximum = IntegerOffset::from_value(integer_type.maximum_value());
+    let Some(lower_numerator) = minimum.checked_add(offset.negated()) else {
+        return Proposition::Falsehood;
+    };
+    let Some(upper_numerator) = maximum.checked_add(offset.negated()) else {
+        return Proposition::Falsehood;
+    };
+    let lower = integer_offset_ceil_div(lower_numerator, coefficient);
+    let upper = integer_offset_floor_div(upper_numerator, coefficient);
+    let lower = match lower {
+        IntegerOffset::Nonnegative(value) => match i128::try_from(value) {
+            Ok(value) => value,
+            Err(_) => return Proposition::Falsehood,
+        },
+        IntegerOffset::Negative(value) if value > (1_u128 << 127) => i128::MIN,
+        IntegerOffset::Negative(value) => match signed_negative_magnitude(value) {
+            Some(value) => value,
+            None => return Proposition::Falsehood,
+        },
+    };
+    let upper = match upper {
+        IntegerOffset::Nonnegative(value) => i128::try_from(value).unwrap_or(i128::MAX),
+        IntegerOffset::Negative(value) if value > (1_u128 << 127) => {
+            return Proposition::Falsehood;
+        }
+        IntegerOffset::Negative(value) => match signed_negative_magnitude(value) {
+            Some(value) => value,
+            None => return Proposition::Falsehood,
+        },
+    };
+    exact_integer_source_interval_obligation(integer_type, root, lower, upper)
+}
+
+fn integer_offset_floor_div(value: IntegerOffset, divisor: u128) -> IntegerOffset {
+    debug_assert_ne!(divisor, 0);
+    match value {
+        IntegerOffset::Nonnegative(value) => IntegerOffset::Nonnegative(value / divisor),
+        IntegerOffset::Negative(value) => {
+            let quotient = value / divisor;
+            let magnitude = quotient + u128::from(value % divisor != 0);
+            if magnitude == 0 {
+                IntegerOffset::Nonnegative(0)
+            } else {
+                IntegerOffset::Negative(magnitude)
+            }
+        }
+    }
+}
+
+fn integer_offset_ceil_div(value: IntegerOffset, divisor: u128) -> IntegerOffset {
+    debug_assert_ne!(divisor, 0);
+    match value {
+        IntegerOffset::Nonnegative(value) => {
+            let quotient = value / divisor;
+            IntegerOffset::Nonnegative(quotient + u128::from(value % divisor != 0))
+        }
+        IntegerOffset::Negative(value) => {
+            let magnitude = value / divisor;
+            if magnitude == 0 {
+                IntegerOffset::Nonnegative(0)
+            } else {
+                IntegerOffset::Negative(magnitude)
+            }
+        }
+    }
+}
+
 fn is_minimum_plus(
     integer_type: psi_core::IntegerType,
     term: &ScalarTerm,
@@ -3584,6 +3866,25 @@ fn exact_integer_multiply_obligation_with_definitions(
         }
         (Some(_), Some(_)) => unreachable!("known exact-multiply operands returned above"),
     };
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_affine_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
     if chain_orientation
         && landed_integer_constant_value(
             integer_type,
@@ -7501,6 +7802,115 @@ mod tests {
                 Proposition::LessOrEqual(negative_twenty_one, signed_root.clone()),
                 Proposition::LessOrEqual(signed_root, positive_twenty_one),
             ])
+        );
+    }
+
+    #[test]
+    fn mixed_affine_chain_reconstructs_every_prefix_and_constant_collapse() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let root_id = ValueId::new(601).expect("root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(u8_type));
+        let added = ScalarTerm::value(
+            ValueId::new(602).expect("added"),
+            ScalarType::Integer(u8_type),
+        );
+        let multiplied = ScalarTerm::value(
+            ValueId::new(603).expect("multiplied"),
+            ScalarType::Integer(u8_type),
+        );
+        let three = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(3)).expect("3u8");
+        let two = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let definitions = vec![
+            Proposition::Equal(
+                added.clone(),
+                ScalarTerm::exact_integer_add(u8_type, root.clone(), three).expect("root + 3"),
+            ),
+            Proposition::Equal(
+                multiplied.clone(),
+                ScalarTerm::exact_integer_multiply(u8_type, added.clone(), two).expect("added * 2"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_affine_chain_obligation(
+                u8_type,
+                added.clone(),
+                IntegerValue::Unsigned(2),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(u8_type, IntegerValue::Unsigned(124)).expect("124u8"),
+            )),
+            "the multiply prefix independently reconstructs 2*p + 6"
+        );
+        assert_eq!(
+            exact_integer_affine_chain_obligation(
+                u8_type,
+                multiplied.clone(),
+                IntegerValue::Unsigned(1),
+                ExactIntegerAffineOperation::Subtract,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(u8_type, IntegerValue::Unsigned(125)).expect("125u8"),
+            )),
+            "the subtract prefix independently reconstructs 2*p + 5"
+        );
+        assert_eq!(
+            exact_integer_affine_chain_obligation(
+                u8_type,
+                added.clone(),
+                IntegerValue::Unsigned(0),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                1,
+                &parameters,
+            ),
+            Some(Proposition::Truth),
+            "a zero factor makes only the current prefix constant while the add proof remains"
+        );
+        assert_eq!(
+            exact_integer_affine_chain_obligation(
+                u8_type,
+                multiplied,
+                IntegerValue::Unsigned(1),
+                ExactIntegerAffineOperation::Subtract,
+                &[definitions[1].clone(), definitions[0].clone()],
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "reordered definitions cannot authorize the affine walk"
+        );
+
+        let signed_root_id = ValueId::new(611).expect("signed root");
+        let signed_root = ScalarTerm::value(signed_root_id, ScalarType::Integer(i8_type));
+        assert_eq!(
+            exact_integer_affine_interval_obligation(
+                i8_type,
+                signed_root.clone(),
+                2,
+                IntegerOffset::Nonnegative(7),
+            ),
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(-67)).expect("-67i8"),
+                    signed_root.clone(),
+                ),
+                Proposition::LessOrEqual(
+                    signed_root,
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(60)).expect("60i8"),
+                ),
+            ]),
+            "signed affine inversion uses ceiling for the lower and floor for the upper bound"
         );
     }
 

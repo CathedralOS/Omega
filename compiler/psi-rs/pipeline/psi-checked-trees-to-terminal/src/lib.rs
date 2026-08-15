@@ -11140,6 +11140,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_cast_then_offset_runtime_parameters(expression))
                 .or_else(|| shared_exact_add_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_mixed_add_subtract_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactSubtract,
@@ -11158,6 +11159,7 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_cast_then_offset_runtime_parameters(expression))
                 .or_else(|| shared_exact_subtract_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_mixed_add_subtract_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactMultiply,
@@ -11175,6 +11177,7 @@ fn shared_integer_runtime_parameters_with_shells(
             collect_direct()
                 .or_else(|| shared_exact_cast_then_multiply_runtime_parameters(expression))
                 .or_else(|| shared_exact_multiply_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactShiftRight,
@@ -11686,6 +11689,66 @@ fn exact_offset_landed_literal(
         (IntegerSign::Signed, IntegerValue::Signed(_))
             | (IntegerSign::Unsigned, IntegerValue::Unsigned(_))
     )
+}
+
+fn shared_exact_affine_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_offset = false;
+    let mut saw_multiply = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind:
+                kind @ (LoweredIntegerBinaryKind::ExactAdd
+                | LoweredIntegerBinaryKind::ExactSubtract
+                | LoweredIntegerBinaryKind::ExactMultiply),
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if !native_fixed_integer_type(*integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+            || match kind {
+                LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract => {
+                    !exact_offset_landed_literal(*integer_type, right)
+                }
+                LoweredIntegerBinaryKind::ExactMultiply => {
+                    !nonnegative_exact_multiply_landed_literal(*integer_type, right)
+                }
+                _ => unreachable!("matched one exact affine operation"),
+            }
+        {
+            return None;
+        }
+        chain_type = Some(*integer_type);
+        saw_offset |= matches!(
+            kind,
+            LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract
+        );
+        saw_multiply |= *kind == LoweredIntegerBinaryKind::ExactMultiply;
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactAdd
+                    | LoweredIntegerBinaryKind::ExactSubtract
+                    | LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if saw_offset && saw_multiply && *root_type == *integer_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn shared_exact_multiply_chain_runtime_parameters(

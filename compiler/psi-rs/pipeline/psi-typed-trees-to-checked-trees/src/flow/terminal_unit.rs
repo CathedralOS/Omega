@@ -1567,6 +1567,9 @@ fn shared_integer_runtime_inputs_with_shells(
                         scalar_parameter_count,
                     )
                 })
+                .or_else(|| {
+                    shared_exact_affine_chain_runtime_inputs(expression, scalar_parameter_count)
+                })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactSubtract,
@@ -1602,6 +1605,9 @@ fn shared_integer_runtime_inputs_with_shells(
                         scalar_parameter_count,
                     )
                 })
+                .or_else(|| {
+                    shared_exact_affine_chain_runtime_inputs(expression, scalar_parameter_count)
+                })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactMultiply,
@@ -1633,6 +1639,9 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_multiply_chain_runtime_inputs(expression, scalar_parameter_count)
+                })
+                .or_else(|| {
+                    shared_exact_affine_chain_runtime_inputs(expression, scalar_parameter_count)
                 })
         }
         CheckedScalarExpression::IntegerBinary {
@@ -2389,6 +2398,84 @@ pub(crate) fn exact_mixed_add_subtract_chain_runtime_parameter_positions_for_tes
     scalar_parameter_count: usize,
 ) -> Option<Vec<usize>> {
     shared_exact_mixed_add_subtract_chain_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
+}
+
+fn shared_exact_affine_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_offset = false;
+    let mut saw_multiply = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                kind @ (CheckedIntegerBinaryKind::ExactAdd
+                | CheckedIntegerBinaryKind::ExactSubtract
+                | CheckedIntegerBinaryKind::ExactMultiply),
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || match kind {
+                CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract => {
+                    !exact_offset_landed_literal(*primitive_type, right)
+                }
+                CheckedIntegerBinaryKind::ExactMultiply => {
+                    !nonnegative_exact_multiply_literal(*primitive_type, right)
+                }
+                _ => unreachable!("matched one exact affine operation"),
+            }
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        saw_offset |= matches!(
+            kind,
+            CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract
+        );
+        saw_multiply |= *kind == CheckedIntegerBinaryKind::ExactMultiply;
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactAdd
+                    | CheckedIntegerBinaryKind::ExactSubtract
+                    | CheckedIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if saw_offset
+                && saw_multiply
+                && *root_type == *primitive_type
+                && *position < scalar_parameter_count =>
+            {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_affine_chain_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_affine_chain_runtime_inputs(expression, scalar_parameter_count)?
         .into_iter()
         .map(|input| match input {
             SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),

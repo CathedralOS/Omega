@@ -152,6 +152,10 @@ exact-divide/remainder, exact-right-shift, or exact-left-shift chain charges
 every ordered arithmetic operation and its ordinary value leaves.
 Reconstructing each operation's proof adds no executable operation and therefore
 no fuel charge.
+The same accounting applies when a retained chain interleaves exact
+add/subtract with exact multiply: every original arithmetic operation remains
+charged, while verifier replay of cumulative affine coefficients and offsets
+adds no executable work.
 A finite chain of direct integer widens followed by an exact narrowing back to
 the original carrier likewise charges every retained operation; the
 verifier-derived self-proof adds no executable work.
