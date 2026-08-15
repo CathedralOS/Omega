@@ -19299,10 +19299,11 @@ fn runtime_local_boolean_conjunction_value_exit_canary_runs() {
         "omega-runtime-local-bool-conjunction-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local boolean conjunction value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime local boolean conjunction value canary should run");
 
@@ -19324,10 +19325,11 @@ fn runtime_local_scalar_comparison_value_exit_canary_runs() {
         "omega-runtime-local-scalar-comparison-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local scalar comparison value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime local scalar comparison value canary should run");
 
@@ -19349,10 +19351,11 @@ fn runtime_local_string_comparison_value_exit_canary_runs() {
         "omega-runtime-local-string-comparison-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local string comparison value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime local string comparison value canary should run");
 
@@ -19399,10 +19402,11 @@ fn runtime_direct_boolean_transition_argument_exit_canary_runs() {
         "omega-runtime-direct-bool-transition-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime direct boolean transition argument canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime direct boolean transition argument canary should run");
 
@@ -19424,10 +19428,11 @@ fn runtime_local_boolean_transition_argument_exit_canary_runs() {
         "omega-runtime-local-bool-transition-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local boolean transition argument canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime local boolean transition argument canary should run");
 
@@ -19450,10 +19455,11 @@ fn runtime_boolean_transition_argument_after_string_guard_exit_canary_runs() {
         "omega-runtime-bool-transition-after-string-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime boolean transition argument after string guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("runtime boolean transition argument after string guard canary should run");
 
@@ -21040,9 +21046,10 @@ fn runtime_saturating_wide_boundaries_exit_canary_runs() {
     // MAX, 5-10 -> 0; exit 70.
     let canary = pass_canary("arithmetic/runtime_saturating_wide_boundaries_exit");
     let scratch = std::env::temp_dir().join(format!("omega-satwide-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wide saturating boundaries canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wide saturating boundaries canary should run");
     assert_eq!(
@@ -21065,9 +21072,10 @@ fn runtime_saturating_param_carry_exit_canary_runs() {
     // 71).
     let canary = pass_canary("arithmetic/runtime_saturating_param_carry_exit");
     let scratch = std::env::temp_dir().join(format!("omega-satcarry-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating param-carry canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating param-carry canary should run");
     assert_eq!(
@@ -21088,9 +21096,10 @@ fn runtime_saturating_expression_domain_exit_canary_runs() {
     // sequences reused by the operand evaluator.
     let canary = pass_canary("arithmetic/runtime_saturating_expression_domain_exit");
     let scratch = std::env::temp_dir().join(format!("omega-satexpr-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating expression-domain canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating expression-domain canary should run");
     assert_eq!(
@@ -21109,9 +21118,10 @@ fn runtime_wrapping_expression_guard_exit_canary_runs() {
     // oracle pins the interpreter's node-level wrap to the same exits.
     let canary = pass_canary("arithmetic/runtime_wrapping_expression_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wrapexpr-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wrapping expression-guard canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wrapping expression-guard canary should run");
     assert_eq!(
@@ -46225,6 +46235,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_flat_boolean_logic_exit",
     "expressions/runtime_literal_source_cast_exit",
     "traits/runtime_conformance_item_exit",
+    "arithmetic/runtime_saturating_expression_domain_exit",
+    "arithmetic/runtime_saturating_param_carry_exit",
+    "arithmetic/runtime_saturating_wide_boundaries_exit",
+    "arithmetic/runtime_wrapping_expression_guard_exit",
+    "control_flow/runtime_boolean_transition_argument_after_string_guard_exit",
+    "control_flow/runtime_direct_boolean_transition_argument_exit",
+    "control_flow/runtime_local_boolean_conjunction_value_exit",
+    "control_flow/runtime_local_boolean_transition_argument_exit",
+    "control_flow/runtime_local_scalar_comparison_value_exit",
+    "control_flow/runtime_local_string_comparison_value_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
@@ -46761,6 +46781,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_flat_boolean_logic_exit",
     "expressions/runtime_literal_source_cast_exit",
     "traits/runtime_conformance_item_exit",
+    "arithmetic/runtime_saturating_expression_domain_exit",
+    "arithmetic/runtime_saturating_param_carry_exit",
+    "arithmetic/runtime_saturating_wide_boundaries_exit",
+    "arithmetic/runtime_wrapping_expression_guard_exit",
+    "control_flow/runtime_boolean_transition_argument_after_string_guard_exit",
+    "control_flow/runtime_direct_boolean_transition_argument_exit",
+    "control_flow/runtime_local_boolean_conjunction_value_exit",
+    "control_flow/runtime_local_boolean_transition_argument_exit",
+    "control_flow/runtime_local_scalar_comparison_value_exit",
+    "control_flow/runtime_local_string_comparison_value_exit",
     "constants/runtime_scoped_const_exit",
     "calls/runtime_free_machine_looping_value_call_exit",
     "calls/runtime_free_machine_value_call_mut_arg_exit",
