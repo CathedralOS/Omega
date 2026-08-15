@@ -1512,6 +1512,42 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
 }
 
 #[test]
+fn calling_policy_evaluates_distinct_same_named_requirement_overloads() {
+    let source = format!(
+        "{INTERRUPT_POLICY}\n\nboundary trait OverloadedEntry: Calling<X86InterruptPolicy> {{\n    machine enter(value: u64);\n    machine enter(value: i64);\n}}\n"
+    );
+    let main_path = write_program("same-named-requirement-overloads", &source);
+    let checked = compile_to_checked(&main_path, None)
+        .expect("same-named exact requirement overloads should each evaluate their policy");
+    let overloaded = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "OverloadedEntry")
+        .expect("OverloadedEntry boundary trait");
+    let schema =
+        omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, overloaded)
+            .expect("overloaded boundary service schema");
+    let methods = schema
+        .methods
+        .iter()
+        .filter(|method| method.name == "enter")
+        .collect::<Vec<_>>();
+
+    assert_eq!(methods.len(), 2);
+    assert!(!methods[0].requirement_identity.is_empty());
+    assert!(!methods[1].requirement_identity.is_empty());
+    assert_ne!(
+        methods[0].requirement_identity, methods[1].requirement_identity,
+        "the readable method name is not an overload identity"
+    );
+    assert!(methods[0].calling_plan_fingerprint.is_some());
+    assert!(methods[1].calling_plan_fingerprint.is_some());
+
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
 fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
     let source = POLICY.replace(
         "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
