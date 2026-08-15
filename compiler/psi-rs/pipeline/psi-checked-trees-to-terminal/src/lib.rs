@@ -11216,8 +11216,12 @@ fn shared_integer_runtime_parameters_with_shells(
                 proof_shell_allowed,
             )
         }
-        LoweredDirectExpression::IntegerExactCast { operand, .. } if proof_shell_allowed => {
-            shared_integer_runtime_parameters_with_shells(operand, 0, false)
+        LoweredDirectExpression::IntegerExactCast {
+            scalar_type,
+            operand,
+        } if proof_shell_allowed => {
+            shared_roundtrip_exact_cast_runtime_parameters(*scalar_type, operand)
+                .or_else(|| shared_integer_runtime_parameters_with_shells(operand, 0, false))
         }
         LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::IntegerBinary { .. }
@@ -11226,6 +11230,24 @@ fn shared_integer_runtime_parameters_with_shells(
         | LoweredDirectExpression::IntegerExactCast { .. }
         | LoweredDirectExpression::Boolean { .. } => None,
     }
+}
+
+fn shared_roundtrip_exact_cast_runtime_parameters(
+    target_type: ScalarType,
+    operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let LoweredDirectExpression::IntegerWiden { operand, .. } = operand else {
+        return None;
+    };
+    let LoweredDirectExpression::Parameter {
+        position,
+        scalar_type,
+    } = operand.as_ref()
+    else {
+        return None;
+    };
+    (*scalar_type == target_type)
+        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
 }
 
 fn shared_direct_exact_add_runtime_parameters(
