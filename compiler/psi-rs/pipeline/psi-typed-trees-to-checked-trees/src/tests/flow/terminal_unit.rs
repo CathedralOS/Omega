@@ -12,6 +12,7 @@ use crate::flow::{
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
+    exact_runtime_divisor_chain_runtime_parameter_positions_for_test,
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
@@ -1851,6 +1852,127 @@ fn exact_cast_then_divide_remainder_classifier_accepts_one_unified_safe_literal_
 }
 
 #[test]
+fn exact_runtime_divisor_chain_classifier_unifies_direct_and_partial_cast_roots() {
+    let literal = |value| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::U8,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U8,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let direct = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            parameter(0, PrimitiveType::U8),
+            parameter(1, PrimitiveType::U8),
+        ),
+        literal(2i64),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&direct, 3),
+        Some(vec![0, 1]),
+    );
+    let partial_cast = CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(parameter(0, PrimitiveType::U16)),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let post_cast = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            partial_cast,
+            parameter(1, PrimitiveType::U8),
+        ),
+        parameter(2, PrimitiveType::U8),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&post_cast, 3),
+        Some(vec![0, 1, 2]),
+    );
+    let one_operation = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        parameter(0, PrimitiveType::U8),
+        parameter(1, PrimitiveType::U8),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&one_operation, 2),
+        None,
+    );
+    let literal_only = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            parameter(0, PrimitiveType::U8),
+            literal(2i64),
+        ),
+        literal(3i64),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&literal_only, 1),
+        None,
+    );
+    let mistyped_divisor = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            parameter(0, PrimitiveType::U8),
+            parameter(1, PrimitiveType::U16),
+        ),
+        literal(2i64),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&mistyped_divisor, 2),
+        None,
+    );
+    let address_operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::Addr,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let address_chain = address_operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        address_operation(
+            CheckedIntegerBinaryKind::ExactDivide,
+            parameter(0, PrimitiveType::Addr),
+            parameter(1, PrimitiveType::Addr),
+        ),
+        parameter(2, PrimitiveType::Addr),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&address_chain, 3),
+        None,
+    );
+    let identity_cast = CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(parameter(0, PrimitiveType::U8)),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let invalid_cast_root = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        identity_cast,
+        parameter(1, PrimitiveType::U8),
+    );
+    assert_eq!(
+        exact_runtime_divisor_chain_runtime_parameter_positions_for_test(&invalid_cast_root, 2),
+        None,
+    );
+}
+
+#[test]
 fn shift_left_chain_exact_cast_classifier_accepts_one_finite_heterogeneous_literal_chain() {
     let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
         literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
@@ -3311,7 +3433,7 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((input / 2i64) % 3i64) / 2i64) < 5i64) && enabled;
             staged
         }
-        machine Root::computed_divisor_exact_divide_chain_integer_comparison_convergence(
+        machine Root::runtime_divisor_exact_divide_chain_integer_comparison_convergence(
             token: Token,
             input: u8,
             divisor: u8,
@@ -4986,7 +5108,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         assert!(divide_remainder_chain.shared_boolean_convergence.is_some());
     }
     for machine in [
-        "computed_divisor_exact_divide_chain_integer_comparison_convergence",
         "local_exact_divide_remainder_chain_integer_comparison_convergence",
         "exact_add_feeds_divide_remainder_chain_integer_comparison_convergence",
         "computed_right_exact_divide_integer_comparison_convergence",
@@ -5008,6 +5129,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 .is_none()
         );
     }
+    let runtime_divisor_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "runtime_divisor_exact_divide_chain_integer_comparison_convergence",
+        ))
+        .expect("the direct runtime-divisor chain retains its scalar-return plan");
+    assert!(runtime_divisor_chain.shared_boolean_convergence.is_some());
     for carrier in ["u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"] {
         let machine = format!("exact_multiply_chain_{carrier}_integer_comparison_convergence");
         let multiply_chain = checked

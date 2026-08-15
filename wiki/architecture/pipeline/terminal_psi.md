@@ -729,6 +729,23 @@ divisors, literal-left, reversed, or right-associated shapes, mixed, address,
 or non-native carriers, local or block roots, intervening operations or casts,
 invalid casts, malformed or stale definitions, and stale or missing evidence
 remain fenced.
+The direct-root and post-cast divide/remainder families admit one unified
+runtime-divisor widening when at least one right sibling is a direct
+same-carrier machine parameter. The direct-root form remains a nested chain of
+at least two operations; the post-cast form remains nonempty. Every other right
+sibling is either another direct same-carrier parameter or a landed safe
+literal. Each runtime divisor independently requires `1 <= divisor` or, for a
+signed negative divisor, `divisor <= -2`. Only the first direct-root operation
+may instead use the joint `divisor <= -1` and `MIN + 1 <= dividend` form, and
+only when the verifier independently reconstructs that direct dividend bound.
+Computed and post-cast dividends cannot borrow that authority. The cast and
+every operation retain distinct evidence; no quotient/remainder value
+definition or earlier proof is imported. Literal-only chains keep their
+existing paths. Zero, signed `-1`, local, block, computed, mistyped, or
+wrong-carrier divisors, missing divisor guards, computed or local roots,
+literal-left, reversed, or right-associated shapes, intervening shells,
+operations, or casts, invalid casts, malformed definitions, and stale or
+missing evidence remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

@@ -493,7 +493,13 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
                 && ((((wide / 256u16) as u8) < 255u8)
                     && ((((wide / 2u16) % 3u16) as u8) < 3u8)
                     && (((signed % -3i64) as i8) < 3i8)
-                    && (((wide % 3u16) as i8) < 3i8))))
+                    && (((wide % 3u16) as i8) < 3i8)
+                    && ((((small / divisor) % 2u8) < 2u8)
+                        && ((((input as u8) / divisor) % 2u8) < 2u8)
+                        && (((signed_arithmetic / signed_divisor) % -3i8) < 3i8)
+                        && (((signed_arithmetic / negative_divisor) % 3i8) < 3i8)
+                        && ((((signed as i8) / signed_divisor) % -3i8) < 3i8)
+                        && ((((signed as i8) / negative_divisor) % 3i8) < 3i8)))))
             && ((small / divisor) < 6u8)
             && ((small % divisor) <= small)
             && ((small >> small) < 1u8)
@@ -4478,6 +4484,161 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             }));
         }
     }
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let find_direct_runtime_divisor_chain =
+        |root, runtime_divisor, integer_type: IntegerType, outer_value: IntegerValue| {
+            operations.iter().find_map(|outer| {
+                let OperationKind::ExactIntegerRemainder {
+                    left,
+                    right,
+                    obligation: outer_obligation,
+                } = outer.kind
+                else {
+                    return None;
+                };
+                if !is_integer_constant(right, integer_type, outer_value) {
+                    return None;
+                }
+                let inner = operations.iter().find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+                })?;
+                let OperationKind::ExactIntegerDivide {
+                    left: inner_left,
+                    right: inner_right,
+                    obligation: inner_obligation,
+                } = inner.kind
+                else {
+                    return None;
+                };
+                (inner_left == root && inner_right == runtime_divisor)
+                    .then_some([inner_obligation, outer_obligation])
+            })
+        };
+    let direct_unsigned_runtime_divisor_obligations = find_direct_runtime_divisor_chain(
+        entry.parameters[1].id,
+        entry.parameters[2].id,
+        u8_type,
+        IntegerValue::Unsigned(2),
+    )
+    .expect("one direct unsigned runtime divisor roots a finite chain");
+    let direct_signed_positive_runtime_divisor_obligations = find_direct_runtime_divisor_chain(
+        entry.parameters[5].id,
+        entry.parameters[6].id,
+        i8_type,
+        IntegerValue::Signed(-3),
+    )
+    .expect("one direct signed-positive runtime divisor roots a finite chain");
+    let direct_signed_negative_runtime_divisor_obligations = find_direct_runtime_divisor_chain(
+        entry.parameters[5].id,
+        entry.parameters[7].id,
+        i8_type,
+        IntegerValue::Signed(3),
+    )
+    .expect("one direct signed-negative runtime divisor roots a finite chain");
+    let find_post_cast_runtime_divisor_chain =
+        |root, runtime_divisor, integer_type: IntegerType, outer_value: IntegerValue| {
+            operations.iter().find_map(|outer| {
+                let OperationKind::ExactIntegerRemainder {
+                    left,
+                    right,
+                    obligation: outer_obligation,
+                } = outer.kind
+                else {
+                    return None;
+                };
+                if !is_integer_constant(right, integer_type, outer_value) {
+                    return None;
+                }
+                let inner = operations.iter().find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+                })?;
+                let OperationKind::ExactIntegerDivide {
+                    left: inner_left,
+                    right: inner_right,
+                    obligation: inner_obligation,
+                } = inner.kind
+                else {
+                    return None;
+                };
+                if inner_right != runtime_divisor {
+                    return None;
+                }
+                let cast = operations.iter().find(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(inner_left)
+                })?;
+                let OperationKind::IntegerExactCast {
+                    operand,
+                    obligation: cast_obligation,
+                } = cast.kind
+                else {
+                    return None;
+                };
+                (operand == root).then_some([cast_obligation, inner_obligation, outer_obligation])
+            })
+        };
+    let post_cast_unsigned_runtime_divisor_obligations = find_post_cast_runtime_divisor_chain(
+        entry.parameters[0].id,
+        entry.parameters[2].id,
+        u8_type,
+        IntegerValue::Unsigned(2),
+    )
+    .expect("one partial cast roots an unsigned runtime-divisor chain");
+    let post_cast_signed_positive_runtime_divisor_obligations =
+        find_post_cast_runtime_divisor_chain(
+            entry.parameters[4].id,
+            entry.parameters[6].id,
+            i8_type,
+            IntegerValue::Signed(-3),
+        )
+        .expect("one partial cast roots a signed-positive runtime-divisor chain");
+    let post_cast_signed_negative_runtime_divisor_obligations =
+        find_post_cast_runtime_divisor_chain(
+            entry.parameters[4].id,
+            entry.parameters[7].id,
+            i8_type,
+            IntegerValue::Signed(3),
+        )
+        .expect("one partial cast roots a signed-negative runtime-divisor chain");
+    for obligations in [
+        direct_unsigned_runtime_divisor_obligations.as_slice(),
+        direct_signed_positive_runtime_divisor_obligations.as_slice(),
+        direct_signed_negative_runtime_divisor_obligations.as_slice(),
+        post_cast_unsigned_runtime_divisor_obligations.as_slice(),
+        post_cast_signed_positive_runtime_divisor_obligations.as_slice(),
+        post_cast_signed_negative_runtime_divisor_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            let operation = operations
+                .iter()
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::IntegerExactCast {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerDivide {
+                            obligation: candidate,
+                            ..
+                        } | OperationKind::ExactIntegerRemainder {
+                            obligation: candidate,
+                            ..
+                        } if candidate == *obligation
+                    )
+                })
+                .expect("runtime-divisor chain obligation retains its exact operation");
+            assert_eq!(
+                TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+                1
+            );
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(evidence.route, EvidenceRoute::CertificateDerived(_))
+            }));
+        }
+    }
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let wide_parameter = entry.parameters[17].id;
@@ -6391,6 +6552,29 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == cast_then_divide_remainder_obligation
         ));
     }
+    for runtime_divisor_chain_obligation in direct_unsigned_runtime_divisor_obligations
+        .into_iter()
+        .chain(direct_signed_positive_runtime_divisor_obligations)
+        .chain(direct_signed_negative_runtime_divisor_obligations)
+        .chain(post_cast_unsigned_runtime_divisor_obligations)
+        .chain(post_cast_signed_positive_runtime_divisor_obligations)
+        .chain(post_cast_signed_negative_runtime_divisor_obligations)
+    {
+        let mut missing_runtime_divisor_chain_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_runtime_divisor_chain_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != runtime_divisor_chain_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_runtime_divisor_chain_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == runtime_divisor_chain_obligation
+        ));
+    }
     for divide_remainder_chain_cast_obligation in divide_chain_cast_obligations
         .into_iter()
         .chain(mixed_divide_remainder_cast_obligations)
@@ -7636,6 +7820,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && (wide / 2) % 3 < 3
                     && signed % -3 < 3
                     && wide % 3 < 3
+                    && (small / divisor) % 2 < 2
+                    && (input / divisor) % 2 < 2
+                    && (signed_arithmetic / signed_divisor) % -3 < 3
+                    && (signed_arithmetic / negative_divisor) % 3 < 3
+                    && (signed / signed_divisor) % -3 < 3
+                    && (signed / negative_divisor) % 3 < 3
                     && small / divisor < 6
                     && small % divisor <= small
                     && (small >> small) < 1

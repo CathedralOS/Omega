@@ -950,7 +950,13 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((((wide / 256u16) as u8) < 255u8)
                     && ((((wide / 2u16) % 3u16) as u8) < 3u8)
                     && (((signed % -3i64) as i8) < 3i8)
-                    && (((wide % 3u16) as i8) < 3i8))))
+                    && (((wide % 3u16) as i8) < 3i8)
+                    && ((((small / divisor) % 2u8) < 2u8)
+                        && ((((input as u8) / divisor) % 2u8) < 2u8)
+                        && (((signed_arithmetic / signed_divisor) % -3i8) < 3i8)
+                        && (((signed_arithmetic / negative_divisor) % 3i8) < 3i8)
+                        && ((((signed as i8) / signed_divisor) % -3i8) < 3i8)
+                        && ((((signed as i8) / negative_divisor) % 3i8) < 3i8)))))
                 && ((small / divisor) < 6u8)
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
@@ -3079,6 +3085,133 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         mixed_divide_remainder_cast_obligations.as_slice(),
         signed_remainder_cast_obligations.as_slice(),
         cross_remainder_cast_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
+    let find_direct_runtime_divisor_chain = |root, runtime_divisor, outer_value| {
+        operations.iter().find_map(|outer| {
+            let OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(right, outer_value) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == root && inner_right == runtime_divisor)
+                .then_some([inner_obligation, outer_obligation])
+        })
+    };
+    let direct_unsigned_runtime_divisor_obligations = find_direct_runtime_divisor_chain(
+        terminal_entry.parameters[1].id,
+        terminal_entry.parameters[2].id,
+        IntegerValue::Unsigned(2),
+    )
+    .expect("native path retains one direct unsigned runtime-divisor chain");
+    let direct_signed_positive_runtime_divisor_obligations = find_direct_runtime_divisor_chain(
+        terminal_entry.parameters[5].id,
+        terminal_entry.parameters[6].id,
+        IntegerValue::Signed(-3),
+    )
+    .expect("native path retains one direct signed-positive runtime-divisor chain");
+    let direct_signed_negative_runtime_divisor_obligations = find_direct_runtime_divisor_chain(
+        terminal_entry.parameters[5].id,
+        terminal_entry.parameters[7].id,
+        IntegerValue::Signed(3),
+    )
+    .expect("native path retains one direct signed-negative runtime-divisor chain");
+    let find_post_cast_runtime_divisor_chain = |root, runtime_divisor, outer_value| {
+        operations.iter().find_map(|outer| {
+            let OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(right, outer_value) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerDivide {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            if inner_right != runtime_divisor {
+                return None;
+            }
+            let cast = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(inner_left)
+            })?;
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            (operand == root).then_some([cast_obligation, inner_obligation, outer_obligation])
+        })
+    };
+    let post_cast_unsigned_runtime_divisor_obligations = find_post_cast_runtime_divisor_chain(
+        terminal_entry.parameters[0].id,
+        terminal_entry.parameters[2].id,
+        IntegerValue::Unsigned(2),
+    )
+    .expect("native path retains one post-cast unsigned runtime-divisor chain");
+    let post_cast_signed_positive_runtime_divisor_obligations =
+        find_post_cast_runtime_divisor_chain(
+            terminal_entry.parameters[4].id,
+            terminal_entry.parameters[6].id,
+            IntegerValue::Signed(-3),
+        )
+        .expect("native path retains one post-cast signed-positive runtime-divisor chain");
+    let post_cast_signed_negative_runtime_divisor_obligations =
+        find_post_cast_runtime_divisor_chain(
+            terminal_entry.parameters[4].id,
+            terminal_entry.parameters[7].id,
+            IntegerValue::Signed(3),
+        )
+        .expect("native path retains one post-cast signed-negative runtime-divisor chain");
+    for obligations in [
+        direct_unsigned_runtime_divisor_obligations.as_slice(),
+        direct_signed_positive_runtime_divisor_obligations.as_slice(),
+        direct_signed_negative_runtime_divisor_obligations.as_slice(),
+        post_cast_unsigned_runtime_divisor_obligations.as_slice(),
+        post_cast_signed_positive_runtime_divisor_obligations.as_slice(),
+        post_cast_signed_negative_runtime_divisor_obligations.as_slice(),
     ] {
         for (index, obligation) in obligations.iter().enumerate() {
             for other in &obligations[index + 1..] {

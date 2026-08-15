@@ -203,6 +203,10 @@ A direct partial exact cast followed by a finite nonempty exact-divide/remainder
 literal chain likewise charges the cast and every retained divide or remainder
 separately; each operation's independently reconstructed safe-divisor proof
 adds no executable work.
+The unified runtime-divisor widening uses the same accounting for either a
+direct-root chain or a chain rooted at one partial exact cast: every retained
+divide, remainder, and cast is charged, while each independently reconstructed
+runtime-divisor proposition adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

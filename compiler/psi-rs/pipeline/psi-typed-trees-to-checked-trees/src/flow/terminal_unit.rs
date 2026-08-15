@@ -1723,6 +1723,12 @@ fn shared_integer_runtime_inputs_with_shells(
             };
             collect_direct()
                 .or_else(|| {
+                    shared_exact_runtime_divisor_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_divide_remainder_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -3001,6 +3007,106 @@ fn shared_exact_divide_remainder_chain_runtime_inputs(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_runtime_divisor_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut inputs = BTreeSet::new();
+    let mut saw_nested_operation = false;
+    let mut saw_runtime_divisor = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if fixed_native_primitive_interval(*primitive_type).is_none()
+            || chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        if !safe_exact_divide_remainder_literal(*primitive_type, right) {
+            let CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: divisor_type,
+            } = right.as_ref()
+            else {
+                return None;
+            };
+            if *divisor_type != *primitive_type || *position >= scalar_parameter_count {
+                return None;
+            }
+            inputs.insert(SharedBooleanRuntimeInput::IntegerScalar(*position));
+            saw_runtime_divisor = true;
+        }
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+                ..
+            } => {
+                saw_nested_operation = true;
+                expression = nested;
+            }
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if saw_nested_operation
+                && saw_runtime_divisor
+                && *root_type == *primitive_type
+                && *position < scalar_parameter_count =>
+            {
+                inputs.insert(SharedBooleanRuntimeInput::IntegerScalar(*position));
+                return Some(inputs);
+            }
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target_type,
+                operand,
+                ..
+            } if saw_runtime_divisor && *cast_target_type == *primitive_type => {
+                let CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: source_type,
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                let source_interval = fixed_native_primitive_interval(*source_type)?;
+                let target_interval = fixed_native_primitive_interval(*cast_target_type)?;
+                if (source_interval.0 >= target_interval.0
+                    && source_interval.1 <= target_interval.1)
+                    || *position >= scalar_parameter_count
+                {
+                    return None;
+                }
+                inputs.insert(SharedBooleanRuntimeInput::IntegerScalar(*position));
+                return Some(inputs);
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_runtime_divisor_chain_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_runtime_divisor_chain_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 fn shared_exact_cast_then_divide_remainder_runtime_inputs(

@@ -1530,6 +1530,66 @@ machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) 
     staged
 }
 
+machine terminal_runtime_divisor_chain(
+    value: u8,
+    divisor: u8,
+    enabled: bool
+) -> bool
+requires 1u8 <= divisor
+{
+    (((value / divisor) % 2u8) < 2u8) && enabled
+}
+
+machine terminal_signed_positive_runtime_divisor_chain(
+    value: i8,
+    divisor: i8,
+    enabled: bool
+) -> bool
+requires 1i8 <= divisor
+{
+    (((value / divisor) % -3i8) < 3i8) && enabled
+}
+
+machine terminal_signed_negative_runtime_divisor_chain(
+    value: i8,
+    divisor: i8,
+    enabled: bool
+) -> bool
+requires divisor <= -2i8
+{
+    (((value / divisor) % 3i8) < 3i8) && enabled
+}
+
+machine terminal_exact_cast_then_runtime_divisor_chain(
+    value: u16,
+    divisor: u8,
+    enabled: bool
+) -> bool
+requires value <= 255u16, 1u8 <= divisor
+{
+    ((((value as u8) / divisor) % 2u8) < 2u8) && enabled
+}
+
+machine terminal_signed_exact_cast_then_positive_runtime_divisor_chain(
+    value: i16,
+    divisor: i8,
+    enabled: bool
+) -> bool
+requires -128i16 <= value, value <= 127i16, 1i8 <= divisor
+{
+    ((((value as i8) / divisor) % -3i8) < 3i8) && enabled
+}
+
+machine terminal_signed_exact_cast_then_negative_runtime_divisor_chain(
+    value: i16,
+    divisor: i8,
+    enabled: bool
+) -> bool
+requires -128i16 <= value, value <= 127i16, divisor <= -2i8
+{
+    ((((value as i8) / divisor) % 3i8) < 3i8) && enabled
+}
+
 machine terminal_exact_divide_chain_then_exact_cast(value: u16, enabled: bool) -> bool
 {
     (((value / 256u16) as u8) <= 255u8) && enabled

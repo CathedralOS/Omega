@@ -9451,6 +9451,111 @@ mod tests {
     }
 
     #[test]
+    fn runtime_divisor_chains_reconstruct_each_parameter_guard_independently() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root = ScalarTerm::value(
+            ValueId::new(21).expect("root"),
+            ScalarType::Integer(u8_type),
+        );
+        let positive_divisor = ScalarTerm::value(
+            ValueId::new(22).expect("positive divisor"),
+            ScalarType::Integer(u8_type),
+        );
+        let two = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let positive_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(1)).expect("1u8"),
+            positive_divisor.clone(),
+        );
+        let first = ScalarTerm::exact_integer_divide(u8_type, root, positive_divisor.clone())
+            .expect("root / divisor");
+        assert_eq!(
+            exact_integer_divide_obligation(
+                u8_type,
+                first.clone(),
+                positive_divisor,
+                std::slice::from_ref(&positive_bound),
+            ),
+            positive_bound,
+            "the nested dividend supplies no authority beyond the direct divisor guard",
+        );
+        assert_eq!(
+            exact_integer_remainder_obligation(u8_type, first, two, &[]),
+            Proposition::Truth,
+        );
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_root = ScalarTerm::value(
+            ValueId::new(23).expect("signed root"),
+            ScalarType::Integer(i8_type),
+        );
+        let negative_divisor = ScalarTerm::value(
+            ValueId::new(24).expect("negative divisor"),
+            ScalarType::Integer(i8_type),
+        );
+        let negative_bound = Proposition::LessOrEqual(
+            negative_divisor.clone(),
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-2)).expect("-2i8"),
+        );
+        let signed_first = ScalarTerm::exact_integer_remainder(
+            i8_type,
+            signed_root.clone(),
+            negative_divisor.clone(),
+        )
+        .expect("signed root % negative divisor");
+        assert_eq!(
+            exact_integer_remainder_obligation(
+                i8_type,
+                signed_first,
+                negative_divisor.clone(),
+                std::slice::from_ref(&negative_bound),
+            ),
+            negative_bound,
+        );
+
+        let negative_one_bound = Proposition::LessOrEqual(
+            negative_divisor.clone(),
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).expect("-1i8"),
+        );
+        let minimum_plus_one_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-127)).expect("-127i8"),
+            signed_root.clone(),
+        );
+        assert_eq!(
+            exact_integer_divide_obligation(
+                i8_type,
+                signed_root.clone(),
+                negative_divisor.clone(),
+                &[negative_one_bound.clone(), minimum_plus_one_bound.clone()],
+            ),
+            canonical_conjunction(vec![
+                negative_one_bound.clone(),
+                minimum_plus_one_bound.clone(),
+            ]),
+            "the joint -1 exception remains valid for the independently bounded direct root",
+        );
+        let computed_dividend = ScalarTerm::exact_integer_divide(
+            i8_type,
+            signed_root,
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(2)).expect("2i8"),
+        )
+        .expect("computed dividend");
+        let fallback_positive_requirement = Proposition::LessOrEqual(
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("1i8"),
+            negative_divisor.clone(),
+        );
+        assert_eq!(
+            exact_integer_divide_obligation(
+                i8_type,
+                computed_dividend,
+                negative_divisor,
+                &[negative_one_bound, minimum_plus_one_bound],
+            ),
+            fallback_positive_requirement,
+            "a direct-root bound is never imported as a computed-prefix dividend bound",
+        );
+    }
+
+    #[test]
     fn exact_shift_right_chain_counts_reconstruct_without_value_definitions() {
         let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
         let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
