@@ -2725,6 +2725,7 @@ fn value_expression_assignment_preserves_transparent_result(
                 parameters,
                 aliases,
                 TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
             )
         }),
         ExpressionNode::Binary(_)
@@ -2781,9 +2782,9 @@ fn assignment_target_type(
 /// assignment target supplies the exact contextual element type that an array
 /// literal does not carry itself. Only literal-length, caller-isolated arrays
 /// participate; every effectful element independently obeys the ordinary
-/// depth-four call budget, primitive elements may use the depth-two scalar
-/// computation rail, and one nested fixed-array or concrete aggregate literal
-/// consumes the second aggregate level.
+/// depth-four call budget, primitive elements may use the carried scalar
+/// computation budget, and one nested fixed-array or concrete aggregate
+/// literal consumes the second aggregate level.
 #[allow(clippy::too_many_arguments)]
 fn array_value_assignment_preserves_transparent_result(
     program: &TypedTrees,
@@ -2795,6 +2796,7 @@ fn array_value_assignment_preserves_transparent_result(
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
     remaining_aggregate_depth: usize,
+    remaining_computed_depth: usize,
 ) -> bool {
     if remaining_aggregate_depth == 0 || !type_is_caller_isolated_local(program, expected_type) {
         return false;
@@ -2845,6 +2847,7 @@ fn array_value_assignment_preserves_transparent_result(
                 parameters,
                 aliases,
                 remaining_aggregate_depth - 1,
+                remaining_computed_depth,
             ),
             ExpressionNode::StructLiteral(literal)
                 if struct_literal_matches_expected_type(program, literal, element_type) =>
@@ -2875,7 +2878,7 @@ fn array_value_assignment_preserves_transparent_result(
                     active_states,
                     parameters,
                     aliases,
-                    TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                    remaining_computed_depth,
                     false,
                 )
             }
@@ -3016,6 +3019,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                                 parameters,
                                 aliases,
                                 remaining_aggregate_depth - 1,
+                                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
                             )
                         },
                     )
@@ -3244,6 +3248,23 @@ fn concrete_literal_member_operand_preserves_transparent_result(
                             remaining_aggregate_depth - 1,
                             remaining_computed_depth,
                         )
+                    }
+                    ExpressionNode::ArrayLiteral(_) if remaining_aggregate_depth > 1 => {
+                        struct_literal_field_type(program, literal, field.name.as_str())
+                            .is_some_and(|field_type| {
+                                array_value_assignment_preserves_transparent_result(
+                                    program,
+                                    current_machine,
+                                    field.value,
+                                    field_type,
+                                    symbols,
+                                    active_states,
+                                    parameters,
+                                    aliases,
+                                    remaining_aggregate_depth - 1,
+                                    remaining_computed_depth,
+                                )
+                            })
                     }
                     ExpressionNode::Binary(_)
                     | ExpressionNode::Cast(_)
