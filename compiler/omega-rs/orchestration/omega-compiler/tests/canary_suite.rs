@@ -22060,13 +22060,8 @@ fn case_literal_texteq_terminal_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqterm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("texteq terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("texteq terminal canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("texteq terminal canary should run");
@@ -45438,6 +45433,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_owned_string_byte_view_exit",
     "text/runtime_text_not_equals_exit",
     "text/runtime_text_equals_boolean_operand_exit",
+    "text/case_literal_texteq_terminal_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
