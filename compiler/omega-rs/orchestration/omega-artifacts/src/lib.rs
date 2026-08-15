@@ -666,6 +666,9 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.rows {
             output.push_str(&format!("- {} -- {}", row.commitment, row.provenance));
+            if let Some(fingerprint) = row.machine_contract_fingerprint {
+                output.push_str(&format!(" -- machine contract: {fingerprint:016x}"));
+            }
             if row.standing_warning {
                 output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
             }
@@ -2122,6 +2125,10 @@ pub struct TrustReportRow {
     pub commitment: String,
     /// `own-package (dev-active)` or `root grant`.
     pub provenance: String,
+    /// Exact published contract identity for one local accepted machine.
+    /// Domains, provider commitments, and unmatched imported grants have no
+    /// machine contract and retain `None` rather than a synthesized identity.
+    pub machine_contract_fingerprint: Option<u64>,
     /// Dev-active rows warn until the root grants them.
     pub standing_warning: bool,
 }

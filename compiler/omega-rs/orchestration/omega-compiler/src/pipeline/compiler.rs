@@ -545,7 +545,7 @@ impl Compiler {
         checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
         crate::pipeline::trust_report::write_trust_report(
             &self.options,
-            &checked.program.typed,
+            &checked.program,
             &build_config.grants,
             &provider_plans,
             &checked.selected_provider_plans,

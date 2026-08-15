@@ -122,6 +122,21 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
+    let checked = compile_to_checked(&project.join("main.omg"), None)
+        .expect("accepted claim should reach checked facts");
+    let accepted = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "combine_commutative")
+        .expect("accepted claim machine");
+    let expected_contract_fingerprint = checked
+        .facts
+        .contract_plans
+        .for_machine(accepted.symbol)
+        .expect("accepted claim contract plan")
+        .fingerprint;
+
     let build_dir = project.join("build");
     compile(CompileOptions {
         root_path: project.join("main.omg"),
@@ -141,6 +156,13 @@ machine Main::exercise(&mut self) {}
         report.contains("accepted fact: combine_commutative"),
         "the authored axiom remains visible:\n{report}"
     );
+    let accepted_row = report
+        .lines()
+        .find(|line| line.contains("accepted fact: combine_commutative"))
+        .expect("accepted claim row");
+    assert!(accepted_row.contains(&format!(
+        "machine contract: {expected_contract_fingerprint:016x}"
+    )));
     assert!(
         !report.contains("accepted fact: Carrier::combine"),
         "a claim-free symbol asserts nothing and needs no grant:\n{report}"
@@ -251,6 +273,12 @@ machine Main::exercise(&mut self) {
         !meters_row.contains("STANDING WARNING"),
         "a root-granted domain drops the standing warning:\n{report}"
     );
+    assert!(!meters_row.contains("machine contract:"));
+    let unmatched_grant_row = report
+        .lines()
+        .find(|line| line.contains("accepted fact: walker_lib::collatz_cert_checked"))
+        .expect("unmatched imported grant row");
+    assert!(!unmatched_grant_row.contains("machine contract:"));
 
     let _ = std::fs::remove_dir_all(&project);
 }
