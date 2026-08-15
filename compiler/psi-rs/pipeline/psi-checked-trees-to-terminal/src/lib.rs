@@ -11124,9 +11124,48 @@ fn shared_integer_runtime_parameters_with_shells(
             }
         }
         LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactAdd,
+            left,
+            right,
+            ..
+        } if proof_shell_allowed => {
+            let collect_direct = |left, right| {
+                let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                parameters.extend(shared_integer_runtime_parameters_with_shells(
+                    right, 0, false,
+                )?);
+                Some(parameters)
+            };
+            collect_direct(left, right)
+                .or_else(|| {
+                    if !matches!(
+                        right.as_ref(),
+                        LoweredDirectExpression::IntegerLiteral { .. }
+                    ) {
+                        return None;
+                    }
+                    let mut parameters = shared_direct_exact_add_runtime_parameters(left)?;
+                    parameters.extend(shared_integer_runtime_parameters_with_shells(
+                        right, 0, false,
+                    )?);
+                    Some(parameters)
+                })
+                .or_else(|| {
+                    if !matches!(
+                        left.as_ref(),
+                        LoweredDirectExpression::IntegerLiteral { .. }
+                    ) {
+                        return None;
+                    }
+                    let mut parameters =
+                        shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+                    parameters.extend(shared_direct_exact_add_runtime_parameters(right)?);
+                    Some(parameters)
+                })
+        }
+        LoweredDirectExpression::IntegerBinary {
             kind:
-                LoweredIntegerBinaryKind::ExactAdd
-                | LoweredIntegerBinaryKind::ExactSubtract
+                LoweredIntegerBinaryKind::ExactSubtract
                 | LoweredIntegerBinaryKind::ExactMultiply
                 | LoweredIntegerBinaryKind::ExactShiftRight,
             left,
@@ -11187,6 +11226,34 @@ fn shared_integer_runtime_parameters_with_shells(
         | LoweredDirectExpression::IntegerExactCast { .. }
         | LoweredDirectExpression::Boolean { .. } => None,
     }
+}
+
+fn shared_direct_exact_add_runtime_parameters(
+    expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let LoweredDirectExpression::IntegerBinary {
+        kind: LoweredIntegerBinaryKind::ExactAdd,
+        left,
+        right,
+        ..
+    } = expression
+    else {
+        return None;
+    };
+    if !matches!(
+        left.as_ref(),
+        LoweredDirectExpression::IntegerLiteral { .. }
+    ) && !matches!(
+        right.as_ref(),
+        LoweredDirectExpression::IntegerLiteral { .. }
+    ) {
+        return None;
+    }
+    let mut parameters = shared_integer_runtime_parameters_with_shells(left, 0, false)?;
+    parameters.extend(shared_integer_runtime_parameters_with_shells(
+        right, 0, false,
+    )?);
+    Some(parameters)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

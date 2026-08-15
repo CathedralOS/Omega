@@ -1665,7 +1665,7 @@ fn exact_integer_add_obligation(
             Proposition::Falsehood
         };
     }
-    let (variable, constant) = match (known_left, known_right) {
+    let (mut variable, mut constant) = match (known_left, known_right) {
         (Some(constant), None) => (right, constant),
         (None, Some(constant)) => (left, constant),
         (None, None) => {
@@ -1739,6 +1739,40 @@ fn exact_integer_add_obligation(
         }
         (Some(_), Some(_)) => unreachable!("known exact-add operands returned above"),
     };
+    if let Some((nested_variable, nested_constant)) = semantic_axioms
+        .iter()
+        .rev()
+        .find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == &variable => Some(right),
+            Proposition::Equal(left, right) if right == &variable => Some(left),
+            _ => None,
+        })
+        .and_then(|definition| {
+            let ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } = definition
+            else {
+                return None;
+            };
+            if *scalar_type != integer_type {
+                return None;
+            }
+            match (
+                known_integer_term_value(integer_type, left, semantic_axioms),
+                known_integer_term_value(integer_type, right, semantic_axioms),
+            ) {
+                (Some(constant), None) => Some(((**right).clone(), constant)),
+                (None, Some(constant)) => Some(((**left).clone(), constant)),
+                _ => None,
+            }
+        })
+        && let Some(combined_constant) = integer_type.exact_add(nested_constant, constant)
+    {
+        variable = nested_variable;
+        constant = combined_constant;
+    }
     match (integer_type.sign(), constant) {
         (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
         | (IntegerSign::Signed, IntegerValue::Signed(0)) => Proposition::Truth,
@@ -3128,6 +3162,37 @@ mod tests {
                 std::slice::from_ref(&bound),
             ),
             bound.clone()
+        );
+    }
+
+    #[test]
+    fn reconstructs_one_nested_exact_add_from_the_inner_result_definition() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let input = ScalarTerm::value(
+            ValueId::new(1).expect("input"),
+            ScalarType::Integer(integer_type),
+        );
+        let inner_result = ScalarTerm::value(
+            ValueId::new(2).expect("inner result"),
+            ScalarType::Integer(integer_type),
+        );
+        let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let inner_definition = Proposition::Equal(
+            inner_result.clone(),
+            ScalarTerm::exact_integer_add(integer_type, input.clone(), one.clone())
+                .expect("u8 exact add term"),
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                integer_type,
+                inner_result,
+                one,
+                std::slice::from_ref(&inner_definition),
+            ),
+            Proposition::LessOrEqual(
+                input,
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(253)).expect("253u8"),
+            )
         );
     }
 

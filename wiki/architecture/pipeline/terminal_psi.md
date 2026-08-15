@@ -454,7 +454,14 @@ bound, `divisor <= -2` upper bound, or joint `divisor <= -1` and
 operation; one proof-bearing exact operation may also appear as the innermost
 operation beneath up to two bitwise-not, integer-widening, or proof-free binary
 shells, and distinct binary subtrees may each contain one independently proved
-exact leaf. A proof-bearing result may not feed another proof-bearing operation.
+exact leaf. One bounded exception lets one same-carrier exact-add result feed
+one further exact add: the inner operation has one landed constant addend and a
+direct scalar parameter or landed constant operand, and the outer sibling is
+another landed constant. Terminal order retains both operations and both
+obligation IDs. The verifier uses the prior inner-result equality to reconstruct
+the outer constant-combined safety premise, then checks distinct evidence for
+each operation. Deeper chains, two proof-bearing operands to one operation,
+computed addends, and every non-add proof-bearing composition remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,
