@@ -302,6 +302,31 @@ impl<'program> LayoutBuilder<'program> {
         definition: &DataDefinition,
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
+        // A compiler-derived placed accessor is opaque to source construction,
+        // but it is not zero-sized at runtime: helpers may receive one without
+        // the enclosing Placed view, so the value must retain its exact field
+        // address. The typed placed-plan table is the authority for this
+        // classification; generated-name patterns are not.
+        if self.is_compiler_placed_accessor_definition(definition) {
+            if definition.supply_mode != psi_language_semantics::DataSupplyMode::BoundaryOpaque {
+                return Err(Diagnostic::error(format!(
+                    "compiler-derived placed accessor `{}` lost its opaque supply mode",
+                    definition.name
+                )));
+            }
+            return Ok(DataLayout {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+                shape: DataShape::Record {
+                    fields: psi_arena::HandleSpan::empty(),
+                },
+                layout: TypeLayout {
+                    size: self.target.pointer_size,
+                    alignment: self.target.pointer_alignment,
+                },
+            });
+        }
+
         let members = self.program.data_members(definition);
         if matches!(
             DataDefinition::shape_kind_from_members(members),
@@ -932,6 +957,19 @@ impl<'program> LayoutBuilder<'program> {
         symbol: SymbolHandle,
         name: &str,
     ) -> Result<TypeLayout, Diagnostic> {
+        // Atomic placed accessors retain their underlying primitive class for
+        // operation typing, so their generated name parses as primitive here.
+        // The exact typed placed-plan row wins for runtime representation:
+        // this is an address carrier, not an inline atomic resident.
+        let compiler_placed_accessor = self
+            .data_definitions
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+            .is_some_and(|definition| self.is_compiler_placed_accessor_definition(definition));
+        if compiler_placed_accessor {
+            return self.layout_data_definition(symbol);
+        }
+
         if let Some(primitive_type) = PrimitiveType::from_name(name) {
             return Ok(primitive_type_layout(self.target, primitive_type));
         }
@@ -975,6 +1013,14 @@ impl<'program> LayoutBuilder<'program> {
             "unknown layout-bearing type `{name}` for symbol {}",
             symbol.arena_index()
         )))
+    }
+
+    fn is_compiler_placed_accessor_definition(&self, definition: &DataDefinition) -> bool {
+        self.program
+            .placed_view_plans
+            .iter()
+            .flat_map(|view| &view.fields)
+            .any(|field| field.accessor_name == definition.name.as_str())
     }
 
     fn data_definition_by_symbol(

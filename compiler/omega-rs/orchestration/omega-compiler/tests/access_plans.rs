@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use omega_compiler::{
     compile_to_checked, compute_access_plan, compute_layout_plan, compute_placement_plan,
 };
+use omega_layout::{DataShape, build_layout_plan};
+use omega_target::NativeTarget;
 use psi_access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
 
 fn write_program(name: &str, source: &str) -> PathBuf {
@@ -472,6 +474,91 @@ data Main {}
             .as_str(),
         "read"
     );
+}
+
+#[test]
+fn compiler_derived_placed_accessors_retain_runtime_addresses() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    let status: u32 = view.status.read();
+    view.transmit.write(1);
+    let snapshot: u16 = view.snapshot.read();
+    view.snapshot.write(snapshot);
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-accessor-runtime-layout", &source);
+    let checked = compile_to_checked(&main, None).expect("derived placed accessors should compile");
+    let [view] = checked.typed.placed_view_plans.as_slice() else {
+        panic!("fixture should derive exactly one placed view")
+    };
+    assert_eq!(view.fields.len(), 4);
+    assert!(
+        view.fields
+            .iter()
+            .all(|field| field.field_name != "reserved")
+    );
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let layouts = build_layout_plan(&checked, target).expect("placed layout should build");
+        for field in &view.fields {
+            let accessor = layouts
+                .data_layouts
+                .iter()
+                .map(|(_, layout)| layout)
+                .find(|layout| layout.name.as_str() == field.accessor_name)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "accessor `{}` is missing from runtime layouts {:?}",
+                        field.accessor_name,
+                        layouts
+                            .data_layouts
+                            .iter()
+                            .map(|(_, layout)| layout.name.as_str())
+                            .collect::<Vec<_>>()
+                    )
+                });
+            assert_eq!(accessor.layout.size, target.pointer_size);
+            assert_eq!(accessor.layout.alignment, target.pointer_alignment);
+            assert!(
+                matches!(&accessor.shape, DataShape::Record { fields } if fields.is_empty()),
+                "the address carrier must remain opaque rather than expose source fields"
+            );
+        }
+
+        let placed = layouts
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == view.data_name)
+            .expect("derived Placed record should have a runtime layout");
+        let DataShape::Record { fields } = &placed.shape else {
+            panic!("derived Placed data should remain a record")
+        };
+        let fields = layouts.fields.span_or_empty(*fields);
+        assert_eq!(fields.len(), view.fields.len());
+        assert_eq!(
+            placed.layout.size,
+            target.pointer_size * view.fields.len(),
+            "one exact address carrier is retained for each admitted field"
+        );
+        assert_eq!(placed.layout.alignment, target.pointer_alignment);
+        assert!(fields.iter().all(|field| field.name.as_str() != "reserved"));
+        for field in fields {
+            let expected = view
+                .fields
+                .iter()
+                .find(|expected| expected.field_name == field.name.as_str())
+                .expect("every runtime field should come from the exact placed-view plan");
+            assert_eq!(field.type_name.as_ref(), expected.accessor_name);
+            assert_eq!(field.layout.size, target.pointer_size);
+            assert_eq!(field.layout.alignment, target.pointer_alignment);
+        }
+    }
 }
 
 #[test]
