@@ -6,10 +6,10 @@
 // silently read ZII 0 (native 72 / interp 70). PROMOTED when
 // `resolve_runtime_text_equals_operand_in_table` gained the literal-RHS arm
 // (TextEqualsLiteral in value/write position): the decomposed field write now
-// rides `text_equals | 0` like the mutation-table path. The TERMINAL position
-// (`-> Msg::Pong { z: self.name == .. }`) is still poisoned -- a naive place
-// write there MISCOMPILED (wrong offset/timing; native 73) and was reverted,
-// so fail/control_flow/case_literal_unlowered_field_rejected still pins it.
+// rides `text_equals | 0` like the mutation-table path. The sibling TERMINAL
+// position (`-> Msg::Pong { z: self.name == .. }`) is now served through the
+// binary write's own target arms and pinned independently by
+// pass/text/case_literal_texteq_terminal_exit.
 // exit 72 = z dropped/wrong (the old silent face); 73 = tag/dispatch wrong.
 domain [u8]::Utf8
 requires
