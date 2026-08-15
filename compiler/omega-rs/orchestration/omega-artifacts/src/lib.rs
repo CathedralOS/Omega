@@ -669,6 +669,9 @@ impl ArtifactWriter {
             if let Some(fingerprint) = row.machine_contract_fingerprint {
                 output.push_str(&format!(" -- machine contract: {fingerprint:016x}"));
             }
+            if let Some(fingerprint) = row.machine_template_fingerprint {
+                output.push_str(&format!(" -- accepted template: {fingerprint:016x}"));
+            }
             if let Some(service_reach) = &row.machine_service_reach {
                 output.push_str(" -- service reach: ");
                 if service_reach.is_empty() {
@@ -2184,6 +2187,10 @@ pub struct TrustReportRow {
     /// Domains, provider commitments, and unmatched imported grants have no
     /// machine contract and retain `None` rather than a synthesized identity.
     pub machine_contract_fingerprint: Option<u64>,
+    /// Exact normalized universal-template identity for one generic accepted
+    /// machine. Non-generic accepted machines and every other row retain
+    /// `None`; their ordinary checked contract identity remains separate.
+    pub machine_template_fingerprint: Option<u64>,
     /// Exact published service-reach ceiling for one local accepted machine.
     /// `Some(Vec::new())` is the explicit public negative guarantee; rows that
     /// do not describe a local accepted machine retain `None`.
@@ -2635,6 +2642,7 @@ mod tests {
                     commitment: "accepted fact: quiet_axiom".to_owned(),
                     provenance: "root grant (build.omg)".to_owned(),
                     machine_contract_fingerprint: Some(0xabcd),
+                    machine_template_fingerprint: None,
                     machine_service_reach: Some(Vec::new()),
                     machine_synchronous_invocations: Some(Vec::new()),
                     machine_may_suspend: Some(false),
@@ -2647,6 +2655,7 @@ mod tests {
                     commitment: "domain introduction: Meters".to_owned(),
                     provenance: "root grant (build.omg)".to_owned(),
                     machine_contract_fingerprint: None,
+                    machine_template_fingerprint: None,
                     machine_service_reach: None,
                     machine_synchronous_invocations: None,
                     machine_may_suspend: None,
@@ -2659,6 +2668,7 @@ mod tests {
                     commitment: "accepted fact: guarded_axiom".to_owned(),
                     provenance: "root grant (build.omg)".to_owned(),
                     machine_contract_fingerprint: Some(0xbcde),
+                    machine_template_fingerprint: None,
                     machine_service_reach: Some(Vec::new()),
                     machine_synchronous_invocations: Some(Vec::new()),
                     machine_may_suspend: Some(false),

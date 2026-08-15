@@ -13,12 +13,63 @@ use omega_artifacts::{
 };
 use psi_diagnostics::Diagnostic;
 
+pub(super) struct GenericAcceptedTemplateFingerprints {
+    rows: Vec<GenericAcceptedTemplateFingerprint>,
+}
+
+struct GenericAcceptedTemplateFingerprint {
+    machine: psi_symbols::SymbolHandle,
+    fingerprint: Option<u64>,
+}
+
+impl GenericAcceptedTemplateFingerprints {
+    pub(super) fn capture(typed: &psi_typed_trees::TypedTrees) -> Self {
+        Self {
+            rows: typed
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
+                })
+                .map(|machine| GenericAcceptedTemplateFingerprint {
+                    machine: machine.symbol,
+                    fingerprint:
+                        psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
+                            typed,
+                            machine.symbol,
+                        ),
+                })
+                .collect(),
+        }
+    }
+
+    fn for_machine(
+        &self,
+        machine: psi_symbols::SymbolHandle,
+        machine_name: &str,
+    ) -> Result<Option<u64>, Diagnostic> {
+        let mut matches = self.rows.iter().filter(|row| row.machine == machine);
+        let row = matches.next().ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no pre-lowering template classification"
+            ))
+        })?;
+        if matches.next().is_some() {
+            return Err(Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has duplicate pre-lowering template classifications"
+            )));
+        }
+        Ok(row.fingerprint)
+    }
+}
+
 pub(super) fn write_trust_report(
     options: &CompileOptions,
     checked: &psi_checked_trees::CheckedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    generic_accepted_template_fingerprints: &GenericAcceptedTemplateFingerprints,
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut report = TrustReport::default();
@@ -82,6 +133,7 @@ pub(super) fn write_trust_report(
             ),
             provenance: provenance.to_owned(),
             machine_contract_fingerprint: None,
+            machine_template_fingerprint: None,
             machine_service_reach: None,
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
@@ -202,6 +254,7 @@ pub(super) fn write_trust_report(
                 "own-package (dev-active)".to_owned()
             },
             machine_contract_fingerprint: None,
+            machine_template_fingerprint: None,
             machine_service_reach: None,
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
@@ -238,6 +291,9 @@ pub(super) fn write_trust_report(
                 ))]
             })?
             .fingerprint;
+        let machine_template_fingerprint = generic_accepted_template_fingerprints
+            .for_machine(machine.symbol, machine.name.as_str())
+            .map_err(|diagnostic| vec![diagnostic])?;
         let machine_service_reach =
             accepted_machine_service_reach(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
@@ -267,6 +323,7 @@ pub(super) fn write_trust_report(
                 "own-package (dev-active)".to_owned()
             },
             machine_contract_fingerprint: Some(machine_contract_fingerprint),
+            machine_template_fingerprint,
             machine_service_reach: Some(machine_service_reach),
             machine_synchronous_invocations: Some(machine_synchronous_invocations),
             machine_may_suspend: Some(machine_may_suspend),
@@ -295,6 +352,7 @@ pub(super) fn write_trust_report(
                 commitment: format!("accepted fact: {grant}"),
                 provenance: "root grant (build.omg)".to_owned(),
                 machine_contract_fingerprint: None,
+                machine_template_fingerprint: None,
                 machine_service_reach: None,
                 machine_synchronous_invocations: None,
                 machine_may_suspend: None,
@@ -556,10 +614,44 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
+        GenericAcceptedTemplateFingerprint, GenericAcceptedTemplateFingerprints,
         accepted_machine_crash_routes, accepted_machine_may_block, accepted_machine_may_suspend,
         accepted_machine_service_reach, accepted_machine_synchronous_invocations,
         accepted_machine_terminates_guarantee,
     };
+
+    #[test]
+    fn accepted_template_classification_fails_closed_on_missing_and_duplicate_symbols() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing = GenericAcceptedTemplateFingerprints { rows: Vec::new() }
+            .for_machine(machine, "admitted")
+            .expect_err("missing pre-lowering classification must fail closed");
+        assert!(
+            missing
+                .message
+                .contains("no pre-lowering template classification")
+        );
+
+        let duplicate = GenericAcceptedTemplateFingerprints {
+            rows: vec![
+                GenericAcceptedTemplateFingerprint {
+                    machine,
+                    fingerprint: Some(1),
+                },
+                GenericAcceptedTemplateFingerprint {
+                    machine,
+                    fingerprint: Some(1),
+                },
+            ],
+        }
+        .for_machine(machine, "admitted")
+        .expect_err("duplicate pre-lowering classifications must fail closed");
+        assert!(
+            duplicate
+                .message
+                .contains("duplicate pre-lowering template classifications")
+        );
+    }
 
     fn checked_with_reach(
         machine: SymbolHandle,
