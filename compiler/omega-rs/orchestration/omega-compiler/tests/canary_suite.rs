@@ -14872,9 +14872,10 @@ fn runtime_transition_arg_saturating_exit_canary_runs() {
         "omega-transition-arg-saturating-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("Saturating transition-arg accumulator should compile (no exact-arith obligation)");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("transition-arg saturating canary should run");
     assert_eq!(
@@ -14896,9 +14897,10 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_cast_element_accumulator_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-cast-element-accum-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast-of-element accumulator should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("cast-element accumulator canary should run");
     assert_eq!(
@@ -15401,9 +15403,10 @@ fn runtime_inferred_multipath_return_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_inferred_multipath_return_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-inferred-multipath-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("multi-path inferred return range should let the caller prove Exact");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("multi-path inferred return canary should run");
     assert_eq!(
@@ -15424,9 +15427,10 @@ fn runtime_inferred_return_range_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_inferred_return_range_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-inferred-return-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("inferred return range should let the caller's arithmetic prove Exact");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("inferred return range canary should run");
     assert_eq!(
@@ -15445,9 +15449,10 @@ fn runtime_inferred_return_range_exit_canary_runs() {
 fn runtime_provable_field_construction_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_provable_field_construction_exit");
     let scratch = std::env::temp_dir().join(format!("omega-provable-field-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("provable non-literal field construction should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("provable field construction canary should run");
     assert_eq!(
@@ -15467,10 +15472,11 @@ fn runtime_struct_field_range_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_struct_field_range_narrowing_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-field-range-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()).expect(
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
         "struct-field range narrowing should compile (constrained field discharges the obligation)",
     );
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("struct-field range narrowing canary should run");
     assert_eq!(
@@ -15491,10 +15497,11 @@ fn runtime_struct_field_range_narrowing_exit_canary_runs() {
 fn runtime_payload_range_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_payload_range_narrowing_exit");
     let scratch = std::env::temp_dir().join(format!("omega-payload-range-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()).expect(
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
         "payload range narrowing should compile (constrained payload discharges the obligation)",
     );
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("payload range narrowing canary should run");
     assert_eq!(
@@ -15520,9 +15527,10 @@ fn runtime_payload_range_narrowing_exit_canary_runs() {
 fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
     let canary = pass_canary("ranges/sum_payload_range_narrowed_exit");
     let scratch = std::env::temp_dir().join(format!("omega-payload-narrow-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("direct payload pass-through should prove under the case-arm guard");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("sum payload range narrowed canary should run");
     assert_eq!(
@@ -15546,9 +15554,10 @@ fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
 fn runtime_sum_payload_range_arith_narrowed_exit_canary_runs() {
     let canary = pass_canary("ranges/sum_payload_range_arith_narrowed_exit");
     let scratch = std::env::temp_dir().join(format!("omega-payload-arith-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("payload operand arithmetic should prove under the case-arm guard");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("sum payload range arith narrowed canary should run");
     assert_eq!(
@@ -15569,9 +15578,10 @@ fn runtime_exclusive_range_constraint_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_exclusive_range_constraint_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-exclusive-range-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("exclusive/inclusive range-constraint syntax should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("exclusive range constraint canary should run");
     assert_eq!(
@@ -46025,6 +46035,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "arithmetic/runtime_transition_arg_saturating_exit",
+    "arithmetic/runtime_cast_element_accumulator_exit",
+    "arithmetic/runtime_inferred_multipath_return_exit",
+    "arithmetic/runtime_inferred_return_range_exit",
+    "arithmetic/runtime_provable_field_construction_exit",
+    "arithmetic/runtime_struct_field_range_narrowing_exit",
+    "arithmetic/runtime_payload_range_narrowing_exit",
+    "ranges/sum_payload_range_narrowed_exit",
+    "ranges/sum_payload_range_arith_narrowed_exit",
+    "arithmetic/runtime_exclusive_range_constraint_exit",
     "control_flow/sum_field_storage_roundtrip",
     "control_flow/sum_mixed_width_payload_layout",
     "expressions/arithmetic_domain_saturating_mul_exit",
