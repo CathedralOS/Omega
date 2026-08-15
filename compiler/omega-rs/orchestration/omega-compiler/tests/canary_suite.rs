@@ -8757,10 +8757,11 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-slice-length-field-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("slice length field canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("slice length field canary should run");
 
@@ -8905,11 +8906,12 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-guarded-bin-operand-{}", std::process::id()));
 
+    let _ = fs::remove_dir_all(&scratch);
     let host_scratch = scratch.join("host");
-    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, host_scratch.clone())
         .expect("guarded binary operand canary should compile");
 
-    let output = Command::new(host_scratch.join("out").join(executable_name()))
+    let output = Command::new(host_scratch.join(executable_name()))
         .output()
         .expect("guarded binary operand canary should run");
 
@@ -8923,7 +8925,7 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
     );
 
     let arm_scratch = scratch.join("linux-arm64");
-    compile_single_file_hosted_main(&canary, &arm_scratch, "linux_arm64")
+    compile_rooted_canary_for_target(&canary, arm_scratch, "linux_arm64")
         .expect("guarded direct binary write should cross-compile for linux_arm64");
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -9168,10 +9170,11 @@ fn runtime_machine_indexed_arg_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-machine-indexed-arg-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine indexed arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine indexed arg canary should run");
 
@@ -9196,10 +9199,11 @@ fn runtime_machine_indexed_struct_field_arg_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-machine-indexed-sfa-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine indexed struct field arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine indexed struct field arg canary should run");
 
@@ -9225,10 +9229,11 @@ fn runtime_frame_indexed_param_read_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-frame-idx-param-read-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed param read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("frame indexed param read canary should run");
 
@@ -9254,10 +9259,11 @@ fn runtime_frame_indexed_param_operand_arg_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-frame-idx-param-opa-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed param operand/arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("frame indexed param operand/arg canary should run");
 
@@ -9284,10 +9290,11 @@ fn runtime_frame_indexed_param_field_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed param field canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("frame indexed param field canary should run");
 
@@ -9311,10 +9318,11 @@ fn runtime_frame_indexed_local_read_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-frame-idx-local-read-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed local read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("frame indexed local read canary should run");
 
@@ -9339,10 +9347,11 @@ fn runtime_frame_indexed_byte_param_read_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-frame-idx-byte-read-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed byte param read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("frame indexed byte param read canary should run");
 
@@ -9403,10 +9412,11 @@ fn runtime_machine_frame_index_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_read_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mfi-read-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("machine frame-index read canary should run");
 
@@ -46024,6 +46034,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_bounded_carrier_byte_write_exit",
     "text/runtime_carrier_byte_write_width_coercion",
     "text/runtime_utf16_literal_exit",
+    "calls/runtime_slice_length_field_exit",
+    "range/runtime_guarded_binary_operand_exit",
+    "calls/runtime_machine_indexed_arg_exit",
+    "calls/runtime_machine_indexed_struct_field_arg_exit",
+    "collections/runtime_frame_indexed_param_read_exit",
+    "collections/runtime_frame_indexed_param_operand_arg_exit",
+    "collections/runtime_frame_indexed_param_field_exit",
+    "collections/runtime_frame_indexed_local_read_exit",
+    "collections/runtime_frame_indexed_byte_param_read_exit",
+    "collections/runtime_machine_frame_index_read_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
@@ -46601,6 +46621,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_bounded_carrier_byte_write_exit",
     "text/runtime_carrier_byte_write_width_coercion",
     "text/runtime_utf16_literal_exit",
+    "calls/runtime_slice_length_field_exit",
+    "range/runtime_guarded_binary_operand_exit",
+    "calls/runtime_machine_indexed_arg_exit",
+    "calls/runtime_machine_indexed_struct_field_arg_exit",
+    "collections/runtime_frame_indexed_param_read_exit",
+    "collections/runtime_frame_indexed_param_operand_arg_exit",
+    "collections/runtime_frame_indexed_param_field_exit",
+    "collections/runtime_frame_indexed_local_read_exit",
+    "collections/runtime_frame_indexed_byte_param_read_exit",
+    "collections/runtime_machine_frame_index_read_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
     "control_flow/runtime_linear_search_early_exit",
