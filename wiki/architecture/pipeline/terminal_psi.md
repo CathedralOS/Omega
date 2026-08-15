@@ -572,6 +572,25 @@ computed, negative, or mistyped factors, mixed carriers, local or block roots,
 intervening operations or casts, non-native or invalid casts, malformed or
 stale definitions, cumulative-product overflow, and stale or missing evidence
 remain fenced.
+A direct validator-legal partial fixed-native exact cast may also root a finite
+nonempty left-associated same-value-carrier exact-left-shift chain. Every right
+operand is an independently landed fixed-native signed or unsigned count,
+count carriers may differ between links, and each count independently satisfies
+`0 <= count < value width`. The cast independently proves direct
+representability. For each shift prefix, the verifier walks only prior
+canonical shrinking-prefix definitions to that cast and accumulates counts in
+a checked `u128`. Cumulative count zero makes only the current shift prefix
+true. A positive cumulative count below the value width shifts the target
+interval right by that count—`[0, MAX >> count]` for an unsigned target or
+`[MIN >> count, MAX >> count]` for a signed target—and intersects it with the
+source carrier. A cumulative count at least the width intersects the zero-only
+target interval with the source carrier. Vacuous sides are omitted and an empty
+intersection is false. The cast and every prefix retain distinct obligations
+and evidence. Runtime, computed, negative, out-of-range, address, or non-native
+counts, right-associated or reversed shapes, mixed value carriers, local or
+block roots, intervening operations or casts, non-native or invalid casts,
+malformed or stale definitions, cumulative-count overflow, and stale or
+missing evidence remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

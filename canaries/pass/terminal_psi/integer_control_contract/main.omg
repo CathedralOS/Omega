@@ -1393,6 +1393,20 @@ requires value <= 255u16, value <= 127u16, value <= 42u16
     staged
 }
 
+machine terminal_exact_cast_then_literal_shift_left_chain(value: u16, enabled: bool) -> bool
+requires value <= 255u16, value <= 127u16, value <= 31u16
+{
+    let staged: bool = (((((value as u8) << 1i8) << 2u16) << 0i32) < 255u8) && enabled;
+    staged
+}
+
+machine terminal_exact_cast_then_width_shift_left_chain(value: u16, enabled: bool) -> bool
+requires value <= 255u16, value <= 15u16, value <= 0u16
+{
+    let staged: bool = ((((value as u8) << 4u8) << 4i8) < 255u8) && enabled;
+    staged
+}
+
 machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) -> bool
 {
     let staged: bool = ((((value / 2u8) % 3u8) / 2u8) < 2u8) && enabled;
