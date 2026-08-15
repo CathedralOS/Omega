@@ -1079,6 +1079,154 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
 }
 
 #[test]
+fn affine_cast_affine_sandwich_emits_on_every_native_target() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::measure(
+            token: Token,
+            unsigned: u16,
+            signed: i16,
+            pre_zero: u16,
+            post_zero: u16,
+            enabled: bool
+        ) -> bool
+        requires unsigned <= 65532u16, unsigned <= 32764u16,
+            unsigned <= 124u16, unsigned <= 61u16,
+            signed <= 32764i16, -16387i16 <= signed, signed <= 16380i16,
+            -67i16 <= signed, signed <= 60i16,
+            -35i16 <= signed, signed <= 28i16,
+            post_zero <= 65534u16, post_zero <= 254u16
+        {
+            ((((((unsigned + 3u16) * 2u16) as u8) - 1u8) * 2u8) < 255u8)
+                && ((((((signed - -3i16) * 2i16) as i8) + 1i8) * 2i8) < 127i8)
+                && ((((pre_zero * 0u16) as u8) + 255u8) <= 255u8)
+                && (((((post_zero + 1u16) as u8) * 0u8) + 255u8) <= 255u8)
+                && enabled
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize affine-cast-affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse affine-cast-affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve affine-cast-affine source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type affine-cast-affine source");
+    let checked = lower_typed_trees(typed).expect("check affine-cast-affine source");
+    let lowered =
+        lower_machine(&checked, "Root::measure").expect("affine-cast-affine reaches Terminal Psi");
+    let operations = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
+            .count(),
+        4,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation.kind, OperationKind::ExactIntegerAdd { .. }))
+            .count(),
+        5,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerSubtract { .. }
+            ))
+            .count(),
+        2,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerMultiply { .. }
+            ))
+            .count(),
+        6,
+    );
+    verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("affine-cast-affine proofs verify independently");
+    let semantics = encode_module(&lowered.semantic_module).expect("sandwich semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("sandwich proof");
+    let abstract_plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("affine-cast-affine crosses the Omega boundary");
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::IntegerExactCast { .. }
+            ))
+            .count(),
+        4,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::WrappingIntegerAdd { .. }
+            ))
+            .count(),
+        5,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+            ))
+            .count(),
+        2,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+            ))
+            .count(),
+        6,
+    );
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering: {error:?}", case.target));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment: {error:?}", case.target));
+        emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission: {error:?}", case.target));
+    }
+}
+
+#[test]
 fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_targets() {
     let source = r#"
         data Helper {}

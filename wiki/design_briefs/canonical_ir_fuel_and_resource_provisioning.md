@@ -224,6 +224,10 @@ work and adds no executable fuel.
 The converse finite shift-prefix/exact-arithmetic-suffix family uses the same
 accounting: every retained shift, add, subtract, and multiply is charged, while
 affine preimage reconstruction and ordered shift replay add no executable fuel.
+The finite affine/cast/affine sandwich charges every source arithmetic
+operation, the partial cast, and every target arithmetic operation separately.
+Two-stage affine preimage reconstruction and the source/target carrier
+intersection are verifier work and add no executable fuel.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

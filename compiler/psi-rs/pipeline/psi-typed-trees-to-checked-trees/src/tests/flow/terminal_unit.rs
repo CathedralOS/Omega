@@ -1,5 +1,6 @@
 use super::*;
 use crate::flow::{
+    exact_affine_cast_affine_runtime_parameter_positions_for_test,
     exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
     exact_arithmetic_then_shift_runtime_parameter_positions_for_test,
@@ -2910,6 +2911,101 @@ fn exact_cast_then_affine_classifier_accepts_only_the_unified_mixed_family() {
             None,
         );
     }
+}
+
+#[test]
+fn exact_affine_cast_affine_classifier_unifies_both_nonempty_sides() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let source = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U16,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U16,
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U16,
+            },
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U16),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    let cast = CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(source),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let accepted = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U8,
+        operation(
+            CheckedIntegerBinaryKind::ExactSubtract,
+            PrimitiveType::U8,
+            cast,
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_affine_cast_affine_runtime_parameter_positions_for_test(&accepted, 1),
+        Some(vec![0]),
+    );
+
+    let direct_cast = CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U16,
+        }),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let empty_source_side = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        direct_cast,
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_affine_cast_affine_runtime_parameter_positions_for_test(&empty_source_side, 1),
+        None,
+    );
+
+    let negative_source = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::I16,
+        },
+        literal(-1i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    let fenced = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I8,
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type: PrimitiveType::I8,
+            operand: Box::new(negative_source),
+            range: psi_checked_trees::CheckedIntegerRange::default(),
+        },
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_affine_cast_affine_runtime_parameter_positions_for_test(&fenced, 1),
+        None,
+    );
 }
 
 #[test]

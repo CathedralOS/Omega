@@ -571,6 +571,21 @@ it cannot erase any earlier proof. Mathematical emptiness is falsehood, while
 checked affine or interval transfer failure admits no family. Runtime or
 computed siblings/counts, negative factors, reversed or right-associated
 shapes, casts, shells, and non-parameter roots remain fenced.
+One unified cast sandwich admits a finite nonempty source-carrier affine chain,
+one validator-legal partial fixed-native exact cast, and a finite nonempty
+target-carrier affine chain. Each side may use any left-associated sequence of
+exact add, subtract, and nonnegative multiply by independently landed
+same-carrier literals. The cast independently maps the target/source
+intersection through the checked source form `As * root + Bs`. Each target
+prefix independently maps the target carrier through `At * cast_value + Bt`,
+intersects that preimage with the source carrier, then maps it through the full
+source form to the direct parameter. A zero coefficient on either side decides
+only the current proposition after the complete ordered sandwich is validated;
+it cannot erase any source-prefix, cast, or earlier target-prefix proof.
+Mathematical emptiness is falsehood, while checked composition or interval
+failure admits no family. Empty sides stay on narrower existing paths; carrier
+drift, runtime or computed siblings, negative factors, intervening operations,
+nested casts, and non-parameter roots remain fenced.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
