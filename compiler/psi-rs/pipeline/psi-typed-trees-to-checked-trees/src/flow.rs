@@ -30,6 +30,8 @@ pub(crate) use terminal_unit::exact_affine_chain_cast_runtime_parameter_position
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_affine_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_cast_then_affine_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_multiply_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_offset_runtime_parameter_positions_for_test;
