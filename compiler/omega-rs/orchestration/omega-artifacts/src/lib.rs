@@ -703,6 +703,27 @@ impl ArtifactWriter {
                     if terminates { "yes" } else { "no" }
                 ));
             }
+            if let Some(routes) = &row.machine_crash_routes {
+                output.push_str(" -- crash routes: ");
+                if routes.is_empty() {
+                    output.push_str("none");
+                } else {
+                    for (route_index, route) in routes.iter().enumerate() {
+                        if route_index > 0 {
+                            output.push_str(", ");
+                        }
+                        output.push_str(route.cause.as_str());
+                        output.push('[');
+                        for (guard_index, guard) in route.alternative_guards.iter().enumerate() {
+                            if guard_index > 0 {
+                                output.push_str(" | ");
+                            }
+                            output.push_str(&guard.report_text());
+                        }
+                        output.push(']');
+                    }
+                }
+            }
             if row.standing_warning {
                 output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
             }
@@ -2183,8 +2204,54 @@ pub struct TrustReportRow {
     /// accepted machine. `Some(false)` is published `NoGuarantee`; rows that
     /// do not describe a local accepted machine retain `None`.
     pub machine_terminates_guarantee: Option<bool>,
+    /// Exact canonical published crash buckets for one local accepted machine.
+    /// `Some(Vec::new())` is the public no-crash ceiling; rows that do not
+    /// describe a local accepted machine retain `None`.
+    pub machine_crash_routes: Option<Vec<TrustCrashRouteBucket>>,
     /// Dev-active rows warn until the root grants them.
     pub standing_warning: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrustCrashCause {
+    Trap,
+    Abort,
+}
+
+impl TrustCrashCause {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Trap => "Trap",
+            Self::Abort => "Abort",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrustCrashRouteGuard {
+    Truth,
+    PredicateIdentity(Vec<u8>),
+}
+
+impl TrustCrashRouteGuard {
+    fn report_text(&self) -> String {
+        match self {
+            Self::Truth => "true".to_owned(),
+            Self::PredicateIdentity(bytes) => {
+                let mut identity = String::from("0x");
+                for byte in bytes {
+                    identity.push_str(&format!("{byte:02x}"));
+                }
+                identity
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustCrashRouteBucket {
+    pub cause: TrustCrashCause,
+    pub alternative_guards: Vec<TrustCrashRouteGuard>,
 }
 
 /// One exact requirement supplied by a normalized provider-plan row.
@@ -2544,10 +2611,10 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
-        ArtifactWriter, TrustProviderRealization, TrustProviderRequirementRow,
-        TrustQualificationRow, TrustReport, TrustReportRow, WireFieldRelevance,
-        WireFieldReportEntry, build_backend_surface_report, external_root_records_manifest_json,
-        push_wire_field_table, value_placement_json,
+        ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
+        TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
+        TrustReportRow, WireFieldRelevance, WireFieldReportEntry, build_backend_surface_report,
+        external_root_records_manifest_json, push_wire_field_table, value_placement_json,
     };
 
     #[test]
@@ -2573,6 +2640,7 @@ mod tests {
                     machine_may_suspend: Some(false),
                     machine_may_block: Some(false),
                     machine_terminates_guarantee: Some(false),
+                    machine_crash_routes: Some(Vec::new()),
                     standing_warning: false,
                 },
                 TrustReportRow {
@@ -2584,6 +2652,31 @@ mod tests {
                     machine_may_suspend: None,
                     machine_may_block: None,
                     machine_terminates_guarantee: None,
+                    machine_crash_routes: None,
+                    standing_warning: false,
+                },
+                TrustReportRow {
+                    commitment: "accepted fact: guarded_axiom".to_owned(),
+                    provenance: "root grant (build.omg)".to_owned(),
+                    machine_contract_fingerprint: Some(0xbcde),
+                    machine_service_reach: Some(Vec::new()),
+                    machine_synchronous_invocations: Some(Vec::new()),
+                    machine_may_suspend: Some(false),
+                    machine_may_block: Some(false),
+                    machine_terminates_guarantee: Some(false),
+                    machine_crash_routes: Some(vec![
+                        TrustCrashRouteBucket {
+                            cause: TrustCrashCause::Trap,
+                            alternative_guards: vec![
+                                TrustCrashRouteGuard::PredicateIdentity(vec![1]),
+                                TrustCrashRouteGuard::PredicateIdentity(vec![2]),
+                            ],
+                        },
+                        TrustCrashRouteBucket {
+                            cause: TrustCrashCause::Abort,
+                            alternative_guards: vec![TrustCrashRouteGuard::Truth],
+                        },
+                    ]),
                     standing_warning: false,
                 },
             ],
@@ -2603,17 +2696,24 @@ mod tests {
             .lines()
             .find(|line| line.contains("domain introduction: Meters"))
             .expect("domain row");
+        let guarded = output
+            .lines()
+            .find(|line| line.contains("accepted fact: guarded_axiom"))
+            .expect("guarded accepted fact row");
 
         assert!(accepted.contains("service reach: none"));
         assert!(accepted.contains("synchronous invocations: none"));
         assert!(accepted.contains("may suspend: no"));
         assert!(accepted.contains("may block: no"));
         assert!(accepted.contains("termination guarantee: no"));
+        assert!(accepted.contains("crash routes: none"));
+        assert!(guarded.contains("crash routes: Trap[0x01 | 0x02], Abort[true]"));
         assert!(!domain.contains("service reach:"));
         assert!(!domain.contains("synchronous invocations:"));
         assert!(!domain.contains("may suspend:"));
         assert!(!domain.contains("may block:"));
         assert!(!domain.contains("termination guarantee:"));
+        assert!(!domain.contains("crash routes:"));
         std::fs::remove_dir_all(root).expect("remove test artifact directory");
     }
 
