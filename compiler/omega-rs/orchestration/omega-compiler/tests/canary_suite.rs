@@ -11002,10 +11002,11 @@ fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier pointee guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier pointee guard canary should run");
 
@@ -11032,10 +11033,11 @@ fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier slice field write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier slice field write canary should run");
 
@@ -11063,10 +11065,11 @@ fn runtime_bounded_carrier_write_line_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier write_line canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bounded carrier write_line canary should run");
 
@@ -11097,10 +11100,11 @@ fn runtime_text_builder_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-text-builder-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested-field carrier builder canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("nested-field carrier builder canary should run");
 
@@ -45977,6 +45981,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
+    "text/runtime_bounded_carrier_pointee_guard_exit",
+    "text/runtime_bounded_carrier_slice_field_write_exit",
+    "text/runtime_bounded_carrier_write_line_exit",
     "text/runtime_carrier_cipher_exit",
     "text/runtime_carrier_fnv_loop_exit",
     "text/runtime_carrier_indexed_const_write_exit",
@@ -45991,6 +45998,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_run_length_encode_exit",
     "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
+    "text/runtime_text_builder",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_instant_elapsed_exit",
@@ -46362,6 +46370,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
+    "text/runtime_bounded_carrier_pointee_guard_exit",
+    "text/runtime_bounded_carrier_slice_field_write_exit",
+    "text/runtime_bounded_carrier_write_line_exit",
     "text/runtime_carrier_cipher_exit",
     "text/runtime_carrier_fnv_loop_exit",
     "text/runtime_carrier_indexed_const_write_exit",
@@ -46376,6 +46387,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_run_length_encode_exit",
     "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
+    "text/runtime_text_builder",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_fs_mtime_interop_windows_exit",
