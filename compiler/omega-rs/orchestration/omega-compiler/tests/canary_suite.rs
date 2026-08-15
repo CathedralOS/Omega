@@ -16393,10 +16393,11 @@ fn equatable_record_equality_exit_canary_runs() {
         "omega-equatable-record-equality-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable record equality canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable record equality canary should run");
 
@@ -16422,10 +16423,11 @@ fn equatable_sum_payload_equality_exit_canary_runs() {
         "omega-equatable-sum-payload-equality-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable sum payload equality canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable sum payload equality canary should run");
 
@@ -16452,10 +16454,11 @@ fn equatable_mixed_shape_equality_exit_canary_runs() {
         "omega-equatable-mixed-shape-equality-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable mixed shape equality canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable mixed shape equality canary should run");
 
@@ -16481,10 +16484,11 @@ fn equatable_string_field_equality_exit_canary_runs() {
         "omega-equatable-string-field-equality-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable string field equality canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable string field equality canary should run");
 
@@ -16513,10 +16517,11 @@ fn equatable_string_not_equals_exit_canary_runs() {
         "omega-equatable-string-not-equals-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable string not-equals canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable string not-equals canary should run");
 
@@ -16543,10 +16548,11 @@ fn equatable_string_equality_guard_exit_canary_runs() {
         "omega-equatable-string-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable string guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("equatable string guard canary should run");
 
@@ -16623,10 +16629,11 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("whole-struct mutation copy canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("whole-struct mutation copy canary should run");
 
@@ -16682,10 +16689,11 @@ fn compound_assignment_exit_canary_runs() {
     let canary = pass_canary("operators/compound_assignment_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-compound-assignment-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("compound assignment canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("compound assignment canary should run");
 
@@ -16707,10 +16715,11 @@ fn runtime_chained_field_mutation_exit_canary_runs() {
         "omega-chained-field-mutation-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("chained field mutation canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("chained field mutation canary should run");
 
@@ -16732,10 +16741,11 @@ fn runtime_comparison_guard_signedness_exit_canary_runs() {
         "omega-comparison-guard-signedness-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("comparison guard signedness canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("comparison guard signedness canary should run");
 
@@ -46055,6 +46065,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "traits/equatable_record_equality_exit",
+    "traits/equatable_sum_payload_equality_exit",
+    "traits/equatable_mixed_shape_equality_exit",
+    "traits/equatable_string_field_equality_exit",
+    "traits/equatable_string_not_equals_exit",
+    "traits/equatable_string_equality_guard_exit",
+    "data/runtime_whole_struct_mutation_copy_exit",
+    "operators/compound_assignment_exit",
+    "arithmetic/runtime_chained_field_mutation_exit",
+    "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
     "expressions/f32_field_binary_to_local_cast",
