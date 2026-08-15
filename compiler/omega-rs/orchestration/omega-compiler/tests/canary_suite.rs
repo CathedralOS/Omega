@@ -30276,20 +30276,14 @@ fn runtime_nested_guarded_reference_returned_slice_element_exit_canary_runs() {
 #[test]
 fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_local_indexed_parameter_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-local-indexed-parameter-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable local indexed parameter write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime mutable local indexed parameter write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -30310,20 +30304,15 @@ fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
 fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs() {
     let canary =
         pass_canary("calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-machine-owned-local-indexed-parameter-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable machine-owned local indexed parameter write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime mutable machine-owned local indexed parameter write canary should compile",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -30344,20 +30333,15 @@ fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs(
 fn runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_runs() {
     let canary =
         pass_canary("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-dynamic-indexed-machine-owned-parameter-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable dynamic indexed machine-owned parameter write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime mutable dynamic indexed machine-owned parameter write canary should compile",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45701,6 +45685,9 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_mutable_local_indexed_parameter_write_exit",
+    "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
+    "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_terminal_tail_recursion_exit",
     "calls/runtime_measured_tail_recursion_exit",
