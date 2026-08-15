@@ -674,9 +674,10 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
+                row.requirement_owner,
                 row.requirement_identity,
                 row.method,
                 row.subject,
@@ -2057,6 +2058,10 @@ pub struct TrustReportRow {
 pub struct TrustQualificationRow {
     pub provider_plan: String,
     pub provider_plan_fingerprint: u64,
+    /// Readable semantic owner of the exact requirement. This remains
+    /// separate from the canonical overload identity because an inherited
+    /// requirement's owner can differ from the selected service schema.
+    pub requirement_owner: String,
     pub requirement_identity: String,
     pub method: String,
     /// `parameter:N` for an accepted entry claim or `result` for a returned
@@ -2315,9 +2320,54 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
-        ArtifactWriter, WireFieldRelevance, WireFieldReportEntry, build_backend_surface_report,
-        external_root_records_manifest_json, push_wire_field_table, value_placement_json,
+        ArtifactWriter, TrustQualificationRow, TrustReport, WireFieldRelevance,
+        WireFieldReportEntry, build_backend_surface_report, external_root_records_manifest_json,
+        push_wire_field_table, value_placement_json,
     };
+
+    #[test]
+    fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identity() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-trust-owner-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let writer = ArtifactWriter::new(&root).expect("artifact writer");
+        let report = TrustReport {
+            rows: Vec::new(),
+            qualifications: vec![TrustQualificationRow {
+                provider_plan: "RootProvider::satisfies::Root".to_owned(),
+                provider_plan_fingerprint: 0x1234,
+                requirement_owner: "Base".to_owned(),
+                requirement_identity:
+                    "named-callable(path(Base::enter), parameters(), result(none))".to_owned(),
+                method: "enter".to_owned(),
+                subject: "parameter:0".to_owned(),
+                authority_flow: "accepts".to_owned(),
+                domain: "Token::Granted".to_owned(),
+                effective_carry: "strict".to_owned(),
+                predicate_discharge_required: false,
+                provenance: "own-package (dev-active)".to_owned(),
+                grant_selectors: Vec::new(),
+                standing_warning: true,
+            }],
+        };
+
+        writer
+            .write_trust_report(&report)
+            .expect("trust report output");
+        let output =
+            std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
+
+        assert!(output.contains("requirement owner: Base"));
+        assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
+        assert!(!output.contains("requirement owner: Root"));
+        std::fs::remove_dir_all(root).expect("remove test artifact directory");
+    }
 
     #[test]
     fn wire_field_table_marks_erased_semantic_members() {
