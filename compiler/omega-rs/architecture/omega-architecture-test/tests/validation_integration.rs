@@ -5532,7 +5532,10 @@ fn rejects_published_service_ceiling_below_reached_services() {
 /// dev-dependencies of `omega-effects` itself, since that would re-introduce a
 /// `representations -> pipeline` upward edge.
 mod effects_analysis {
-    use omega_effects::{audit_boundary_provider_calls, build_boundary_provider_approval_registry};
+    use omega_effects::{
+        BoundaryCallCoordinate, audit_boundary_provider_calls,
+        build_boundary_provider_approval_registry,
+    };
     use psi_effects::{infer_operational_may, infer_service_reaches};
     use psi_typed_trees::TypedTrees;
 
@@ -5546,6 +5549,29 @@ mod effects_analysis {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
         lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    fn lower_checked_calls(source: &str) -> (TypedTrees, Vec<BoundaryCallCoordinate>) {
+        let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(lower(source))
+            .expect("checked lowering");
+        let flow = &checked.facts.flow.control;
+        let calls = flow
+            .states
+            .iter()
+            .flat_map(|(_, state)| {
+                flow.calls
+                    .span_or_empty(state.calls)
+                    .iter()
+                    .map(move |call| BoundaryCallCoordinate {
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        target_state_symbol: call.target_symbol,
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
+                    })
+            })
+            .collect();
+        (checked.typed, calls)
     }
 
     #[test]
@@ -5602,8 +5628,37 @@ mod effects_analysis {
     }
 
     #[test]
+    fn provider_approval_ignores_empty_and_unknown_call_coordinates() {
+        let program = TypedTrees::default();
+        let registry = build_boundary_provider_approval_registry(&program);
+
+        assert!(
+            audit_boundary_provider_calls(
+                &program,
+                Vec::<BoundaryCallCoordinate>::new(),
+                &registry,
+            )
+            .is_empty()
+        );
+        assert!(
+            audit_boundary_provider_calls(
+                &program,
+                [BoundaryCallCoordinate {
+                    machine_symbol: psi_symbols::SymbolHandle::from_arena_index(1),
+                    state_symbol: psi_symbols::SymbolHandle::from_arena_index(2),
+                    target_state_symbol: psi_symbols::SymbolHandle::from_arena_index(3),
+                    statement_index: 4,
+                    call_ordinal: 5,
+                }],
+                &registry,
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
     fn abstract_boundary_provider_is_authorized() {
-        let program = lower(
+        let (program, calls) = lower_checked_calls(
             r#"
             boundary trait Console {
                 machine write_line(text: &[u8]);
@@ -5618,9 +5673,8 @@ mod effects_analysis {
             }
             "#,
         );
-        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
-        let unapproved = audit_boundary_provider_calls(&program, &operations, &registry);
+        let unapproved = audit_boundary_provider_calls(&program, calls, &registry);
         assert!(
             unapproved.is_empty(),
             "abstract provider should be approved"
@@ -5629,10 +5683,12 @@ mod effects_analysis {
 
     #[test]
     fn exact_requirement_adapter_does_not_revoke_boundary_provider_approval() {
-        let program = lower(
+        let (program, calls) = lower_checked_calls(
             r#"
             boundary trait Console {
-                machine write_line(text: &[u8]);
+                machine write_line(text: &[u8])
+                reaches
+                    Console;
             }
 
             data ConsoleAdapter {}
@@ -5653,7 +5709,6 @@ mod effects_analysis {
             }
             "#,
         );
-        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
         let console = program
             .traits()
@@ -5669,14 +5724,14 @@ mod effects_analysis {
             "an exact requirement adapter is a supply edge, not a whole-trait implementation",
         );
         assert!(
-            audit_boundary_provider_calls(&program, &operations, &registry).is_empty(),
+            audit_boundary_provider_calls(&program, calls, &registry).is_empty(),
             "calls through the exact adapter should retain boundary provider approval",
         );
     }
 
     #[test]
     fn in_package_host_provider_is_unapproved() {
-        let program = lower(
+        let (program, calls) = lower_checked_calls(
             r#"
             boundary trait LocalFiles {
                 machine write_bytes(path: &[u8]);
@@ -5699,9 +5754,8 @@ mod effects_analysis {
             }
             "#,
         );
-        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
-        let unapproved = audit_boundary_provider_calls(&program, &operations, &registry);
+        let unapproved = audit_boundary_provider_calls(&program, calls, &registry);
         assert_eq!(
             unapproved.len(),
             1,
@@ -5716,11 +5770,24 @@ mod effects_analysis {
             unapproved[0].boundary_trait_symbol, local_files.symbol,
             "approval failure must name the exact boundary capability",
         );
+        let main = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Main::main machine");
+        let main_state = program
+            .machine_states(main)
+            .first()
+            .expect("Main::main state");
+        assert_eq!(unapproved[0].machine_symbol, main.symbol);
+        assert_eq!(unapproved[0].state_symbol, main_state.symbol);
+        assert_eq!(unapproved[0].statement_index, 0);
+        assert_eq!(unapproved[0].call_ordinal, 0);
     }
 
     #[test]
     fn in_package_boundary_provider_needs_no_lowercase_effect_to_be_unapproved() {
-        let program = lower(
+        let (program, calls) = lower_checked_calls(
             r#"
             boundary trait LocalClock {
                 machine tick(token: i32);
@@ -5741,7 +5808,6 @@ mod effects_analysis {
             }
             "#,
         );
-        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
         let local_clock = program
             .traits()
@@ -5754,14 +5820,11 @@ mod effects_analysis {
                 .expect("LocalClock approval")
                 .approved
         );
-        let call_targets = operations
-            .machines()
+        let call_targets = calls
             .iter()
-            .flat_map(|machine| operations.states.span_or_empty(machine.states))
-            .flat_map(|state| operations.calls.span_or_empty(state.calls))
             .map(|call| call.target_state_symbol)
             .collect::<Vec<_>>();
-        let unapproved = audit_boundary_provider_calls(&program, &operations, &registry);
+        let unapproved = audit_boundary_provider_calls(&program, calls, &registry);
 
         assert_eq!(unapproved.len(), 1, "call targets: {call_targets:?}");
         assert_eq!(unapproved[0].boundary_trait_symbol, local_clock.symbol);

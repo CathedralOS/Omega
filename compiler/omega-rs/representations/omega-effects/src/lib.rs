@@ -8,7 +8,7 @@ mod process_static_services;
 mod selected_provider_plans;
 
 pub use capabilities::analysis::{
-    UnapprovedBoundaryCall, audit_boundary_provider_calls,
+    BoundaryCallCoordinate, UnapprovedBoundaryCall, audit_boundary_provider_calls,
     build_boundary_provider_approval_registry,
 };
 pub use capabilities::provider_approval::{
