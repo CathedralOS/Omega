@@ -459,14 +459,23 @@ machine-parameter root when every non-chain sibling is a landed literal
 constant. A finite same-carrier exact-subtract chain may likewise have a direct
 machine-parameter root, but only the left operand continues the chain and every
 right operand is a landed literal constant; reversed subtraction is not a
-chain. A finite same-carrier chain may also mix exact divide and remainder,
+chain. A finite same-carrier exact-multiply chain may also continue only through
+its left operand from a direct machine parameter. Every right operand must be
+an explicitly landed literal of that same carrier and nonnegative; zero and one
+are admitted, while signed negative factors are not. A finite same-carrier chain
+may also mix exact divide and remainder,
 continue only through its left operand from a direct machine parameter, and use
 only landed nonzero unsigned divisors or landed signed divisors other than `0`
-and `-1`. For addition and subtraction, the verifier walks only prior
-left-to-right definitions with a shrinking prefix, combines constants or
-mathematical negations of subtrahends
-as a checked sign and magnitude, and rejects accumulator overflow or a
-magnitude beyond the carrier span. A finite same-value-carrier exact-right-shift
+and `-1`. For addition, subtraction, and multiplication, the verifier walks only
+prior left-to-right definitions with a shrinking prefix. Addition/subtraction
+combine constants or mathematical negations of subtrahends as a checked sign
+and magnitude and reject accumulator overflow or a magnitude beyond the carrier
+span. Multiplication combines only same-carrier nonnegative right factors in a
+checked `u128` accumulator. Cumulative factor zero or one is total; a larger
+unsigned factor reconstructs `root <= MAX / factor`, and a larger signed factor
+reconstructs both `MIN / factor <= root` and `root <= MAX / factor`. Every
+earlier multiply retains its own independently checked obligation, so a later
+zero never authorizes an unsafe earlier link. A finite same-value-carrier exact-right-shift
 chain may also continue only through its left operand from a direct machine
 parameter. Every right operand must be a landed literal in one of the current
 fixed native signed or unsigned integer count carriers and independently satisfy
@@ -474,13 +483,15 @@ fixed native signed or unsigned integer count carriers and independently satisfy
 divide/remainder or right-shift obligation reconstructs independently from its
 own safe landed divisor or count, so no producer-definition traversal supplies
 authority. Terminal retains every operation and obligation, and every
-operation's evidence is checked independently. Two computed
-operands, nonconstant siblings, runtime or computed counts, right-associated or
-reversed shapes, local or block-parameter roots, multiplication, exact left
-shift, exact operations outside the admitted chain family, and other
-proof-bearing compositions remain fenced. For addition/subtraction, missing,
-reordered, reversed, redirected, cyclic, or stale definitions reject; for every
-family, stale operation/divisor/count evidence and missing evidence reject. One
+operation's evidence is checked independently. Two computed operands,
+nonconstant siblings, runtime or computed multiply factors or shift counts,
+signed negative multiply factors, right-associated or reversed shapes, local or
+block-parameter roots, exact left shift, exact operations outside the admitted
+chain family, and other
+proof-bearing compositions remain fenced. For addition/subtraction/multiplication,
+missing, reordered, reversed, redirected, cyclic, or stale definitions reject; for every
+family, stale operation/factor/divisor/count evidence and missing evidence
+reject. Multiply additionally rejects cumulative-factor overflow. One
 separate computed-cast exception accepts a direct
 fixed-integer parameter
 widened through any finite chain of valid fixed-carrier widenings and then
