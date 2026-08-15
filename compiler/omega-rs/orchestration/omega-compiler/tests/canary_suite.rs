@@ -33724,13 +33724,8 @@ fn runtime_value_call_transition_args_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-transition-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("transition-args canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("transition-args canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -33770,13 +33765,8 @@ fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-transition-args-sl-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("transition-args straight-line canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("transition-args straight-line canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34203,13 +34193,8 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call cast-field payload canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call cast-field payload canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -34230,20 +34215,14 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
 #[test]
 fn runtime_branch_leaf_multiple_named_conversion_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_branch_leaf_multiple_named_conversion_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-branch-leaf-multiple-named-conversion-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("branch-leaf multiple named-conversion canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("branch-leaf multiple named-conversion canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45840,6 +45819,10 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_value_call_struct_payload_cast_field_exit",
+    "calls/runtime_branch_leaf_multiple_named_conversion_exit",
+    "calls/runtime_value_call_transition_args_exit",
+    "calls/runtime_value_call_transition_args_straight_line_exit",
     "calls/runtime_guarded_effectful_transition_argument_exit",
     "calls/runtime_value_call_literal_len_arm_guard_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
