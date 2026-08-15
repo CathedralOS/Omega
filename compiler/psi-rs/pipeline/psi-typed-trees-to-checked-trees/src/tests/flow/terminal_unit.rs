@@ -2419,18 +2419,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_none()
     );
-    for machine in [
-        "local_roundtrip_computed_exact_cast_integer_comparison_convergence",
-        "deep_roundtrip_computed_exact_cast_integer_comparison_convergence",
-    ] {
-        let wider_roundtrip = checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine_named(&checked, machine))
-            .expect("a fenced computed round trip retains only the source-distributed fallback");
-        assert!(wider_roundtrip.shared_boolean_convergence.is_none());
-    }
+    let local_roundtrip = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "local_roundtrip_computed_exact_cast_integer_comparison_convergence",
+        ))
+        .expect("a local round trip retains only the source-distributed fallback");
+    assert!(local_roundtrip.shared_boolean_convergence.is_none());
     let multistep_roundtrip = checked
         .facts
         .flow
@@ -2441,6 +2439,16 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         ))
         .expect("two direct widening steps retain the scalar-return plan");
     assert!(multistep_roundtrip.shared_boolean_convergence.is_some());
+    let deep_roundtrip = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "deep_roundtrip_computed_exact_cast_integer_comparison_convergence",
+        ))
+        .expect("the complete finite widening chain retains the scalar-return plan");
+    assert!(deep_roundtrip.shared_boolean_convergence.is_some());
     let member = checked
         .facts
         .flow

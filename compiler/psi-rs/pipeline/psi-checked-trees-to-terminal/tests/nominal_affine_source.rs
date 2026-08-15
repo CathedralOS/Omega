@@ -444,7 +444,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((input as u8) < 5u8)
             && (((input as u8) as u16) < 256u16)
             && (((small as u16) as u8) < 6u8)
-            && ((((small as u16) as u32) as u8) < 7u8)
+            && (((((small as u16) as u32) as u64) as u8) < 7u8)
             && ((small + 1u8) < 6u8)
             && (((small + 1u8) + 1u8) < 7u8)
             && ((~(small + 3u8)) < 255u8)
@@ -2949,7 +2949,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             Terminator::Jump { target, .. } if target == convergence.id
         )
     }));
-    let multistep_roundtrip_cast_obligation = entry
+    let finite_roundtrip_cast_obligation = entry
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
@@ -2961,7 +2961,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             else {
                 return None;
             };
-            let intermediate = entry
+            let wide_input = entry
                 .blocks
                 .iter()
                 .flat_map(|block| &block.operations)
@@ -2973,12 +2973,24 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                         })
                         .flatten()
                 })?;
+            let middle_input = entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(wide_input))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerWiden { operand } => Some(operand),
+                            _ => None,
+                        })
+                        .flatten()
+                })?;
             entry
                 .blocks
                 .iter()
                 .flat_map(|block| &block.operations)
                 .any(|candidate| {
-                    candidate.result.scalar_ref().map(|result| result.id) == Some(intermediate)
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(middle_input)
                         && matches!(
                             candidate.kind,
                             OperationKind::IntegerWiden { operand }
@@ -2987,9 +2999,9 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 })
                 .then_some(obligation)
         })
-        .expect("shared convergence retains the two-widen exact-cast round trip");
+        .expect("shared convergence retains the complete finite widening-chain round trip");
     assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
-        evidence.obligation == multistep_roundtrip_cast_obligation
+        evidence.obligation == finite_roundtrip_cast_obligation
             && matches!(
                 evidence.route,
                 psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
@@ -3134,19 +3146,19 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             ..
         }) if obligation == roundtrip_cast_obligation
     ));
-    let mut missing_multistep_roundtrip_cast_proof =
+    let mut missing_finite_roundtrip_cast_proof =
         decode_proof_bundle(&proof).expect("decode shared proof");
-    missing_multistep_roundtrip_cast_proof
+    missing_finite_roundtrip_cast_proof
         .evidence
-        .retain(|evidence| evidence.obligation != multistep_roundtrip_cast_obligation);
+        .retain(|evidence| evidence.obligation != finite_roundtrip_cast_obligation);
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &decode_module(&semantics).expect("decode shared semantics"),
-            &missing_multistep_roundtrip_cast_proof,
+            &missing_finite_roundtrip_cast_proof,
             &AdmissionProfile::default(),
         ),
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
-            if obligation == multistep_roundtrip_cast_obligation
+            if obligation == finite_roundtrip_cast_obligation
     ));
     let mut redirected_multistep_widen =
         decode_module(&semantics).expect("decode shared semantics");
@@ -3159,22 +3171,36 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             OperationKind::IntegerExactCast {
                 operand,
                 obligation,
-            } if obligation == multistep_roundtrip_cast_obligation => Some(operand),
+            } if obligation == finite_roundtrip_cast_obligation => Some(operand),
             _ => None,
         })
-        .expect("two-widen exact cast retains its outer widening result");
+        .expect("finite-chain exact cast retains its outer widening result");
+    let redirected_wide_result = redirected_multistep_widen
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            (operation.result.scalar_ref().map(|result| result.id) == Some(outer_widen_result))
+                .then(|| match operation.kind {
+                    OperationKind::IntegerWiden { operand } => Some(operand),
+                    _ => None,
+                })
+                .flatten()
+        })
+        .expect("outer widening retains its prior chain value");
     let changed_widen = redirected_multistep_widen
         .machines
         .iter_mut()
         .flat_map(|machine| &mut machine.blocks)
         .flat_map(|block| &mut block.operations)
         .find(|operation| {
-            operation.result.scalar_ref().map(|result| result.id) == Some(outer_widen_result)
+            operation.result.scalar_ref().map(|result| result.id) == Some(redirected_wide_result)
                 && matches!(operation.kind, OperationKind::IntegerWiden { .. })
         })
-        .expect("outer widening operation exists");
+        .expect("redirected middle widening operation exists");
     let OperationKind::IntegerWiden { operand } = &mut changed_widen.kind else {
-        unreachable!("selected outer widening operation")
+        unreachable!("selected middle widening operation")
     };
     *operand = constant_256;
     assert!(matches!(
@@ -3186,7 +3212,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
             obligation,
             ..
-        }) if obligation == multistep_roundtrip_cast_obligation
+        }) if obligation == finite_roundtrip_cast_obligation
     ));
     for (signed_subtract_obligation, _) in &signed_subtract_sites {
         let mut missing_signed_subtract_proof =

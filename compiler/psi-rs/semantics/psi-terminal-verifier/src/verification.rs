@@ -357,6 +357,11 @@ fn reconstruct_machine_semantics(
         }))
         .map(|declaration| (declaration.id, declaration.scalar_type))
         .collect::<BTreeMap<_, _>>();
+    let machine_parameter_values = machine
+        .parameters
+        .iter()
+        .map(|parameter| parameter.id)
+        .collect::<BTreeSet<_>>();
     let blocks = machine
         .blocks
         .iter()
@@ -679,6 +684,7 @@ fn reconstruct_machine_semantics(
                                 target_type,
                                 value_term(operand),
                                 &axioms,
+                                &machine_parameter_values,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1424,41 +1430,57 @@ fn exact_integer_cast_obligation(
     target_type: psi_core::IntegerType,
     operand: ScalarTerm,
     semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Proposition {
-    let widening_definition = |value: &ScalarTerm| {
-        semantic_axioms.iter().rev().find_map(|axiom| match axiom {
-            Proposition::Equal(left, right) if left == value => Some(right),
-            Proposition::Equal(left, right) if right == value => Some(left),
-            _ => None,
-        })
+    let roundtrip = {
+        let mut current = &operand;
+        let mut expected_widened_type = source_type;
+        let mut prior_axiom_count = semantic_axioms.len();
+        let mut established = false;
+        for _ in 0..semantic_axioms.len() {
+            let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, axiom)| match axiom {
+                    Proposition::Equal(left, right) if left == current => Some((index, right)),
+                    _ => None,
+                })
+            else {
+                break;
+            };
+            let ScalarTerm::IntegerWiden {
+                source_type: original_type,
+                target_type: widened_type,
+                operand: original_operand,
+            } = definition
+            else {
+                break;
+            };
+            let ScalarTerm::Value {
+                id: original_value,
+                scalar_type: ScalarType::Integer(original_operand_type),
+            } = original_operand.as_ref()
+            else {
+                break;
+            };
+            if *widened_type != expected_widened_type
+                || *original_operand_type != *original_type
+                || !original_type.can_widen_to(*widened_type)
+            {
+                break;
+            }
+            if *original_type == target_type {
+                established = machine_parameter_values.contains(original_value);
+                break;
+            }
+            current = original_operand;
+            expected_widened_type = *original_type;
+            prior_axiom_count = definition_index;
+        }
+        established
     };
-    let roundtrip_origin = widening_definition(&operand).and_then(|definition| {
-        let ScalarTerm::IntegerWiden {
-            source_type: immediate_source,
-            target_type: immediate_target,
-            operand: immediate_operand,
-        } = definition
-        else {
-            return None;
-        };
-        if *immediate_target != source_type {
-            return None;
-        }
-        if *immediate_source == target_type {
-            return Some(target_type);
-        }
-        let ScalarTerm::IntegerWiden {
-            source_type: original_type,
-            target_type: intermediate_type,
-            ..
-        } = widening_definition(immediate_operand)?
-        else {
-            return None;
-        };
-        (*intermediate_type == *immediate_source && *original_type == target_type)
-            .then_some(*original_type)
-    });
-    if roundtrip_origin == Some(target_type) {
+    if roundtrip {
         return Proposition::Truth;
     }
     let mut bounds = Vec::with_capacity(2);
@@ -3180,10 +3202,8 @@ mod tests {
     fn reconstructs_widen_then_exact_narrow_roundtrip_as_self_proving() {
         let narrow_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let wide_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
-        let input = ScalarTerm::value(
-            ValueId::new(1).expect("input"),
-            ScalarType::Integer(narrow_type),
-        );
+        let input_id = ValueId::new(1).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(narrow_type));
         let widened = ScalarTerm::value(
             ValueId::new(2).expect("widened"),
             ScalarType::Integer(wide_type),
@@ -3198,21 +3218,20 @@ mod tests {
                 narrow_type,
                 widened,
                 std::slice::from_ref(&definition),
+                &BTreeSet::from([input_id]),
             ),
             Proposition::Truth
         );
     }
 
     #[test]
-    fn reconstructs_exactly_two_widens_before_narrowing_to_the_origin() {
+    fn reconstructs_a_finite_ordered_widening_chain_and_rejects_broken_chains() {
         let narrow_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let middle_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
         let wide_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
         let deep_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
-        let input = ScalarTerm::value(
-            ValueId::new(1).expect("input"),
-            ScalarType::Integer(narrow_type),
-        );
+        let input_id = ValueId::new(1).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(narrow_type));
         let middle = ScalarTerm::value(
             ValueId::new(2).expect("middle"),
             ScalarType::Integer(middle_type),
@@ -3239,21 +3258,106 @@ mod tests {
             ScalarTerm::integer_widen(wide_type, deep_type, widened.clone())
                 .expect("u32 to u64 widening"),
         );
+        let machine_parameter_values = BTreeSet::from([input_id]);
         assert_eq!(
             exact_integer_cast_obligation(
-                wide_type,
+                deep_type,
                 narrow_type,
-                widened.clone(),
-                &[middle_definition.clone(), wide_definition.clone()],
+                deeply_widened.clone(),
+                &[
+                    middle_definition.clone(),
+                    wide_definition.clone(),
+                    deep_definition.clone(),
+                ],
+                &machine_parameter_values,
+            ),
+            Proposition::Truth
+        );
+        // A symmetric equality fact is not the verifier-owned operation
+        // definition orientation.
+        let reversed_deep_definition = match deep_definition.clone() {
+            Proposition::Equal(left, right) => Proposition::Equal(right, left),
+            _ => unreachable!("widen definition is an equality"),
+        };
+        assert_ne!(
+            exact_integer_cast_obligation(
+                deep_type,
+                narrow_type,
+                deeply_widened.clone(),
+                &[
+                    middle_definition.clone(),
+                    wide_definition.clone(),
+                    reversed_deep_definition,
+                ],
+                &machine_parameter_values,
+            ),
+            Proposition::Truth
+        );
+        // Redirecting one result definition to a non-widening value breaks the
+        // chain even though its surrounding carrier remains unchanged.
+        let redirected_wide_definition = Proposition::Equal(
+            widened.clone(),
+            ScalarTerm::integer(wide_type, IntegerValue::Unsigned(0)).expect("0u32"),
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                deep_type,
+                narrow_type,
+                deeply_widened.clone(),
+                &[
+                    middle_definition.clone(),
+                    redirected_wide_definition,
+                    deep_definition.clone(),
+                ],
+                &machine_parameter_values,
             ),
             Proposition::Truth
         );
         assert_ne!(
             exact_integer_cast_obligation(
-                wide_type,
+                deep_type,
                 narrow_type,
-                widened,
-                std::slice::from_ref(&wide_definition),
+                deeply_widened.clone(),
+                &[middle_definition.clone(), deep_definition.clone()],
+                &machine_parameter_values,
+            ),
+            Proposition::Truth
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                deep_type,
+                narrow_type,
+                deeply_widened.clone(),
+                &[
+                    deep_definition.clone(),
+                    middle_definition.clone(),
+                    wide_definition.clone(),
+                ],
+                &machine_parameter_values,
+            ),
+            Proposition::Truth
+        );
+        // A cycle cannot manufacture an origin: operation order decreases at
+        // each step, and the malformed back-edge is also type-inconsistent.
+        let cyclic_middle_definition = Proposition::Equal(
+            middle,
+            ScalarTerm::IntegerWiden {
+                source_type: narrow_type,
+                target_type: middle_type,
+                operand: Box::new(deeply_widened.clone()),
+            },
+        );
+        assert_ne!(
+            exact_integer_cast_obligation(
+                deep_type,
+                narrow_type,
+                deeply_widened.clone(),
+                &[
+                    cyclic_middle_definition,
+                    wide_definition.clone(),
+                    deep_definition.clone(),
+                ],
+                &machine_parameter_values,
             ),
             Proposition::Truth
         );
@@ -3263,6 +3367,7 @@ mod tests {
                 narrow_type,
                 deeply_widened,
                 &[middle_definition, wide_definition, deep_definition],
+                &BTreeSet::new(),
             ),
             Proposition::Truth
         );
