@@ -18394,7 +18394,7 @@ fn const_fold_cast_signedness_canary_runs() {
 fn runtime_copy_then_read_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_copy_then_read_exit");
     let scratch = std::env::temp_dir().join(format!("omega-copy-then-read-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("copy-then-read canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45430,6 +45430,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "operators/compound_assignment_exit",
     "operators/unary_negation_exit",
     "arithmetic/runtime_chained_field_mutation_exit",
+    "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
