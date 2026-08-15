@@ -22411,13 +22411,8 @@ fn equatable_sum_stale_payload_exit_canary_runs() {
     let canary = pass_canary("traits/equatable_sum_stale_payload_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-sumstale-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sum stale-payload equality canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sum stale-payload equality canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("sum stale-payload equality canary should run");
@@ -23872,13 +23867,8 @@ fn runtime_trait_default_dispatch_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("trait defaults and written overrides should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("trait defaults and written overrides should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("trait default dispatch canary should run");
@@ -23894,13 +23884,8 @@ fn runtime_inherited_trait_default_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("inherited trait defaults should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("inherited trait defaults should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("inherited trait default canary should run");
@@ -23916,13 +23901,8 @@ fn runtime_generic_trait_default_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("generic trait defaults should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("generic trait defaults should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("generic trait default canary should run");
@@ -31704,13 +31684,8 @@ fn ring_requirement_satisfies_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-ring-requirement-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("ring-requirement canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("ring-requirement canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -46015,6 +45990,11 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "traits/equatable_sum_stale_payload_exit",
+    "traits/ring_requirement_satisfies_exit",
+    "traits/runtime_trait_default_dispatch_exit",
+    "traits/runtime_inherited_trait_default_exit",
+    "traits/runtime_generic_trait_default_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
     "arithmetic/runtime_abs_desugar_exit",
     "arithmetic/runtime_sqrt_builtin_exit",
