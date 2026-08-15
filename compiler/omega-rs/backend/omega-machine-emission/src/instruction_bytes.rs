@@ -610,6 +610,7 @@ fn compiler_instruction_validation_kind(
             omega_instruction_selection::CopyPlacesShape::Direct { .. }
                 | omega_instruction_selection::CopyPlacesShape::ToPointee { .. }
                 | omega_instruction_selection::CopyPlacesShape::FromPointee { .. }
+                | omega_instruction_selection::CopyPlacesShape::FromPointeeDoubleIndexed { .. }
         ) || (matches!(
             omega_instruction_selection::classify_copy_places_shape(source, target),
             omega_instruction_selection::CopyPlacesShape::PointeePair { .. }
@@ -697,6 +698,7 @@ fn compiler_instruction_validation_kind(
                 | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
                 | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
                 | omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed { .. }
+                | omega_instruction_selection::WritePlaceShape::PointeeDoubleIndexed { .. }
         ) || (emission_context.target.architecture == omega_target::Architecture::X86_64
             && matches!(
                 omega_instruction_selection::classify_write_place_shape(target),

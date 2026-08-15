@@ -740,6 +740,22 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 target_offset,
                 *byte_count,
             ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::FromPointeeDoubleIndexed { .. },
+            ) => omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::FromPointeeDoubleIndexed {
+                    outer_index_region,
+                    inner_index_region,
+                    ..
+                },
+            ) => omega_isa_aarch64::runtime_storage_copy_from_runtime_pointee_double_indexed_clobbers(
+                target.region,
+                outer_index_region,
+                inner_index_region,
+            ),
             (omega_target::Architecture::X86_64, crate::CopyPlacesShape::PointeePair { .. })
                 if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                     && target.region
@@ -1169,6 +1185,21 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
             (
                 omega_target::Architecture::X86_64,
                 crate::WritePlaceShape::MachineDoubleIndexed { .. },
+            ) => omega_isa_x86_64::place_integer_write_clobbers(target),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::PointeeDoubleIndexed {
+                    outer_index_region,
+                    inner_index_region,
+                    ..
+                },
+            ) => omega_isa_aarch64::runtime_pointee_double_indexed_integer_write_clobbers(
+                outer_index_region,
+                inner_index_region,
+            ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::PointeeDoubleIndexed { .. },
             ) => omega_isa_x86_64::place_integer_write_clobbers(target),
             (omega_target::Architecture::X86_64, crate::WritePlaceShape::Unsupported) => {
                 omega_isa_x86_64::place_integer_write_clobbers(target)

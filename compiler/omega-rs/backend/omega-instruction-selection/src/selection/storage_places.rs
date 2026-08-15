@@ -16,7 +16,7 @@ pub(super) use model::{
     RuntimeFrameIndexedTarget, RuntimeStoragePlace, RuntimeStoredIntegerProjection,
     RuntimeStoredIntegerSource,
 };
-use omega_abstract_operations::RuntimeStorageRegion;
+use omega_abstract_operations::{Place, PlaceStep, RuntimeStorageRegion};
 pub(super) use static_values::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
     enum_variant_value, enum_variant_value_in_table, static_integer_value,
@@ -3103,6 +3103,258 @@ pub(super) struct RuntimeMachineDoubleIndexedTarget {
     pub(super) field_byte_offset: usize,
     pub(super) byte_count: usize,
     pub(super) is_bounded_byte_buffer: bool,
+}
+
+/// A BOTH-RUNTIME nested element below a frame-held reference/recast pointer.
+/// The pointer slot remains distinct from each index slot; the outer stride may
+/// come from a validated plan-laid repeated field while the inner stride stays
+/// compiler-derived from the recursively fixed element shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RuntimePointeeDoubleIndexedTarget {
+    pub(super) descriptor_offset: usize,
+    pub(super) outer_index_region: RuntimeStorageRegion,
+    pub(super) outer_index_offset: usize,
+    pub(super) outer_index_byte_size: usize,
+    pub(super) outer_stride: usize,
+    pub(super) inner_index_region: RuntimeStorageRegion,
+    pub(super) inner_index_offset: usize,
+    pub(super) inner_index_byte_size: usize,
+    pub(super) inner_stride: usize,
+    pub(super) field_byte_offset: usize,
+    pub(super) byte_count: usize,
+    pub(super) is_bounded_byte_buffer: bool,
+}
+
+impl RuntimePointeeDoubleIndexedTarget {
+    pub(super) fn place(self) -> Option<Place> {
+        Place::at(RuntimeStorageRegion::RuntimeFrame, self.descriptor_offset)
+            .with_step(PlaceStep::Deref)?
+            .with_step(PlaceStep::ConstOffset(self.field_byte_offset))?
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: self.outer_index_region,
+                index_offset: self.outer_index_offset,
+                index_byte_size: self.outer_index_byte_size,
+                element_byte_size: self.outer_stride,
+            })?
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: self.inner_index_region,
+                index_offset: self.inner_index_offset,
+                index_byte_size: self.inner_index_byte_size,
+                element_byte_size: self.inner_stride,
+            })
+    }
+}
+
+/// Resolve `view.rows[i][j]` through a frame-held reference or recast pointer.
+/// Both indices must be runtime and independently resolve to exact frame or
+/// machine storage. Constant/runtime mixtures remain owned by the existing
+/// single-index resolver, and a third runtime level refuses rather than
+/// truncating the address path.
+pub(super) fn resolve_runtime_pointee_double_indexed_target_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimePointeeDoubleIndexedTarget> {
+    let mut outer = expression;
+    loop {
+        match expressions.expression(outer) {
+            ExpressionNode::Mutable(next) => outer = *next,
+            ExpressionNode::Member(member) => outer = member.receiver,
+            _ => break,
+        }
+    }
+    let ExpressionNode::Indexed(outer_indexed) = expressions.expression(outer) else {
+        return None;
+    };
+
+    let mut between_members: Vec<&psi_checked_trees::expression::TableMemberExpression> =
+        Vec::new();
+    let mut inner = outer_indexed.collection;
+    loop {
+        match expressions.expression(inner) {
+            ExpressionNode::Mutable(next) => inner = *next,
+            ExpressionNode::Member(member) => {
+                between_members.push(member);
+                inner = member.receiver;
+            }
+            _ => break,
+        }
+    }
+    between_members.reverse();
+    let ExpressionNode::Indexed(inner_indexed) = expressions.expression(inner) else {
+        return None;
+    };
+    if indexed_index_is_const(expressions, outer_indexed.index)
+        || indexed_index_is_const(expressions, inner_indexed.index)
+    {
+        return None;
+    }
+
+    let collection_path =
+        normalized_storage_name_path_in_table(expressions, inner_indexed.collection)?;
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        inner_indexed.collection,
+    )?;
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
+    let wide_referee_slot = matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
+        && pointee_layout.size > input.runtime_abi.pointer_size
+        && slot.byte_size == pointee_layout.size;
+    if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
+        return None;
+    }
+    let shared_small_content_spill = matches!(
+        &slot.type_descriptor,
+        TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    ) && matches!(
+        pointee_descriptor,
+        TypeLayoutDescriptor::Named { .. }
+    ) && pointee_layout.size <= input.runtime_abi.pointer_size
+        && !input.program.machines().iter().any(|machine| {
+            machine.symbol == source_key.machine && machine.supply_mode.is_boundary_declaration()
+        });
+    if shared_small_content_spill {
+        return None;
+    }
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: pointee_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: pointee_descriptor.clone(),
+        layout: pointee_layout,
+    };
+    let mut collection_cursor = NestedFieldLayoutCursor::from_root(&root_field);
+    for (field_name, field_symbol, field_index, case_variant) in collection_path.suffix(1).iter() {
+        collection_cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            collection_cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+    if descriptor_is_bounded_byte_buffer(collection_cursor.type_descriptor()) {
+        return None;
+    }
+    let (row_type, _) = collection_cursor.type_descriptor().fixed_array()?;
+    let row_layout = descriptor_layout(input, row_type);
+    let row_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: row_type.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: row_type.clone(),
+        layout: row_layout,
+    };
+    let mut inner_array_cursor = NestedFieldLayoutCursor::from_root(&row_field);
+    for member in &between_members {
+        inner_array_cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            inner_array_cursor,
+            &member.member,
+            member.member_symbol,
+            None,
+            member.case_variant.as_ref(),
+        )?;
+    }
+    if descriptor_is_bounded_byte_buffer(inner_array_cursor.type_descriptor()) {
+        return None;
+    }
+    let (element_type, _) = inner_array_cursor.type_descriptor().fixed_array()?;
+    let element_layout = descriptor_layout(input, element_type);
+    let element_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_type.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_type.clone(),
+        layout: element_layout,
+    };
+    let (suffix_offset, leaf_layout, leaf_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &element_field,
+            expressions,
+            expression,
+            outer,
+        )?;
+
+    let outer_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        inner_indexed.index,
+    )?;
+    let inner_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        outer_indexed.index,
+    )?;
+    for place in [&outer_place, &inner_place] {
+        if !matches!(
+            place.region,
+            RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+        ) {
+            return None;
+        }
+    }
+
+    Some(RuntimePointeeDoubleIndexedTarget {
+        descriptor_offset: slot.byte_offset,
+        outer_index_region: outer_place.region,
+        outer_index_offset: outer_place.byte_offset,
+        outer_index_byte_size: outer_place.byte_count,
+        outer_stride: collection_cursor
+            .repeated_element_stride()
+            .unwrap_or(row_layout.size),
+        inner_index_region: inner_place.region,
+        inner_index_offset: inner_place.byte_offset,
+        inner_index_byte_size: inner_place.byte_count,
+        inner_stride: inner_array_cursor
+            .repeated_element_stride()
+            .unwrap_or(element_layout.size),
+        field_byte_offset: collection_cursor
+            .byte_offset()
+            .checked_add(inner_array_cursor.byte_offset())?
+            .checked_add(suffix_offset)?,
+        byte_count: leaf_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&leaf_descriptor),
+    })
+}
+
+pub(super) fn resolve_runtime_pointee_double_indexed_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimePointeeDoubleIndexedTarget> {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_pointee_double_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 /// Resolve `grid[i][j]` -- a machine-owned 2D fixed array read with BOTH

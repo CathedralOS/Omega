@@ -1183,6 +1183,18 @@ pub enum WritePlaceShape {
         inner_stride: usize,
         field_byte_offset: usize,
     },
+    PointeeDoubleIndexed {
+        descriptor_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+    },
     /// x86_64-materializer only.
     Unsupported,
 }
@@ -1207,6 +1219,20 @@ pub fn classify_write_place_shape(target: &omega_target_operations::Place) -> Wr
             };
         }
         return WritePlaceShape::Unsupported;
+    }
+    if let Some(double) = pointee_double_indexed_path(target) {
+        return WritePlaceShape::PointeeDoubleIndexed {
+            descriptor_offset: double.descriptor_offset,
+            outer_index_region: double.outer_region,
+            outer_index_offset: double.outer_offset,
+            outer_index_byte_size: double.outer_byte_size,
+            outer_stride: double.outer_stride,
+            inner_index_region: double.inner_region,
+            inner_index_offset: double.inner_offset,
+            inner_index_byte_size: double.inner_byte_size,
+            inner_stride: double.inner_stride,
+            field_byte_offset: double.field_offset,
+        };
     }
     if let Some(indexed) = direct_indexed_path(target) {
         if target.region == omega_target_operations::RuntimeStorageRegion::Machine {
@@ -1579,10 +1605,35 @@ pub fn encode_write_place_integer(
                 byte_size,
                 value,
             ),
+            WritePlaceShape::PointeeDoubleIndexed {
+                descriptor_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_pointee_double_indexed_integer_write(
+                descriptor_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
             WritePlaceShape::Unsupported => Err(Diagnostic::error(
                 "WritePlaceInteger on aarch64 serves direct, pointee, frame-indexed, \
                  frame-base-indexed, frame-base-double-indexed, machine-indexed, \
-                 and machine-double-indexed \
+                 machine-double-indexed, and pointee-double-indexed \
                  place shapes only until the aarch64 place materializer lands; \
                  this shape refuses loudly",
             )),
@@ -2487,9 +2538,11 @@ pub fn encode_append_place_bounded_buffer_literal(
                 field_byte_offset,
                 literal,
             ),
-            WritePlaceShape::Unsupported => Err(Diagnostic::error(
-                "AppendPlaceBoundedBufferLiteral on aarch64 serves every classified place shape; unsupported general paths refuse loudly until the aarch64 place materializer lands",
-            )),
+            WritePlaceShape::PointeeDoubleIndexed { .. } | WritePlaceShape::Unsupported => {
+                Err(Diagnostic::error(
+                    "AppendPlaceBoundedBufferLiteral on aarch64 serves every classified place shape; unsupported general paths refuse loudly until the aarch64 place materializer lands",
+                ))
+            }
         },
     }
 }
@@ -2646,9 +2699,11 @@ pub fn aarch64_encode_append_place_bounded_buffer_source_with_sites(
             field_byte_offset,
             source,
         ),
-        WritePlaceShape::Unsupported => Err(Diagnostic::error(
-            "AppendPlaceBoundedBufferSource on aarch64 retained an unsupported target",
-        )),
+        WritePlaceShape::PointeeDoubleIndexed { .. } | WritePlaceShape::Unsupported => {
+            Err(Diagnostic::error(
+                "AppendPlaceBoundedBufferSource on aarch64 retained an unsupported target",
+            ))
+        }
     }
 }
 
@@ -2876,12 +2931,14 @@ pub fn encode_write_place_binary(
                     operator,
                     right,
                 ),
-                WritePlaceShape::Unsupported => Err(Diagnostic::error(
-                    "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
+                WritePlaceShape::PointeeDoubleIndexed { .. } | WritePlaceShape::Unsupported => {
+                    Err(Diagnostic::error(
+                        "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
                      cross-region frame-indexed, frame-base-indexed, machine-indexed, and \
                      machine-double-indexed place shapes only until the aarch64 place \
                      materializer lands",
-                )),
+                    ))
+                }
             }
         }
     }
@@ -2948,6 +3005,33 @@ pub fn encode_copy_places(
             } => aarch64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
                 pointer_byte_offset,
                 field_byte_offset,
+                target_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::FromPointeeDoubleIndexed {
+                descriptor_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_pointee_double_indexed_to_runtime_storage(
+                descriptor_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                target.region,
                 target_offset,
                 byte_count,
             ),
@@ -3738,6 +3822,21 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    /// A frame-held pointer followed by two runtime indices, copied into one
+    /// direct frame or machine storage place.
+    FromPointeeDoubleIndexed {
+        descriptor_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     /// Both sides deref (a fixed-indexed or pointee read landing through a
     /// pointer slot): the retired fixed-indexed-to-pointee copy.
     PointeePair {
@@ -4140,6 +4239,23 @@ pub fn classify_copy_places_shape(
     source: &omega_target_operations::Place,
     target: &omega_target_operations::Place,
 ) -> CopyPlacesShape {
+    if let Some(double) = pointee_double_indexed_path(source)
+        && let Some(target_offset) = target.const_offset()
+    {
+        return CopyPlacesShape::FromPointeeDoubleIndexed {
+            descriptor_offset: double.descriptor_offset,
+            outer_index_region: double.outer_region,
+            outer_index_offset: double.outer_offset,
+            outer_index_byte_size: double.outer_byte_size,
+            outer_stride: double.outer_stride,
+            inner_index_region: double.inner_region,
+            inner_index_offset: double.inner_offset,
+            inner_index_byte_size: double.inner_byte_size,
+            inner_stride: double.inner_stride,
+            field_byte_offset: double.field_offset,
+            target_offset,
+        };
+    }
     // MACHINE inline-array shapes first (no deref -- the array lives in
     // machine statics): the index slot's region rides the ScaledIndex step.
     // A FRAME-rooted no-deref indexed place (the FrameBaseIndexed family)
@@ -4732,6 +4848,83 @@ struct DoubleIndexedPath {
     field_offset: usize,
 }
 
+struct PointeeDoubleIndexedPath {
+    descriptor_offset: usize,
+    outer_region: omega_target_operations::RuntimeStorageRegion,
+    outer_offset: usize,
+    outer_byte_size: usize,
+    outer_stride: usize,
+    inner_region: omega_target_operations::RuntimeStorageRegion,
+    inner_offset: usize,
+    inner_byte_size: usize,
+    inner_stride: usize,
+    field_offset: usize,
+}
+
+/// `Const*, Deref, Const*/SI/Const*/SI/Const*`: a frame-held pointer followed
+/// by exactly two scaled indices. Every constant after the deref contributes
+/// to the pointee-relative field offset because address addition commutes;
+/// any second deref or third index refuses.
+fn pointee_double_indexed_path(
+    place: &omega_target_operations::Place,
+) -> Option<PointeeDoubleIndexedPath> {
+    if place.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+    let mut descriptor_offset = 0usize;
+    let mut dereferenced = false;
+    let mut field_offset = 0usize;
+    let mut indices = Vec::new();
+    for step in place.steps() {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) if !dereferenced => {
+                descriptor_offset = descriptor_offset.checked_add(*offset)?;
+            }
+            omega_target_operations::PlaceStep::ConstOffset(offset) => {
+                field_offset = field_offset.checked_add(*offset)?;
+            }
+            omega_target_operations::PlaceStep::Deref if !dereferenced => {
+                dereferenced = true;
+            }
+            omega_target_operations::PlaceStep::Deref => return None,
+            omega_target_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+            } if dereferenced && indices.len() < 2 => indices.push((
+                *index_region,
+                *index_offset,
+                *index_byte_size,
+                *element_byte_size,
+            )),
+            omega_target_operations::PlaceStep::ScaledIndex { .. } => return None,
+        }
+    }
+    if !dereferenced {
+        return None;
+    }
+    let [
+        (outer_region, outer_offset, outer_byte_size, outer_stride),
+        (inner_region, inner_offset, inner_byte_size, inner_stride),
+    ] = indices[..]
+    else {
+        return None;
+    };
+    Some(PointeeDoubleIndexedPath {
+        descriptor_offset,
+        outer_region,
+        outer_offset,
+        outer_byte_size,
+        outer_stride,
+        inner_region,
+        inner_offset,
+        inner_byte_size,
+        inner_stride,
+        field_offset,
+    })
+}
+
 /// `Const*, SI, Const*, SI, Const*` with NO deref -- the inline 2D-array
 /// element path. The mid-const between the indices folds into
 /// `field_offset` (the address is a pure sum, so the adds commute).
@@ -4993,6 +5186,122 @@ mod tests {
             false,
             false,
         )
+    }
+
+    fn pointee_double_indexed_place() -> Place {
+        Place::at(RuntimeStorageRegion::RuntimeFrame, 0)
+            .with_step(PlaceStep::Deref)
+            .and_then(|place| place.with_step(PlaceStep::ConstOffset(4)))
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 24,
+                    index_byte_size: 8,
+                    element_byte_size: 8,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 32,
+                    index_byte_size: 8,
+                    element_byte_size: 2,
+                })
+            })
+            .expect("pointee double-indexed place")
+    }
+
+    #[test]
+    fn pointee_double_indexed_read_write_shapes_retain_exact_geometry_and_depth_fences() {
+        let source = pointee_double_indexed_place();
+        let target = Place::at(RuntimeStorageRegion::Machine, 40);
+
+        assert_eq!(
+            classify_write_place_shape(&source),
+            WritePlaceShape::PointeeDoubleIndexed {
+                descriptor_offset: 0,
+                outer_index_region: RuntimeStorageRegion::Machine,
+                outer_index_offset: 24,
+                outer_index_byte_size: 8,
+                outer_stride: 8,
+                inner_index_region: RuntimeStorageRegion::Machine,
+                inner_index_offset: 32,
+                inner_index_byte_size: 8,
+                inner_stride: 2,
+                field_byte_offset: 4,
+            }
+        );
+        assert_eq!(
+            classify_copy_places_shape(&source, &target),
+            CopyPlacesShape::FromPointeeDoubleIndexed {
+                descriptor_offset: 0,
+                outer_index_region: RuntimeStorageRegion::Machine,
+                outer_index_offset: 24,
+                outer_index_byte_size: 8,
+                outer_stride: 8,
+                inner_index_region: RuntimeStorageRegion::Machine,
+                inner_index_offset: 32,
+                inner_index_byte_size: 8,
+                inner_stride: 2,
+                field_byte_offset: 4,
+                target_offset: 40,
+            }
+        );
+
+        let write = encode_write_place_integer(Architecture::Aarch64, &source, 17, 2)
+            .expect("encode pointee double-indexed write");
+        assert_eq!(
+            write_place_integer_width(Architecture::Aarch64, &source, 17, 2)
+                .expect("measure pointee double-indexed write"),
+            write.len()
+        );
+        assert!(
+            !encode_copy_places(Architecture::Aarch64, &source, &target, 2)
+                .expect("encode pointee double-indexed read")
+                .is_empty()
+        );
+
+        let too_deep = source
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 48,
+                index_byte_size: 8,
+                element_byte_size: 1,
+            })
+            .expect("six-step failure-fence place");
+        assert_eq!(
+            classify_write_place_shape(&too_deep),
+            WritePlaceShape::Unsupported
+        );
+        assert!(!matches!(
+            classify_copy_places_shape(&too_deep, &target),
+            CopyPlacesShape::FromPointeeDoubleIndexed { .. }
+        ));
+
+        let second_deref = Place::at(RuntimeStorageRegion::RuntimeFrame, 0)
+            .with_step(PlaceStep::Deref)
+            .and_then(|place| place.with_step(PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 24,
+                    index_byte_size: 8,
+                    element_byte_size: 8,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 32,
+                    index_byte_size: 8,
+                    element_byte_size: 2,
+                })
+            })
+            .expect("double-deref failure-fence place");
+        assert_eq!(
+            classify_write_place_shape(&second_deref),
+            WritePlaceShape::Unsupported
+        );
     }
 
     #[test]

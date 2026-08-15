@@ -12,13 +12,14 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target_near_slot_in_table,
     resolve_runtime_machine_double_indexed_source_in_table,
     resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_double_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_primitive_type_in_table, static_fixed_array_len_in_table,
 };
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
+    Place, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
 use omega_control_flow::StateKey;
 use omega_layout::ENUM_TAG_BYTES;
@@ -556,6 +557,28 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 slot.byte_size,
             ),
         );
+    }
+
+    // A BOTH-RUNTIME nested read below a frame-held recast/reference pointer.
+    // This is the read twin of the immediate mutation path: preserve the full
+    // deref + two-scaled-index Place and copy its exact leaf into the frame
+    // slot used by a local, transition argument, or guarded value.
+    if let Some(double_source) = resolve_runtime_pointee_double_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && double_source.byte_count == slot.byte_size
+        && double_source.byte_count > 0
+        && let Some(source) = double_source.place()
+    {
+        return Some(SelectedInstructionKind::CopyPlaces {
+            source,
+            target: Place::at(RuntimeStorageRegion::RuntimeFrame, slot.byte_offset),
+            byte_count: slot.byte_size,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        });
     }
 
     // A BOTH-RUNTIME nested read (`grid[i][j]`) into a frame slot -- the

@@ -20,6 +20,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_machine_double_indexed_source_in_table,
     resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_double_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
 };
@@ -1044,6 +1045,16 @@ fn resolve_struct_target_place(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
 ) -> Option<(Place, usize)> {
+    if let Some(indexed) = resolve_runtime_pointee_double_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return Some((indexed.place()?, indexed.byte_count));
+    }
+
     if let Some(indexed) = resolve_runtime_frame_indexed_target_in_table(
         input,
         dispatch_index,

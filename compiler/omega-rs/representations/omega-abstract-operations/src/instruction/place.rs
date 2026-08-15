@@ -44,11 +44,12 @@ impl Default for PlaceStep {
     }
 }
 
-/// The maximum path depth. Four covers every shape the retired variants
-/// spelled (descriptor deref + two scaled indices + a field offset); the
-/// builder saturates loudly past it (`push_step` returns `false`) so a
-/// too-deep place becomes a legalization refusal, never a silent trunction.
-pub const PLACE_MAX_STEPS: usize = 4;
+/// The maximum path depth. Six covers a frame-held pointer slot, its deref,
+/// one fixed offset on either side of two scaled indices, and the two indices
+/// themselves. The builder saturates loudly past it (`push_step` returns
+/// `false`) so a too-deep place becomes a legalization refusal, never a silent
+/// truncation.
+pub const PLACE_MAX_STEPS: usize = 6;
 
 /// A memory place: base region + path. `Copy`, flat, ZII-inert.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -174,7 +175,64 @@ mod tests {
         assert!(place.push_step(PlaceStep::Deref));
         assert!(place.push_step(PlaceStep::Deref));
         assert!(place.push_step(PlaceStep::Deref));
+        assert!(place.push_step(PlaceStep::Deref));
+        assert!(place.push_step(PlaceStep::Deref));
         assert!(!place.push_step(PlaceStep::Deref));
+    }
+
+    #[test]
+    fn pointee_double_index_geometry_retains_every_step() {
+        let place = Place::at(RuntimeStorageRegion::RuntimeFrame, 24)
+            .with_step(PlaceStep::Deref)
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(4))
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 80,
+                index_byte_size: 8,
+                element_byte_size: 12,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 40,
+                index_byte_size: 4,
+                element_byte_size: 2,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(6))
+            .unwrap();
+
+        assert_eq!(
+            place.steps(),
+            &[
+                PlaceStep::ConstOffset(24),
+                PlaceStep::Deref,
+                PlaceStep::ConstOffset(4),
+                PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 80,
+                    index_byte_size: 8,
+                    element_byte_size: 12,
+                },
+                PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset: 40,
+                    index_byte_size: 4,
+                    element_byte_size: 2,
+                },
+                PlaceStep::ConstOffset(6),
+            ]
+        );
+        assert_eq!(
+            place.scaled_index_regions().collect::<Vec<_>>(),
+            vec![
+                RuntimeStorageRegion::Machine,
+                RuntimeStorageRegion::RuntimeFrame
+            ]
+        );
+        assert!(place.with_step(PlaceStep::Deref).is_none());
     }
 
     #[test]

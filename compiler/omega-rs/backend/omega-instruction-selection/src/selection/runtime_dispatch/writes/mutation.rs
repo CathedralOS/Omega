@@ -48,7 +48,8 @@ use super::super::super::storage_places::{
     resolve_runtime_call_argument_call_result_place_by_ordinal,
     resolve_runtime_frame_base_double_indexed_source, resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
-    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_double_indexed_target,
+    resolve_runtime_pointee_slot_offset,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
@@ -2180,6 +2181,40 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
+    // Read a BOTH-RUNTIME element below a frame-held pointer into an ordinary
+    // direct machine/frame place. The canonical copy keeps the full source
+    // address algebra, so value capture and transition plumbing do not need a
+    // pointee-double-indexed opcode variant.
+    if let Some(double_source) = resolve_runtime_pointee_double_indexed_target(
+        input,
+        dispatch_index,
+        resolved_value.source_key,
+        &resolved_value.expression,
+    ) && let Some(source) = double_source.place()
+        && let Some(target) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        )
+        && target.byte_count == double_source.byte_count
+        && target.byte_count > 0
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyPlaces {
+                source,
+                target: omega_abstract_operations::Place::at(target.region, target.byte_offset),
+                byte_count: target.byte_count,
+                role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+            },
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
         input,
         dispatch_index,
@@ -2378,6 +2413,38 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             });
             return;
         }
+    }
+
+    // BOTH-RUNTIME nested write below a frame-held recast/reference pointer.
+    // Keep the pointer slot, both independent index slots, and both settled
+    // strides in one composable Place; x86 walks it directly and AArch64
+    // legalizes the same exact geometry.
+    if let Some(double_target) = resolve_runtime_pointee_double_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && supports_scalar_integer_write(double_target.byte_count)
+        && let Some(value) = resolve_runtime_static_integer_value(
+            input,
+            operation_source_key,
+            value,
+            aliases,
+            alias_expressions,
+            static_values,
+        )
+        && let Some(target) = double_target.place()
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WritePlaceInteger {
+                target,
+                value,
+                byte_size: double_target.byte_count,
+            },
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
     }
 
     // BOTH-RUNTIME nested write into a frame-resident inline 2D array

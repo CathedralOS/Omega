@@ -4308,6 +4308,154 @@ pub fn runtime_frame_indexed_integer_write_clobbers(
     RegisterSet::new(registers)
 }
 
+/// Write an immediate integer through a frame-held pointer followed by two
+/// independent runtime indices. The frame root supplies the pointer slot and
+/// any frame-held indices; one optional machine root supplies either or both
+/// machine-held indices. The plan-laid outer stride and compiler-derived inner
+/// stride remain separate operands all the way to address materialization.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_pointee_double_indexed_integer_write(
+    descriptor_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write {byte_size}-byte pointee-double-indexed values yet"
+        )));
+    }
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::new();
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_fixed_width_load_x_from_x_offset(&mut bytes, 16, 20, descriptor_offset, 19);
+    if outer_index_region != frame || inner_index_region != frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    append_double_index_address_math(
+        &mut bytes,
+        if outer_index_region == frame { 20 } else { 15 },
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        if inner_index_region == frame { 20 } else { 15 },
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        field_byte_offset,
+    )?;
+    append_unsigned_immediate_padded(&mut bytes, 17, value as u64);
+    match byte_size {
+        8 => bytes.extend(encode_store_x_to_x(17, 16, 0)?),
+        _ => bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?),
+    }
+    Ok(bytes)
+}
+
+pub fn runtime_pointee_double_indexed_integer_write_clobbers(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ];
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
+/// Copy a doubly runtime-indexed leaf below a frame-held pointer into direct
+/// frame or machine storage. One frame root supplies the pointer and any
+/// frame-held indices; one shared machine root supplies the direct machine
+/// target and either/both machine-held indices.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_from_runtime_pointee_double_indexed_to_runtime_storage(
+    descriptor_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::new();
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_fixed_width_load_x_from_x_offset(&mut bytes, 16, 20, descriptor_offset, 19);
+    if target_region != frame || outer_index_region != frame || inner_index_region != frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    append_double_index_address_math(
+        &mut bytes,
+        if outer_index_region == frame { 20 } else { 15 },
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        if inner_index_region == frame { 20 } else { 15 },
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        field_byte_offset,
+    )?;
+    let target_base = if target_region == frame { 20 } else { 15 };
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(
+            &mut bytes,
+            17,
+            target_base,
+            target_offset + offset,
+            chunk_size,
+            19,
+        )?;
+        Ok(())
+    })?;
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_from_runtime_pointee_double_indexed_clobbers(
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = runtime_pointee_double_indexed_integer_write_clobbers(
+        outer_index_region,
+        inner_index_region,
+    )
+    .as_slice()
+    .to_vec();
+    if target_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
 pub fn encode_runtime_frame_base_indexed_integer_write(
     base_byte_offset: usize,
     index_offset: usize,
@@ -10898,6 +11046,52 @@ mod tests {
                 MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(26),
             ]
+        );
+    }
+
+    #[test]
+    fn pointee_double_indexed_read_write_keep_shared_base_sites_and_clobbers() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        let write = encode_runtime_pointee_double_indexed_integer_write(
+            0, machine, 24, 8, 8, machine, 32, 8, 2, 4, 2, 17,
+        )
+        .expect("encode pointee double-indexed write");
+        let read =
+            encode_runtime_storage_copy_from_runtime_pointee_double_indexed_to_runtime_storage(
+                0, machine, 24, 8, 8, machine, 32, 8, 2, 4, machine, 40, 2,
+            )
+            .expect("encode pointee double-indexed read");
+
+        for bytes in [&write, &read] {
+            assert!(bytes.len() > 40);
+            assert_eq!(&bytes[0..4], &encode_adrp_placeholder(20));
+            assert_eq!(&bytes[4..8], &encode_add_page_offset_placeholder(20));
+            assert_eq!(&bytes[32..36], &encode_adrp_placeholder(15));
+            assert_eq!(&bytes[36..40], &encode_add_page_offset_placeholder(15));
+        }
+        assert_eq!(
+            runtime_pointee_double_indexed_integer_write_clobbers(machine, machine).as_slice(),
+            &[
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            runtime_storage_copy_from_runtime_pointee_double_indexed_clobbers(
+                machine, machine, machine,
+            ),
+            runtime_pointee_double_indexed_integer_write_clobbers(machine, machine)
+        );
+        assert!(
+            !runtime_pointee_double_indexed_integer_write_clobbers(frame, frame)
+                .as_slice()
+                .contains(&MachineRegister::Aarch64X(15))
         );
     }
 
