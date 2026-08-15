@@ -688,6 +688,18 @@ counts, right-associated or reversed shapes, mixed value carriers, local or
 block roots, intervening operations or casts, non-native or invalid casts,
 malformed or stale definitions, cumulative-count overflow, and stale or
 missing evidence remain fenced.
+A direct validator-legal partial fixed-native exact cast may also root the
+corresponding finite nonempty left-associated same-value-carrier
+exact-right-shift chain. Counts are independently landed legal fixed-native
+literals and their carriers may differ. The cast independently proves direct
+representability; every shift prefix independently reconstructs `Truth` from
+its own `0 <= count < width` fact. Unlike left shift, no cumulative count,
+value-definition traversal, source interval, cast evidence, or earlier shift
+proof is needed. Runtime, computed, negative, out-of-range, address, or
+non-native counts, right-associated or reversed shapes, mixed value carriers,
+local or block roots, intervening operations or casts, non-native or invalid
+casts, malformed or stale definitions, and stale or missing evidence remain
+fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

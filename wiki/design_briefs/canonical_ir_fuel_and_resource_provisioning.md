@@ -191,6 +191,10 @@ for each prefix adds no executable work.
 A direct partial exact cast followed by a finite nonempty exact-left-shift
 literal chain also charges the cast and every shift operation separately;
 cumulative-count source-interval proofs add no executable work.
+A direct partial exact cast followed by a finite nonempty exact-right-shift
+literal chain likewise charges the cast and every shift operation separately;
+each shift's independently reconstructed legal-count proof adds no executable
+work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

@@ -1682,9 +1682,19 @@ fn shared_integer_runtime_inputs_with_shells(
                 )?);
                 Some(inputs)
             };
-            collect_direct().or_else(|| {
-                shared_exact_shift_right_chain_runtime_inputs(expression, scalar_parameter_count)
-            })
+            collect_direct()
+                .or_else(|| {
+                    shared_exact_cast_then_shift_right_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_shift_right_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
@@ -2883,6 +2893,78 @@ fn shared_exact_shift_right_chain_runtime_inputs(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_cast_then_shift_right_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactShiftRight,
+            primitive_type: value_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *value_type)
+            || !safe_exact_shift_literal_count(*value_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*value_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target_type,
+                operand,
+                ..
+            } if *cast_target_type == *value_type => {
+                let CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: source_type,
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return (matches!(
+                    source_type,
+                    PrimitiveType::I8
+                        | PrimitiveType::I16
+                        | PrimitiveType::I32
+                        | PrimitiveType::I64
+                        | PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                ) && *position < scalar_parameter_count)
+                    .then(|| {
+                        BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                    });
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_cast_then_shift_right_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_cast_then_shift_right_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 fn safe_exact_shift_literal_count(
