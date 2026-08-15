@@ -94,6 +94,15 @@ direction, the source affine or shift chain and cast reconstruct independently,
 and each target divide/remainder proposition depends only on its own landed
 safe divisor. No operation imports another operation's proof or evidence.
 
+The corresponding direct same-carrier family omits the cast but retains the
+same four nonempty divide/remainder-to-affine/shift compositions. A leading
+divide/remainder chain supplies its verifier-replayed carrier-total hull to
+each following affine or left-shift safe interval: containment is truth,
+disjointness is falsehood, and partial overlap remains unadmitted. In the
+converse direction, affine or shift proofs replay from the direct parameter as
+usual, while each following divide/remainder proof depends only on its landed
+safe divisor. Every operation and every evidence item remains independent.
+
 Path facts must reach the operation through verified terminal control. Count
 masking, machine overflow behavior, or a producer claim cannot discharge an
 obligation. The verifier passes only the reconstructed proposition and exact

@@ -1558,6 +1558,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_divide_remainder_cross_cast_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1623,6 +1629,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_divide_remainder_cross_cast_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1683,6 +1695,12 @@ fn shared_integer_runtime_inputs_with_shells(
             collect_direct()
                 .or_else(|| {
                     shared_exact_shift_then_arithmetic_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -1758,6 +1776,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_divide_remainder_cross_cast_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1828,6 +1852,12 @@ fn shared_integer_runtime_inputs_with_shells(
             };
             collect_direct()
                 .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_divide_remainder_cross_cast_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1884,6 +1914,12 @@ fn shared_integer_runtime_inputs_with_shells(
             collect_direct()
                 .or_else(|| {
                     shared_exact_mixed_shift_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -4413,6 +4449,61 @@ fn shared_exact_divide_remainder_cross_cast_runtime_inputs(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_divide_remainder_cross_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let outer_family = checked_exact_cross_cast_chain_family(expression)?;
+    let mut outer_type = None;
+    loop {
+        let (primitive_type, left) = checked_exact_cross_cast_chain_link(expression, outer_family)?;
+        if fixed_native_primitive_interval(primitive_type).is_none()
+            || outer_type.is_some_and(|outer_type| outer_type != primitive_type)
+        {
+            return None;
+        }
+        outer_type = Some(primitive_type);
+        match left {
+            nested if checked_exact_cross_cast_chain_family(nested) == Some(outer_family) => {
+                expression = nested;
+            }
+            source => {
+                let source_family = checked_exact_cross_cast_chain_family(source)?;
+                if (outer_family == ExactCrossCastChainFamily::DivideRemainder)
+                    == (source_family == ExactCrossCastChainFamily::DivideRemainder)
+                {
+                    return None;
+                }
+                let (source_type, position) = checked_exact_cross_cast_parameter_root(
+                    source,
+                    source_family,
+                    scalar_parameter_count,
+                )?;
+                if Some(source_type) != outer_type {
+                    return None;
+                }
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    position,
+                )]));
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_divide_remainder_cross_chain_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]

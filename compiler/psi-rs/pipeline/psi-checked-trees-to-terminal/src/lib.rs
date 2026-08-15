@@ -11144,6 +11144,9 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct(left, right)
                 .or_else(|| shared_exact_shift_then_arithmetic_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
@@ -11168,6 +11171,9 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_shift_then_arithmetic_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
@@ -11192,6 +11198,9 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_shift_then_arithmetic_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
@@ -11215,6 +11224,9 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_cast_shift_runtime_parameters(expression))
@@ -11237,6 +11249,9 @@ fn shared_integer_runtime_parameters_with_shells(
                 Some(parameters)
             };
             collect_direct()
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_runtime_divisor_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_divide_remainder_runtime_parameters(expression))
@@ -11257,6 +11272,9 @@ fn shared_integer_runtime_parameters_with_shells(
             };
             collect_direct()
                 .or_else(|| shared_exact_mixed_shift_chain_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_cast_shift_runtime_parameters(expression))
@@ -13143,6 +13161,43 @@ fn shared_exact_divide_remainder_cross_cast_runtime_parameters(
                 )]));
             }
             _ => return None,
+        }
+    }
+}
+
+fn shared_exact_divide_remainder_cross_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let outer_family = lowered_exact_cross_cast_chain_family(expression)?;
+    let mut outer_type = None;
+    loop {
+        let (integer_type, left) = lowered_exact_cross_cast_chain_link(expression, outer_family)?;
+        if !native_fixed_integer_type(integer_type)
+            || outer_type.is_some_and(|outer_type| outer_type != integer_type)
+        {
+            return None;
+        }
+        outer_type = Some(integer_type);
+        match left {
+            nested if lowered_exact_cross_cast_chain_family(nested) == Some(outer_family) => {
+                expression = nested;
+            }
+            source => {
+                let source_family = lowered_exact_cross_cast_chain_family(source)?;
+                if (outer_family == ExactCrossCastChainFamily::DivideRemainder)
+                    == (source_family == ExactCrossCastChainFamily::DivideRemainder)
+                {
+                    return None;
+                }
+                let (source_type, position) =
+                    lowered_exact_cross_cast_parameter_root(source, source_family)?;
+                if Some(source_type) != outer_type {
+                    return None;
+                }
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    position,
+                )]));
+            }
         }
     }
 }

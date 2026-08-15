@@ -638,6 +638,21 @@ widening, or repeated casts; carrier drift; empty sides; intervening
 operations; nonparameter roots; malformed definitions; and checked transfer
 failure remain fenced. Existing narrower and runtime-divisor families are
 unchanged.
+The same four divide/remainder-to-affine/shift compositions are admitted
+directly, without a cast, when both nonempty chains share one fixed-native
+carrier and the innermost root is a direct machine parameter. When
+divide/remainder comes first, the verifier replays its complete carrier-total
+hull and compares that hull with each target affine or target-left safe input
+interval. Complete containment is truth, disjointness is canonical falsehood,
+and partial overlap remains unadmitted. A zero affine coefficient decides only
+its current prefix after the complete divide/remainder shape is validated.
+When affine or shift comes first, its established direct-root proof replay is
+unchanged and each following divide/remainder operation depends only on its own
+landed safe divisor. Every operation retains separate evidence. Both sides must
+be nonempty; casts, runtime or computed divisors/siblings/counts, unsafe or
+mistyped divisors, negative factors, carrier drift, intervening operations,
+nonparameter roots, stale definitions, and checked replay failure remain
+fenced. Existing narrower and cross-cast families are unchanged.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
