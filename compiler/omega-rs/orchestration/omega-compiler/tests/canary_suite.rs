@@ -12775,10 +12775,11 @@ fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode borrowed scalar-slice canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire encode borrowed scalar-slice canary should run");
 
@@ -12790,7 +12791,7 @@ fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let report = fs::read_to_string(scratch.join("out").join("04_wire_protocols.txt"))
+    let report = fs::read_to_string(scratch.join("04_wire_protocols.txt"))
         .expect("wire protocol report should retain encode obligations");
     for expected in [
         "encode requirement: Encode<compact_binary, Telemetry>",
@@ -12820,10 +12821,11 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire decode byte-slice canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire decode byte-slice canary should run");
 
@@ -12851,10 +12853,11 @@ fn runtime_wire_decoded_byte_slice_index_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire decoded byte-slice index canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire decoded byte-slice index canary should run");
 
@@ -12883,10 +12886,11 @@ fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire decoded byte-slice .len canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wire decoded byte-slice .len canary should run");
 
@@ -12914,10 +12918,11 @@ fn runtime_call_result_binary_operand_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("call-result-binary-operand canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("call-result-binary-operand canary should run");
 
@@ -12942,10 +12947,11 @@ fn runtime_cast_operand_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_cast_operand_exit");
     let scratch = std::env::temp_dir().join(format!("omega-cast-operand-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast-operand canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("cast-operand canary should run");
 
@@ -12969,10 +12975,11 @@ fn runtime_f32_arithmetic_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_f32_arithmetic_exit");
     let scratch = std::env::temp_dir().join(format!("omega-f32-arith-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32 arithmetic canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32 arithmetic canary should run");
 
@@ -13036,10 +13043,11 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-multi-arm-value-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("multi-arm value transition canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("multi-arm value transition canary should run");
 
@@ -13069,10 +13077,11 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned value-transition guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsigned value-transition guard canary should run");
 
@@ -13100,10 +13109,11 @@ fn runtime_const_array_length_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-const-array-length-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("const array length canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("const array length canary should run");
 
@@ -46043,13 +46053,19 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_free_machine_value_call_mut_arg_exit",
     "calls/runtime_free_machine_value_call_exit",
     "calls/runtime_record_forwarding_statement_call_exit",
+    "calls/runtime_multi_arm_value_transition_exit",
+    "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_value_position_branching_call_exit",
     "comptime/runtime_const_array_length_bare_call_arm_exit",
+    "comptime/runtime_const_array_length_exit",
     "comptime/runtime_const_array_length_transitive_exit",
     "domains/utf8_return_view_equals_exit",
     "borrow/runtime_method_view_write_after_last_use_exit",
     "borrow/runtime_view_of_view_chain_exit",
     "expressions/runtime_16bit_cast_exit",
+    "expressions/runtime_call_result_binary_operand_exit",
+    "expressions/runtime_cast_operand_exit",
+    "expressions/runtime_f32_arithmetic_exit",
     "expressions/runtime_float_arithmetic_exit",
     "expressions/runtime_float_comparison_exit",
     "expressions/runtime_float_place_comparison_exit",
@@ -46118,6 +46134,10 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",
     "wire/runtime_wire_encode_byte_slice_exit",
+    "wire/runtime_wire_encode_borrowed_scalar_slice_exit",
+    "wire/runtime_wire_decode_byte_slice_exit",
+    "wire/runtime_wire_decoded_byte_slice_index_exit",
+    "wire/runtime_wire_decoded_byte_slice_len_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
