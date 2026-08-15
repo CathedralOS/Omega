@@ -144,7 +144,10 @@ pub fn qualification_evidence_manifest_json(
         })
         .collect::<Vec<_>>();
 
-    let mut json = String::from("{\n  \"qualification_evidence\": [");
+    let mut json = format!(
+        "{{\n  \"selected_provider_closure_fingerprint\": \"0x{:016x}\",\n  \"qualification_evidence\": [",
+        selected_provider_plans.normalized_identity()
+    );
     for (index, (fact, domain_label)) in rows.iter().enumerate() {
         if index > 0 {
             json.push(',');
@@ -3721,11 +3724,13 @@ mod tests {
             },
         });
 
-        let json = qualification_evidence_manifest_json(
-            &program,
-            &omega_effects::SelectedProviderPlanFacts::default(),
-        );
+        let selected = omega_effects::SelectedProviderPlanFacts::default();
+        let json = qualification_evidence_manifest_json(&program, &selected);
 
+        assert!(json.contains(&format!(
+            "\"selected_provider_closure_fingerprint\": \"0x{:016x}\"",
+            selected.normalized_identity()
+        )));
         assert!(json.contains("\"subject\": \"#4\""));
         assert!(json.contains("\"domain\": \"#5\""));
         assert!(json.contains("\"origin\": \"admitted_receipt\""));
@@ -3793,8 +3798,12 @@ mod tests {
             std::slice::from_ref(&plan.name),
         )
         .expect("complete selected provider plan");
+        let selected_closure_identity = selected.normalized_identity();
 
         let json = qualification_evidence_manifest_json(&CheckedTrees::default(), &selected);
+        assert!(json.contains(&format!(
+            "\"selected_provider_closure_fingerprint\": \"0x{selected_closure_identity:016x}\""
+        )));
         assert_eq!(json.matches("\"provider_origin_package\"").count(), 2);
         assert_eq!(
             json.matches("\"provider_origin_package\": \"omega::providers::storage\"")
