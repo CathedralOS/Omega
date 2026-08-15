@@ -274,3 +274,23 @@ each projection; and which origin, field, outcome, and exact evidence-term rows
 Terminal Psi must retain and verify. Q12 continues to own generic conformance
 application syntax. Q13 continues to own evidence multiplicity, use counts,
 residual-field discharge, and `_` legality.
+
+## Q15 — Terminal placed-access authority and transfer custody
+
+The target-neutral access foundation can seal and specialize Stable, External,
+and Atomic primitive events, but Terminal Psi has no canonical artifact form
+for a live placed root or projection. Serializing a concrete address or replaying
+admission/profile identifiers would make authority forgeable, while resolving a
+field name and offset again below Psi would discard the admitted occurrence,
+mapping, revision, lifetime, and reach.
+
+Choose the Terminal Psi authority carrier and installation binding for one live
+placed occurrence, then define each transfer's value custody. The contract must
+distinguish repeatable External read from destructive whole-snapshot take,
+specify write encoding and commit/rejection behavior, retain Atomic operands,
+results, operation family, and ordering, and bind every event to the exact
+installed extent, provider/profile receipt, mapping, revision, lifetime, and
+boundary reach without embedding a forgeable address. The verifier,
+interpreter, Omega lowering, artifacts, and installation must preserve that same
+event rather than re-resolving it from source names or offsets. Q8 continues to
+own how admission first establishes a live `Placed<P, T>` and its erased terms.
