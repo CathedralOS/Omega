@@ -195,6 +195,10 @@ A direct partial exact cast followed by a finite nonempty exact-right-shift
 literal chain likewise charges the cast and every shift operation separately;
 each shift's independently reconstructed legal-count proof adds no executable
 work.
+A direct partial exact cast followed by a finite nonempty exact-divide/remainder
+literal chain likewise charges the cast and every retained divide or remainder
+separately; each operation's independently reconstructed safe-divisor proof
+adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on

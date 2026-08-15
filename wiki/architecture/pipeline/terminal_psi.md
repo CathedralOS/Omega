@@ -700,6 +700,19 @@ non-native counts, right-associated or reversed shapes, mixed value carriers,
 local or block roots, intervening operations or casts, non-native or invalid
 casts, malformed or stale definitions, and stale or missing evidence remain
 fenced.
+A direct validator-legal partial fixed-native exact cast may also root a finite
+nonempty left-associated same-target-carrier chain containing exact divide and
+remainder in any order. Every right sibling is an independently landed
+same-carrier safe divisor: nonzero for unsigned carriers, and neither zero nor
+`-1` for signed carriers. The cast keeps its independent direct
+representability proof, while every divide/remainder prefix independently
+reconstructs `Truth` from only its own safe divisor. No cast evidence, prior
+operation proof, value-definition walk, quotient/remainder algebra, or
+cumulative state is imported. Runtime, computed, zero, signed `-1`, or mistyped
+divisors, literal-left, reversed, or right-associated shapes, mixed, address,
+or non-native carriers, local or block roots, intervening operations or casts,
+invalid casts, malformed or stale definitions, and stale or missing evidence
+remain fenced.
 All native targets join those leaves into the same cleanup tail. Nested paths,
 field-only trees, a second field identity, erased or non-Boolean fields, nested
 or partial integer computation, member/comparison mixtures, calls, effects,

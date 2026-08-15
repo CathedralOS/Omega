@@ -1530,6 +1530,33 @@ machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) 
     staged
 }
 
+machine terminal_exact_cast_then_divide_remainder_literal_chain(
+    value: u16,
+    enabled: bool
+) -> bool
+requires value <= 255u16
+{
+    (((((value as u8) / 2u8) % 3u8) / 2u8) < 2u8) && enabled
+}
+
+machine terminal_signed_exact_cast_then_divide_remainder_literal_chain(
+    value: i16,
+    enabled: bool
+) -> bool
+requires -128i16 <= value, value <= 127i16
+{
+    ((((value as i8) / 2i8) % -3i8) < 3i8) && enabled
+}
+
+machine terminal_cross_sign_exact_cast_then_divide_remainder_literal_chain(
+    value: i8,
+    enabled: bool
+) -> bool
+requires 0i8 <= value
+{
+    ((((value as u8) / 2u8) % 3u8) < 3u8) && enabled
+}
+
 machine terminal_exact_shift_right_literal_chain(value: u8, enabled: bool) -> bool
 {
     let staged: bool = ((((value >> 1i8) >> 2u16) >> 0i32) < 2u8) && enabled;

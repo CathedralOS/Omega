@@ -317,6 +317,11 @@ Remaining:
   landed heterogeneous legal counts. The cast proof remains independent, and
   every shift prefix is reconstructed from only its own `0 <= count < width`
   fact without cumulative count, value-definition, or evidence import.
+  The same direct partial-cast root may now feed a finite nonempty
+  left-associated same-target-carrier exact-divide/remainder chain. Every
+  prefix retains independent evidence derived only from its own landed safe
+  divisor; cast evidence, prior operation proofs, value definitions, and
+  quotient/remainder algebra supply no authority.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
