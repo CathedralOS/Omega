@@ -10,7 +10,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_extents::{
-    AddressSpaceId, ExtentLoan, ExtentProvenanceId, ExtentRights, LoanPolarity, MappingEraId,
+    AddressSpaceId, Extent, ExtentLineageId, ExtentLoan, ExtentProvenanceId, ExtentRights,
+    ExtentRootOrigin, LoanPolarity, MappingEraId,
 };
 use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use psi_layout_plans::{
@@ -1695,19 +1696,70 @@ pub struct ResourceProfileGrant {
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
+    origin: ExtentRootOrigin,
+    lineage_root: ExtentLineageId,
     required_rights: ExtentRights,
     permitted_reach: BoundaryReach,
 }
 
 impl ResourceProfileGrant {
-    #[allow(clippy::too_many_arguments)]
+    /// Bind provider supply to one exact granted Extent authority account.
+    ///
+    /// Taking the opaque Extent instead of a restated geometry/provenance
+    /// tuple prevents a profile receipt from being replayed against a
+    /// coincident but independently introduced root.
     pub fn from_admitted_provider(
+        receipt: ResourceProfileReceiptId,
+        extent: &Extent,
+        required_rights: ExtentRights,
+        permitted_reach: BoundaryReach,
+    ) -> Result<Self, AccessPlanDiagnostic> {
+        Self::from_bound_extent(
+            receipt,
+            extent.base(),
+            extent.length(),
+            extent.address_space(),
+            extent.provenance(),
+            extent.era(),
+            extent.origin(),
+            extent.lineage_root(),
+            required_rights,
+            permitted_reach,
+        )
+    }
+
+    /// Bind provider supply directly to the exact qualified subrange loan
+    /// that will feed placement admission.
+    pub fn from_admitted_provider_loan(
+        receipt: ResourceProfileReceiptId,
+        loan: &ExtentLoan<'_>,
+        required_rights: ExtentRights,
+        permitted_reach: BoundaryReach,
+    ) -> Result<Self, AccessPlanDiagnostic> {
+        Self::from_bound_extent(
+            receipt,
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.provenance(),
+            loan.era(),
+            loan.origin(),
+            loan.lineage_root(),
+            required_rights,
+            permitted_reach,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_bound_extent(
         receipt: ResourceProfileReceiptId,
         base: u64,
         length: u64,
         address_space: AddressSpaceId,
         provenance: ExtentProvenanceId,
         era: MappingEraId,
+        origin: ExtentRootOrigin,
+        lineage_root: ExtentLineageId,
         required_rights: ExtentRights,
         permitted_reach: BoundaryReach,
     ) -> Result<Self, AccessPlanDiagnostic> {
@@ -1725,6 +1777,8 @@ impl ResourceProfileGrant {
             address_space,
             provenance,
             era,
+            origin,
+            lineage_root,
             required_rights,
             permitted_reach,
         })
@@ -1766,6 +1820,8 @@ impl ResourceProfileGrant {
             address_space: self.address_space,
             provenance: self.provenance,
             era: self.era,
+            origin: self.origin,
+            lineage_root: self.lineage_root,
             required_rights: self.required_rights,
             permitted_reach: self.permitted_reach,
             profile: validated,
@@ -1798,6 +1854,8 @@ pub struct AdmittedResourceProfile {
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
+    origin: ExtentRootOrigin,
+    lineage_root: ExtentLineageId,
     required_rights: ExtentRights,
     permitted_reach: BoundaryReach,
     profile: ValidatedResourceProfile,
@@ -1829,6 +1887,16 @@ impl AdmittedResourceProfile {
         if loan.era() != self.era {
             return Err(AccessPlanDiagnostic(
                 "extent mapping era does not match admitted resource profile".into(),
+            ));
+        }
+        if loan.origin() != self.origin {
+            return Err(AccessPlanDiagnostic(
+                "extent sealed root origin does not match admitted resource profile".into(),
+            ));
+        }
+        if loan.lineage_root() != self.lineage_root {
+            return Err(AccessPlanDiagnostic(
+                "extent root lineage does not match admitted resource profile".into(),
             ));
         }
         if !loan.rights().contains(&self.required_rights) {
@@ -3516,11 +3584,7 @@ mod tests {
         let required_rights = extent_rights(&[3]);
         let resources = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(11).expect("profile receipt"),
-            0x2000,
-            4,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            &extent,
             required_rights,
             BoundaryReach::default(),
         )
@@ -3756,9 +3820,25 @@ mod tests {
     }
 
     fn uart_extent(base: u64, length: u64) -> psi_extents::Extent {
+        uart_extent_with_lineage(base, length, 1)
+    }
+
+    fn uart_extent_with_lineage(base: u64, length: u64, lineage: u64) -> psi_extents::Extent {
+        uart_extent_with_root(base, length, 1, lineage)
+    }
+
+    fn uart_extent_with_root(
+        base: u64,
+        length: u64,
+        provider: u64,
+        lineage: u64,
+    ) -> psi_extents::Extent {
         psi_extents::ExtentRootGrant::from_admitted_provider(
-            provider_issuance(1),
-            extent_id(1, psi_extents::ExtentLineageId::from_normalized_identity),
+            provider_issuance(provider),
+            extent_id(
+                lineage,
+                psi_extents::ExtentLineageId::from_normalized_identity,
+            ),
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_rights(&[3, 4]),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
@@ -3769,22 +3849,22 @@ mod tests {
     }
 
     fn uart_resource_profile(
-        base: u64,
-        length: u64,
+        loan: &ExtentLoan<'_>,
         reach: &BoundaryReach,
     ) -> AdmittedResourceProfile {
-        ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileGrant::from_admitted_provider_loan(
             ResourceProfileReceiptId::from_normalized_identity(7).expect("profile receipt"),
-            base,
-            length,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            loan,
             extent_rights(&[3]),
             reach.clone(),
         )
         .expect("UART resource-profile grant")
-        .admit(ResourceProfile {
+        .admit(uart_resource_profile_data(loan.length(), reach))
+        .expect("admitted UART resource profile")
+    }
+
+    fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourceProfile {
+        ResourceProfile {
             regions: vec![ResourceRegion {
                 offset: 0,
                 length,
@@ -3800,8 +3880,7 @@ mod tests {
                 atomic: AtomicCapability::None,
                 reach: reach.clone(),
             }],
-        })
-        .expect("admitted UART resource profile")
+        }
     }
 
     fn admit_uart<'extent>(
@@ -3810,7 +3889,7 @@ mod tests {
         plan: &ValidatedPlacementPlan,
         permitted_reach: &BoundaryReach,
     ) -> Result<PlacementAdmission<'extent>, PlacementRejection<'extent>> {
-        let resources = uart_resource_profile(loan.base(), loan.length(), permitted_reach);
+        let resources = uart_resource_profile(&loan, permitted_reach);
         admit_placement(
             PlacementAdmissionId::from_normalized_identity(identity).expect("placement admission"),
             loan,
@@ -3971,14 +4050,9 @@ mod tests {
         })
         .expect("heterogeneous placement");
         let mut extent = uart_extent(0x5000, 16);
-        let loan = extent.loan_mut(0, 16).expect("exclusive placed loan");
         let resources = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(51).expect("profile receipt"),
-            0x5000,
-            16,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            &extent,
             extent_rights(&[3]),
             BoundaryReach::default(),
         )
@@ -4031,6 +4105,7 @@ mod tests {
             ],
         })
         .expect("heterogeneous profile");
+        let loan = extent.loan_mut(0, 16).expect("exclusive placed loan");
         let admission = admit_placement(
             PlacementAdmissionId::from_normalized_identity(52).expect("admission"),
             loan,
@@ -4482,11 +4557,7 @@ mod tests {
         let extent = uart_extent(0x4000, 16);
         let profile = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(41).expect("profile receipt"),
-            0x4000,
-            16,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            &extent,
             extent_rights(&[3]),
             BoundaryReach::default(),
         )
@@ -4535,6 +4606,80 @@ mod tests {
         assert!(
             rejection.diagnostic().0.contains("not covered"),
             "uncovered subrange rejection must report missing supply"
+        );
+        drop(rejection);
+
+        let partition = extent
+            .partition_owned(4, 4)
+            .expect("owned subrange partition");
+        {
+            let loan = partition
+                .selected()
+                .loan(0, 4)
+                .expect("selected split loan");
+            let admission = admit_placement(
+                PlacementAdmissionId::from_normalized_identity(44).expect("admission"),
+                loan,
+                &placement,
+                &profile,
+            )
+            .expect("a conserved split must retain its root profile binding");
+            let view = place(admission);
+            assert_eq!(view.base(), 0x4004);
+        }
+        let restored = partition.rejoin();
+        assert_eq!(restored.base(), 0x4000);
+        assert_eq!(restored.length(), 16);
+    }
+
+    #[test]
+    fn admitted_profile_rejects_coincident_independent_extent_root() {
+        let plan = uart_placement_plan();
+        let admitted_root = uart_extent_with_lineage(0x6000, 12, 61);
+        let profile = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(62).expect("profile receipt"),
+            &admitted_root,
+            extent_rights(&[3]),
+            uart_reach(),
+        )
+        .expect("root-bound profile grant")
+        .admit(uart_resource_profile_data(12, &uart_reach()))
+        .expect("admitted root-bound profile");
+
+        let foreign_origin = uart_extent_with_root(0x6000, 12, 2, 61);
+        assert_ne!(foreign_origin.origin(), admitted_root.origin());
+        assert_eq!(foreign_origin.lineage_root(), admitted_root.lineage_root());
+        let loan = foreign_origin
+            .loan(0, 12)
+            .expect("coincident foreign-origin loan");
+        let rejection = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(63).expect("admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect_err("coincident geometry and lineage must not replay another origin's profile");
+        assert!(
+            rejection.diagnostic().0.contains("sealed root origin"),
+            "cross-origin replay must identify the sealed-origin mismatch"
+        );
+
+        let coincident_root = uart_extent_with_lineage(0x6000, 12, 63);
+        assert_eq!(coincident_root.origin(), admitted_root.origin());
+        assert_ne!(coincident_root.lineage_root(), admitted_root.lineage_root());
+        let loan = coincident_root
+            .loan(0, 12)
+            .expect("coincident independent loan");
+        let rejection = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(64).expect("admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect_err("coincident geometry and provenance must not replay another root's profile");
+        assert!(
+            rejection.diagnostic().0.contains("root lineage"),
+            "cross-root replay must identify the root-lineage mismatch"
         );
     }
 
@@ -4647,11 +4792,7 @@ mod tests {
         let loan = extent.loan(0, 4).expect("misaligned loan");
         let resources = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(22).expect("profile receipt"),
-            0x1002,
-            4,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            &extent,
             extent_rights(&[3]),
             BoundaryReach::default(),
         )
@@ -4687,17 +4828,10 @@ mod tests {
     #[test]
     fn admitted_profile_binds_rights_provenance_era_and_returns_rejected_loan() {
         let plan = uart_placement_plan();
-        let extent = uart_extent(0x3000, 12)
-            .attenuate(extent_rights(&[3]))
-            .expect("attenuated extent");
-        let loan = extent.loan(0, 12).expect("UART loan");
+        let extent = uart_extent(0x3000, 12);
         let profile = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(31).expect("profile receipt"),
-            0x3000,
-            12,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_id(6, psi_extents::MappingEraId::from_normalized_identity),
+            &extent,
             extent_rights(&[4]),
             uart_reach(),
         )
@@ -4720,6 +4854,10 @@ mod tests {
             }],
         })
         .expect("admitted profile");
+        let extent = extent
+            .attenuate(extent_rights(&[3]))
+            .expect("attenuated extent");
+        let loan = extent.loan(0, 12).expect("UART loan");
         let rejection = admit_placement(
             PlacementAdmissionId::from_normalized_identity(32).expect("admission"),
             loan,
