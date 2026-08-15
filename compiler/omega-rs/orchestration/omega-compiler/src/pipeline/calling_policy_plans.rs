@@ -31,6 +31,7 @@ struct TraitTypeBinding {
 
 struct BoundarySignatureInstance<'a> {
     signature: &'a psi_typed_trees::signature::StateSignature,
+    requirement_identity: String,
     bindings: Vec<TraitTypeBinding>,
 }
 
@@ -487,12 +488,16 @@ fn collect_boundary_signatures<'a>(
         }
     }
     for signature in typed.trait_machine_signatures(definition) {
+        let requirement_identity = typed
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity();
         if !signatures
             .iter()
-            .any(|candidate| candidate.signature.name == signature.name)
+            .any(|candidate| candidate.requirement_identity == requirement_identity)
         {
             signatures.push(BoundarySignatureInstance {
                 signature,
+                requirement_identity,
                 bindings: bindings.clone(),
             });
         }
