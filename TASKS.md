@@ -503,8 +503,11 @@ compiler concept is introduced.
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
-  service reach, suspension, blocking, termination, mutation, and trust; remove
-  remaining umbrella carriers after their consumers migrate.
+  service reach, suspension, blocking, termination, mutation, and trust. The
+  state graph now consumes suspension and blocking independently from exact
+  flow-state and machine-contract facts while service reach stays on its
+  dedicated facts; remove the remaining umbrella carriers after their consumers
+  migrate.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows. The

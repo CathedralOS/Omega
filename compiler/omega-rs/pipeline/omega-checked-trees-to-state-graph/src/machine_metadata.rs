@@ -57,30 +57,22 @@ pub(crate) fn machine_suspension_summary(
     program: &CheckedTrees,
     machine_symbol: psi_symbols::SymbolHandle,
 ) -> SuspensionSummary {
-    let Some(machine) = program
+    let direct_may_suspend = program
         .facts
-        .operational
-        .machines()
-        .iter()
-        .find(|effects| effects.symbol == machine_symbol)
-    else {
-        return SuspensionSummary::default();
-    };
-    let mut direct_may_suspend = false;
-    for state in program
-        .facts
-        .operational
+        .flow
+        .control
         .states
-        .span_or_empty(machine.states)
-    {
-        direct_may_suspend |= state.direct_may_suspend;
-        for call in program.facts.operational.calls.span_or_empty(state.calls) {
-            direct_may_suspend |= call.direct_may_suspend;
-        }
-    }
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine_symbol)
+        .any(|(_, state)| state.suspension.direct_may_suspend);
+    let transitive_may_suspend = program
+        .facts
+        .contract_plans
+        .for_machine(machine_symbol)
+        .is_some_and(|contract| contract.suspension.checked_may_suspend);
     SuspensionSummary {
         direct_may_suspend,
-        transitive_may_suspend: machine.transitive_may_suspend,
+        transitive_may_suspend,
     }
 }
 
@@ -88,30 +80,22 @@ pub(crate) fn machine_blocking_summary(
     program: &CheckedTrees,
     machine_symbol: psi_symbols::SymbolHandle,
 ) -> BlockingSummary {
-    let Some(machine) = program
+    let direct_may_block = program
         .facts
-        .operational
-        .machines()
-        .iter()
-        .find(|effects| effects.symbol == machine_symbol)
-    else {
-        return BlockingSummary::default();
-    };
-    let mut direct_may_block = false;
-    for state in program
-        .facts
-        .operational
+        .flow
+        .control
         .states
-        .span_or_empty(machine.states)
-    {
-        direct_may_block |= state.direct_may_block;
-        for call in program.facts.operational.calls.span_or_empty(state.calls) {
-            direct_may_block |= call.direct_may_block;
-        }
-    }
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine_symbol)
+        .any(|(_, state)| state.blocking.direct_may_block);
+    let transitive_may_block = program
+        .facts
+        .contract_plans
+        .for_machine(machine_symbol)
+        .is_some_and(|contract| contract.blocking.checked_may_block);
     BlockingSummary {
         direct_may_block,
-        transitive_may_block: machine.transitive_may_block,
+        transitive_may_block,
     }
 }
 
@@ -119,60 +103,30 @@ pub(crate) fn state_suspension_summary(
     program: &CheckedTrees,
     state_symbol: psi_symbols::SymbolHandle,
 ) -> SuspensionSummary {
-    let Some(state) = program
+    program
         .facts
-        .operational
-        .machines()
+        .flow
+        .control
+        .states
         .iter()
-        .flat_map(|machine| {
-            program
-                .facts
-                .operational
-                .states
-                .span_or_empty(machine.states)
-        })
-        .find(|effects| effects.symbol == state_symbol)
-    else {
-        return SuspensionSummary::default();
-    };
-    let mut direct_may_suspend = state.direct_may_suspend;
-    for call in program.facts.operational.calls.span_or_empty(state.calls) {
-        direct_may_suspend |= call.direct_may_suspend;
-    }
-    SuspensionSummary {
-        direct_may_suspend,
-        transitive_may_suspend: state.transitive_may_suspend,
-    }
+        .find(|(_, state)| state.state_symbol == state_symbol)
+        .map(|(_, state)| state.suspension)
+        .unwrap_or_default()
 }
 
 pub(crate) fn state_blocking_summary(
     program: &CheckedTrees,
     state_symbol: psi_symbols::SymbolHandle,
 ) -> BlockingSummary {
-    let Some(state) = program
+    program
         .facts
-        .operational
-        .machines()
+        .flow
+        .control
+        .states
         .iter()
-        .flat_map(|machine| {
-            program
-                .facts
-                .operational
-                .states
-                .span_or_empty(machine.states)
-        })
-        .find(|effects| effects.symbol == state_symbol)
-    else {
-        return BlockingSummary::default();
-    };
-    let mut direct_may_block = state.direct_may_block;
-    for call in program.facts.operational.calls.span_or_empty(state.calls) {
-        direct_may_block |= call.direct_may_block;
-    }
-    BlockingSummary {
-        direct_may_block,
-        transitive_may_block: state.transitive_may_block,
-    }
+        .find(|(_, state)| state.state_symbol == state_symbol)
+        .map(|(_, state)| state.blocking)
+        .unwrap_or_default()
 }
 
 pub(crate) fn machine_contains(
