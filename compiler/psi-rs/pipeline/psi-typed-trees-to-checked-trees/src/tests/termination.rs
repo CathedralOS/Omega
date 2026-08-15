@@ -9106,12 +9106,25 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         cells
     }
 
-    machine return_after_computed_literal_field<'cells, 'target, 'value>(
+    machine return_after_computed_literal_field<'cells, 'target, 'value, 'other>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut u64,
+        value: &'value mut u64,
+        other: &'other mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = (Pair {
+            first: identity(identity(identity(compute(value)))) + 1,
+            second: compute(other) + 2
+        }).first;
+        cells
+    }
+
+    machine return_after_wrapped_computed_literal_field<'cells, 'target, 'value>(
         cells: &'cells mut [u64; 2],
         target: &'target mut u64,
         value: &'value mut u64
     ) -> &'cells mut [u64; 2] {
-        target = (Pair { first: compute(value) + 1, second: 0 }).first;
+        target = ~((Pair { first: compute(value) + 1, second: 0 }).first);
         cells
     }
 
@@ -9197,6 +9210,16 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
 
     machine Main::computed_literal_field_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_computed_literal_field(
+            &mut self.cells,
+            &mut self.target,
+            &mut self.first,
+            &mut self.second
+        );
+        alias[0] = 3;
+    }
+
+    machine Main::wrapped_computed_literal_field_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_wrapped_computed_literal_field(
             &mut self.cells,
             &mut self.target,
             &mut self.first
@@ -9314,8 +9337,29 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         "one outer computation shell must retain the returned place and literal-field call write"
     );
 
+    let computed = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::computed_literal_field_result")
+        .expect("computed literal field machine");
+    let computed_entry = typed
+        .machine_states(computed)
+        .first()
+        .expect("computed literal field entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(computed, computed_entry)
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.first", "self.second", "self.target"]
+                .map(str::to_owned)
+                .as_slice()
+        ),
+        "the member and field computations must share the depth-two budget and publish every field write"
+    );
+
     for name in [
-        "Main::computed_literal_field_result",
+        "Main::wrapped_computed_literal_field_result",
         "Main::third_shell_literal_member_result",
         "Main::nested_literal_member_result",
         "Main::generic_literal_member_result",

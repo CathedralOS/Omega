@@ -477,9 +477,11 @@ compiler concept is introduced.
   selected-case literals, and concrete record or selected-case fields may
   contain literal fixed arrays. A primitive scalar assignment value may also
   select one direct member from a concrete caller-isolated record or
-  selected-case literal whose effectful fields are bounded direct-call trees,
-  with one additional unary, binary, primitive-cast, member-projection, or
-  indexing shell sharing the existing computation-depth-two budget.
+  selected-case literal whose effectful primitive fields are bounded
+  direct-call trees or use one scalar-computation shell around those calls;
+  every field publishes its writes. One additional outer scalar shell is
+  admitted only when the fields do not consume that remaining shared
+  computation-depth-two budget.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
