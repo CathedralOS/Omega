@@ -111,6 +111,7 @@ pub(super) fn write_trust_report(
                     synchronous_invocations: method.synchronous_invocations.clone(),
                     may_suspend: method.may_suspend,
                     may_block: method.may_block,
+                    terminates_guarantee: method.terminates_guarantee,
                     realization: trust_provider_realization(&row.binding),
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),

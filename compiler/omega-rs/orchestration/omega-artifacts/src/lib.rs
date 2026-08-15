@@ -678,7 +678,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -716,6 +716,7 @@ impl ArtifactWriter {
                 },
                 if row.may_suspend { "yes" } else { "no" },
                 if row.may_block { "yes" } else { "no" },
+                if row.terminates_guarantee { "yes" } else { "no" },
                 row.realization.report_text(),
                 row.provenance,
                 if row.grant_selectors.is_empty() {
@@ -2156,6 +2157,9 @@ pub struct TrustProviderRequirementRow {
     pub synchronous_invocations: Vec<String>,
     pub may_suspend: bool,
     pub may_block: bool,
+    /// Exact existing public `terminates;` guarantee on the bodyless
+    /// requirement. This carries no progress-profile or private witness data.
+    pub terminates_guarantee: bool,
     pub realization: TrustProviderRealization,
     pub provenance: String,
     pub grant_selectors: Vec<String>,
@@ -2575,6 +2579,7 @@ mod tests {
                 synchronous_invocations: vec!["Callback".to_owned()],
                 may_suspend: true,
                 may_block: false,
+                terminates_guarantee: true,
                 realization: TrustProviderRealization::VtableSlot { index: 4 },
                 provenance: "root grant (build.omg)".to_owned(),
                 grant_selectors: vec!["Root".to_owned()],
@@ -2606,6 +2611,7 @@ mod tests {
         assert!(output.contains("synchronous invocations: Callback"));
         assert!(output.contains("may suspend: yes"));
         assert!(output.contains("may block: no"));
+        assert!(output.contains("termination guarantee: yes"));
         assert!(output.contains("realization: vtable slot 4"));
         assert!(output.contains("root grant (build.omg)"));
         assert!(output.contains("grant selectors: Root"));

@@ -2283,6 +2283,7 @@ mod tests {
                         synchronous_invocations: Vec::new(),
                         may_suspend: false,
                         may_block: false,
+                        terminates_guarantee: false,
                         calling_plan_fingerprint: None,
                     })
                     .collect(),
