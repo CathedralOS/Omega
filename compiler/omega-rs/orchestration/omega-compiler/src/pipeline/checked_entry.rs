@@ -165,6 +165,11 @@ fn compile_to_checked_inner(
         &provider_plans,
         &selected_provider_plans,
     )?;
+    let selected_provider_plan_facts = omega_effects::SelectedProviderPlanFacts::from_selection(
+        &provider_plans,
+        &selected_provider_plans,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
     let checked_program = Arc::get_mut(&mut checked.program)
         .expect("checked program must be uniquely owned before engine handoff");
@@ -172,7 +177,7 @@ fn compile_to_checked_inner(
         crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
             checked_program,
             &provider_plans,
-            &selected_provider_plans,
+            selected_provider_plan_facts,
             &build_config.grants,
         )?;
     crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(

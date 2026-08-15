@@ -96,7 +96,7 @@ pub(super) fn enforce_trust_lockfile(
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
-    selected_provider_plans: &[String],
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     if root_grants.is_empty() {
         return Ok(());

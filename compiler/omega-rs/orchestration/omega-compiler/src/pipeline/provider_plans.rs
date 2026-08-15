@@ -447,12 +447,9 @@ impl SelectedExternalRootProviderPlan {
 pub(crate) fn bind_selected_provider_plan_facts(
     checked: &mut psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
-    selected_names: &[String],
+    facts: omega_effects::SelectedProviderPlanFacts,
     root_grants: &[String],
 ) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
-    let facts =
-        omega_effects::SelectedProviderPlanFacts::from_selection(candidates, selected_names)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])?;
     let granted_receipts = facts
         .plans()
         .iter()
@@ -2234,7 +2231,7 @@ pub(crate) fn select_provider_plan_names(
 /// be encountered first.
 pub(crate) fn selected_provider_plan_for_grant<'plans>(
     plans: &'plans [ProviderPlan],
-    selected_names: &[String],
+    selected: &'plans omega_effects::SelectedProviderPlanFacts,
     grant: &str,
 ) -> Result<Option<&'plans ProviderPlan>, psi_diagnostics::Diagnostic> {
     let grant_names_provider = plans
@@ -2243,9 +2240,9 @@ pub(crate) fn selected_provider_plan_for_grant<'plans>(
     if !grant_names_provider {
         return Ok(None);
     }
-    let matching = plans
+    let matching = selected
+        .plans()
         .iter()
-        .filter(|plan| selected_names.iter().any(|name| name == &plan.name))
         .filter(|plan| grant == plan.name || grant == plan.schema.trait_name)
         .collect::<Vec<_>>();
     match matching.as_slice() {
@@ -2423,7 +2420,11 @@ mod tests {
         bind_selected_provider_plan_facts(
             &mut checked,
             std::slice::from_ref(&selected),
-            &["FirstProvider".to_owned()],
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &["FirstProvider".to_owned()],
+            )
+            .expect("canonical selected facts"),
             &["Pair".to_owned()],
         )
         .expect("selected granted provider plan");

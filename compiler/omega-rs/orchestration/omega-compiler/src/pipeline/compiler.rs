@@ -485,12 +485,18 @@ impl Compiler {
             &provider_plans,
             &selected_provider_plans,
         )?;
+        let selected_provider_plan_facts =
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                &provider_plans,
+                &selected_provider_plans,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             &self.options,
             &typed,
             &build_config.grants,
             &provider_plans,
-            &selected_provider_plans,
+            &selected_provider_plan_facts,
         )?;
         crate::pipeline::wire_report::write_wire_protocol_report(
             &self.options,
@@ -517,7 +523,7 @@ impl Compiler {
                 Arc::get_mut(&mut checked.program)
                     .expect("checked program must be uniquely owned before backend fan-out"),
                 &provider_plans,
-                &selected_provider_plans,
+                selected_provider_plan_facts,
                 &build_config.grants,
             )?
             .with_opaque_executable_admissions(
