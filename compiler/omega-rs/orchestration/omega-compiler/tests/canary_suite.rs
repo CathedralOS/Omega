@@ -11311,10 +11311,11 @@ fn runtime_value_position_branching_call_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-position branching call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("value-position branching call canary should run");
 
@@ -11341,10 +11342,11 @@ fn runtime_free_machine_value_call_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-value-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine value call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("free-machine value call canary should run");
 
@@ -11376,10 +11378,11 @@ fn runtime_free_machine_struct_arg_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-free-machine-struct-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine struct arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("free-machine struct arg canary should run");
 
@@ -11407,10 +11410,11 @@ fn by_value_case_param_self_write_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-by-value-case-param-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("by-value case param self-write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("by-value case param self-write canary should run");
 
@@ -11439,10 +11443,11 @@ fn runtime_attached_machine_struct_arg_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("attached-machine struct arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("attached-machine struct arg canary should run");
 
@@ -11473,10 +11478,11 @@ fn runtime_record_forwarding_statement_call_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("record-forwarding statement-call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("record-forwarding statement-call canary should run");
 
@@ -45986,6 +45992,12 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "calls/by_value_case_param_self_write_exit",
+    "calls/runtime_attached_machine_struct_arg_exit",
+    "calls/runtime_free_machine_struct_arg_exit",
+    "calls/runtime_free_machine_value_call_exit",
+    "calls/runtime_record_forwarding_statement_call_exit",
+    "calls/runtime_value_position_branching_call_exit",
     "domains/utf8_return_view_equals_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_bitwise_guard_exit",
@@ -46382,13 +46394,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_ranged_divide_modulo_chain_exit",
     "arithmetic/runtime_u64_max_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "calls/runtime_free_machine_value_call_exit",
     "domains/utf8_return_view_equals_exit",
-    "operators/integer_literal_suffix_exit",
-    "operators/runtime_bitwise_guard_exit",
-    "operators/runtime_bitwise_operators_exit",
-    "operators/runtime_popcount_loop_exit",
-    "operators/runtime_shift_operators_exit",
-    "operators/runtime_xorshift_prng_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
     "text/runtime_bounded_carrier_pointee_guard_exit",
