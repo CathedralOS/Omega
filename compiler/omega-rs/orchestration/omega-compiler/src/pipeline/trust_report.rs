@@ -62,9 +62,19 @@ pub(super) fn write_trust_report(
             .count();
         report.rows.push(TrustReportRow {
             commitment: format!(
-                "provider plan: {} [{:016x}] coverage {covered}/{} selected: {}",
+                "provider plan: {} [{:016x}] provider type: {} target: {} coverage {covered}/{} selected: {}",
                 plan.name,
                 plan.identity_fingerprint(),
+                if plan.provider_type.is_empty() {
+                    "<free external>"
+                } else {
+                    plan.provider_type.as_str()
+                },
+                if plan.target.is_empty() {
+                    "<all>"
+                } else {
+                    plan.target.as_str()
+                },
                 plan.schema.methods.len(),
                 if selected { "yes" } else { "no" },
             ),
@@ -86,6 +96,8 @@ pub(super) fn write_trust_report(
                 .push(TrustProviderRequirementRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    provider_type: plan.provider_type.clone(),
+                    target: plan.target.clone(),
                     selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: row.requirement_identity.clone(),
@@ -108,6 +120,8 @@ pub(super) fn write_trust_report(
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    provider_type: plan.provider_type.clone(),
+                    target: plan.target.clone(),
                     selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: method.requirement_identity.clone(),
@@ -129,6 +143,8 @@ pub(super) fn write_trust_report(
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
                     provider_plan_fingerprint: plan.identity_fingerprint(),
+                    provider_type: plan.provider_type.clone(),
+                    target: plan.target.clone(),
                     selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: method.requirement_identity.clone(),
