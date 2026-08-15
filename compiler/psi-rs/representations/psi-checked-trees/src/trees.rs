@@ -1,7 +1,7 @@
 use crate::{
     BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
     DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, InvariantFacts,
-    MachineContractPlans, ProofFacts, QualificationFacts, ServiceReachFacts,
+    MachineContractPlans, MutationFacts, ProofFacts, QualificationFacts, ServiceReachFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,6 +21,9 @@ pub struct CheckFacts {
     /// PDI3 named equality verification conditions and their exact discharge
     /// evidence. These rows never participate in semantic type identity.
     pub index_compatibility: IndexCompatibilityFacts,
+    /// Body-derived, state-relative may-write frames. Mutation remains an
+    /// independent implementation axis outside public machine contracts.
+    pub mutation: MutationFacts,
     /// EFX: symbol-resolved boundary-service declarations plus grouped
     /// machine/state/call reach summaries.
     pub service_reaches: ServiceReachFacts,
@@ -49,6 +52,7 @@ impl CheckFacts {
         capabilities: psi_effects::CapabilityFlowPlan,
         flow: FlowFacts,
         index_compatibility: IndexCompatibilityFacts,
+        mutation: MutationFacts,
         service_reaches: ServiceReachFacts,
         qualifications: QualificationFacts,
         contract_plans: MachineContractPlans,
@@ -66,6 +70,7 @@ impl CheckFacts {
             capabilities,
             flow,
             index_compatibility,
+            mutation,
             service_reaches,
             qualifications,
             contract_plans,

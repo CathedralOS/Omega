@@ -5,6 +5,7 @@ mod domains;
 mod dynamic_conformances;
 mod index_compatibility;
 mod invariants;
+mod mutation;
 mod qualifications;
 mod service_reaches;
 
@@ -15,5 +16,6 @@ pub use domains::*;
 pub use dynamic_conformances::*;
 pub use index_compatibility::*;
 pub use invariants::*;
+pub use mutation::*;
 pub use qualifications::*;
 pub use service_reaches::*;

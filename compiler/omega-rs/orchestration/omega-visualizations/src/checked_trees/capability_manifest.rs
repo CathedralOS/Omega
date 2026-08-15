@@ -179,7 +179,7 @@ fn entry_machine_named(
 #[cfg(test)]
 mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
-    use psi_checked_trees::{CheckedTrees, MachineContractPlan, StateWriteFramePlan};
+    use psi_checked_trees::{CheckedTrees, MachineContractPlan};
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachInterface,
         ServiceReachPlan, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
@@ -261,7 +261,6 @@ mod tests {
                     ),
                     ..Default::default()
                 },
-                inferred_write_frames: Vec::<StateWriteFramePlan>::new(),
                 fingerprint: 0,
             });
 

@@ -1011,10 +1011,6 @@ pub struct MachineContractPlan {
     /// remain distinct within one normalized termination plan. Only the
     /// interface contributes to this contract's public fingerprint.
     pub termination: psi_language_semantics::MachineTerminationPlan,
-    /// Body-derived, state-relative write frames. These are implementation
-    /// evidence, not authored contract material, and therefore never enter
-    /// `fingerprint` or specialization identity.
-    pub inferred_write_frames: Vec<StateWriteFramePlan>,
     /// The deterministic identity over the published halves above. Stable
     /// across prover-strength changes and body edits that keep the declared
     /// surface.
@@ -1065,12 +1061,6 @@ impl ClosedScalarValueContractPlan {
     pub const fn has_other_clauses(&self) -> bool {
         self.has_other_clauses
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateWriteFramePlan {
-    pub state: SymbolHandle,
-    pub frame: psi_facts::NormalizedWriteFrame,
 }
 
 /// The slice-1 fingerprint: an FNV-1a fold over the published halves'

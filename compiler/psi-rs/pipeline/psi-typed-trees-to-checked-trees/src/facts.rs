@@ -63,6 +63,9 @@ pub(crate) fn build_check_facts(
     let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
+    // R5/STR: body-derived mutation frames are an independent checked axis,
+    // never a field of the published machine contract.
+    let mutation = build_mutation_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
     let contract_plans = build_contract_plans(
@@ -89,6 +92,7 @@ pub(crate) fn build_check_facts(
         capabilities,
         flow,
         index_compatibility,
+        mutation,
         service_reaches,
         qualifications,
         contract_plans,
@@ -194,7 +198,6 @@ fn build_contract_plans(
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
-    let frame_resolver = psi_validation::CallFrameResolver::new(program);
     let invocation_inference = psi_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
@@ -386,18 +389,6 @@ fn build_contract_plans(
             &termination.interface,
             &canonical_facts,
         );
-        let inferred_write_frames = program
-            .machine_states(machine)
-            .iter()
-            .map(|state| psi_checked_trees::StateWriteFramePlan {
-                state: state.symbol,
-                frame: frame_resolver
-                    .as_ref()
-                    .map_or_else(psi_facts::NormalizedWriteFrame::opaque, |resolver| {
-                        resolver.inferred_state_write_frame(machine, state)
-                    }),
-            })
-            .collect();
         machines.push(psi_checked_trees::MachineContractPlan {
             machine: machine.symbol,
             supply_mode: machine.supply_mode,
@@ -408,7 +399,6 @@ fn build_contract_plans(
             closed_scalar_values,
             crash,
             termination,
-            inferred_write_frames,
             fingerprint,
         });
     }
@@ -426,6 +416,30 @@ fn build_contract_plans(
         machines,
         crash_capsules,
     }
+}
+
+fn build_mutation_facts(program: &TypedTrees) -> psi_checked_trees::MutationFacts {
+    let frame_resolver = psi_validation::CallFrameResolver::new(program);
+    let machines = program
+        .machines()
+        .iter()
+        .map(|machine| psi_checked_trees::MachineMutationFact {
+            machine: machine.symbol,
+            state_write_frames: program
+                .machine_states(machine)
+                .iter()
+                .map(|state| psi_checked_trees::StateWriteFramePlan {
+                    state: state.symbol,
+                    frame: frame_resolver
+                        .as_ref()
+                        .map_or_else(psi_facts::NormalizedWriteFrame::opaque, |resolver| {
+                            resolver.inferred_state_write_frame(machine, state)
+                        }),
+                })
+                .collect(),
+        })
+        .collect();
+    psi_checked_trees::MutationFacts { machines }
 }
 
 fn build_closed_scalar_value_contract_plan(

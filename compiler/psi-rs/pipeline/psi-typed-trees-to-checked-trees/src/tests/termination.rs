@@ -2202,8 +2202,12 @@ fn contract_plans_fingerprint_published_halves() {
     // Same declared surface (different BODIES) -> same fingerprint.
     assert_eq!(plan(quiet_a).fingerprint, plan(quiet_b).fingerprint);
     let frame = |symbol| {
-        &plan(symbol)
-            .inferred_write_frames
+        &checked
+            .facts
+            .mutation
+            .for_machine(symbol)
+            .expect("mutation facts")
+            .state_write_frames
             .first()
             .expect("entry-state frame")
             .frame
