@@ -2500,6 +2500,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             effective_supply: self.supply,
             admission: self.admission,
             primitive_address: self.primitive_address,
+            key: descriptor.key,
             field: descriptor.field,
             transfer_width_bits: descriptor.transfer_width_bits,
             logical_extent: descriptor.logical_extent,
@@ -2529,6 +2530,7 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     effective_supply: EffectiveFieldSupply,
     admission: PlacementAdmissionId,
     primitive_address: u64,
+    key: AccessFieldKey,
     field: String,
     transfer_width_bits: u16,
     logical_extent: LogicalFieldExtent,
@@ -2849,6 +2851,123 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             });
         }
         Ok(ExternalPrimitiveAccessRequest {
+            request: self,
+            operation,
+        })
+    }
+}
+
+/// Atomic operation and proof-static ordering accepted by primitive lowering.
+///
+/// Each family remains distinct, including the independent success and
+/// failure orderings of compare-exchange. No ordinary read, write, or
+/// synthesized retry operation has a member in this closed contract.
+#[derive(Debug)]
+#[must_use = "Atomic primitive access retains its exact placed authority"]
+pub struct AtomicPrimitiveAccessRequest<'view, 'extent> {
+    request: PrimitiveAccessRequest<'view, 'extent>,
+    operation: AtomicAccessOperation,
+}
+
+impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
+    pub const fn operation(&self) -> AtomicAccessOperation {
+        self.operation
+    }
+
+    pub const fn ordering_plan(&self) -> AtomicOrderingPlan {
+        self.operation.ordering_plan()
+    }
+
+    pub const fn primitive_address(&self) -> u64 {
+        self.request.primitive_address
+    }
+
+    pub const fn transfer_width_bits(&self) -> u16 {
+        self.request.transfer_width_bits
+    }
+
+    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
+        &self.request.logical_extent
+    }
+
+    pub const fn effect_footprint(&self) -> EffectFootprint {
+        self.request.effect_footprint
+    }
+
+    pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
+        self.request
+    }
+}
+
+/// Failed Atomic specialization returns the exact sealed request so its range
+/// authority and operation-specific custody remain available to the caller.
+#[derive(Debug)]
+pub struct AtomicPrimitiveAccessRejection<'view, 'extent> {
+    request: PrimitiveAccessRequest<'view, 'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'view, 'extent> AtomicPrimitiveAccessRejection<'view, 'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
+        (self.request, self.diagnostic)
+    }
+}
+
+impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
+    /// Consume this general request into the narrow contract accepted by one
+    /// exact, explicitly admitted Atomic operation.
+    pub fn into_atomic_primitive_access(
+        self,
+    ) -> Result<
+        AtomicPrimitiveAccessRequest<'view, 'extent>,
+        AtomicPrimitiveAccessRejection<'view, 'extent>,
+    > {
+        if self.observation != ObservationModel::Atomic {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Atomic lowering requires an Atomic observation".into(),
+                ),
+            });
+        }
+        if self.effective_supply.kind() != EffectiveSupplyKind::Atomic {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Atomic lowering requires explicitly admitted Atomic supply".into(),
+                ),
+            });
+        }
+        if self.effective_supply.key() != self.key
+            || self.effective_supply.width_bits() != self.transfer_width_bits
+        {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Atomic lowering requires the admitted supply key and width to match the sealed request"
+                        .into(),
+                ),
+            });
+        }
+        let AccessOperation::Atomic(operation) = self.operation else {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic: AccessPlanDiagnostic(
+                    "Atomic lowering accepts only one sealed Atomic operation".into(),
+                ),
+            });
+        };
+        if let Err(diagnostic) = validate_operation_ordering(self.operation) {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
+        Ok(AtomicPrimitiveAccessRequest {
             request: self,
             operation,
         })
@@ -4612,6 +4731,79 @@ mod tests {
         .expect("admitted destructive External resource profile")
     }
 
+    const fn all_atomic_operations() -> AtomicPermissions {
+        AtomicPermissions {
+            load: true,
+            store: true,
+            fetch_add: true,
+            fetch_sub: true,
+            fetch_xor: true,
+            fetch_or: true,
+            fetch_and: true,
+            swap: true,
+            compare_exchange: true,
+        }
+    }
+
+    fn atomic_word_placement() -> ValidatedPlacementPlan {
+        let layout = LayoutPlanReport {
+            schema_identity: 0xa70_1c,
+            entries: vec![LayoutFieldEntryReport {
+                field: "head".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(4),
+            align: 4,
+        };
+        validate_placement_plan(PlacementPlan {
+            access: access_plan(
+                &layout,
+                &[(
+                    "head",
+                    FieldAccess::Atomic {
+                        transfer_width_bits: 32,
+                        operations: all_atomic_operations(),
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            layout,
+            reach: BoundaryReach::default(),
+        })
+        .expect("all-family Atomic word placement")
+    }
+
+    fn atomic_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
+        ResourceProfileGrant::from_admitted_provider_loan(
+            ResourceProfileReceiptId::from_normalized_identity(155).expect("profile receipt"),
+            loan,
+            extent_rights(&[3]),
+            BoundaryReach::default(),
+        )
+        .expect("Atomic resource-profile grant")
+        .admit(ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 0,
+                length: loan.length(),
+                stable: StableCapability::None,
+                external: ExternalCapability::None,
+                atomic: AtomicCapability::Access {
+                    transfers: vec![AtomicTransferRule {
+                        transfer: TransferRule {
+                            width_bits: 32,
+                            alignment_bytes: 4,
+                        },
+                        operations: all_atomic_operations(),
+                    }],
+                },
+                reach: BoundaryReach::default(),
+            }],
+        })
+        .expect("admitted all-family Atomic resource profile")
+    }
+
     #[derive(Debug, PartialEq, Eq)]
     struct PrimitiveRequestSnapshot {
         plan: PlacementPlanId,
@@ -4619,6 +4811,7 @@ mod tests {
         effective_supply: EffectiveFieldSupply,
         admission: PlacementAdmissionId,
         primitive_address: u64,
+        key: AccessFieldKey,
         field: String,
         transfer_width_bits: u16,
         logical_extent: LogicalFieldExtent,
@@ -4650,6 +4843,7 @@ mod tests {
             effective_supply: request.effective_supply.clone(),
             admission: request.admission,
             primitive_address: request.primitive_address,
+            key: request.key,
             field: request.field.clone(),
             transfer_width_bits: request.transfer_width_bits,
             logical_extent: request.logical_extent.clone(),
@@ -4662,6 +4856,59 @@ mod tests {
             authority_kind,
             authority_identity,
         }
+    }
+
+    fn assert_atomic_specialization(
+        request: PrimitiveAccessRequest<'_, '_>,
+        expected: AtomicAccessOperation,
+        plan: PlacementPlanId,
+        admission: PlacementAdmissionId,
+    ) {
+        let atomic = request
+            .into_atomic_primitive_access()
+            .expect("Atomic primitive specialization");
+        assert_eq!(atomic.operation(), expected);
+        assert_eq!(atomic.ordering_plan(), expected.ordering_plan());
+        assert_eq!(atomic.primitive_address(), 0xc000);
+        assert_eq!(atomic.transfer_width_bits(), 32);
+        assert_eq!(atomic.logical_extent().fragments().len(), 1);
+        assert_eq!(atomic.effect_footprint().address(), 0xc000);
+        assert_eq!(atomic.effect_footprint().length_bytes(), 4);
+
+        let request = atomic.into_primitive_request();
+        assert_eq!(request.plan(), plan);
+        assert_eq!(request.admission(), admission);
+        assert_eq!(request.profile_receipt().normalized_identity(), 155);
+        assert_eq!(
+            request.effective_supply().kind(),
+            EffectiveSupplyKind::Atomic
+        );
+        assert_eq!(request.effective_supply().key(), request.key);
+        assert_eq!(request.effective_supply().width_bits(), 32);
+        assert_eq!(request.effective_supply().alignment_bytes(), 4);
+        assert_eq!(request.observation(), ObservationModel::Atomic);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+        assert_eq!(request.operation(), AccessOperation::Atomic(expected));
+    }
+
+    fn expect_exact_atomic_rejection<'view, 'extent>(
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic_fragment: &str,
+    ) -> PrimitiveAccessRequest<'view, 'extent> {
+        let before = primitive_request_snapshot(&request);
+        let rejection = request
+            .into_atomic_primitive_access()
+            .expect_err("corrupt request must fail Atomic specialization");
+        assert!(
+            rejection.diagnostic().0.contains(diagnostic_fragment),
+            "unexpected Atomic rejection: {}",
+            rejection.diagnostic()
+        );
+        let (request, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains(diagnostic_fragment));
+        assert_eq!(primitive_request_snapshot(&request), before);
+        request
     }
 
     fn provider_existing_content(
@@ -5082,6 +5329,142 @@ mod tests {
         assert!(rejection.diagnostic().0.contains("Read, Take, or Write"));
         let (request, _) = rejection.into_parts();
         assert_eq!(primitive_request_snapshot(&request), compound);
+    }
+
+    #[test]
+    fn atomic_primitive_specialization_retains_all_nine_families_and_orderings() {
+        let plan = atomic_word_placement();
+        let extent = uart_extent_with_lineage(0xc000, 4, 156);
+        let loan = extent.loan(0, 4).expect("shared Atomic loan");
+        let resources = atomic_word_profile(&loan);
+        let admission_id = PlacementAdmissionId::from_normalized_identity(157).expect("admission");
+        let admission = admit_placement(admission_id, loan, &plan, &resources)
+            .expect("all-family Atomic admission");
+        let view = place(admission);
+        let head = view
+            .project(field_key(plan.access(), "head"))
+            .expect("Atomic head projection");
+
+        let requests = [
+            (
+                head.atomic_load(MemoryOrdering::Receive)
+                    .expect("Atomic load")
+                    .into_primitive_request(),
+                AtomicAccessOperation::Load(MemoryOrdering::Receive),
+            ),
+            (
+                head.atomic_store(MemoryOrdering::Publish)
+                    .expect("Atomic store")
+                    .into_primitive_request(),
+                AtomicAccessOperation::Store(MemoryOrdering::Publish),
+            ),
+            (
+                head.atomic_fetch_add(MemoryOrdering::ReceivePublish)
+                    .expect("Atomic fetch-add")
+                    .into_primitive_request(),
+                AtomicAccessOperation::FetchAdd(MemoryOrdering::ReceivePublish),
+            ),
+            (
+                head.atomic_fetch_sub(MemoryOrdering::NoOrdering)
+                    .expect("Atomic fetch-sub")
+                    .into_primitive_request(),
+                AtomicAccessOperation::FetchSub(MemoryOrdering::NoOrdering),
+            ),
+            (
+                head.atomic_fetch_xor(MemoryOrdering::GlobalOrder)
+                    .expect("Atomic fetch-xor")
+                    .into_primitive_request(),
+                AtomicAccessOperation::FetchXor(MemoryOrdering::GlobalOrder),
+            ),
+            (
+                head.atomic_fetch_or(MemoryOrdering::Receive)
+                    .expect("Atomic fetch-or")
+                    .into_primitive_request(),
+                AtomicAccessOperation::FetchOr(MemoryOrdering::Receive),
+            ),
+            (
+                head.atomic_fetch_and(MemoryOrdering::Publish)
+                    .expect("Atomic fetch-and")
+                    .into_primitive_request(),
+                AtomicAccessOperation::FetchAnd(MemoryOrdering::Publish),
+            ),
+            (
+                head.atomic_swap(MemoryOrdering::GlobalOrder)
+                    .expect("Atomic swap")
+                    .into_primitive_request(),
+                AtomicAccessOperation::Swap(MemoryOrdering::GlobalOrder),
+            ),
+            (
+                head.atomic_compare_exchange(
+                    MemoryOrdering::ReceivePublish,
+                    MemoryOrdering::Receive,
+                )
+                .expect("Atomic compare-exchange")
+                .into_primitive_request(),
+                AtomicAccessOperation::CompareExchange {
+                    success: MemoryOrdering::ReceivePublish,
+                    failure: MemoryOrdering::Receive,
+                },
+            ),
+        ];
+        for (request, operation) in requests {
+            assert_atomic_specialization(request, operation, plan.identity(), admission_id);
+        }
+    }
+
+    #[test]
+    fn atomic_specialization_fails_closed_and_returns_exact_request() {
+        let plan = atomic_word_placement();
+        let extent = uart_extent_with_lineage(0xc100, 4, 158);
+        let loan = extent.loan(0, 4).expect("shared Atomic loan");
+        let resources = atomic_word_profile(&loan);
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(159).expect("admission"),
+            loan,
+            &plan,
+            &resources,
+        )
+        .expect("all-family Atomic admission");
+        let view = place(admission);
+        let head = view
+            .project(field_key(plan.access(), "head"))
+            .expect("Atomic head projection");
+        let mut request = head
+            .atomic_load(MemoryOrdering::NoOrdering)
+            .expect("Atomic load")
+            .into_primitive_request();
+
+        request.observation = ObservationModel::Stable;
+        request = expect_exact_atomic_rejection(request, "Atomic observation");
+        request.observation = ObservationModel::Atomic;
+
+        request.effective_supply.kind = EffectiveSupplyKind::External;
+        request = expect_exact_atomic_rejection(request, "Atomic supply");
+        request.effective_supply.kind = EffectiveSupplyKind::Atomic;
+
+        request.key.slot ^= 1;
+        request = expect_exact_atomic_rejection(request, "supply key and width");
+        request.key = request.effective_supply.key;
+
+        request.effective_supply.width_bits = 64;
+        request = expect_exact_atomic_rejection(request, "supply key and width");
+        request.effective_supply.width_bits = request.transfer_width_bits;
+
+        request.operation = AccessOperation::Read;
+        request = expect_exact_atomic_rejection(request, "sealed Atomic operation");
+
+        request.operation =
+            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Publish));
+        request = expect_exact_atomic_rejection(request, "invalid ordering plan");
+        request.operation =
+            AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Receive));
+        request = expect_exact_atomic_rejection(request, "invalid ordering plan");
+        request.operation = AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
+            success: MemoryOrdering::Receive,
+            failure: MemoryOrdering::GlobalOrder,
+        });
+        let request = expect_exact_atomic_rejection(request, "invalid ordering plan");
+        assert_eq!(request.admission().normalized_identity(), 159);
     }
 
     #[test]
