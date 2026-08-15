@@ -8345,10 +8345,11 @@ fn runtime_carrier_indexed_write_exit_canary_runs() {
         std::process::id()
     ));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier indexed write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier indexed write canary should run");
 
@@ -8369,10 +8370,11 @@ fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-read-operand-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier indexed-read-operand canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier indexed-read-operand canary should run");
 
@@ -8392,10 +8394,11 @@ fn runtime_carrier_cipher_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_cipher_exit");
     let scratch = std::env::temp_dir().join(format!("omega-carrier-cipher-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier cipher canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier cipher canary should run");
 
@@ -8416,10 +8419,11 @@ fn runtime_carrier_indexed_const_write_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-const-write-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier const-write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier const-write canary should run");
 
@@ -8440,10 +8444,11 @@ fn runtime_carrier_len_guard_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-len-guard-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier len guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier len guard canary should run");
 
@@ -8464,10 +8469,11 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-fnv-loop-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier fnv loop canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier fnv loop canary should run");
 
@@ -8628,10 +8634,11 @@ fn runtime_string_palindrome_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-string-palindrome-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("string palindrome canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("string palindrome canary should run");
 
@@ -8651,10 +8658,11 @@ fn runtime_carrier_itoa_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_itoa_exit");
     let scratch = std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier itoa canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("carrier itoa canary should run");
 
@@ -45967,8 +45975,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
+    "text/runtime_carrier_cipher_exit",
+    "text/runtime_carrier_fnv_loop_exit",
+    "text/runtime_carrier_indexed_const_write_exit",
+    "text/runtime_carrier_indexed_read_operand_exit",
+    "text/runtime_carrier_indexed_write_exit",
+    "text/runtime_carrier_itoa_exit",
+    "text/runtime_carrier_len_guard_exit",
     "text/runtime_crc32_exit",
     "text/runtime_run_length_encode_exit",
+    "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
@@ -46341,8 +46357,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "text/runtime_base64_encode_exit",
     "text/runtime_binary_format_exit",
+    "text/runtime_carrier_cipher_exit",
+    "text/runtime_carrier_fnv_loop_exit",
+    "text/runtime_carrier_indexed_const_write_exit",
+    "text/runtime_carrier_indexed_read_operand_exit",
+    "text/runtime_carrier_indexed_write_exit",
+    "text/runtime_carrier_itoa_exit",
+    "text/runtime_carrier_len_guard_exit",
     "text/runtime_crc32_exit",
     "text/runtime_run_length_encode_exit",
+    "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
