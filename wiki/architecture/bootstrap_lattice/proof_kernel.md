@@ -74,7 +74,7 @@ certified. Unsupported relations fail closed.
 | Operation | Independently reconstructed sufficient forms |
 | --- | --- |
 | Exact cast | the source value is within the target carrier |
-| Exact right shift | `0 <= count < width` |
+| Exact right shift | `0 <= count < width`. In a retained finite left-associated chain, every link reconstructs independently from its own landed in-range count; the prior shifted-value definition is an operand, not proof authority. |
 | Exact left shift | legal count plus carrier-tight no-overflow bounds |
 | Exact add | a known addend and its complementary carrier bound; unsigned `left <= MAX - right`; signed positive/negative variants with the sign fact that makes the bound operation total |
 | Exact subtract | a known right operand and its complementary carrier bound; unsigned `right <= left`; signed positive/negative variants with the sign fact that makes the bound operation total |

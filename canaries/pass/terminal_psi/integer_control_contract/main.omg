@@ -1366,6 +1366,12 @@ machine terminal_exact_divide_remainder_literal_chain(value: u8, enabled: bool) 
     staged
 }
 
+machine terminal_exact_shift_right_literal_chain(value: u8, enabled: bool) -> bool
+{
+    let staged: bool = ((((value >> 1i8) >> 2u16) >> 0i32) < 2u8) && enabled;
+    staged
+}
+
 machine terminal_exact_subtract_joint_bound(left: u32, right: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

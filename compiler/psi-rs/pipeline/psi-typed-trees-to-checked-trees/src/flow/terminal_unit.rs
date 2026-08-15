@@ -1582,8 +1582,7 @@ fn shared_integer_runtime_inputs_with_shells(
             })
         }
         CheckedScalarExpression::IntegerBinary {
-            kind:
-                CheckedIntegerBinaryKind::ExactMultiply | CheckedIntegerBinaryKind::ExactShiftRight,
+            kind: CheckedIntegerBinaryKind::ExactMultiply,
             left,
             right,
             ..
@@ -1597,6 +1596,39 @@ fn shared_integer_runtime_inputs_with_shells(
                 false,
             )?);
             Some(inputs)
+        }
+        CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactShiftRight,
+            primitive_type:
+                PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64,
+            left,
+            right,
+        } if proof_shell_allowed => {
+            let collect_direct = || {
+                let mut inputs = shared_integer_runtime_inputs_with_shells(
+                    left,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?;
+                inputs.extend(shared_integer_runtime_inputs_with_shells(
+                    right,
+                    scalar_parameter_count,
+                    0,
+                    false,
+                )?);
+                Some(inputs)
+            };
+            collect_direct().or_else(|| {
+                shared_exact_shift_right_chain_runtime_inputs(expression, scalar_parameter_count)
+            })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
@@ -1896,6 +1928,82 @@ fn safe_exact_divide_remainder_literal(
             .is_some_and(|value| value != 0 && value != -1),
         _ => false,
     }
+}
+
+fn shared_exact_shift_right_chain_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut saw_nested_operation = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactShiftRight,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || !safe_exact_shift_right_literal_count(*primitive_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => {
+                saw_nested_operation = true;
+                expression = nested;
+            }
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if saw_nested_operation
+                && *root_type == *primitive_type
+                && *position < scalar_parameter_count =>
+            {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn safe_exact_shift_right_literal_count(
+    value_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+) -> bool {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return false;
+    };
+    let maximum = match value_type {
+        PrimitiveType::I8 | PrimitiveType::U8 => 7,
+        PrimitiveType::I16 | PrimitiveType::U16 => 15,
+        PrimitiveType::I32 | PrimitiveType::U32 => 31,
+        PrimitiveType::I64 | PrimitiveType::U64 => 63,
+        _ => return false,
+    };
+    let landing = match literal.landing().map(|landing| landing.landed_type) {
+        Some(psi_numerics::literals::LandedIntegerType::I8)
+        | Some(psi_numerics::literals::LandedIntegerType::I16)
+        | Some(psi_numerics::literals::LandedIntegerType::I32)
+        | Some(psi_numerics::literals::LandedIntegerType::I64) => literal
+            .value_i64()
+            .and_then(|value| u64::try_from(value).ok()),
+        Some(psi_numerics::literals::LandedIntegerType::U8)
+        | Some(psi_numerics::literals::LandedIntegerType::U16)
+        | Some(psi_numerics::literals::LandedIntegerType::U32)
+        | Some(psi_numerics::literals::LandedIntegerType::U64) => literal.value_u64(),
+        _ => return false,
+    };
+    landing.is_some_and(|count| count <= maximum)
 }
 
 fn is_bounded_scalar_nominal_cleanup_target(

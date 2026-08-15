@@ -923,6 +923,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && ((small % divisor) <= small)
                 && ((small >> small) < 1u8)
                 && ((signed_arithmetic >> signed_divisor) < 4i8)
+                && ((((small >> 1i8) >> 2u16) >> 0i32) < 2u8)
                 && ((small << 1u8) < 11u8)
                 && ((small << count) < 29u8)
                 && ((small << signed_count) < 255u8)
@@ -1812,6 +1813,68 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         })
         .expect("native path retains the finite mixed exact-divide/remainder chain");
     for obligation in nested_divide_remainder_obligations {
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
+    let has_integer_constant = |id, expected| {
+        operations.iter().any(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(id)
+                && matches!(
+                    operation.kind,
+                    OperationKind::IntegerConstant { value } if value == expected
+                )
+        })
+    };
+    let nested_shift_right_obligations = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(count, IntegerValue::Signed(0)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: middle_value,
+                count: middle_count,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(middle_count, IntegerValue::Unsigned(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_value)
+            })?;
+            let OperationKind::ExactIntegerShiftRight {
+                value: inner_value,
+                count: inner_count,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_value == terminal_entry.parameters[1].id
+                && has_integer_constant(inner_count, IntegerValue::Signed(1)))
+            .then_some([inner_obligation, middle_obligation, outer_obligation])
+        })
+        .expect("native path retains the finite exact-shift-right chain");
+    for obligation in nested_shift_right_obligations {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
                 && matches!(
