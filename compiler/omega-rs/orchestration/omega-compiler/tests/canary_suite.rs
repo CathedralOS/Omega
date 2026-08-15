@@ -45335,6 +45335,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
     "control_flow/entry_surface_receiver_paths",
     "dependent/data_where_standing_bound_exit",
+    "dependent/nested_data_where_standing_bound_exit",
     "calls/transition_arg_local_from_embedded_call_exit",
     "calls/value_call_embedded_in_binary_exit",
     "calls/sequential_self_field_rmw_exit",
