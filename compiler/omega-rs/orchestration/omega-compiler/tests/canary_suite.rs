@@ -23216,13 +23216,8 @@ fn runtime_const_data_machine_call_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("const-evaluated machine calls should specialize generic data");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("const-evaluated machine calls should specialize generic data");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("const data machine-call canary should run");
@@ -45347,6 +45342,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_named_value_exit",
     "generics/runtime_const_data_expression_exit",
+    "generics/runtime_const_data_machine_call_exit",
     "generics/runtime_const_data_forwarded_length_exit",
     "generics/runtime_const_data_multiple_instances_exit",
     "generics/runtime_const_data_symbolic_expression_exit",
