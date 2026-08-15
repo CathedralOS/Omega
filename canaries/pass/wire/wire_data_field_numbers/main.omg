@@ -1,6 +1,6 @@
-// Chapter 20 (Wire Protocols): `wire data` declares an external schema with
-// explicit field numbers. The `wire` declaration keyword is not yet a
-// recognized top-level construct, so this is a documented-but-unimplemented gap.
+// Chapter 21 (Wire Protocols): plain `data` declarations may carry optional
+// stable `#N` field identities. This fixture pins the accepted current schema
+// syntax without the retired `wire data` declaration form.
 
 data CounterMessage {
     #0 counter: i32;
