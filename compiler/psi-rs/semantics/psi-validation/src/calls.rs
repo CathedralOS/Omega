@@ -3156,6 +3156,7 @@ fn primitive_computed_value_preserves_transparent_result(
                     active_states,
                     parameters,
                     aliases,
+                    remaining_computed_depth - 1,
                 )
             }
             ExpressionNode::Binary(_)
@@ -3186,9 +3187,10 @@ fn primitive_computed_value_preserves_transparent_result(
 /// projection, including when that projection sits below one outer computation
 /// shell. The literal's type makes the aggregate shape explicit, unlike a
 /// projected array literal whose contextual fixed-array type is unavailable
-/// after the scalar projection. Effectful fields remain direct bounded call
-/// trees; nested aggregates or computed field shells stay outside this narrow
-/// cohort so neither established depth budget can be reset.
+/// after the scalar projection. Effectful primitive fields may use only the
+/// computation budget left after the member projection itself. Nested
+/// aggregates and any shell that would reset or exceed that shared budget stay
+/// outside this narrow cohort.
 #[allow(clippy::too_many_arguments)]
 fn concrete_literal_member_operand_preserves_transparent_result(
     program: &TypedTrees,
@@ -3198,6 +3200,7 @@ fn concrete_literal_member_operand_preserves_transparent_result(
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_computed_depth: usize,
 ) -> bool {
     let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
     else {
@@ -3212,18 +3215,42 @@ fn concrete_literal_member_operand_preserves_transparent_result(
                 if !expression_is_effectful_for_transparent_result(program, field.value) {
                     return true;
                 }
-                matches!(
-                    program.expression_table.expression(field.value),
-                    ExpressionNode::Call(_)
-                ) && value_call_assignment_preserves_transparent_result(
-                    program,
-                    current_machine,
-                    field.value,
-                    symbols,
-                    active_states,
-                    parameters,
-                    aliases,
-                )
+                match program.expression_table.expression(field.value) {
+                    ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        field.value,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                    ),
+                    ExpressionNode::Binary(_)
+                    | ExpressionNode::Cast(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Unary(_)
+                        if remaining_computed_depth > 0
+                            && struct_literal_field_is_primitive(
+                                program,
+                                literal,
+                                field.name.as_str(),
+                            ) =>
+                    {
+                        primitive_computed_value_preserves_transparent_result(
+                            program,
+                            current_machine,
+                            field.value,
+                            symbols,
+                            active_states,
+                            parameters,
+                            aliases,
+                            remaining_computed_depth,
+                            false,
+                        )
+                    }
+                    _ => false,
+                }
             })
 }
 
