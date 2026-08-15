@@ -21699,13 +21699,8 @@ fn float_literal_cast_proves_exit_canary_runs() {
     let canary = pass_canary("arithmetic/float_literal_cast_proves_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f2ilit-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float-literal cast canary should compile (the literal proves)");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("float-literal cast canary should compile (the literal proves)");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("float-literal cast canary should run");
@@ -45498,6 +45493,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_sat_nested_operand_domain_exit",
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
     "arithmetic/runtime_shl_saturating_value_overflow_exit",
+    "arithmetic/float_literal_cast_proves_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
