@@ -24966,13 +24966,8 @@ fn runtime_terminal_tail_recursion_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-terminal-tail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("terminal tail recursion canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("terminal tail recursion canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("terminal tail recursion canary should run");
@@ -24994,13 +24989,8 @@ fn runtime_measured_tail_recursion_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-measured-tail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("measured tail recursion canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("measured tail recursion canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("measured tail recursion canary should run");
@@ -45729,6 +45719,8 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_terminal_tail_recursion_exit",
+    "calls/runtime_measured_tail_recursion_exit",
     "calls/float_value_call_runtime_arg_exit",
     "calls/runtime_value_call_terminal_exit",
     "calls/runtime_std_math_sin_cos_exit",
