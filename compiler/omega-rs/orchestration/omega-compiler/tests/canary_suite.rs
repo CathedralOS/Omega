@@ -17205,7 +17205,8 @@ fn runtime_console_byte_literal_exit_canary_runs() {
     assert_eq!(outcome.stdout, b"7\n".to_vec(), "interpreter literal bytes");
 
     let scratch = std::env::temp_dir().join(format!("omega-byte-literal-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("byte-literal canary should compile natively");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45186,6 +45187,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/record_pattern_bind_all_exit",
     "data/record_pattern_double_underscore_field",
     "memory/repr_native_stable_layout",
+    "host/runtime_console_byte_literal_exit",
     "wire/wire_data_field_numbers",
     "wire/wire_data_reserved_field",
     "traits/equatable_sum_stale_payload_exit",
