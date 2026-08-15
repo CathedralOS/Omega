@@ -16767,10 +16767,11 @@ fn runtime_comparison_value_signedness_exit_canary_runs() {
         "omega-comparison-value-signedness-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("comparison value signedness canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("comparison value signedness canary should run");
 
@@ -16790,10 +16791,11 @@ fn runtime_min_max_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_min_max_signedness_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-min-max-signedness-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("min/max signedness canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("min/max signedness canary should run");
 
@@ -16813,10 +16815,11 @@ fn runtime_unsigned_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_division_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-division-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned division canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsigned division canary should run");
 
@@ -16980,9 +16983,10 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating multiply canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating multiply canary should run");
     assert_eq!(
@@ -17014,9 +17018,10 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating INT_MIN/-1 canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating INT_MIN/-1 canary should run");
     assert_eq!(
@@ -17049,9 +17054,10 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wrapping INT_MIN/-1 canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wrapping INT_MIN/-1 canary should run");
     assert_eq!(
@@ -17069,10 +17075,11 @@ fn runtime_signed_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_signed_division_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-signed-division-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("signed division canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("signed division canary should run");
 
@@ -17113,10 +17120,11 @@ fn runtime_shift_right_signedness_canary_runs() {
         "omega-shift-right-signedness-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-right signedness canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("shift-right signedness canary should run");
 
@@ -17153,10 +17161,11 @@ fn const_fold_saturating_narrow_canary_runs() {
         "omega-const-fold-sat-narrow-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating narrow const-fold canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("saturating narrow const-fold canary should run");
 
@@ -17192,10 +17201,11 @@ fn const_fold_wrapping_narrow_canary_runs() {
         "omega-const-fold-wrap-narrow-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wrapping narrow const-fold canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("wrapping narrow const-fold canary should run");
 
@@ -46065,6 +46075,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "arithmetic/runtime_comparison_value_signedness_exit",
+    "arithmetic/runtime_min_max_signedness_exit",
+    "arithmetic/runtime_unsigned_division_exit",
+    "arithmetic/saturating_multiply_overflow_both_signs",
+    "arithmetic/saturating_signed_divide_min_by_neg_one",
+    "arithmetic/wrapping_signed_divide_min_by_neg_one",
+    "arithmetic/runtime_signed_division_exit",
+    "arithmetic/runtime_shift_right_signedness",
+    "arithmetic/const_fold_saturating_narrow_exit",
+    "arithmetic/const_fold_wrapping_narrow_exit",
     "traits/equatable_record_equality_exit",
     "traits/equatable_sum_payload_equality_exit",
     "traits/equatable_mixed_shape_equality_exit",
