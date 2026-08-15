@@ -21219,13 +21219,8 @@ fn runtime_shift_atwidth_indexed_targets_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_atwidth_indexed_targets_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlidx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-targets shift canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("indexed-targets shift canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("indexed-targets shift canary should run");
@@ -45519,6 +45514,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_struct_view",
     "arithmetic/runtime_float_nested_operand_exit",
     "arithmetic/runtime_exact_guarded_shift_count_exit",
+    "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
