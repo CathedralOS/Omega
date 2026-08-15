@@ -23628,13 +23628,8 @@ fn runtime_nested_generic_instantiations_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_nested_generic_instantiations_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gennest-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested generic instantiations canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested generic instantiations canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested generic instantiations canary should run");
