@@ -7300,18 +7300,12 @@ fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
 #[test]
 fn unary_negation_exit_canary_runs() {
     let canary = pass_canary("operators/unary_negation_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-unary-negation-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unary negation canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("unary negation canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45614,6 +45608,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_equality_guard_exit",
     "data/runtime_whole_struct_mutation_copy_exit",
     "operators/compound_assignment_exit",
+    "operators/unary_negation_exit",
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
