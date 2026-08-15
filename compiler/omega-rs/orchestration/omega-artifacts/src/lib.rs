@@ -674,7 +674,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -694,6 +694,12 @@ impl ArtifactWriter {
                 row.requirement_owner,
                 row.requirement_identity,
                 row.method,
+                if row.parameter_type_identities.is_empty() {
+                    "<none>".to_owned()
+                } else {
+                    row.parameter_type_identities.join(", ")
+                },
+                row.result_type_identity.as_deref().unwrap_or("<none>"),
                 if row.service_reach.is_empty() {
                     "none".to_owned()
                 } else {
@@ -2136,6 +2142,10 @@ pub struct TrustProviderRequirementRow {
     pub requirement_owner: String,
     pub requirement_identity: String,
     pub method: String,
+    /// Exact positional normalized semantic parameter identities.
+    pub parameter_type_identities: Vec<String>,
+    /// Exact normalized semantic result identity; `None` means no result.
+    pub result_type_identity: Option<String>,
     /// Exact normalized boundary-service reach for this requirement.
     pub service_reach: Vec<String>,
     /// Exact normalized direct invocation bindings. This is not reach closure.
@@ -2550,6 +2560,8 @@ mod tests {
                 requirement_identity:
                     "named-callable(path(Base::enter), parameters(), result(none))".to_owned(),
                 method: "enter".to_owned(),
+                parameter_type_identities: vec!["Token in Granted".to_owned()],
+                result_type_identity: Some("Token".to_owned()),
                 service_reach: vec!["Clock".to_owned(), "Storage".to_owned()],
                 synchronous_invocations: vec!["Callback".to_owned()],
                 may_suspend: true,
@@ -2578,6 +2590,8 @@ mod tests {
         assert!(output.contains("requirement owner: Base"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
         assert!(output.contains("method: enter"));
+        assert!(output.contains("parameter types: Token in Granted"));
+        assert!(output.contains("result type: Token"));
         assert!(output.contains("service reach: Clock, Storage"));
         assert!(output.contains("synchronous invocations: Callback"));
         assert!(output.contains("may suspend: yes"));

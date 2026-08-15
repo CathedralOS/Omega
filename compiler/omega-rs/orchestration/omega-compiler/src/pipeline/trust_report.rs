@@ -104,6 +104,8 @@ pub(super) fn write_trust_report(
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_identity: row.requirement_identity.clone(),
                     method: row.method.clone(),
+                    parameter_type_identities: method.parameter_type_identities.clone(),
+                    result_type_identity: method.result_type_identity.clone(),
                     service_reach: method.service_reach.clone(),
                     synchronous_invocations: method.synchronous_invocations.clone(),
                     may_suspend: method.may_suspend,

@@ -588,6 +588,8 @@ machine Main::exercise(&mut self) {
     assert!(requirement_row.contains("provider type: <free external>"));
     assert!(requirement_row.contains("target: <all>"));
     assert!(requirement_row.contains("calling plan: <none>"));
+    assert!(requirement_row.contains("parameter types: <none>"));
+    assert!(requirement_row.contains("result type: named(name(i32))"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
     assert!(requirement_row.contains("method: open_read"));
     assert!(requirement_row.contains("realization: vtable slot 1"));
@@ -652,11 +654,14 @@ machine Main::exercise(&mut self) {}
         .iter()
         .find(|definition| definition.name.as_str() == "Tick")
         .expect("Tick boundary trait");
-    let expected = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
-        .expect("Tick service schema")
-        .methods[0]
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+        .expect("Tick service schema");
+    let method = &schema.methods[0];
+    let expected = method
         .calling_plan_fingerprint
         .expect("evaluated calling-plan identity");
+    assert!(method.parameter_type_identities.is_empty());
+    assert_eq!(method.result_type_identity, None);
 
     let build_dir = project.join("build");
     compile(CompileOptions {
@@ -677,6 +682,8 @@ machine Main::exercise(&mut self) {}
         .expect("Tick provider requirement row");
     assert!(requirement.contains(&format!("calling plan: {expected:016x}")));
     assert!(requirement.contains("service schema: Tick"));
+    assert!(requirement.contains("parameter types: <none>"));
+    assert!(requirement.contains("result type: <none>"));
 
     let _ = std::fs::remove_dir_all(&project);
 }
