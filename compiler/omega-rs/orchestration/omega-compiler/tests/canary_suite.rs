@@ -22147,13 +22147,8 @@ fn sum_payload_cast_operand_field_exit_canary_runs() {
     let canary = pass_canary("control_flow/sum_payload_cast_operand_field_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-sumcast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sum cast-operand payload canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sum cast-operand payload canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("sum cast-operand payload canary should run");
@@ -45426,6 +45421,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/case_literal_texteq_terminal_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/runtime_text_equals_value_positions_exit",
+    "control_flow/sum_payload_cast_operand_field_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_unsigned_division_exit",
