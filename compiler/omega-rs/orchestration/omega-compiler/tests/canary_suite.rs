@@ -23180,13 +23180,8 @@ fn runtime_const_data_expression_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("closed integer const expressions should specialize generic data");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("closed integer const expressions should specialize generic data");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("const data expression canary should run");
@@ -45371,6 +45366,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_multiple_specializations_exit",
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_named_value_exit",
+    "generics/runtime_const_data_expression_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
