@@ -1826,6 +1826,13 @@ fn shared_integer_runtime_inputs_with_shells(
             )
         })
         .or_else(|| {
+            shared_exact_mixed_shift_chain_cast_runtime_inputs(
+                *primitive_type,
+                operand,
+                scalar_parameter_count,
+            )
+        })
+        .or_else(|| {
             shared_exact_shift_right_chain_cast_runtime_inputs(
                 *primitive_type,
                 operand,
@@ -2238,6 +2245,27 @@ fn shared_exact_shift_left_chain_cast_runtime_inputs(
     }
 }
 
+fn shared_exact_mixed_shift_chain_cast_runtime_inputs(
+    target_type: PrimitiveType,
+    operand: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    if !matches!(
+        target_type,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) {
+        return None;
+    }
+    shared_exact_mixed_shift_chain_runtime_inputs(operand, scalar_parameter_count)
+}
+
 fn shared_exact_shift_right_chain_cast_runtime_inputs(
     target_type: PrimitiveType,
     mut operand: &CheckedScalarExpression,
@@ -2421,6 +2449,25 @@ pub(crate) fn exact_shift_left_chain_cast_runtime_parameter_positions_for_test(
             _ => None,
         })
         .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test(
+    target_type: PrimitiveType,
+    operand: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_mixed_shift_chain_cast_runtime_inputs(
+        target_type,
+        operand,
+        scalar_parameter_count,
+    )?
+    .into_iter()
+    .map(|input| match input {
+        SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+        _ => None,
+    })
+    .collect()
 }
 
 #[cfg(test)]

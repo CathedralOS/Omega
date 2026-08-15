@@ -860,10 +860,15 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             token: Token,
             value: u8,
             signed: i8,
+            wide: u16,
+            signed_wide: i16,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
-            -32i8 <= signed, signed <= 31i8, 0i8 <= signed
+            -32i8 <= signed, signed <= 31i8, 0i8 <= signed,
+            wide <= 32767u16, wide <= 16383u16, wide <= 63u16,
+            -16384i16 <= signed_wide, signed_wide <= 16383i16,
+            0i16 <= signed_wide, signed_wide <= 127i16
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -872,6 +877,8 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && (((((value >> 7i8) >> 1u16) << 7i32) << 7u64) < 255u8)
                 && (((value << 1i8) >> 2u16) < 255u8)
                 && (((((value << 1i8) >> 2u16) << 3i32) >> 1u64) < 255u8)
+                && (((((wide << 1i8) >> 2u16) << 3i32) as u8) < 255u8)
+                && ((((signed_wide >> 1u8) << 2i16) as u8) < 255u8)
                 && enabled
         }
     "#;
@@ -899,7 +906,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        11,
+        13,
     );
     assert_eq!(
         operations
@@ -909,7 +916,14 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        11,
+        14,
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
+            .count(),
+        2,
     );
     verify_module(
         &lowered.semantic_module,
@@ -931,7 +945,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        11,
+        13,
     );
     assert_eq!(
         abstract_plan
@@ -943,7 +957,19 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        11,
+        14,
+    );
+    assert_eq!(
+        abstract_plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::IntegerExactCast { .. }
+            ))
+            .count(),
+        2,
     );
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)

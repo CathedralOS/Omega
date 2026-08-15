@@ -11268,6 +11268,9 @@ fn shared_integer_runtime_parameters_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_mixed_shift_chain_cast_runtime_parameters(*scalar_type, operand)
+                })
+                .or_else(|| {
                     shared_exact_shift_right_chain_cast_runtime_parameters(*scalar_type, operand)
                 })
                 .or_else(|| {
@@ -11599,6 +11602,19 @@ fn shared_exact_shift_left_chain_cast_runtime_parameters(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_mixed_shift_chain_cast_runtime_parameters(
+    target_type: ScalarType,
+    operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_type else {
+        return None;
+    };
+    if !native_fixed_integer_type(target_type) {
+        return None;
+    }
+    shared_exact_mixed_shift_chain_runtime_parameters(operand)
 }
 
 fn shared_exact_shift_right_chain_cast_runtime_parameters(

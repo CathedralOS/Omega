@@ -10,6 +10,7 @@ use crate::flow::{
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
+    exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test,
     exact_mixed_shift_chain_runtime_parameter_positions_for_test,
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
@@ -2069,6 +2070,31 @@ fn exact_mixed_shift_classifier_accepts_finite_ordered_alternation() {
     assert_eq!(
         exact_mixed_shift_chain_runtime_parameter_positions_for_test(&alternating, 1),
         Some(vec![0]),
+    );
+    assert_eq!(
+        exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &alternating,
+            1,
+        ),
+        Some(vec![0]),
+    );
+    assert_eq!(
+        exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &homogeneous,
+            1,
+        ),
+        None,
+        "homogeneous shift-cast chains stay on their existing classifier paths",
+    );
+    assert_eq!(
+        exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::Addr,
+            &alternating,
+            1,
+        ),
+        None,
     );
     let runtime_count = shift(
         CheckedIntegerBinaryKind::ExactShiftLeft,
