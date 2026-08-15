@@ -30872,10 +30872,10 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// Provides VALUE consumption (portable-values rung V2): `Beeper::MAGIC` and
-// `Beeper::DELTA` substitute the selected target's numbers (63 + 7 -> 70)
-// before resolution; interp and native agree by construction because both
-// consume the substituted program.
+// A real qualified enum case in value position resolves before the closed
+// two-segment existence check. `Signal::Green` is the second case, so both
+// engines must preserve its discriminator and exit 70; a silent ZII/Red
+// resolution would take the exit-71 arm.
 #[test]
 fn runtime_qualified_case_value_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_qualified_case_value_exit");
