@@ -878,7 +878,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             input <= 127u64, input <= 42u64, input <= 31u64,
             5u64 <= input, input <= 260u64,
             small <= 254u8, small <= 253u8, small <= 252u8,
-            small <= 127u8, small <= 125u8, small <= 124u8,
+            small <= 127u8, small <= 125u8, small <= 124u8, small <= 61u8,
             small <= 63u8, small <= 42u8, small <= 31u8,
             small <= 21u8, small <= 15u8,
             small <= 7u8, 1u8 <= small, 2u8 <= small, 3u8 <= small,
@@ -894,6 +894,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             -61i8 <= signed_arithmetic, signed_arithmetic <= 66i8,
             -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
             -3i8 <= signed_arithmetic, -1i8 <= signed_arithmetic, 0i8 <= signed_arithmetic,
+            3i8 <= signed_arithmetic,
             1i8 <= signed_arithmetic, 0i8 <= signed_divisor,
             1i8 <= signed_divisor, signed_divisor <= 7i8,
             -128i8 / signed_divisor <= signed_arithmetic,
@@ -930,6 +931,9 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 && (((((small + 3u8) * 2u8) - 1u8) < 255u8))
                 && (((((small + 3u8) * 0u8) + 255u8) < 255u8))
                 && (((((signed_arithmetic + -3i8) * 2i8) - -1i8) < 127i8))
+                && (((((((small + 3u8) * 2u8) - 1u8) as i8) < 127i8)
+                    && (((((small + 3u8) * 0u8) + 127u8) as i8) < 127i8))
+                    && (((((signed_arithmetic - 3i8) * 2i8) + 1i8) as u8) < 255u8))
                 && (((((small * 2u8) * 3u8) as i8) < 127i8))
                 && (((((small * 2u8) * 0u8) as i8) < 127i8))
                 && ((small * divisor) < 50u8)
@@ -2434,6 +2438,216 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         affine_obligations.as_slice(),
         zero_affine_obligations.as_slice(),
         signed_affine_obligations.as_slice(),
+    ] {
+        for (index, obligation) in obligations.iter().enumerate() {
+            for other in &obligations[index + 1..] {
+                assert_ne!(obligation, other);
+            }
+            assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+                evidence.obligation == *obligation
+                    && matches!(
+                        evidence.route,
+                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    )
+            }));
+        }
+    }
+    let affine_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            if cast.result.scalar_ref().map(|result| result.scalar_type)
+                != Some(ScalarType::Integer(i8_type))
+            {
+                return None;
+            }
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(right, 1) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(middle_right, 2) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == terminal_entry.parameters[1].id && has_u8_constant(inner_right, 3))
+                .then_some([
+                    inner_obligation,
+                    middle_obligation,
+                    outer_obligation,
+                    cast_obligation,
+                ])
+        })
+        .expect("native path retains one affine chain before an exact cast");
+    let zero_affine_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            if cast.result.scalar_ref().map(|result| result.scalar_type)
+                != Some(ScalarType::Integer(i8_type))
+            {
+                return None;
+            }
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(right, 127) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_u8_constant(middle_right, 0) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == terminal_entry.parameters[1].id && has_u8_constant(inner_right, 3))
+                .then_some([
+                    inner_obligation,
+                    middle_obligation,
+                    outer_obligation,
+                    cast_obligation,
+                ])
+        })
+        .expect("native path retains every affine/cast proof through zero collapse");
+    let signed_affine_cast_obligations = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            if cast.result.scalar_ref().map(|result| result.scalar_type)
+                != Some(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                ))
+            {
+                return None;
+            }
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(right, i8_type, IntegerValue::Signed(1)) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerMultiply {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !has_integer_constant(middle_right, i8_type, IntegerValue::Signed(2)) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerSubtract {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == terminal_entry.parameters[5].id
+                && has_integer_constant(inner_right, i8_type, IntegerValue::Signed(3)))
+            .then_some([
+                inner_obligation,
+                middle_obligation,
+                outer_obligation,
+                cast_obligation,
+            ])
+        })
+        .expect("native path retains one signed affine chain before a cross-sign cast");
+    for obligations in [
+        affine_cast_obligations.as_slice(),
+        zero_affine_cast_obligations.as_slice(),
+        signed_affine_cast_obligations.as_slice(),
     ] {
         for (index, obligation) in obligations.iter().enumerate() {
             for other in &obligations[index + 1..] {

@@ -1385,6 +1385,27 @@ requires value <= 252u8
     (((((value + 3u8) * 0u8) + 255u8) < 255u8) && enabled)
 }
 
+machine terminal_mixed_exact_affine_chain_exact_cast(value: u8, enabled: bool) -> bool
+requires value <= 252u8, value <= 124u8, value <= 125u8, value <= 61u8
+{
+    ((((((value + 3u8) * 2u8) - 1u8) as i8) < 127i8) && enabled)
+}
+
+machine terminal_signed_mixed_exact_affine_chain_exact_cast(value: i8, enabled: bool) -> bool
+requires -125i8 <= value, -61i8 <= value, value <= 66i8, 3i8 <= value
+{
+    ((((((value - 3i8) * 2i8) + 1i8) as u8) < 255u8) && enabled)
+}
+
+machine terminal_zero_factor_mixed_exact_affine_chain_exact_cast(
+    value: u8,
+    enabled: bool
+) -> bool
+requires value <= 252u8
+{
+    ((((((value + 3u8) * 0u8) + 127u8) as i8) < 127i8) && enabled)
+}
+
 machine terminal_offset_chain_exact_cast(value: u16, enabled: bool) -> bool
 requires value <= 65530u16, value <= 65533u16, value <= 253u16
 {
