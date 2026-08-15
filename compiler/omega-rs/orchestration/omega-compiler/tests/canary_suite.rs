@@ -8282,10 +8282,10 @@ fn runtime_number_to_decimal_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-number-to-decimal-{}", std::process::id()));
 
     let host_scratch = scratch.join("host");
-    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, host_scratch.clone())
         .expect("number-to-decimal canary should compile");
 
-    let output = Command::new(host_scratch.join("out").join(executable_name()))
+    let output = Command::new(host_scratch.join(executable_name()))
         .output()
         .expect("number-to-decimal canary should run");
 
@@ -8301,9 +8301,9 @@ fn runtime_number_to_decimal_exit_canary_runs() {
     // operation through the x86-64 encoder and relocation path so the indexed
     // destination and converted source stay portable.
     let x64_scratch = scratch.join("linux-x64");
-    compile_single_file_hosted_main(&canary, &x64_scratch, "linux_x64")
+    compile_rooted_canary_for_target(&canary, x64_scratch.clone(), "linux_x64")
         .expect("number-to-decimal canary should cross-compile for linux_x64");
-    let elf = fs::read(x64_scratch.join("out/omega-program"))
+    let elf = fs::read(x64_scratch.join("omega-program"))
         .expect("number-to-decimal linux_x64 ELF emitted");
     assert_eq!(&elf[..4], b"\x7fELF");
 
@@ -8319,10 +8319,11 @@ fn runtime_decimal_to_number_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-decimal-to-number-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("decimal-to-number canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("decimal-to-number canary should run");
 
@@ -8494,10 +8495,11 @@ fn runtime_mandelbrot_render_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-mandelbrot-render-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("mandelbrot render canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("mandelbrot render canary should run");
 
@@ -45983,6 +45985,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_carrier_itoa_exit",
     "text/runtime_carrier_len_guard_exit",
     "text/runtime_crc32_exit",
+    "text/runtime_decimal_to_number_exit",
+    "text/runtime_mandelbrot_render_exit",
+    "text/runtime_number_to_decimal_exit",
     "text/runtime_run_length_encode_exit",
     "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
@@ -46365,6 +46370,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_carrier_itoa_exit",
     "text/runtime_carrier_len_guard_exit",
     "text/runtime_crc32_exit",
+    "text/runtime_decimal_to_number_exit",
+    "text/runtime_mandelbrot_render_exit",
+    "text/runtime_number_to_decimal_exit",
     "text/runtime_run_length_encode_exit",
     "text/runtime_string_palindrome_exit",
     "text/runtime_substring_search_exit",
