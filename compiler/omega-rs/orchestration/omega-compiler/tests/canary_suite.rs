@@ -7346,18 +7346,12 @@ fn unary_negation_exit_canary_runs() {
 #[test]
 fn utf8_literal_len_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_literal_len_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-literal-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("utf8 literal len canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("utf8 literal len canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7383,18 +7377,12 @@ fn utf8_literal_len_exit_canary_runs() {
 #[test]
 fn user_domain_literal_grant_canary_runs() {
     let canary = pass_canary("domains/user_domain_literal_grant");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-user-domain-grant-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("user-domain literal grant canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("user-domain literal grant canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7415,18 +7403,12 @@ fn user_domain_literal_grant_canary_runs() {
 #[test]
 fn bodyless_domain_declaration_spellings_canary_runs() {
     let canary = pass_canary("domains/bodyless_domain_declarations_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-bodyless-domains-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("equivalent bodyless-domain spellings should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("equivalent bodyless-domain spellings should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45891,6 +45873,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_unsigned_high_bit_u32_ops_exit",
     "arithmetic/runtime_unsigned_min_max_exit",
     "data/runtime_data_properties_exit",
+    "domains/bodyless_domain_declarations_exit",
     "domains/executable_domain_membership_intersection_value_exit",
     "domains/executable_imported_domain_membership_intersection_guard_exit",
     "domains/executable_imported_domain_membership_intersection_value_exit",
