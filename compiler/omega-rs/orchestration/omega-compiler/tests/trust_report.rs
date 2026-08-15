@@ -584,6 +584,7 @@ machine Main::exercise(&mut self) {
         })
         .expect("exact claim-free provider requirement row");
     assert!(requirement_row.contains("requirement owner: Flags"));
+    assert!(requirement_row.contains("service schema: Flags"));
     assert!(requirement_row.contains("provider type: <free external>"));
     assert!(requirement_row.contains("target: <all>"));
     assert!(requirement_row.contains("calling plan: <none>"));
@@ -675,6 +676,7 @@ machine Main::exercise(&mut self) {}
         })
         .expect("Tick provider requirement row");
     assert!(requirement.contains(&format!("calling plan: {expected:016x}")));
+    assert!(requirement.contains("service schema: Tick"));
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -845,6 +847,7 @@ machine Main::exercise(&mut self) {}
     assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
     assert!(entry_row.contains("provider type: StorageEntryProvider"));
     assert!(entry_row.contains("target: <all>"));
+    assert!(entry_row.contains("service schema: StorageEntry"));
     assert!(entry_row.contains("selected: yes"));
     assert!(entry_row.contains("requirement owner: StorageEntry"));
     assert!(entry_row.contains("requirement identity: named-callable(path(StorageEntry::enter)"));
@@ -869,6 +872,7 @@ machine Main::exercise(&mut self) {}
         .expect("routed result row");
     assert!(result_row.contains("provider type: <free external>"));
     assert!(result_row.contains("target: <all>"));
+    assert!(result_row.contains("service schema: Issuer"));
     assert!(result_row.contains("requirement owner: Issuer"));
     assert!(result_row.contains("selected: yes"));
     assert!(result_row.contains("requirement identity: named-callable(path(Issuer::issue)"));
