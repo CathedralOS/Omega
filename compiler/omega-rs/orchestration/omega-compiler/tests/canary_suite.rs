@@ -17880,13 +17880,8 @@ fn float_value_call_runtime_arg_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-float-varg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float runtime-arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("float runtime-arg canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -24841,13 +24836,8 @@ fn runtime_value_call_terminal_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-terminal-call-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call terminal canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("value-call terminal canary should run");
@@ -24897,13 +24887,8 @@ fn runtime_std_math_sin_cos_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_std_math_sin_cos_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-std-sin-cos-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("std math sin/cos canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("std math sin/cos canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("std math sin/cos canary should run");
@@ -45744,6 +45729,9 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/float_value_call_runtime_arg_exit",
+    "calls/runtime_value_call_terminal_exit",
+    "calls/runtime_std_math_sin_cos_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
     "calls/runtime_branch_leaf_multiple_named_conversion_exit",
     "calls/runtime_value_call_transition_args_exit",
