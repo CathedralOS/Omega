@@ -90,7 +90,6 @@ pub(crate) fn build_check_facts(
         domains,
         dynamic_conformances,
         operators,
-        operational,
         capabilities,
         flow,
         index_compatibility,
