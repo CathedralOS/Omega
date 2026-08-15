@@ -7041,18 +7041,12 @@ stderr:
 #[test]
 fn runtime_shared_ref_param_guard_exit_canary_runs() {
     let canary = pass_canary("references/runtime_shared_ref_param_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-shared-ref-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shared ref-param guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shared ref-param guard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -7078,20 +7072,14 @@ stderr:
 #[test]
 fn runtime_nested_receiver_distinct_types_exit_canary_runs() {
     let canary = pass_canary("references/runtime_nested_receiver_distinct_types_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-receiver-distinct-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-receiver distinct-types canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested-receiver distinct-types canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
