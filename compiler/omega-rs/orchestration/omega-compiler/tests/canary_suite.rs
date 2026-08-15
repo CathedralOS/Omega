@@ -18103,10 +18103,11 @@ fn bool_value_call_return_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-bool-vcall-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bool value-call canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("bool value-call canary should run");
 
@@ -18141,10 +18142,11 @@ fn struct_literal_transition_arg_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-struct-arg-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-literal arg canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("struct-literal arg canary should run");
 
@@ -18180,10 +18182,11 @@ fn runtime_indexed_element_copy_write_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-idx-elem-write-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed element write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("indexed element write canary should run");
 
@@ -18218,10 +18221,11 @@ fn suffix_landed_operand_position_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-suffix-landed-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("suffix-landed canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("suffix-landed canary should run");
 
@@ -18255,10 +18259,11 @@ fn suffix_f32_single_rounding_canary_runs() {
     );
 
     let scratch = std::env::temp_dir().join(format!("omega-f32-rounding-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32 single-rounding canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32 single-rounding canary should run");
 
@@ -18295,10 +18300,11 @@ fn unsuffixed_f32_destination_single_rounding_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-f32-dest-rounding-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsuffixed f32 destination canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsuffixed f32 destination canary should run");
 
@@ -18332,10 +18338,11 @@ fn unsuffixed_f32_argument_single_rounding_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-f32-arg-rounding-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsuffixed f32 argument canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("unsuffixed f32 argument canary should run");
     assert_eq!(
@@ -18609,9 +18616,10 @@ fn f32_transition_arg_rounding_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-f32-transition-arg-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32 transition-arg canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32 transition-arg canary should run");
     assert_eq!(
@@ -18644,9 +18652,10 @@ fn f32_field_store_rounding_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-f32-field-store-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("f32 field store canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("f32 field store canary should run");
     assert_eq!(
@@ -18681,10 +18690,11 @@ fn const_fold_cast_signedness_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-cast-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("const-fold cast canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("const-fold cast canary should run");
 
@@ -46085,6 +46095,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/bool_value_call_return_exit",
+    "calls/struct_literal_transition_arg_exit",
+    "slices/runtime_indexed_element_copy_write_exit",
+    "arithmetic/suffix_landed_operand_position_exit",
+    "float/suffix_f32_single_rounding_exit",
+    "float/unsuffixed_f32_destination_single_rounding_exit",
+    "float/unsuffixed_f32_argument_single_rounding_exit",
+    "arithmetic/f32_transition_arg_rounding",
+    "arithmetic/f32_field_store_rounding",
+    "arithmetic/const_fold_cast_signedness",
     "calls/mutual_cycle_tail_admitted_exit",
     "arithmetic/const_fold_unsigned_landed_ops_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
