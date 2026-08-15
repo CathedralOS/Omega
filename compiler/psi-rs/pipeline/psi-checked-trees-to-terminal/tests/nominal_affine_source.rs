@@ -418,7 +418,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         enabled: bool
     ) -> bool
     requires input <= 255u64, small <= 254u8, small <= 253u8, small <= 252u8,
-        small <= 127u8, small <= 63u8, small <= 42u8, small <= 31u8,
+        small <= 127u8, small <= 125u8, small <= 63u8, small <= 42u8, small <= 31u8,
         small <= 7u8, 1u8 <= small, 2u8 <= small, 3u8 <= small,
         1u8 <= divisor, divisor <= small,
         small <= 255u8 / divisor, count <= 2u8,
@@ -427,7 +427,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         -126i8 <= signed_arithmetic, signed_arithmetic <= 124i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
         -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
-        0i8 <= signed_arithmetic, 0i8 <= signed_divisor,
+        0i8 <= signed_arithmetic, 1i8 <= signed_arithmetic, 0i8 <= signed_divisor,
         1i8 <= signed_divisor, signed_divisor <= 7i8,
         -128i8 / signed_divisor <= signed_arithmetic,
         signed_arithmetic <= 127i8 / signed_divisor,
@@ -485,6 +485,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic - -1i8) < 4i8)
             && ((((small + 3u8) - 2u8) + 1u8) < 255u8)
             && ((((signed_arithmetic - -3i8) + -5i8) - -1i8) < 127i8)
+            && (((((small + 3u8) - 2u8) + 1u8) as i8) < 127i8)
+            && (((((signed_arithmetic - -3i8) + -5i8) - -1i8) as u8) < 127u8)
             && ((signed_arithmetic * 3i8) < 4i8)
             && ((signed_arithmetic * -3i8) < 4i8)
             && ((signed_arithmetic * signed_divisor) <= 127i8)
@@ -3177,6 +3179,103 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let offset_cast_target = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let (offset_chain_cast_obligations, offset_chain_cast_subtrahend) = operations
+        .iter()
+        .find_map(|cast| {
+            let OperationKind::IntegerExactCast {
+                operand,
+                obligation: cast_obligation,
+            } = cast.kind
+            else {
+                return None;
+            };
+            if cast.result.scalar_ref().map(|result| result.scalar_type)
+                != Some(ScalarType::Integer(offset_cast_target))
+            {
+                return None;
+            }
+            let outer = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(operand)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_u8_one(right) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerSubtract {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_u8_two(middle_right) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[1].id && is_u8_three(inner_right)).then_some((
+                [
+                    inner_obligation,
+                    middle_obligation,
+                    outer_obligation,
+                    cast_obligation,
+                ],
+                middle_right,
+            ))
+        })
+        .expect("one exact narrowing retains its complete landed-literal offset chain");
+    for obligation in offset_chain_cast_obligations {
+        let operation = operations
+            .iter()
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::IntegerExactCast {
+                        obligation: candidate,
+                        ..
+                    } | OperationKind::ExactIntegerAdd {
+                        obligation: candidate,
+                        ..
+                    } | OperationKind::ExactIntegerSubtract {
+                        obligation: candidate,
+                        ..
+                    } if candidate == obligation
+                )
+            })
+            .expect("offset-chain cast obligation retains its exact operation");
+        assert_eq!(
+            TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+            1
+        );
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let (nested_divide_remainder_obligations, middle_divisor) = operations
         .iter()
         .find_map(|outer| {
@@ -4384,6 +4483,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == mixed_add_subtract_obligation
         ));
     }
+    for offset_chain_cast_obligation in offset_chain_cast_obligations {
+        let mut missing_offset_chain_cast_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_offset_chain_cast_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != offset_chain_cast_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_offset_chain_cast_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == offset_chain_cast_obligation
+        ));
+    }
     for nested_divide_remainder_obligation in nested_divide_remainder_obligations {
         let mut missing_nested_divide_remainder_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -4493,6 +4608,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == mixed_add_subtract_obligations[1]
+    ));
+    let mut changed_offset_cast_subtrahend =
+        decode_module(&semantics).expect("decode shared semantics");
+    let changed_subtrahend = changed_offset_cast_subtrahend
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id)
+                == Some(offset_chain_cast_subtrahend)
+        })
+        .expect("offset-chain exact-cast landed subtrahend operation");
+    changed_subtrahend.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(4),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_offset_cast_subtrahend,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if offset_chain_cast_obligations.contains(&obligation)
     ));
     let mut changed_middle_divisor = decode_module(&semantics).expect("decode shared semantics");
     let changed_divisor = changed_middle_divisor

@@ -28,6 +28,8 @@ mod terminal_unit;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_offset_chain_cast_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_shift_left_chain_runtime_parameter_positions_for_test;
 mod transfers;
 
