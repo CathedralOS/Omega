@@ -2176,6 +2176,17 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             }
             push_json_string(&mut json, &format!("0x{identity:016x}"));
         }
+        json.push_str("],\n      \"conformance_argument_fingerprints\": [");
+        for (identity_index, identity) in specialization
+            .conformance_argument_fingerprints
+            .iter()
+            .enumerate()
+        {
+            if identity_index > 0 {
+                json.push_str(", ");
+            }
+            push_json_string(&mut json, &format!("0x{identity:016x}"));
+        }
         json.push_str("]\n    }");
     }
     json.push_str("\n  ]\n}\n");
@@ -4466,7 +4477,7 @@ mod tests {
                 template_contract_fingerprint: 0x1111,
                 accepted_template_commitment: Some("accepted_map".to_owned()),
                 machine_argument_contract_fingerprints: vec![0x2222],
-                conformance_argument_fingerprints: Vec::new(),
+                conformance_argument_fingerprints: vec![0x4444, 0x5555],
                 fingerprint: 0x3333,
             });
 
@@ -4481,6 +4492,9 @@ mod tests {
         assert!(
             json.contains("\"machine_argument_contract_fingerprints\": [\"0x0000000000002222\"]")
         );
+        assert!(json.contains(
+            "\"conformance_argument_fingerprints\": [\"0x0000000000004444\", \"0x0000000000005555\"]"
+        ));
         assert!(json.contains("\"instance_fingerprint\": \"0x0000000000003333\""));
     }
 }
