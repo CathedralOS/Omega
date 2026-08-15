@@ -157,6 +157,7 @@ pub fn qualification_evidence_manifest_json(
         if index > 0 {
             json.push(',');
         }
+        validate_qualification_program_point(program, fact.point);
         let requirement_identity = qualification_requirement_identity(program, &fact.evidence);
         validate_qualification_receipt(
             selected_provider_plans,
@@ -399,6 +400,63 @@ fn validate_qualification_receipt(
                 "qualification evidence receipt must name an exact retained selected provider plan",
             );
     }
+}
+
+fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts::ProgramPoint) {
+    use psi_facts::ProgramPoint;
+
+    let (machine_symbol, state_symbol) = match point {
+        ProgramPoint::Global | ProgramPoint::Definition { .. } => return,
+        ProgramPoint::Machine { machine_symbol } => {
+            program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)
+                .expect("qualification evidence program point must name an exact typed machine");
+            return;
+        }
+        ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        }
+        | ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            ..
+        }
+        | ProgramPoint::Call {
+            machine_symbol,
+            state_symbol,
+            ..
+        }
+        | ProgramPoint::CallRequires {
+            machine_symbol,
+            state_symbol,
+            ..
+        }
+        | ProgramPoint::CallEnsures {
+            machine_symbol,
+            state_symbol,
+            ..
+        }
+        | ProgramPoint::Exit {
+            machine_symbol,
+            state_symbol,
+            ..
+        } => (machine_symbol, state_symbol),
+    };
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .expect("qualification evidence program point must name an exact typed machine");
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+        .expect(
+            "qualification evidence program point state must belong to its exact typed machine",
+        );
 }
 
 fn validate_vacuous_qualification_use<'program>(
@@ -3268,7 +3326,8 @@ mod tests {
         push_termination_interface_json, qualification_evidence_manifest_json,
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
-        validate_qualification_receipt, validate_vacuous_qualification_use,
+        validate_qualification_program_point, validate_qualification_receipt,
+        validate_vacuous_qualification_use,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3934,6 +3993,8 @@ mod tests {
     fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
         let subject = SymbolHandle::from_arena_index(4);
         let domain = SymbolHandle::from_arena_index(5);
+        let machine_symbol = SymbolHandle::from_arena_index(80);
+        let state_symbol = SymbolHandle::from_arena_index(81);
         let plan = selected_storage_plan();
         assert_ne!(plan.schema.trait_name, "StorageBase");
         let receipt_identity = plan.identity_fingerprint();
@@ -3948,14 +4009,28 @@ mod tests {
             name: Identifier::generated("Storage::Qualified"),
             ..Default::default()
         });
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("StorageCaller::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("run"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
         let (requirement_owner, requirement) =
             push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
         let place = program.facts.semantic.append_symbol_place(subject);
         program.facts.semantic.append_fact(Fact {
             place: FactPlace::Place(place),
             point: ProgramPoint::CallEnsures {
-                machine_symbol: subject,
-                state_symbol: subject,
+                machine_symbol,
+                state_symbol,
                 statement_index: 2,
                 call_ordinal: 1,
             },
@@ -4070,6 +4145,53 @@ mod tests {
             &Fact {
                 place: FactPlace::Place(place),
                 ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "program point must name an exact typed machine")]
+    fn qualification_manifest_rejects_missing_program_point_machine() {
+        validate_qualification_program_point(
+            &CheckedTrees::default(),
+            ProgramPoint::Machine {
+                machine_symbol: SymbolHandle::from_arena_index(80),
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "program point state must belong to its exact typed machine")]
+    fn qualification_manifest_rejects_cross_machine_program_point_state() {
+        let machine_symbol = SymbolHandle::from_arena_index(80);
+        let other_machine_symbol = SymbolHandle::from_arena_index(82);
+        let other_state_symbol = SymbolHandle::from_arena_index(83);
+        let mut program = CheckedTrees::default();
+        for (symbol, state) in [
+            (machine_symbol, SymbolHandle::from_arena_index(81)),
+            (other_machine_symbol, other_state_symbol),
+        ] {
+            let mut machine = Machine {
+                symbol,
+                name: Identifier::generated("Worker::run"),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state,
+                    name: Identifier::generated("run"),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+        }
+
+        validate_qualification_program_point(
+            &program,
+            ProgramPoint::State {
+                machine_symbol,
+                state_symbol: other_state_symbol,
             },
         );
     }
