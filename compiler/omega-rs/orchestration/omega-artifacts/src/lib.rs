@@ -674,9 +674,19 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
+                if row.provider_type.is_empty() {
+                    "<free external>"
+                } else {
+                    row.provider_type.as_str()
+                },
+                if row.target.is_empty() {
+                    "<all>"
+                } else {
+                    row.target.as_str()
+                },
                 if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
                 row.requirement_identity,
@@ -713,9 +723,19 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
+                if row.provider_type.is_empty() {
+                    "<free external>"
+                } else {
+                    row.provider_type.as_str()
+                },
+                if row.target.is_empty() {
+                    "<all>"
+                } else {
+                    row.target.as_str()
+                },
                 if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
                 row.requirement_identity,
@@ -2098,6 +2118,10 @@ pub struct TrustReportRow {
 pub struct TrustProviderRequirementRow {
     pub provider_plan: String,
     pub provider_plan_fingerprint: u64,
+    /// Exact normalized provider type; empty denotes a free external leaf.
+    pub provider_type: String,
+    /// Exact normalized target; empty denotes all targets.
+    pub target: String,
     pub selected: bool,
     pub requirement_owner: String,
     pub requirement_identity: String,
@@ -2157,6 +2181,10 @@ impl TrustProviderRealization {
 pub struct TrustQualificationRow {
     pub provider_plan: String,
     pub provider_plan_fingerprint: u64,
+    /// Exact normalized provider type; empty denotes a free external leaf.
+    pub provider_type: String,
+    /// Exact normalized target; empty denotes all targets.
+    pub target: String,
     pub selected: bool,
     /// Readable semantic owner of the exact requirement. This remains
     /// separate from the canonical overload identity because an inherited
@@ -2445,6 +2473,8 @@ mod tests {
             qualifications: vec![TrustQualificationRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
                 provider_plan_fingerprint: 0x1234,
+                provider_type: "RootProvider".to_owned(),
+                target: "windows_x64".to_owned(),
                 selected: false,
                 requirement_owner: "Base".to_owned(),
                 requirement_identity:
@@ -2468,6 +2498,8 @@ mod tests {
             std::fs::read_to_string(root.join("trust_report.md")).expect("written trust report");
 
         assert!(output.contains("requirement owner: Base"));
+        assert!(output.contains("provider type: RootProvider"));
+        assert!(output.contains("target: windows_x64"));
         assert!(output.contains("selected: no"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));
         assert!(!output.contains("requirement owner: Root"));
@@ -2491,6 +2523,8 @@ mod tests {
             provider_requirements: vec![TrustProviderRequirementRow {
                 provider_plan: "RootProvider::satisfies::Root".to_owned(),
                 provider_plan_fingerprint: 0x1234,
+                provider_type: String::new(),
+                target: String::new(),
                 selected: true,
                 requirement_owner: "Base".to_owned(),
                 requirement_identity:
@@ -2516,6 +2550,8 @@ mod tests {
 
         assert!(output.contains("provider requirements: 1"));
         assert!(output.contains("provider plan: RootProvider::satisfies::Root [0000000000001234]"));
+        assert!(output.contains("provider type: <free external>"));
+        assert!(output.contains("target: <all>"));
         assert!(output.contains("selected: yes"));
         assert!(output.contains("requirement owner: Base"));
         assert!(output.contains("requirement identity: named-callable(path(Base::enter)"));

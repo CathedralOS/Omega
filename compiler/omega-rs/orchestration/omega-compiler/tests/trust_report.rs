@@ -584,6 +584,8 @@ machine Main::exercise(&mut self) {
         })
         .expect("exact claim-free provider requirement row");
     assert!(requirement_row.contains("requirement owner: Flags"));
+    assert!(requirement_row.contains("provider type: <free external>"));
+    assert!(requirement_row.contains("target: <all>"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
     assert!(requirement_row.contains("method: open_read"));
     assert!(requirement_row.contains("realization: vtable slot 1"));
@@ -757,6 +759,8 @@ machine Main::exercise(&mut self) {}
     );
     let entry_row = extent_rows[0];
     assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
+    assert!(entry_row.contains("provider type: StorageEntryProvider"));
+    assert!(entry_row.contains("target: <all>"));
     assert!(entry_row.contains("selected: yes"));
     assert!(entry_row.contains("requirement owner: StorageEntry"));
     assert!(entry_row.contains("requirement identity: named-callable(path(StorageEntry::enter)"));
@@ -779,6 +783,8 @@ machine Main::exercise(&mut self) {}
             line.contains("provider plan: satisfies::Issuer [") && line.contains("subject: result")
         })
         .expect("routed result row");
+    assert!(result_row.contains("provider type: <free external>"));
+    assert!(result_row.contains("target: <all>"));
     assert!(result_row.contains("requirement owner: Issuer"));
     assert!(result_row.contains("selected: yes"));
     assert!(result_row.contains("requirement identity: named-callable(path(Issuer::issue)"));
@@ -966,6 +972,8 @@ machine Main::exercise(&mut self) {}
         })
         .expect("bound result qualification row");
     assert!(qualification.contains("requirement identity: named-callable(path(Pair::bound)"));
+    assert!(qualification.contains("provider type: <free external>"));
+    assert!(qualification.contains("target: <all>"));
     assert!(qualification.contains("selected: no"));
     assert!(qualification.contains("domain: Token::Bound"));
     assert!(!report.contains("subject: result -- flow: returns -- domain: Token::Unbound"));
@@ -1099,6 +1107,10 @@ machine Main::exercise(&mut self) {}
     assert!(second.contains("root grant (build.omg)") && !second.contains("STANDING WARNING"));
     assert!(first.contains("selected: no"));
     assert!(second.contains("selected: yes"));
+    assert!(first.contains("provider type: FirstProvider"));
+    assert!(first.contains("target: <all>"));
+    assert!(second.contains("provider type: SecondProvider"));
+    assert!(second.contains("target: <all>"));
     let first_requirement = report
         .lines()
         .find(|line| {
@@ -1114,11 +1126,15 @@ machine Main::exercise(&mut self) {}
         })
         .expect("selected requirement row");
     assert!(first_requirement.contains("requirement owner: Pair"));
+    assert!(first_requirement.contains("provider type: FirstProvider"));
+    assert!(first_requirement.contains("target: <all>"));
     assert!(first_requirement.contains("selected: no"));
     assert!(first_requirement.contains("realization: checked adapter `FirstProvider::choose`"));
     assert!(first_requirement.contains("grant selectors: none"));
     assert!(first_requirement.contains("STANDING WARNING"));
     assert!(second_requirement.contains("requirement owner: Pair"));
+    assert!(second_requirement.contains("provider type: SecondProvider"));
+    assert!(second_requirement.contains("target: <all>"));
     assert!(second_requirement.contains("selected: yes"));
     assert!(second_requirement.contains("realization: checked adapter `SecondProvider::choose`"));
     assert!(second_requirement.contains("grant selectors: Pair"));
