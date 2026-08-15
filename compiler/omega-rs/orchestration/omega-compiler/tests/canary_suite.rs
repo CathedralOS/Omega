@@ -15606,9 +15606,10 @@ fn runtime_fnv1a_hash_exit_canary_runs() {
     // wrapping XOR+multiply computes the correct hash of a real algorithm.
     let canary = pass_canary("arithmetic/runtime_fnv1a_hash_exit");
     let scratch = std::env::temp_dir().join(format!("omega-fnv1a-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("FNV-1a hash canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("FNV-1a hash canary should run");
     assert_eq!(
@@ -15628,9 +15629,10 @@ fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
         "omega-min-max-clamp-narrowing-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("min/max clamp narrowing canary should compile (narrowing proves the bound)");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("min/max clamp narrowing canary should run");
     assert_eq!(
@@ -15654,9 +15656,10 @@ fn runtime_modulo_div_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_modulo_div_narrowing_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-modulo-div-narrowing-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("modulo/div narrowing canary should compile (narrowing proves the bound)");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("modulo/div narrowing canary should run");
     assert_eq!(
@@ -15680,9 +15683,10 @@ fn arithmetic_domain_trapping_mul_overflow_aborts() {
         "omega-arith-domain-trap-mul-of-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_mul_overflow canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_mul_overflow canary should run");
     assert!(
@@ -15704,9 +15708,10 @@ fn arithmetic_domain_saturating_signed_exit_canary_runs() {
         "omega-arith-domain-sat-signed-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating_signed canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_saturating_signed canary should run");
 
@@ -15730,9 +15735,10 @@ fn arithmetic_domain_requires_proven_exact_exit_canary_runs() {
         "omega-arith-domain-requires-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_requires_proven_exact canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_requires_proven_exact canary should run");
 
@@ -15754,9 +15760,10 @@ fn arithmetic_domain_range_proven_exact_exit_canary_runs() {
     let canary = pass_canary("expressions/arithmetic_domain_range_proven_exact_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-range-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_range_proven_exact canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_range_proven_exact canary should run");
 
@@ -15778,9 +15785,10 @@ fn arithmetic_domain_cast_exit_canary_runs() {
     let canary = pass_canary("expressions/arithmetic_domain_cast_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-cast-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_cast canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_cast canary should run");
 
@@ -15803,9 +15811,10 @@ fn arithmetic_domain_trapping_exit_canary_runs() {
         "omega-arith-domain-trapping-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping canary should run");
 
@@ -15832,9 +15841,10 @@ fn arithmetic_domain_trapping_overflow_aborts() {
         "omega-arith-domain-trapping-of-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_overflow canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("arithmetic_domain_trapping_overflow canary should run");
 
@@ -46035,6 +46045,16 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "arithmetic/runtime_fnv1a_hash_exit",
+    "arithmetic/runtime_min_max_clamp_narrowing_exit",
+    "arithmetic/runtime_modulo_div_narrowing_exit",
+    "expressions/arithmetic_domain_trapping_mul_overflow",
+    "expressions/arithmetic_domain_saturating_signed_exit",
+    "expressions/arithmetic_domain_requires_proven_exact_exit",
+    "expressions/arithmetic_domain_range_proven_exact_exit",
+    "expressions/arithmetic_domain_cast_exit",
+    "expressions/arithmetic_domain_trapping_exit",
+    "expressions/arithmetic_domain_trapping_overflow",
     "arithmetic/runtime_transition_arg_saturating_exit",
     "arithmetic/runtime_cast_element_accumulator_exit",
     "arithmetic/runtime_inferred_multipath_return_exit",
