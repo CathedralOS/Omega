@@ -117,7 +117,8 @@ The same normalized geometry may feed different compiler-owned consumers:
 - placed-view projection over an authorized external extent; or
 - ordinary scalar materialization into fixed dictated structures. The
   normalized foundation also admits atomic aggregate materialization when the
-  compiler supplies each field's exact physical extent. A field may use one
+  compiler supplies each field's exact physical extent, including multiple
+  independently keyed whole aggregate fields in one plan. A field may use one
   whole-value `At`; an outer fixed array may instead use exactly one `At` per
   compiler-sized element at one nonoverlapping constant destination stride.
   Authored entry order is presentation: sorted destination offsets select
