@@ -7247,13 +7247,8 @@ fn runtime_captured_local_swap_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-gcd-swap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("captured-local swap canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("captured-local swap canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45772,6 +45767,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_multi_field_payload_arith_exit",
     "control_flow/runtime_captured_local_remutated_field_exit",
     "control_flow/runtime_composite_initializer_local_arg_exit",
+    "control_flow/runtime_captured_local_swap_exit",
     "control_flow/runtime_linear_search_early_exit",
     "control_flow/runtime_loop_patterns_exit",
     "control_flow/runtime_nested_loop_grid_sum_exit",
