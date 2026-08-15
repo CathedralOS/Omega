@@ -11793,10 +11793,11 @@ fn runtime_version_migration_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-version-migration-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("version migration canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("version migration canary should run");
 
@@ -11819,10 +11820,11 @@ fn runtime_versioned_match_zii_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-versioned-match-zii-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("versioned match canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("versioned match canary should run");
 
@@ -11845,10 +11847,11 @@ fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-versioned-three-era-{}", std::process::id()));
 
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("three-era versioned match canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(scratch.join(executable_name()))
         .output()
         .expect("three-era versioned match canary should run");
 
@@ -46052,6 +46055,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "time/runtime_time_elapsed_since_exit",
     "time/runtime_checked_time_arith_exit",
     "time/runtime_sleep_for_exit",
+    "versioning/runtime_version_migration_exit",
+    "versioning/runtime_versioned_match_zii_exit",
+    "versioning/runtime_versioned_three_era_match_zii_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_erased_field_exit",
