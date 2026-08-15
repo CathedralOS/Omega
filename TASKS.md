@@ -204,7 +204,12 @@ Remaining:
   and every native target. A finite same-carrier exact-add chain may have a
   landed literal sibling at each link, while a finite exact-subtract chain may
   continue only through its left operand and must have a landed literal right
-  operand at each link. A finite same-carrier chain may also mix exact divide
+  operand at each link. A finite same-carrier chain may mix exact addition and
+  subtraction when both kinds occur, every link continues through its left
+  operand, and every right operand is a landed same-carrier literal. The
+  verifier combines additions and mathematical negations of subtrahends in a
+  checked sign/magnitude offset and derives every carrier-tight prefix bound
+  from the direct root. A finite same-carrier chain may also mix exact divide
   and remainder while continuing only through its left operand, with a landed
   nonzero unsigned divisor or signed divisor other than `0` and `-1` at every
   link. A finite same-value-carrier exact-right-shift chain may likewise
@@ -218,10 +223,10 @@ Remaining:
   zero-only root when the cumulative count reaches the value width.
   A finite same-carrier exact-multiply chain may continue only through its left
   operand, with an explicitly landed same-carrier nonnegative literal factor at
-  every link. All six forms require a direct machine-parameter root. The
-  verifier walks ordered definitions for addition, subtraction, multiplication,
-  and left shift
-  and reconstructs every retained operation's safety obligation independently;
+  every link. All seven forms require a direct machine-parameter root. The
+  verifier walks ordered definitions for addition, subtraction, their mixed
+  chain, multiplication, and left shift and reconstructs every retained
+  operation's safety obligation independently;
   multiplication accumulates nonnegative factors with checked arithmetic and
   derives carrier-tight root bounds, while divide/remainder and right-shift
   links need no producer-definition authority because each safe landed divisor

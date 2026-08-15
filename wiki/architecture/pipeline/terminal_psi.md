@@ -459,18 +459,25 @@ machine-parameter root when every non-chain sibling is a landed literal
 constant. A finite same-carrier exact-subtract chain may likewise have a direct
 machine-parameter root, but only the left operand continues the chain and every
 right operand is a landed literal constant; reversed subtraction is not a
-chain. A finite same-carrier exact-multiply chain may also continue only through
-its left operand from a direct machine parameter. Every right operand must be
+chain. A finite same-carrier chain may mix exact addition and subtraction when
+both operation kinds occur. It continues only through each left operand from a
+direct machine parameter, every right operand is a landed literal of that same
+carrier, and the verifier combines additions and mathematical negations of
+subtrahends in the same checked sign/magnitude offset accumulator. Every prefix
+reconstructs its carrier-tight direct-root bound independently; a later
+cancellation does not authorize an unsafe earlier link. A finite same-carrier
+exact-multiply chain may also continue only through its left operand from a
+direct machine parameter. Every right operand must be
 an explicitly landed literal of that same carrier and nonnegative; zero and one
 are admitted, while signed negative factors are not. A finite same-carrier chain
 may also mix exact divide and remainder,
 continue only through its left operand from a direct machine parameter, and use
 only landed nonzero unsigned divisors or landed signed divisors other than `0`
-and `-1`. For addition, subtraction, and multiplication, the verifier walks only
-prior left-to-right definitions with a shrinking prefix. Addition/subtraction
-combine constants or mathematical negations of subtrahends as a checked sign
-and magnitude and reject accumulator overflow or a magnitude beyond the carrier
-span. Multiplication combines only same-carrier nonnegative right factors in a
+and `-1`. For addition, subtraction, their mixed chain, and multiplication, the
+verifier walks only prior left-to-right definitions with a shrinking prefix.
+Addition/subtraction combine constants or mathematical negations of subtrahends
+as a checked sign and magnitude and reject accumulator overflow or a magnitude
+beyond the carrier span. Multiplication combines only same-carrier nonnegative right factors in a
 checked `u128` accumulator. Cumulative factor zero or one is total; a larger
 unsigned factor reconstructs `root <= MAX / factor`, and a larger signed factor
 reconstructs both `MIN / factor <= root` and `root <= MAX / factor`. Every
@@ -497,10 +504,10 @@ nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and
 other proof-bearing compositions remain fenced. For addition, subtraction,
-multiplication, and left shift,
-missing, reordered, reversed, redirected, cyclic, or stale definitions reject; for every
-family, stale operation/factor/divisor/count evidence and missing evidence
-reject. Multiply and left shift additionally reject cumulative arithmetic
+their mixed chain, multiplication, and left shift, missing, reordered, reversed,
+redirected, cyclic, or stale definitions reject. For every family, stale
+operation/factor/divisor/count evidence and missing evidence reject. Multiply
+and left shift additionally reject cumulative arithmetic
 overflow. One
 separate computed-cast exception accepts a direct
 fixed-integer parameter

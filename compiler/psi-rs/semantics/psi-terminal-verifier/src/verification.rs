@@ -1887,6 +1887,12 @@ enum IntegerOffset {
     Negative(u128),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactIntegerOffsetOperation {
+    Add,
+    Subtract,
+}
+
 impl IntegerOffset {
     fn from_value(value: IntegerValue) -> Self {
         match value {
@@ -2058,6 +2064,26 @@ fn exact_integer_add_obligation(
         } else {
             Proposition::Falsehood
         };
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_mixed_add_subtract_chain_obligation(
+            integer_type,
+            left.clone(),
+            IntegerOffset::from_value(constant),
+            ExactIntegerOffsetOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
     }
     let (mut variable, constant, constant_term) = match (known_left, known_right) {
         (Some(constant), None) => (right, constant, left),
@@ -2372,6 +2398,25 @@ fn exact_integer_subtract_obligation(
         }
         return Proposition::Falsehood;
     };
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_mixed_add_subtract_chain_obligation(
+            integer_type,
+            left.clone(),
+            IntegerOffset::from_subtrahend(constant),
+            ExactIntegerOffsetOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
     let original_variable = left.clone();
     let original_offset = IntegerOffset::from_subtrahend(constant);
     let mut variable = left;
@@ -2459,6 +2504,97 @@ fn exact_integer_subtract_obligation(
         offset = original_offset;
     }
     exact_integer_offset_obligation(integer_type, variable, offset)
+}
+
+fn exact_integer_mixed_add_subtract_chain_obligation(
+    integer_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    initial_offset: IntegerOffset,
+    initial_operation: ExactIntegerOffsetOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let mut offset = initial_offset;
+    let mut saw_add = initial_operation == ExactIntegerOffsetOperation::Add;
+    let mut saw_subtract = initial_operation == ExactIntegerOffsetOperation::Subtract;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut followed_definition = false;
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (left, right, operation) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (left, right, ExactIntegerOffsetOperation::Add),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => {
+                (left, right, ExactIntegerOffsetOperation::Subtract)
+            }
+            _ => break,
+        };
+        if landed_integer_constant_value(integer_type, left, semantic_axioms, definition_index)
+            .is_some()
+        {
+            break;
+        }
+        let Some(constant) =
+            landed_integer_constant_value(integer_type, right, semantic_axioms, definition_index)
+        else {
+            break;
+        };
+        let nested_offset = match operation {
+            ExactIntegerOffsetOperation::Add => IntegerOffset::from_value(constant),
+            ExactIntegerOffsetOperation::Subtract => IntegerOffset::from_subtrahend(constant),
+        };
+        let Some(combined) = offset.checked_add(nested_offset) else {
+            return Some(Proposition::Falsehood);
+        };
+        if combined.magnitude() > integer_type_span(integer_type) {
+            return Some(Proposition::Falsehood);
+        }
+        offset = combined;
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+        followed_definition = true;
+        saw_add |= operation == ExactIntegerOffsetOperation::Add;
+        saw_subtract |= operation == ExactIntegerOffsetOperation::Subtract;
+    }
+    if !followed_definition
+        || !saw_add
+        || !saw_subtract
+        || !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    Some(exact_integer_offset_obligation(
+        integer_type,
+        variable,
+        offset,
+    ))
 }
 
 fn is_minimum_plus(
@@ -4360,6 +4496,206 @@ mod tests {
                 &[wide_first_definition, wide_second_definition],
                 2,
                 &BTreeSet::from([wide_input_id]),
+            ),
+            Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn reconstructs_mixed_exact_add_subtract_offsets_and_rejects_broken_chains() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let input_id = ValueId::new(51).expect("input");
+        let input = ScalarTerm::value(input_id, ScalarType::Integer(integer_type));
+        let first = ScalarTerm::value(
+            ValueId::new(52).expect("first"),
+            ScalarType::Integer(integer_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(53).expect("second"),
+            ScalarType::Integer(integer_type),
+        );
+        let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
+        let three = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(3)).expect("3u8");
+        let two = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(2)).expect("2u8");
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_add(integer_type, input.clone(), five).expect("input + 5u8"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::exact_integer_subtract(integer_type, first.clone(), three)
+                .expect("first - 3u8"),
+        );
+        let parameters = BTreeSet::from([input_id]);
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                first.clone(),
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(3)).expect("3u8"),
+                std::slice::from_ref(&first_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::LessOrEqual(
+                input.clone(),
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(253)).expect("253u8"),
+            ),
+            "the mixed second prefix is reconstructed from the direct root"
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                first.clone(),
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8"),
+                std::slice::from_ref(&first_definition),
+                1,
+                &parameters,
+            ),
+            Proposition::Truth,
+            "cancellation is total only after the earlier prefix keeps its own proof"
+        );
+        let expected = Proposition::LessOrEqual(
+            input.clone(),
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(251)).expect("251u8"),
+        );
+        let reconstruct = |axioms: &[Proposition], parameters: &BTreeSet<ValueId>| {
+            exact_integer_add_obligation(
+                integer_type,
+                second.clone(),
+                two.clone(),
+                axioms,
+                axioms.len(),
+                parameters,
+            )
+        };
+        assert_eq!(
+            reconstruct(
+                &[first_definition.clone(), second_definition.clone()],
+                &parameters,
+            ),
+            expected
+        );
+        assert_ne!(
+            reconstruct(
+                &[second_definition.clone(), first_definition.clone()],
+                &parameters,
+            ),
+            expected
+        );
+        let reversed_second = match second_definition.clone() {
+            Proposition::Equal(left, right) => Proposition::Equal(right, left),
+            _ => unreachable!("mixed definition is an equality"),
+        };
+        assert_ne!(
+            reconstruct(&[first_definition.clone(), reversed_second], &parameters),
+            expected
+        );
+        let redirected_second = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(2)).expect("2u8"),
+        );
+        assert_ne!(
+            reconstruct(&[first_definition.clone(), redirected_second], &parameters),
+            expected
+        );
+        let right_associated_first = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::exact_integer_add(
+                integer_type,
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8"),
+                input.clone(),
+            )
+            .expect("5u8 + input"),
+        );
+        assert_ne!(
+            reconstruct(
+                &[right_associated_first, second_definition.clone()],
+                &parameters,
+            ),
+            expected
+        );
+        let cyclic_first = Proposition::Equal(
+            first,
+            ScalarTerm::exact_integer_add(integer_type, second.clone(), two.clone())
+                .expect("second + 2u8"),
+        );
+        assert_ne!(
+            reconstruct(&[cyclic_first, second_definition.clone()], &parameters),
+            expected
+        );
+        assert_ne!(
+            reconstruct(&[first_definition, second_definition], &BTreeSet::new()),
+            expected
+        );
+
+        let signed_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_input_id = ValueId::new(61).expect("signed input");
+        let signed_input = ScalarTerm::value(signed_input_id, ScalarType::Integer(signed_type));
+        let signed_first = ScalarTerm::value(
+            ValueId::new(62).expect("signed first"),
+            ScalarType::Integer(signed_type),
+        );
+        let signed_definition = Proposition::Equal(
+            signed_first.clone(),
+            ScalarTerm::exact_integer_subtract(
+                signed_type,
+                signed_input.clone(),
+                ScalarTerm::integer(signed_type, IntegerValue::Signed(-3)).expect("-3i8"),
+            )
+            .expect("signed input - -3i8"),
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                signed_type,
+                signed_first,
+                ScalarTerm::integer(signed_type, IntegerValue::Signed(-5)).expect("-5i8"),
+                std::slice::from_ref(&signed_definition),
+                1,
+                &BTreeSet::from([signed_input_id]),
+            ),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(signed_type, IntegerValue::Signed(-126)).expect("-126i8"),
+                signed_input,
+            )
+        );
+
+        let overflow_input_id = ValueId::new(71).expect("overflow input");
+        let overflow_input =
+            ScalarTerm::value(overflow_input_id, ScalarType::Integer(integer_type));
+        let overflow_first = ScalarTerm::value(
+            ValueId::new(72).expect("overflow first"),
+            ScalarType::Integer(integer_type),
+        );
+        let overflow_second = ScalarTerm::value(
+            ValueId::new(73).expect("overflow second"),
+            ScalarType::Integer(integer_type),
+        );
+        let subtract_zero = Proposition::Equal(
+            overflow_first.clone(),
+            ScalarTerm::exact_integer_subtract(
+                integer_type,
+                overflow_input,
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(0)).expect("0u8"),
+            )
+            .expect("input - 0u8"),
+        );
+        let add_maximum = Proposition::Equal(
+            overflow_second.clone(),
+            ScalarTerm::exact_integer_add(
+                integer_type,
+                overflow_first,
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(255)).expect("255u8"),
+            )
+            .expect("first + 255u8"),
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                integer_type,
+                overflow_second,
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("1u8"),
+                &[subtract_zero, add_maximum],
+                2,
+                &BTreeSet::from([overflow_input_id]),
             ),
             Proposition::Falsehood
         );

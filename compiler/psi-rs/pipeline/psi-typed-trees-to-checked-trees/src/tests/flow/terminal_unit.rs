@@ -1,5 +1,8 @@
 use super::*;
-use crate::flow::exact_shift_left_chain_runtime_parameter_positions_for_test;
+use crate::flow::{
+    exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test,
+    exact_shift_left_chain_runtime_parameter_positions_for_test,
+};
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedScalarExpression,
     CheckedScalarExpressionRole,
@@ -1008,6 +1011,101 @@ fn exact_shift_left_chain_classifier_covers_u64_and_fences_other_exact_roots() {
     );
     assert_eq!(
         exact_shift_left_chain_runtime_parameter_positions_for_test(&fenced, 1),
+        None
+    );
+}
+
+#[test]
+fn mixed_exact_add_subtract_chain_classifier_is_left_associated_and_same_carrier() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U64,
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::U64,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let mixed = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        operation(
+            CheckedIntegerBinaryKind::ExactSubtract,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                parameter(),
+                literal(5i64, psi_numerics::literals::LandedIntegerType::U64),
+            ),
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U64),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    assert_eq!(
+        exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test(&mixed, 1),
+        Some(vec![0])
+    );
+
+    let right_associated = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+        operation(
+            CheckedIntegerBinaryKind::ExactSubtract,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
+        ),
+    );
+    assert_eq!(
+        exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test(&right_associated, 1),
+        None
+    );
+
+    let mismatched_literal = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I64),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    assert_eq!(
+        exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test(&mismatched_literal, 1,),
+        None
+    );
+
+    let runtime_sibling = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
+        ),
+        parameter(),
+    );
+    assert_eq!(
+        exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test(&runtime_sibling, 1),
+        None
+    );
+
+    let all_add = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            parameter(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    assert_eq!(
+        exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test(&all_add, 1),
         None
     );
 }
@@ -2201,6 +2299,88 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             let staged: bool = ((((input + 0u8) << 1u8) << 1u8) < 5u8) && enabled;
             staged
         }
+        machine Root::mixed_exact_add_subtract_chain_u8_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 250u8, input <= 251u8
+        {
+            let staged: bool = ((((input + 5u8) - 3u8) + 2u8) < 255u8) && enabled;
+            staged
+        }
+        machine Root::mixed_exact_add_subtract_chain_i8_integer_comparison_convergence(
+            token: Token,
+            input: i8,
+            enabled: bool
+        ) -> bool
+        requires -126i8 <= input, input <= 124i8
+        {
+            let staged: bool = ((((input - -3i8) + -5i8) - -1i8) < 127i8) && enabled;
+            staged
+        }
+        machine Root::runtime_sibling_mixed_exact_add_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            sibling: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 254u8, sibling <= input + 1u8
+        {
+            let staged: bool = (((input + 1u8) - sibling) < 255u8) && enabled;
+            staged
+        }
+        machine Root::right_associated_mixed_exact_add_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires 1u8 <= input, input <= 254u8
+        {
+            let staged: bool = ((1u8 + (input - 1u8)) < 255u8) && enabled;
+            staged
+        }
+        machine Root::local_mixed_exact_add_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 253u8
+        {
+            let retained: u8 = input;
+            let staged: bool = (((retained + 2u8) - 1u8) < 255u8) && enabled;
+            staged
+        }
+        machine Root::widened_mixed_exact_add_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 253u8
+        {
+            let staged: bool = (((((input + 1u8) as u16) - 1u16) + 1u16) < 256u16) && enabled;
+            staged
+        }
+        machine Root::multiply_feeds_mixed_exact_add_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 126u8
+        {
+            let staged: bool = ((((input * 2u8) + 1u8) - 1u8) < 255u8) && enabled;
+            staged
+        }
+        machine Root::reversed_subtract_mixed_exact_add_subtract_chain_integer_comparison_convergence(
+            token: Token,
+            input: u8,
+            enabled: bool
+        ) -> bool
+        requires input <= 1u8
+        {
+            let staged: bool = ((2u8 - (input + 1u8)) < 255u8) && enabled;
+            staged
+        }
         machine Root::two_nested_exact_add_operands_integer_comparison_convergence(
             token: Token,
             input: u8,
@@ -3051,7 +3231,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     for machine in [
         "reversed_nested_exact_subtract_integer_comparison_convergence",
         "nested_exact_subtract_feeds_multiply_integer_comparison_convergence",
-        "mixed_exact_add_subtract_integer_comparison_convergence",
         "local_exact_subtract_chain_integer_comparison_convergence",
     ] {
         let wider_nested_exact_subtract = checked
@@ -3070,6 +3249,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 .is_none()
         );
     }
+    let cancelling_mixed_exact_add_subtract = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "mixed_exact_add_subtract_integer_comparison_convergence",
+        ))
+        .expect("the cancelling mixed exact-add/subtract chain retains its scalar-return plan");
+    assert!(
+        cancelling_mixed_exact_add_subtract
+            .shared_boolean_convergence
+            .is_some()
+    );
     assert!(
         checked
             .facts
@@ -3245,6 +3438,36 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 )
             });
         assert!(fenced_shift_left_chain.shared_boolean_convergence.is_none());
+    }
+    for carrier in ["u8", "i8"] {
+        let machine =
+            format!("mixed_exact_add_subtract_chain_{carrier}_integer_comparison_convergence");
+        let mixed_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, &machine))
+            .unwrap_or_else(|| {
+                panic!(
+                    "the {carrier} mixed exact-add/subtract chain retains its scalar-return plan"
+                )
+            });
+        assert!(mixed_chain.shared_boolean_convergence.is_some());
+    }
+    for machine in [
+        "runtime_sibling_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        "right_associated_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        "local_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        "widened_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        "multiply_feeds_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        "reversed_subtract_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+    ] {
+        let fenced_mixed_chain = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine));
+        assert!(fenced_mixed_chain.is_none_or(|plan| plan.shared_boolean_convergence.is_none()));
     }
     let nested_exact_cast_integer_comparison = checked
         .facts

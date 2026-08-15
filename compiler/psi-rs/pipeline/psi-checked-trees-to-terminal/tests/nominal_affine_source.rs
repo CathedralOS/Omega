@@ -9,6 +9,7 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use psi_terminal_fuel::TerminalFuelSchedule;
 use psi_terminal_interpreter::{
     AcceptTerminalEffects, TerminalArtifactInterpretError, TerminalExecutionResult,
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
@@ -423,6 +424,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
         small <= 255u8 / divisor, count <= 2u8,
         -128i64 <= signed, signed <= 127i64,
         -127i8 <= signed_arithmetic, signed_arithmetic <= 126i8,
+        -126i8 <= signed_arithmetic, signed_arithmetic <= 124i8,
         -42i8 <= signed_arithmetic, signed_arithmetic <= 42i8,
         -32i8 <= signed_arithmetic, signed_arithmetic <= 31i8,
         0i8 <= signed_arithmetic, 0i8 <= signed_divisor,
@@ -481,6 +483,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic + -1i8) < 4i8)
             && ((signed_arithmetic - 1i8) < 4i8)
             && ((signed_arithmetic - -1i8) < 4i8)
+            && ((((small + 3u8) - 2u8) + 1u8) < 255u8)
+            && ((((signed_arithmetic - -3i8) + -5i8) - -1i8) < 127i8)
             && ((signed_arithmetic * 3i8) < 4i8)
             && ((signed_arithmetic * -3i8) < 4i8)
             && ((signed_arithmetic * signed_divisor) <= 127i8)
@@ -3088,6 +3092,91 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let (mixed_add_subtract_obligations, mixed_subtrahend) = operations
+        .iter()
+        .find_map(|outer| {
+            let OperationKind::ExactIntegerAdd {
+                left,
+                right,
+                obligation: outer_obligation,
+            } = outer.kind
+            else {
+                return None;
+            };
+            if !is_u8_one(right) {
+                return None;
+            }
+            let middle = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(left)
+            })?;
+            let OperationKind::ExactIntegerSubtract {
+                left: middle_left,
+                right: middle_right,
+                obligation: middle_obligation,
+            } = middle.kind
+            else {
+                return None;
+            };
+            if !is_u8_two(middle_right) {
+                return None;
+            }
+            let inner = operations.iter().find(|candidate| {
+                candidate.result.scalar_ref().map(|result| result.id) == Some(middle_left)
+            })?;
+            let OperationKind::ExactIntegerAdd {
+                left: inner_left,
+                right: inner_right,
+                obligation: inner_obligation,
+            } = inner.kind
+            else {
+                return None;
+            };
+            (inner_left == entry.parameters[1].id && is_u8_three(inner_right)).then_some((
+                [inner_obligation, middle_obligation, outer_obligation],
+                middle_right,
+            ))
+        })
+        .expect("a finite left-associated mixed exact-add/subtract chain is retained");
+    assert_ne!(
+        mixed_add_subtract_obligations[0],
+        mixed_add_subtract_obligations[1]
+    );
+    assert_ne!(
+        mixed_add_subtract_obligations[1],
+        mixed_add_subtract_obligations[2]
+    );
+    assert_ne!(
+        mixed_add_subtract_obligations[0],
+        mixed_add_subtract_obligations[2]
+    );
+    for obligation in mixed_add_subtract_obligations {
+        let operation = operations
+            .iter()
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::ExactIntegerAdd {
+                        obligation: candidate,
+                        ..
+                    } | OperationKind::ExactIntegerSubtract {
+                        obligation: candidate,
+                        ..
+                    } if candidate == obligation
+                )
+            })
+            .expect("mixed exact-add/subtract obligation retains its operation");
+        assert_eq!(
+            TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+            1
+        );
+        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+            evidence.obligation == obligation
+                && matches!(
+                    evidence.route,
+                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                )
+        }));
+    }
     let (nested_divide_remainder_obligations, middle_divisor) = operations
         .iter()
         .find_map(|outer| {
@@ -4279,6 +4368,22 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 if obligation == nested_subtract_obligation
         ));
     }
+    for mixed_add_subtract_obligation in mixed_add_subtract_obligations {
+        let mut missing_mixed_add_subtract_proof =
+            decode_proof_bundle(&proof).expect("decode shared proof");
+        missing_mixed_add_subtract_proof
+            .evidence
+            .retain(|evidence| evidence.obligation != mixed_add_subtract_obligation);
+        assert!(matches!(
+            psi_terminal_verifier::verify_module(
+                &decode_module(&semantics).expect("decode shared semantics"),
+                &missing_mixed_add_subtract_proof,
+                &AdmissionProfile::default(),
+            ),
+            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+                if obligation == mixed_add_subtract_obligation
+        ));
+    }
     for nested_divide_remainder_obligation in nested_divide_remainder_obligations {
         let mut missing_nested_divide_remainder_proof =
             decode_proof_bundle(&proof).expect("decode shared proof");
@@ -4364,6 +4469,30 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == nested_subtract_obligations[1]
+    ));
+    let mut changed_mixed_subtrahend = decode_module(&semantics).expect("decode shared semantics");
+    let changed_subtrahend = changed_mixed_subtrahend
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation.result.scalar_ref().map(|result| result.id) == Some(mixed_subtrahend)
+        })
+        .expect("mixed exact-add/subtract landed subtrahend operation");
+    changed_subtrahend.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(4),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &changed_mixed_subtrahend,
+            &decode_proof_bundle(&proof).expect("decode unchanged shared proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == mixed_add_subtract_obligations[1]
     ));
     let mut changed_middle_divisor = decode_module(&semantics).expect("decode shared semantics");
     let changed_divisor = changed_middle_divisor
@@ -5068,6 +5197,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && signed_arithmetic - 1 < 4
                     && signed_arithmetic - 1 < 4
                     && signed_arithmetic + 1 < 4
+                    && ((small + 3) - 2) + 1 < 255
+                    && ((signed_arithmetic + 3) - 5) + 1 < 127
                     && signed_arithmetic * 3 < 4
                     && signed_arithmetic * -3 < 4
                     && signed_arithmetic * signed_divisor <= 127
