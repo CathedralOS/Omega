@@ -793,6 +793,33 @@ impl ProviderPlan {
                     ));
                 }
             }
+            for (axis, identities) in [
+                ("service-reach", method.service_reach.as_slice()),
+                (
+                    "synchronous-invocation",
+                    method.synchronous_invocations.as_slice(),
+                ),
+            ] {
+                for (index, identity) in identities.iter().enumerate() {
+                    if identity.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` schema method `{}::{}` {axis} identity at index {index} is empty",
+                            self.name, self.schema.trait_name, method.name,
+                        ));
+                    }
+                }
+                for (index, pair) in identities.windows(2).enumerate() {
+                    if pair[0] >= pair[1] {
+                        errors.push(format!(
+                            "plan `{}` schema method `{}::{}` {axis} identities are not strictly increasing at indexes {index} and {}",
+                            self.name,
+                            self.schema.trait_name,
+                            method.name,
+                            index + 1,
+                        ));
+                    }
+                }
+            }
         }
         for row in &self.rows {
             if row.requirement_identity.is_empty() {
@@ -1329,6 +1356,75 @@ mod tests {
                 .validate_candidate_against_schema()
                 .iter()
                 .any(|error| error.contains("result has no exact semantic type identity"))
+        );
+    }
+
+    #[test]
+    fn schema_validation_requires_canonical_independent_service_axes() {
+        let mut valid = windows_console_plan();
+        valid.schema.methods[0].service_reach = vec!["Console".to_owned(), "Storage".to_owned()];
+        valid.schema.methods[0].synchronous_invocations =
+            vec!["Clock".to_owned(), "TaskRuntime".to_owned()];
+        valid.schema.methods[2].service_reach.clear();
+        assert!(
+            valid.validate_candidate_against_schema().is_empty(),
+            "reach and direct invocation are distinct canonical sets, and either may be empty"
+        );
+
+        let mut empty_reach = valid.clone();
+        empty_reach.schema.methods[0].service_reach[0].clear();
+        assert!(
+            empty_reach
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("service-reach identity at index 0 is empty"))
+        );
+
+        let mut duplicate_reach = valid.clone();
+        duplicate_reach.schema.methods[0].service_reach =
+            vec!["Console".to_owned(), "Console".to_owned()];
+        assert!(duplicate_reach
+            .validate_candidate_against_schema()
+            .iter()
+            .any(|error| error.contains("service-reach identities are not strictly increasing")));
+
+        let mut out_of_order_reach = valid.clone();
+        out_of_order_reach.schema.methods[0].service_reach =
+            vec!["Storage".to_owned(), "Console".to_owned()];
+        assert!(out_of_order_reach
+            .validate_candidate_against_schema()
+            .iter()
+            .any(|error| error.contains("service-reach identities are not strictly increasing")));
+
+        let mut empty_invocation = valid.clone();
+        empty_invocation.schema.methods[0].synchronous_invocations[0].clear();
+        assert!(
+            empty_invocation
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("synchronous-invocation identity at index 0 is empty"))
+        );
+
+        let mut duplicate_invocation = valid.clone();
+        duplicate_invocation.schema.methods[0].synchronous_invocations =
+            vec!["Clock".to_owned(), "Clock".to_owned()];
+        assert!(
+            duplicate_invocation
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("synchronous-invocation identities are not strictly increasing"))
+        );
+
+        let mut out_of_order_invocation = valid;
+        out_of_order_invocation.schema.methods[0].synchronous_invocations =
+            vec!["TaskRuntime".to_owned(), "Clock".to_owned()];
+        assert!(
+            out_of_order_invocation
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("synchronous-invocation identities are not strictly increasing"))
         );
     }
 }
