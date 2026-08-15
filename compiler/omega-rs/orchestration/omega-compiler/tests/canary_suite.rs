@@ -27357,13 +27357,8 @@ fn runtime_sleep_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-sleep-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sleep canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sleep canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
