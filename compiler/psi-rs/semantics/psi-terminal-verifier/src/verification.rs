@@ -1643,7 +1643,7 @@ fn exact_integer_shift_left_obligation(
         semantic_axioms,
         definition_axiom_count,
     ) {
-        if let Some(obligation) = exact_integer_shift_right_then_left_obligation(
+        if let Some(obligation) = exact_integer_mixed_shift_chain_obligation(
             value_type,
             value.clone(),
             count_value,
@@ -1706,7 +1706,7 @@ fn exact_integer_shift_left_obligation(
     canonical_conjunction(bounds)
 }
 
-fn exact_integer_shift_right_then_left_obligation(
+fn exact_integer_mixed_shift_chain_obligation(
     value_type: psi_core::IntegerType,
     mut value: ScalarTerm,
     count: u128,
@@ -1717,8 +1717,9 @@ fn exact_integer_shift_right_then_left_obligation(
     if value_type.is_address() || !matches!(value_type.bits(), 8 | 16 | 32 | 64) {
         return None;
     }
-    let mut cumulative_left = count;
-    let mut cumulative_right = 0_u128;
+    let Some(mut interval) = exact_integer_shift_left_input_interval(value_type, count) else {
+        return Some(Proposition::Falsehood);
+    };
     let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
     let mut saw_right = false;
     for _ in 0..=prior_axiom_count {
@@ -1731,27 +1732,7 @@ fn exact_integer_shift_right_then_left_obligation(
                 _ => None,
             })?;
         match definition {
-            ScalarTerm::ExactIntegerShiftLeft {
-                value_type: nested_value_type,
-                count_type,
-                value: nested_value,
-                count: nested_count,
-            } if !saw_right && *nested_value_type == value_type => {
-                let nested_count = landed_exact_shift_count(
-                    value_type,
-                    *count_type,
-                    nested_count,
-                    semantic_axioms,
-                    definition_index,
-                )?;
-                let Some(total) = cumulative_left.checked_add(nested_count) else {
-                    return Some(Proposition::Falsehood);
-                };
-                cumulative_left = total;
-                value = (**nested_value).clone();
-                prior_axiom_count = definition_index;
-            }
-            ScalarTerm::ExactIntegerShiftRight {
+            definition @ ScalarTerm::ExactIntegerShiftLeft {
                 value_type: nested_value_type,
                 count_type,
                 value: nested_value,
@@ -1764,10 +1745,40 @@ fn exact_integer_shift_right_then_left_obligation(
                     semantic_axioms,
                     definition_index,
                 )?;
-                let Some(total) = cumulative_right.checked_add(nested_count) else {
+                let Some(mapped) = exact_integer_mixed_shift_preimage(
+                    value_type,
+                    interval,
+                    definition,
+                    nested_count,
+                ) else {
                     return Some(Proposition::Falsehood);
                 };
-                cumulative_right = total;
+                interval = mapped;
+                value = (**nested_value).clone();
+                prior_axiom_count = definition_index;
+            }
+            definition @ ScalarTerm::ExactIntegerShiftRight {
+                value_type: nested_value_type,
+                count_type,
+                value: nested_value,
+                count: nested_count,
+            } if *nested_value_type == value_type => {
+                let nested_count = landed_exact_shift_count(
+                    value_type,
+                    *count_type,
+                    nested_count,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let Some(mapped) = exact_integer_mixed_shift_preimage(
+                    value_type,
+                    interval,
+                    definition,
+                    nested_count,
+                ) else {
+                    return Some(Proposition::Falsehood);
+                };
+                interval = mapped;
                 value = (**nested_value).clone();
                 prior_axiom_count = definition_index;
                 saw_right = true;
@@ -1783,79 +1794,86 @@ fn exact_integer_shift_right_then_left_obligation(
                 } if *root_type == value_type && machine_parameter_values.contains(id)
             )
         {
-            return Some(exact_integer_shift_right_then_left_interval_obligation(
-                value_type,
-                value,
-                cumulative_left,
-                cumulative_right,
+            return Some(exact_integer_source_interval_obligation(
+                value_type, value, interval.0, interval.1,
             ));
         }
     }
     None
 }
 
-fn exact_integer_shift_right_then_left_interval_obligation(
+fn exact_integer_shift_left_input_interval(
     value_type: psi_core::IntegerType,
-    root: ScalarTerm,
-    cumulative_left: u128,
-    cumulative_right: u128,
-) -> Proposition {
-    let width = u128::from(value_type.bits());
-    if cumulative_left == 0 {
-        return Proposition::Truth;
+    count: u128,
+) -> Option<(i128, i128)> {
+    let count = u32::try_from(count).ok()?;
+    if count >= u32::from(value_type.bits()) {
+        return None;
     }
-    if cumulative_right >= width {
-        return match value_type.sign() {
-            IntegerSign::Unsigned => Proposition::Truth,
-            IntegerSign::Signed if cumulative_left < width => Proposition::Truth,
-            IntegerSign::Signed => {
-                exact_integer_source_interval_obligation(value_type, root, 0, i128::MAX)
-            }
-        };
-    }
-    if cumulative_left <= cumulative_right {
-        return Proposition::Truth;
-    }
-
-    let (quotient_minimum, quotient_maximum) = if cumulative_left >= width {
-        (0, 0)
-    } else {
-        let left = u32::try_from(cumulative_left).expect("count below native width fits u32");
-        match value_type.sign() {
-            IntegerSign::Unsigned => {
-                let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
-                    unreachable!("unsigned fixed integer type has an unsigned maximum")
-                };
-                let Some(maximum) = i128::try_from(maximum >> left).ok() else {
-                    return Proposition::Falsehood;
-                };
-                (0, maximum)
-            }
-            IntegerSign::Signed => {
-                let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
-                    (value_type.minimum_value(), value_type.maximum_value())
-                else {
-                    unreachable!("signed fixed integer type has signed bounds")
-                };
-                (minimum >> left, maximum >> left)
-            }
+    match value_type.sign() {
+        IntegerSign::Unsigned => {
+            let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
+                unreachable!("unsigned fixed integer type has an unsigned maximum")
+            };
+            Some((0, i128::try_from(maximum >> count).ok()?))
         }
+        IntegerSign::Signed => {
+            let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                (value_type.minimum_value(), value_type.maximum_value())
+            else {
+                unreachable!("signed fixed integer type has signed bounds")
+            };
+            Some((minimum >> count, maximum >> count))
+        }
+    }
+}
+
+fn exact_integer_mixed_shift_preimage(
+    value_type: psi_core::IntegerType,
+    interval: (i128, i128),
+    definition: &ScalarTerm,
+    count: u128,
+) -> Option<(i128, i128)> {
+    let count = u32::try_from(count).ok()?;
+    if count >= u32::from(value_type.bits()) {
+        return None;
+    }
+    let scale = 1_i128.checked_shl(count)?;
+    let mapped = match definition {
+        ScalarTerm::ExactIntegerShiftLeft { .. } => {
+            let minimum =
+                interval.0.div_euclid(scale) + i128::from(interval.0.rem_euclid(scale) != 0);
+            let maximum = interval.1.div_euclid(scale);
+            (minimum, maximum)
+        }
+        ScalarTerm::ExactIntegerShiftRight { .. } => match value_type.sign() {
+            IntegerSign::Signed => (
+                interval.0.checked_mul(scale)?,
+                interval
+                    .1
+                    .checked_add(1)?
+                    .checked_mul(scale)?
+                    .checked_sub(1)?,
+            ),
+            IntegerSign::Unsigned => {
+                let minimum = u128::try_from(interval.0)
+                    .ok()?
+                    .checked_mul(scale as u128)?;
+                let maximum = u128::try_from(interval.1)
+                    .ok()?
+                    .checked_add(1)?
+                    .checked_mul(scale as u128)?
+                    .checked_sub(1)?;
+                (i128::try_from(minimum).ok()?, i128::try_from(maximum).ok()?)
+            }
+        },
+        _ => return None,
     };
-    let right = u32::try_from(cumulative_right).expect("count below native width fits u32");
-    let Some(scale) = 1_i128.checked_shl(right) else {
-        return Proposition::Falsehood;
-    };
-    let Some(root_minimum) = quotient_minimum.checked_mul(scale) else {
-        return Proposition::Falsehood;
-    };
-    let Some(root_maximum) = quotient_maximum
-        .checked_add(1)
-        .and_then(|exclusive| exclusive.checked_mul(scale))
-        .and_then(|exclusive| exclusive.checked_sub(1))
-    else {
-        return Proposition::Falsehood;
-    };
-    exact_integer_source_interval_obligation(value_type, root, root_minimum, root_maximum)
+    let carrier_minimum = integer_value_as_i128(value_type.minimum_value())?;
+    let carrier_maximum = integer_value_as_i128(value_type.maximum_value())?;
+    let minimum = mapped.0.max(carrier_minimum);
+    let maximum = mapped.1.min(carrier_maximum);
+    (minimum <= maximum).then_some((minimum, maximum))
 }
 
 fn exact_integer_cast_then_shift_left_chain_obligation(
@@ -9748,64 +9766,72 @@ mod tests {
     }
 
     #[test]
-    fn exact_shift_right_then_left_reconstructs_every_prefix_from_ordered_definitions() {
+    fn exact_mixed_shift_chain_reconstructs_alternating_prefixes_from_ordered_definitions() {
         let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
         let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
         let unsigned_count_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
         let root_id = ValueId::new(301).expect("root");
         let root = ScalarTerm::value(root_id, ScalarType::Integer(value_type));
-        let right_one_id = ValueId::new(302).expect("right one");
-        let right_one = ScalarTerm::value(right_one_id, ScalarType::Integer(value_type));
-        let right_two_id = ValueId::new(303).expect("right two");
-        let right_two = ScalarTerm::value(right_two_id, ScalarType::Integer(value_type));
-        let left_one_id = ValueId::new(304).expect("left one");
-        let left_one = ScalarTerm::value(left_one_id, ScalarType::Integer(value_type));
+        let left_one = ScalarTerm::value(
+            ValueId::new(302).expect("left one"),
+            ScalarType::Integer(value_type),
+        );
+        let right_two = ScalarTerm::value(
+            ValueId::new(303).expect("right two"),
+            ScalarType::Integer(value_type),
+        );
+        let left_three = ScalarTerm::value(
+            ValueId::new(304).expect("left three"),
+            ScalarType::Integer(value_type),
+        );
         let one = ScalarTerm::integer(signed_count_type, IntegerValue::Signed(1)).expect("1i8");
         let two =
             ScalarTerm::integer(unsigned_count_type, IntegerValue::Unsigned(2)).expect("2u16");
+        let three = ScalarTerm::integer(signed_count_type, IntegerValue::Signed(3)).expect("3i8");
         let definitions = vec![
             Proposition::Equal(
-                right_one.clone(),
-                ScalarTerm::exact_integer_shift_right(
+                left_one.clone(),
+                ScalarTerm::exact_integer_shift_left(
                     value_type,
                     signed_count_type,
                     root.clone(),
                     one.clone(),
                 )
-                .expect("root >> 1"),
+                .expect("root << 1"),
             ),
             Proposition::Equal(
                 right_two.clone(),
                 ScalarTerm::exact_integer_shift_right(
                     value_type,
                     unsigned_count_type,
-                    right_one,
+                    left_one,
                     two,
                 )
-                .expect("(root >> 1) >> 2"),
+                .expect("(root << 1) >> 2"),
             ),
             Proposition::Equal(
-                left_one.clone(),
+                left_three.clone(),
                 ScalarTerm::exact_integer_shift_left(
                     value_type,
                     signed_count_type,
                     right_two,
-                    one.clone(),
+                    three,
                 )
-                .expect("right chain << 1"),
+                .expect("((root << 1) >> 2) << 3"),
             ),
         ];
+        let maximum = ScalarTerm::integer(value_type, IntegerValue::Unsigned(31)).expect("31u8");
         assert_eq!(
-            exact_integer_shift_right_then_left_obligation(
+            exact_integer_mixed_shift_chain_obligation(
                 value_type,
-                left_one,
+                left_three,
                 1,
                 &definitions,
                 definitions.len(),
                 &BTreeSet::from([root_id]),
             ),
-            Some(Proposition::Truth),
-            "cumulative left two is carrier-total after cumulative right three",
+            Some(Proposition::LessOrEqual(root.clone(), maximum)),
+            "each alternating definition is replayed backward before the final left prefix",
         );
 
         let right = ScalarTerm::value(
@@ -9824,7 +9850,7 @@ mod tests {
         )];
         let maximum = ScalarTerm::integer(value_type, IntegerValue::Unsigned(31)).expect("31u8");
         assert_eq!(
-            exact_integer_shift_right_then_left_obligation(
+            exact_integer_mixed_shift_chain_obligation(
                 value_type,
                 right.clone(),
                 4,
@@ -9835,7 +9861,7 @@ mod tests {
             Some(Proposition::LessOrEqual(root.clone(), maximum)),
         );
         assert_eq!(
-            exact_integer_shift_right_then_left_obligation(
+            exact_integer_mixed_shift_chain_obligation(
                 value_type,
                 right,
                 4,
@@ -9849,52 +9875,71 @@ mod tests {
     }
 
     #[test]
-    fn exact_shift_right_then_left_handles_signed_preimages_and_saturation() {
+    fn exact_mixed_shift_chain_handles_signed_preimages_and_stale_definitions() {
         let signed_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-        let signed_root = ScalarTerm::value(
-            ValueId::new(311).expect("signed root"),
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 count");
+        let root_id = ValueId::new(311).expect("signed root");
+        let signed_root = ScalarTerm::value(root_id, ScalarType::Integer(signed_type));
+        let right = ScalarTerm::value(
+            ValueId::new(312).expect("signed right"),
             ScalarType::Integer(signed_type),
         );
+        let one = ScalarTerm::integer(count_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let definitions = vec![Proposition::Equal(
+            right.clone(),
+            ScalarTerm::exact_integer_shift_right(
+                signed_type,
+                count_type,
+                signed_root.clone(),
+                one,
+            )
+            .expect("signed root >> 1"),
+        )];
         let minimum = ScalarTerm::integer(signed_type, IntegerValue::Signed(-32)).expect("-32i8");
         let maximum = ScalarTerm::integer(signed_type, IntegerValue::Signed(31)).expect("31i8");
         assert_eq!(
-            exact_integer_shift_right_then_left_interval_obligation(
+            exact_integer_mixed_shift_chain_obligation(
                 signed_type,
-                signed_root.clone(),
+                right.clone(),
                 3,
-                1,
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
             ),
-            canonical_conjunction(vec![
+            Some(canonical_conjunction(vec![
                 Proposition::LessOrEqual(minimum, signed_root.clone()),
                 Proposition::LessOrEqual(signed_root.clone(), maximum),
-            ]),
+            ])),
         );
-        let zero = ScalarTerm::integer(signed_type, IntegerValue::Signed(0)).expect("0i8");
         assert_eq!(
-            exact_integer_shift_right_then_left_interval_obligation(
+            exact_integer_mixed_shift_chain_obligation(
                 signed_type,
-                signed_root.clone(),
-                8,
-                8,
+                right,
+                3,
+                &[Proposition::Truth],
+                1,
+                &BTreeSet::from([root_id]),
             ),
-            Proposition::LessOrEqual(zero, signed_root),
-            "after signed saturation only a nonnegative root produces zero for a width-sized left chain",
+            None,
+            "a stale or redirected definition cannot authorize the mixed prefix",
         );
 
         let unsigned_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
-        let unsigned_root = ScalarTerm::value(
-            ValueId::new(312).expect("unsigned root"),
-            ScalarType::Integer(unsigned_type),
-        );
         assert_eq!(
-            exact_integer_shift_right_then_left_interval_obligation(
+            exact_integer_mixed_shift_preimage(
                 unsigned_type,
-                unsigned_root,
-                u128::MAX,
-                8,
+                (0, 15),
+                &ScalarTerm::exact_integer_shift_right(
+                    unsigned_type,
+                    count_type,
+                    ScalarTerm::integer(unsigned_type, IntegerValue::Unsigned(0)).expect("0u8"),
+                    ScalarTerm::integer(count_type, IntegerValue::Unsigned(4)).expect("4u8"),
+                )
+                .expect("unsigned right shape"),
+                4,
             ),
-            Proposition::Truth,
-            "an unsigned right chain saturated to zero stays exact through any left prefix",
+            Some((0, 255)),
+            "a right-shift preimage clips to the source carrier",
         );
     }
 
