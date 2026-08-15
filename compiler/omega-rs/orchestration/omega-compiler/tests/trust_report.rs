@@ -118,6 +118,7 @@ boundary machine combine_commutative(callback: &mut AlgebraAudit, a: Carrier, b:
 reaches AlgebraAudit
 invokes callback;
 suspends;
+blocks;
 ensures Carrier::combine(a, b) == Carrier::combine(b, a);
 
 data Main {}
@@ -170,6 +171,7 @@ machine Main::exercise(&mut self) {}
     assert!(accepted_row.contains("service reach: AlgebraAudit"));
     assert!(accepted_row.contains("synchronous invocations: parameter:0"));
     assert!(accepted_row.contains("may suspend: yes"));
+    assert!(accepted_row.contains("may block: yes"));
     assert!(
         !report.contains("accepted fact: Carrier::combine"),
         "a claim-free symbol asserts nothing and needs no grant:\n{report}"
@@ -284,6 +286,7 @@ machine Main::exercise(&mut self) {
     assert!(!meters_row.contains("service reach:"));
     assert!(!meters_row.contains("synchronous invocations:"));
     assert!(!meters_row.contains("may suspend:"));
+    assert!(!meters_row.contains("may block:"));
     let unmatched_grant_row = report
         .lines()
         .find(|line| line.contains("accepted fact: walker_lib::collatz_cert_checked"))
@@ -292,6 +295,7 @@ machine Main::exercise(&mut self) {
     assert!(!unmatched_grant_row.contains("service reach:"));
     assert!(!unmatched_grant_row.contains("synchronous invocations:"));
     assert!(!unmatched_grant_row.contains("may suspend:"));
+    assert!(!unmatched_grant_row.contains("may block:"));
 
     let _ = std::fs::remove_dir_all(&project);
 }

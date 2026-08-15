@@ -84,6 +84,7 @@ pub(super) fn write_trust_report(
             machine_service_reach: None,
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
+            machine_may_block: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -201,6 +202,7 @@ pub(super) fn write_trust_report(
             machine_service_reach: None,
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
+            machine_may_block: None,
             standing_warning: !granted,
         });
     }
@@ -243,6 +245,9 @@ pub(super) fn write_trust_report(
         let machine_may_suspend =
             accepted_machine_may_suspend(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_may_block =
+            accepted_machine_may_block(checked, machine.symbol, machine.name.as_str())
+                .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -254,6 +259,7 @@ pub(super) fn write_trust_report(
             machine_service_reach: Some(machine_service_reach),
             machine_synchronous_invocations: Some(machine_synchronous_invocations),
             machine_may_suspend: Some(machine_may_suspend),
+            machine_may_block: Some(machine_may_block),
             standing_warning: !granted,
         });
     }
@@ -279,6 +285,7 @@ pub(super) fn write_trust_report(
                 machine_service_reach: None,
                 machine_synchronous_invocations: None,
                 machine_may_suspend: None,
+                machine_may_block: None,
                 standing_warning: false,
             });
         }
@@ -380,6 +387,25 @@ fn accepted_machine_may_suspend(
     Ok(may_suspend)
 }
 
+fn accepted_machine_may_block(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<bool, Diagnostic> {
+    let plan = checked.facts.blocking.for_machine(machine).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no exact checked blocking facts"
+        ))
+    })?;
+    let psi_language_semantics::BlockingInterface::PublishedMayBlock(may_block) = plan.interface
+    else {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no published blocking ceiling"
+        )));
+    };
+    Ok(may_block)
+}
+
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
 ) -> TrustProviderRealization {
@@ -418,17 +444,18 @@ fn trust_provider_realization(
 #[cfg(test)]
 mod tests {
     use psi_checked_trees::{
-        CheckedTrees, MachineServiceReachRows, MachineSuspensionFact,
+        CheckedTrees, MachineBlockingFact, MachineServiceReachRows, MachineSuspensionFact,
         MachineSynchronousInvocationFact, ServiceReachFacts,
     };
     use psi_language_semantics::{
-        ServiceReachInterface, ServiceReachRowTable, ServiceReachTable, SuspensionInterface,
-        SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
+        BlockingInterface, BlockingPlan, ServiceReachInterface, ServiceReachRowTable,
+        ServiceReachTable, SuspensionInterface, SuspensionPlan, SynchronousInvocationInterface,
+        SynchronousInvocationPlan,
     };
     use psi_symbols::SymbolHandle;
 
     use super::{
-        accepted_machine_may_suspend, accepted_machine_service_reach,
+        accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
         accepted_machine_synchronous_invocations,
     };
 
@@ -609,5 +636,45 @@ mod tests {
             .expect_err("private inference rejects")
             .to_string();
         assert!(internal.contains("has no published suspension ceiling"));
+    }
+
+    #[test]
+    fn accepted_blocking_copies_only_the_published_interface_bit() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let mut checked = CheckedTrees::default();
+        checked.facts.blocking.machines.push(MachineBlockingFact {
+            machine,
+            plan: BlockingPlan {
+                interface: BlockingInterface::PublishedMayBlock(true),
+                checked_may_block: false,
+            },
+        });
+
+        assert_eq!(
+            accepted_machine_may_block(&checked, machine, "accepted"),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn accepted_blocking_fails_closed_on_missing_and_internal_facts() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing = accepted_machine_may_block(&CheckedTrees::default(), machine, "missing")
+            .expect_err("missing facts reject")
+            .to_string();
+        assert!(missing.contains("has no exact checked blocking facts"));
+
+        let mut internal = CheckedTrees::default();
+        internal.facts.blocking.machines.push(MachineBlockingFact {
+            machine,
+            plan: BlockingPlan {
+                interface: BlockingInterface::InternalInferred,
+                checked_may_block: true,
+            },
+        });
+        let internal = accepted_machine_may_block(&internal, machine, "internal")
+            .expect_err("private inference rejects")
+            .to_string();
+        assert!(internal.contains("has no published blocking ceiling"));
     }
 }
