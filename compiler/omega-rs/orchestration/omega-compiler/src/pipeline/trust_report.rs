@@ -85,6 +85,7 @@ pub(super) fn write_trust_report(
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
             machine_may_block: None,
+            machine_terminates_guarantee: None,
             standing_warning: !granted,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
@@ -203,6 +204,7 @@ pub(super) fn write_trust_report(
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
             machine_may_block: None,
+            machine_terminates_guarantee: None,
             standing_warning: !granted,
         });
     }
@@ -248,6 +250,9 @@ pub(super) fn write_trust_report(
         let machine_may_block =
             accepted_machine_may_block(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_terminates_guarantee =
+            accepted_machine_terminates_guarantee(checked, machine.symbol, machine.name.as_str())
+                .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -260,6 +265,7 @@ pub(super) fn write_trust_report(
             machine_synchronous_invocations: Some(machine_synchronous_invocations),
             machine_may_suspend: Some(machine_may_suspend),
             machine_may_block: Some(machine_may_block),
+            machine_terminates_guarantee: Some(machine_terminates_guarantee),
             standing_warning: !granted,
         });
     }
@@ -286,6 +292,7 @@ pub(super) fn write_trust_report(
                 machine_synchronous_invocations: None,
                 machine_may_suspend: None,
                 machine_may_block: None,
+                machine_terminates_guarantee: None,
                 standing_warning: false,
             });
         }
@@ -406,6 +413,38 @@ fn accepted_machine_may_block(
     Ok(may_block)
 }
 
+fn accepted_machine_terminates_guarantee(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<bool, Diagnostic> {
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(machine)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no exact checked termination facts"
+            ))
+        })?;
+    match &plan.interface {
+        psi_language_semantics::TerminationInterface::InternalDerived => Err(Diagnostic::error(
+            format!("accepted machine `{machine_name}` has no published termination interface"),
+        )),
+        psi_language_semantics::TerminationInterface::Published(
+            psi_language_semantics::TerminationGuarantee::NoGuarantee,
+        ) => Ok(false),
+        psi_language_semantics::TerminationInterface::Published(
+            psi_language_semantics::TerminationGuarantee::Terminates { premises },
+        ) if premises.is_empty() => Ok(true),
+        psi_language_semantics::TerminationInterface::Published(
+            psi_language_semantics::TerminationGuarantee::Terminates { .. },
+        ) => Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has a progress-premised termination guarantee that cannot enter the premise-free trust row"
+        ))),
+    }
+}
+
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
 ) -> TrustProviderRealization {
@@ -445,18 +484,19 @@ fn trust_provider_realization(
 mod tests {
     use psi_checked_trees::{
         CheckedTrees, MachineBlockingFact, MachineServiceReachRows, MachineSuspensionFact,
-        MachineSynchronousInvocationFact, ServiceReachFacts,
+        MachineSynchronousInvocationFact, MachineTerminationFact, ServiceReachFacts,
     };
     use psi_language_semantics::{
-        BlockingInterface, BlockingPlan, ServiceReachInterface, ServiceReachRowTable,
-        ServiceReachTable, SuspensionInterface, SuspensionPlan, SynchronousInvocationInterface,
-        SynchronousInvocationPlan,
+        BlockingInterface, BlockingPlan, MachineTerminationPlan, ProgressProfileId, RankingWitness,
+        ServiceReachInterface, ServiceReachRowTable, ServiceReachTable, SuspensionInterface,
+        SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
+        TerminationGuarantee, TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
 
     use super::{
         accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
-        accepted_machine_synchronous_invocations,
+        accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
     };
 
     fn checked_with_reach(
@@ -676,5 +716,83 @@ mod tests {
             .expect_err("private inference rejects")
             .to_string();
         assert!(internal.contains("has no published blocking ceiling"));
+    }
+
+    #[test]
+    fn accepted_termination_copies_only_the_premise_free_published_interface() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let mut checked = CheckedTrees::default();
+        checked
+            .facts
+            .termination
+            .machines
+            .push(MachineTerminationFact {
+                machine,
+                plan: MachineTerminationPlan {
+                    interface: TerminationInterface::Published(TerminationGuarantee::Terminates {
+                        premises: Vec::new(),
+                    }),
+                    checked_summary: TerminationGuarantee::NoGuarantee,
+                    implementation_witness: Some(RankingWitness {
+                        view_path: "Private::Witness".to_owned(),
+                        ..Default::default()
+                    }),
+                },
+            });
+
+        assert_eq!(
+            accepted_machine_terminates_guarantee(&checked, machine, "accepted"),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn accepted_termination_fails_closed_on_missing_internal_and_premised_facts() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let missing =
+            accepted_machine_terminates_guarantee(&CheckedTrees::default(), machine, "missing")
+                .expect_err("missing facts reject")
+                .to_string();
+        assert!(missing.contains("has no exact checked termination facts"));
+
+        let mut internal = CheckedTrees::default();
+        internal
+            .facts
+            .termination
+            .machines
+            .push(MachineTerminationFact {
+                machine,
+                plan: MachineTerminationPlan {
+                    interface: TerminationInterface::InternalDerived,
+                    checked_summary: TerminationGuarantee::Terminates {
+                        premises: Vec::new(),
+                    },
+                    implementation_witness: None,
+                },
+            });
+        let internal = accepted_machine_terminates_guarantee(&internal, machine, "internal")
+            .expect_err("private derivation rejects")
+            .to_string();
+        assert!(internal.contains("has no published termination interface"));
+
+        let mut premised = CheckedTrees::default();
+        premised
+            .facts
+            .termination
+            .machines
+            .push(MachineTerminationFact {
+                machine,
+                plan: MachineTerminationPlan {
+                    interface: TerminationInterface::Published(TerminationGuarantee::Terminates {
+                        premises: vec![ProgressProfileId(1)],
+                    }),
+                    checked_summary: TerminationGuarantee::NoGuarantee,
+                    implementation_witness: None,
+                },
+            });
+        let premised = accepted_machine_terminates_guarantee(&premised, machine, "premised")
+            .expect_err("progress-premised guarantee rejects")
+            .to_string();
+        assert!(premised.contains("cannot enter the premise-free trust row"));
     }
 }
