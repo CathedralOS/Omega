@@ -22301,13 +22301,8 @@ fn runtime_trapping_overflow_traps_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_trapping_overflow_traps");
     let build_dir = std::env::temp_dir().join(format!("omega-trap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("trapping overflow canary should compile (the partiality is declared)");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("trapping overflow canary should compile (the partiality is declared)");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("trapping overflow canary should start");
@@ -45274,6 +45269,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "arithmetic/runtime_float_compare_bool_exit",
+    "arithmetic/runtime_trapping_overflow_traps",
     "arithmetic/runtime_guard_proven_counter_exit",
     "arithmetic/runtime_guard_narrowed_transition_arg_exit",
     "structs/aggregate_transition_args_exit",
