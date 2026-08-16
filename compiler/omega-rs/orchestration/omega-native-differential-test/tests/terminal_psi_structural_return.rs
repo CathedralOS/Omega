@@ -926,6 +926,8 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             signed_affine_cast_signed_affine_source: i16,
             affine_fork_add_join: i16,
             affine_fork_subtract_join: i16,
+            distinct_affine_fork_left: i16,
+            distinct_affine_fork_right: i16,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -1100,7 +1102,23 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             -16379i16 <= affine_fork_subtract_join,
             affine_fork_subtract_join <= 16388i16,
             -100i16 <= affine_fork_subtract_join,
-            affine_fork_subtract_join <= 100i16
+            affine_fork_subtract_join <= 100i16,
+            distinct_affine_fork_left <= 32766i16,
+            -16385i16 <= distinct_affine_fork_left,
+            distinct_affine_fork_left <= 16382i16,
+            distinct_affine_fork_left <= 32764i16,
+            -16386i16 <= distinct_affine_fork_left,
+            distinct_affine_fork_left <= 16381i16,
+            -32767i16 <= distinct_affine_fork_right,
+            -10921i16 <= distinct_affine_fork_right,
+            distinct_affine_fork_right <= 10923i16,
+            -32764i16 <= distinct_affine_fork_right,
+            -16379i16 <= distinct_affine_fork_right,
+            distinct_affine_fork_right <= 16388i16,
+            -100i16 <= distinct_affine_fork_left,
+            distinct_affine_fork_left <= 100i16,
+            -100i16 <= distinct_affine_fork_right,
+            distinct_affine_fork_right <= 100i16
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -1175,6 +1193,8 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && ((((((((signed_affine_cast_signed_affine_source + 3i16) * -2i16) - 1i16) as i8) + 3i8) * -2i8) - 1i8) < 127i8)
                 && (((affine_fork_add_join + 1i16) * 2i16) + ((affine_fork_add_join - 1i16) * 3i16) < 32767i16)
                 && (((affine_fork_subtract_join + 3i16) * -2i16) - ((affine_fork_subtract_join - 4i16) * -2i16) < 32767i16)
+                && (((distinct_affine_fork_left + 1i16) * 2i16) + ((distinct_affine_fork_right - 1i16) * 3i16) < 32767i16)
+                && (((distinct_affine_fork_left + 3i16) * -2i16) - ((distinct_affine_fork_right - 4i16) * -2i16) < 32767i16)
                 && enabled
         }
     "#;
@@ -1233,7 +1253,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             .iter()
             .filter(|operation| matches!(operation.kind, OperationKind::ExactIntegerAdd { .. }))
             .count(),
-        39,
+        42,
     );
     assert_eq!(
         operations
@@ -1243,7 +1263,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerSubtract { .. }
             ))
             .count(),
-        13,
+        16,
     );
     assert_eq!(
         operations
@@ -1253,7 +1273,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerMultiply { .. }
             ))
             .count(),
-        45,
+        49,
     );
     assert_eq!(
         operations
@@ -1339,7 +1359,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        39,
+        42,
     );
     assert_eq!(
         abstract_plan
@@ -1353,7 +1373,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        13,
+        16,
     );
     assert_eq!(
         abstract_plan
@@ -1367,7 +1387,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        45,
+        49,
     );
     assert_eq!(
         abstract_plan

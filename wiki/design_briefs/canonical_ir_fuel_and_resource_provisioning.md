@@ -190,6 +190,13 @@ the outer exact add or subtract separately. Replaying both correlated affine
 forms, checking their disjoint source-ordered definitions, and reconstructing
 the combined root preimage are verifier-only work and add no executable
 operation or fuel charge. Cancellation never removes a retained branch charge.
+A distinct-root signature-bounded affine fork/join uses the same accounting:
+every exact operation in both complete branches and the outer exact add or
+subtract is retained and charged separately. Selecting tightest unary
+signature bounds, intersecting both root intervals with their carrier, mapping
+the two checked signed affine forms forward, and computing their Minkowski sum
+or difference are verifier-only work and add no executable operation or fuel
+charge. A containment or falsehood decision never removes a branch charge.
 A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains

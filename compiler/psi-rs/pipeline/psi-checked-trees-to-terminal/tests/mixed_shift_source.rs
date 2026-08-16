@@ -92,6 +92,8 @@ const SOURCE: &str = r#"
         signed_affine_cast_signed_affine_source: i16,
         affine_fork_add_join: i16,
         affine_fork_subtract_join: i16,
+        distinct_affine_fork_left: i16,
+        distinct_affine_fork_right: i16,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -266,7 +268,23 @@ const SOURCE: &str = r#"
         -16379i16 <= affine_fork_subtract_join,
         affine_fork_subtract_join <= 16388i16,
         -100i16 <= affine_fork_subtract_join,
-        affine_fork_subtract_join <= 100i16
+        affine_fork_subtract_join <= 100i16,
+        distinct_affine_fork_left <= 32766i16,
+        -16385i16 <= distinct_affine_fork_left,
+        distinct_affine_fork_left <= 16382i16,
+        distinct_affine_fork_left <= 32764i16,
+        -16386i16 <= distinct_affine_fork_left,
+        distinct_affine_fork_left <= 16381i16,
+        -32767i16 <= distinct_affine_fork_right,
+        -10921i16 <= distinct_affine_fork_right,
+        distinct_affine_fork_right <= 10923i16,
+        -32764i16 <= distinct_affine_fork_right,
+        -16379i16 <= distinct_affine_fork_right,
+        distinct_affine_fork_right <= 16388i16,
+        -100i16 <= distinct_affine_fork_left,
+        distinct_affine_fork_left <= 100i16,
+        -100i16 <= distinct_affine_fork_right,
+        distinct_affine_fork_right <= 100i16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -341,6 +359,8 @@ const SOURCE: &str = r#"
             && ((((((((signed_affine_cast_signed_affine_source + 3i16) * -2i16) - 1i16) as i8) + 3i8) * -2i8) - 1i8) < 127i8)
             && (((affine_fork_add_join + 1i16) * 2i16) + ((affine_fork_add_join - 1i16) * 3i16) < 32767i16)
             && (((affine_fork_subtract_join + 3i16) * -2i16) - ((affine_fork_subtract_join - 4i16) * -2i16) < 32767i16)
+            && (((distinct_affine_fork_left + 1i16) * 2i16) + ((distinct_affine_fork_right - 1i16) * 3i16) < 32767i16)
+            && (((distinct_affine_fork_left + 3i16) * -2i16) - ((distinct_affine_fork_right - 4i16) * -2i16) < 32767i16)
             && enabled
     }
 "#;
@@ -388,6 +408,8 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let signed_affine_direct_parameter = entry.parameters[60].id;
     let signed_affine_cast_affine_source_parameter = entry.parameters[63].id;
     let affine_fork_add_join_parameter = entry.parameters[66].id;
+    let distinct_affine_fork_left_parameter = entry.parameters[68].id;
+    let distinct_affine_fork_right_parameter = entry.parameters[69].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -438,7 +460,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         44,
     );
     assert_eq!(shift_obligations.len(), 81);
-    assert_eq!(proof_obligations.len(), 277);
+    assert_eq!(proof_obligations.len(), 287);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -604,6 +626,31 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &overlapped_affine_fork,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
+    let mut redirected_distinct_affine_fork =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let distinct_right_offset = redirected_distinct_affine_fork
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(operation.kind, OperationKind::ExactIntegerSubtract { left, .. } if left == distinct_affine_fork_right_parameter)
+        })
+        .expect("distinct affine fork retains its right-root definition");
+    let OperationKind::ExactIntegerSubtract { left, .. } = &mut distinct_right_offset.kind else {
+        unreachable!("selected one distinct-root subtract definition")
+    };
+    *left = distinct_affine_fork_left_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_distinct_affine_fork,
             &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
             &AdmissionProfile::default(),
         ),
@@ -1563,6 +1610,14 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(0),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(0),
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),

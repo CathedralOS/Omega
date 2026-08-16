@@ -6384,6 +6384,20 @@ fn exact_integer_add_obligation(
         return obligation;
     }
     if known_left.is_none()
+        && known_right.is_none()
+        && let Some(obligation) = exact_integer_distinct_root_affine_fork_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            ExactIntegerOffsetOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
         && let Some(constant) = known_right
         && landed_integer_constant_value(
             integer_type,
@@ -6886,6 +6900,17 @@ fn exact_integer_subtract_obligation(
     }
     let Some(constant) = known_right else {
         if let Some(obligation) = exact_integer_affine_fork_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            ExactIntegerOffsetOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        ) {
+            return obligation;
+        }
+        if let Some(obligation) = exact_integer_distinct_root_affine_fork_join_obligation(
             integer_type,
             left.clone(),
             right.clone(),
@@ -7754,6 +7779,159 @@ fn exact_integer_affine_fork_join_obligation(
         offset,
         fixed_integer_type_interval(integer_type)?,
     )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExactIntegerSignatureInterval {
+    interval: (i128, i128),
+    selected_bounds: Vec<Proposition>,
+}
+
+fn exact_integer_signature_interval(
+    integer_type: psi_core::IntegerType,
+    root: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+) -> Option<ExactIntegerSignatureInterval> {
+    let (mut minimum, mut maximum) = fixed_integer_type_interval(integer_type)?;
+    let mut lower_bound = None;
+    let mut upper_bound = None;
+    let constant = |term: &ScalarTerm| {
+        let (constant_type, value) = term.integer_value()?;
+        (constant_type == integer_type)
+            .then(|| integer_value_as_i128(value))
+            .flatten()
+    };
+    for axiom in &semantic_axioms[definition_axiom_count.min(semantic_axioms.len())..] {
+        let Proposition::LessOrEqual(left, right) = axiom else {
+            continue;
+        };
+        if right == root
+            && let Some(candidate) = constant(left)
+            && candidate > minimum
+        {
+            minimum = candidate;
+            lower_bound = Some(axiom.clone());
+        }
+        if left == root
+            && let Some(candidate) = constant(right)
+            && candidate < maximum
+        {
+            maximum = candidate;
+            upper_bound = Some(axiom.clone());
+        }
+    }
+    if minimum > maximum {
+        return None;
+    }
+    let mut selected_bounds = Vec::with_capacity(2);
+    selected_bounds.extend(lower_bound);
+    selected_bounds.extend(upper_bound);
+    Some(ExactIntegerSignatureInterval {
+        interval: (minimum, maximum),
+        selected_bounds,
+    })
+}
+
+fn integer_offset_as_i128(value: IntegerOffset) -> Option<i128> {
+    match value {
+        IntegerOffset::Nonnegative(value) => i128::try_from(value).ok(),
+        IntegerOffset::Negative(value) => signed_negative_magnitude(value),
+    }
+}
+
+fn exact_integer_affine_forward_interval(
+    coefficient: IntegerOffset,
+    offset: IntegerOffset,
+    interval: (i128, i128),
+) -> Option<(i128, i128)> {
+    let apply = |value| {
+        IntegerOffset::from_value(IntegerValue::Signed(value))
+            .checked_multiply_offset(coefficient)?
+            .checked_add(offset)
+            .and_then(integer_offset_as_i128)
+    };
+    let (lower_input, upper_input) = match coefficient {
+        IntegerOffset::Negative(_) => (interval.1, interval.0),
+        IntegerOffset::Nonnegative(_) => interval,
+    };
+    Some((apply(lower_input)?, apply(upper_input)?))
+}
+
+fn exact_integer_distinct_root_affine_fork_join_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    operation: ExactIntegerOffsetOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let left = exact_integer_affine_fork_branch(
+        integer_type,
+        left,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    let right = exact_integer_affine_fork_branch(
+        integer_type,
+        right,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    if left.root == right.root
+        || !left
+            .definition_indices
+            .is_disjoint(&right.definition_indices)
+        || left.definition_indices.iter().next_back()? >= right.definition_indices.iter().next()?
+    {
+        return None;
+    }
+    let mut left_signature = exact_integer_signature_interval(
+        integer_type,
+        &left.root,
+        semantic_axioms,
+        definition_axiom_count,
+    )?;
+    let right_signature = exact_integer_signature_interval(
+        integer_type,
+        &right.root,
+        semantic_axioms,
+        definition_axiom_count,
+    )?;
+    let left_interval = exact_integer_affine_forward_interval(
+        left.coefficient,
+        left.offset,
+        left_signature.interval,
+    )?;
+    let right_interval = exact_integer_affine_forward_interval(
+        right.coefficient,
+        right.offset,
+        right_signature.interval,
+    )?;
+    let joined = match operation {
+        ExactIntegerOffsetOperation::Add => (
+            left_interval.0.checked_add(right_interval.0)?,
+            left_interval.1.checked_add(right_interval.1)?,
+        ),
+        ExactIntegerOffsetOperation::Subtract => (
+            left_interval.0.checked_sub(right_interval.1)?,
+            left_interval.1.checked_sub(right_interval.0)?,
+        ),
+    };
+    let carrier = fixed_integer_type_interval(integer_type)?;
+    if joined.1 < carrier.0 || joined.0 > carrier.1 {
+        return Some(Proposition::Falsehood);
+    }
+    if joined.0 < carrier.0 || joined.1 > carrier.1 {
+        return None;
+    }
+    left_signature
+        .selected_bounds
+        .extend(right_signature.selected_bounds);
+    Some(canonical_conjunction(left_signature.selected_bounds))
 }
 
 fn exact_integer_signed_affine_chain_obligation(
@@ -16669,6 +16847,174 @@ mod tests {
             ),
             None,
             "a local or stale root cannot authorize the fork",
+        );
+    }
+
+    #[test]
+    fn distinct_root_affine_fork_join_uses_only_canonical_signature_rectangles() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 type");
+        let left_root_id = ValueId::new(1801).expect("left root");
+        let right_root_id = ValueId::new(1802).expect("right root");
+        let left_root = ScalarTerm::value(left_root_id, ScalarType::Integer(integer_type));
+        let right_root = ScalarTerm::value(right_root_id, ScalarType::Integer(integer_type));
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("fork value"),
+                ScalarType::Integer(integer_type),
+            )
+        };
+        let literal = |value| {
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).expect("fork literal")
+        };
+        let left_offset = value(1803);
+        let left_product = value(1804);
+        let right_offset = value(1805);
+        let right_product = value(1806);
+        let definitions = vec![
+            Proposition::Equal(
+                left_offset.clone(),
+                ScalarTerm::exact_integer_add(integer_type, left_root.clone(), literal(1))
+                    .expect("left root + 1"),
+            ),
+            Proposition::Equal(
+                left_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, left_offset, literal(2))
+                    .expect("left branch * 2"),
+            ),
+            Proposition::Equal(
+                right_offset.clone(),
+                ScalarTerm::exact_integer_subtract(integer_type, right_root.clone(), literal(1))
+                    .expect("right root - 1"),
+            ),
+            Proposition::Equal(
+                right_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, right_offset, literal(3))
+                    .expect("right branch * 3"),
+            ),
+        ];
+        let parameters = BTreeSet::from([left_root_id, right_root_id]);
+        let loose_left = Proposition::LessOrEqual(literal(-200), left_root.clone());
+        let left_lower = Proposition::LessOrEqual(literal(-100), left_root.clone());
+        let left_upper = Proposition::LessOrEqual(left_root.clone(), literal(100));
+        let right_lower = Proposition::LessOrEqual(literal(-100), right_root.clone());
+        let right_upper = Proposition::LessOrEqual(right_root.clone(), literal(100));
+        let mut bounded = definitions.clone();
+        bounded.extend([
+            loose_left,
+            left_lower.clone(),
+            left_upper.clone(),
+            right_lower.clone(),
+            right_upper.clone(),
+        ]);
+        let expected =
+            canonical_conjunction(vec![left_lower, left_upper, right_lower, right_upper]);
+        assert_eq!(
+            exact_integer_distinct_root_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                ExactIntegerOffsetOperation::Add,
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(expected.clone()),
+            "the tightest unary signature rectangle proves the bivariate sum",
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            expected,
+            "ordinary dispatch selects the distinct-root rectangle after same-root priority",
+        );
+        assert!(
+            exact_integer_distinct_root_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                ExactIntegerOffsetOperation::Subtract,
+                &bounded,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "Minkowski subtraction reverses the right interval endpoints",
+        );
+
+        assert_eq!(
+            exact_integer_distinct_root_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                ExactIntegerOffsetOperation::Add,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "carrier defaults alone leave this output rectangle partially unsafe",
+        );
+        let relational = Proposition::LessOrEqual(
+            left_root.clone(),
+            ScalarTerm::exact_integer_subtract(
+                integer_type,
+                literal(i128::from(i16::MAX)),
+                right_root.clone(),
+            )
+            .expect("MAX - right root"),
+        );
+        let mut relational_only = definitions.clone();
+        relational_only.push(relational);
+        assert_eq!(
+            exact_integer_distinct_root_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                ExactIntegerOffsetOperation::Add,
+                &relational_only,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "cross-root relational premises require a future polyhedral family",
+        );
+        assert_eq!(
+            exact_integer_distinct_root_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                left_product,
+                ExactIntegerOffsetOperation::Add,
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "same-root and overlapping walks retain the existing family priority",
+        );
+        let reordered = vec![
+            definitions[2].clone(),
+            definitions[3].clone(),
+            definitions[0].clone(),
+            definitions[1].clone(),
+        ];
+        assert_eq!(
+            exact_integer_distinct_root_affine_fork_join_obligation(
+                integer_type,
+                value(1804),
+                value(1806),
+                ExactIntegerOffsetOperation::Add,
+                &reordered,
+                reordered.len(),
+                &parameters,
+            ),
+            None,
+            "right-branch definitions cannot precede the left branch",
         );
     }
 
