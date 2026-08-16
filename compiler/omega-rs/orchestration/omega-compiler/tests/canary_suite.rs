@@ -23682,13 +23682,8 @@ fn runtime_indexed_reduction_loop_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-indexed-reduce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed reduction loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("indexed reduction loop canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("indexed reduction loop canary should run");
@@ -45168,6 +45163,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_copy_in_loop_exit",
     "collections/runtime_indexed_write_frame_local_source_exit",
     "collections/runtime_indexed_local_copy_chain_exit",
+    "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_inplace_reverse_local_temp_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/guarded_value_call_arm_exit",
