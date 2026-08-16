@@ -1102,6 +1102,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         .partition_compositions
         .iter()
         .collect::<Vec<_>>();
+    validate_content_partition_lineage(program);
     partition_compositions.sort_by_key(|row| {
         (
             state_label_from_symbol(program, row.state_symbol),
@@ -2233,6 +2234,48 @@ fn validate_content_partition_result_rewrites(
         assert_eq!(
             matching_outcomes, 1,
             "content partition result rewrite must match one exact established outcome",
+        );
+    }
+}
+
+fn validate_content_partition_lineage(program: &CheckedTrees) {
+    let authored = &program.facts.qualifications.content.conservation_plans;
+    let compositions = &program.facts.qualifications.content.partition_compositions;
+
+    for (index, row) in compositions.iter().enumerate() {
+        if row.source_derivation_depth == 0 {
+            assert_eq!(
+                authored
+                    .iter()
+                    .filter(|plan| **plan == row.source_plan)
+                    .count(),
+                1,
+                "content partition depth-zero source must match one exact authored plan",
+            );
+            continue;
+        }
+
+        let mut parents = compositions
+            .iter()
+            .enumerate()
+            .filter(|(candidate_index, candidate)| {
+                *candidate_index != index && candidate.plan == row.source_plan
+            });
+        let parent = parents
+            .next()
+            .expect("content partition derived source must match one distinct exact parent row")
+            .1;
+        assert!(
+            parents.next().is_none(),
+            "content partition derived source must match exactly one distinct parent row",
+        );
+        let expected_depth = parent
+            .source_derivation_depth
+            .checked_add(1)
+            .expect("content partition source derivation depth must not overflow");
+        assert_eq!(
+            row.source_derivation_depth, expected_depth,
+            "content partition source derivation depth must exactly increment its parent",
         );
     }
 }
@@ -4689,11 +4732,11 @@ mod tests {
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, symbol_label, task_activation_manifest_json,
         validate_content_conservation_plan, validate_content_identity_reshuffle,
-        validate_content_partition_input_custody, validate_content_partition_result_rewrites,
-        validate_content_partition_substitution_replay, validate_qualification_program_point,
-        validate_qualification_receipt, validate_qualification_source,
-        validate_vacuous_qualification_use, validated_content_projection_plans,
-        validated_machine_semantic_domain_commitments,
+        validate_content_partition_input_custody, validate_content_partition_lineage,
+        validate_content_partition_result_rewrites, validate_content_partition_substitution_replay,
+        validate_qualification_program_point, validate_qualification_receipt,
+        validate_qualification_source, validate_vacuous_qualification_use,
+        validated_content_projection_plans, validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -5831,6 +5874,12 @@ mod tests {
                 target: subject,
             })
             .collect();
+        program
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .push(source_plan.clone());
         let calls = program.facts.flow.control.calls.insert_many([FlowCallFact {
             statement_index: 4,
             call_ordinal: 2,
@@ -6891,6 +6940,192 @@ mod tests {
         validate_content_partition_result_rewrites(&program, &row);
     }
 
+    fn lineage_child_plan(parent: &ContentConservationPlan) -> ContentConservationPlan {
+        fn drift_first_subject(term: &ContentConservationTerm) -> ContentConservationTerm {
+            match term {
+                ContentConservationTerm::Projection {
+                    domain,
+                    semantic_domain,
+                    projection_machine,
+                    projection_fingerprint,
+                    subject,
+                } => {
+                    let mut subject = subject.clone();
+                    subject
+                        .segments
+                        .push(psi_language_semantics::content::ContentPlaceSegment::FixedIndex(7));
+                    ContentConservationTerm::Projection {
+                        domain: *domain,
+                        semantic_domain: *semantic_domain,
+                        projection_machine: *projection_machine,
+                        projection_fingerprint: *projection_fingerprint,
+                        subject,
+                    }
+                }
+                ContentConservationTerm::Separate(terms) => {
+                    let mut terms = terms.clone();
+                    terms[0] = drift_first_subject(&terms[0]);
+                    ContentConservationTerm::Separate(terms)
+                }
+            }
+        }
+
+        let equation = ContentConservationEquation::new(
+            drift_first_subject(parent.equation.left()),
+            parent.equation.right().clone(),
+        );
+        ContentConservationPlan {
+            owner_kind: parent.owner_kind,
+            owner: parent.owner,
+            callable: parent.callable,
+            algebra: parent.algebra.clone(),
+            fingerprint: conservation_fingerprint(&parent.algebra, &equation),
+            equation,
+        }
+    }
+
+    fn push_content_partition_lineage_child(
+        program: &mut CheckedTrees,
+        source_derivation_depth: u32,
+    ) {
+        let parent = program.facts.qualifications.content.partition_compositions[0].clone();
+        let mut child = parent.clone();
+        child.source_callable = parent.plan.callable;
+        child.source_fingerprint = parent.plan.fingerprint;
+        child.source_plan = parent.plan.clone();
+        child.source_derivation_depth = source_derivation_depth;
+        child.plan = lineage_child_plan(&parent.plan);
+        program
+            .facts
+            .qualifications
+            .content
+            .partition_compositions
+            .push(child);
+    }
+
+    #[test]
+    fn content_partition_lineage_manifest_accepts_exact_authored_anchor() {
+        let program = content_partition_input_validation_fixture();
+        validate_content_partition_lineage(&program);
+        assert!(claim_outcome_manifest_json(&program).contains("\"source_derivation_depth\": 0"));
+    }
+
+    #[test]
+    fn content_partition_lineage_manifest_accepts_exact_one_hop_parent() {
+        let mut program = content_partition_input_validation_fixture();
+        push_content_partition_lineage_child(&mut program, 1);
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "depth-zero source must match one exact authored plan")]
+    fn content_partition_lineage_manifest_rejects_missing_authored_anchor() {
+        let mut program = content_partition_input_validation_fixture();
+        program
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .clear();
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "depth-zero source must match one exact authored plan")]
+    fn content_partition_lineage_manifest_rejects_ambiguous_authored_anchor() {
+        let mut program = content_partition_input_validation_fixture();
+        let duplicate = program.facts.qualifications.content.conservation_plans[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .push(duplicate);
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match one distinct exact parent row")]
+    fn content_partition_lineage_manifest_rejects_missing_parent() {
+        let mut program = content_partition_input_validation_fixture();
+        program.facts.qualifications.content.partition_compositions[0].source_derivation_depth = 1;
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match exactly one distinct parent row")]
+    fn content_partition_lineage_manifest_rejects_ambiguous_parent() {
+        let mut program = content_partition_input_validation_fixture();
+        push_content_partition_lineage_child(&mut program, 1);
+        let duplicate_parent =
+            program.facts.qualifications.content.partition_compositions[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .partition_compositions
+            .push(duplicate_parent);
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must exactly increment its parent")]
+    fn content_partition_lineage_manifest_rejects_depth_gap() {
+        let mut program = content_partition_input_validation_fixture();
+        push_content_partition_lineage_child(&mut program, 2);
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "source derivation depth must not overflow")]
+    fn content_partition_lineage_manifest_rejects_depth_overflow() {
+        let mut program = content_partition_input_validation_fixture();
+        push_content_partition_lineage_child(&mut program, u32::MAX);
+        let parent = program.facts.qualifications.content.partition_compositions[0].clone();
+        let child = program.facts.qualifications.content.partition_compositions[1].clone();
+        let mut overflow_parent = parent;
+        overflow_parent.source_derivation_depth = u32::MAX;
+        program.facts.qualifications.content.partition_compositions = vec![child, overflow_parent];
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match one distinct exact parent row")]
+    fn content_partition_lineage_manifest_rejects_self_reference() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.source_plan = row.plan.clone();
+        row.source_callable = row.plan.callable;
+        row.source_fingerprint = row.plan.fingerprint;
+        row.source_derivation_depth = 1;
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must exactly increment its parent")]
+    fn content_partition_lineage_manifest_rejects_two_row_cycle() {
+        let mut program = content_partition_input_validation_fixture();
+        push_content_partition_lineage_child(&mut program, 1);
+        let child_plan = program.facts.qualifications.content.partition_compositions[1]
+            .plan
+            .clone();
+        let base = &mut program.facts.qualifications.content.partition_compositions[0];
+        base.source_plan = child_plan;
+        base.source_callable = base.source_plan.callable;
+        base.source_fingerprint = base.source_plan.fingerprint;
+        base.source_derivation_depth = 2;
+        validate_content_partition_lineage(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "depth-zero source must match one exact authored plan")]
+    fn content_partition_lineage_manifest_rejects_partial_fingerprint_match() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.source_plan.owner = SymbolHandle::from_arena_index(999);
+        validate_content_partition_lineage(&program);
+    }
+
     fn content_projection_validation_fixture() -> CheckedTrees {
         let domain_symbol = SymbolHandle::from_arena_index(90);
         let carrier_symbol = SymbolHandle::from_arena_index(91);
@@ -7729,7 +7964,7 @@ mod tests {
             .qualifications
             .content
             .conservation_plans
-            .push(plan.clone());
+            .push(source_partition_plan.clone());
         let calls = program.facts.flow.control.calls.insert_many([FlowCallFact {
             statement_index: 4,
             call_ordinal: 2,
