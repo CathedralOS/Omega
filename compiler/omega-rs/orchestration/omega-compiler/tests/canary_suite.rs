@@ -23904,13 +23904,8 @@ fn runtime_tuple_case_destructure_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-tuple-destructure-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("tuple case-destructure canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("tuple case-destructure canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("tuple case-destructure canary should run");
@@ -45196,6 +45191,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_negated_boolean_place_guard_exit",
     "control_flow/runtime_negated_comparison_guard_exit",
     "control_flow/runtime_nonplace_record_pattern_single_evaluation_exit",
+    "control_flow/runtime_tuple_case_destructure_exit",
     "control_flow/record_pattern_arm_rename_guard_exit",
     "control_flow/state_transition_chain",
     "data/case_payload_native_construction",
