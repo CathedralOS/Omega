@@ -31444,31 +31444,38 @@ fn windows_wrapper_lock_exit_canary_runs() {
 // close. The canary discriminates per-model first bytes ('\\' native / 'o'
 // hermetic) and pins the NotFound leg (the open's errno is captured before
 // the trailing close can clobber it). Interp + native.
+#[test]
+fn windows_canonicalize_canary_is_targetless_and_interprets() {
+    let canary = pass_canary("filesystem/windows_canonicalize_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("windows canonicalize canary should compile to checked trees");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.error, None,
+        "hermetic canonicalize should not decline: {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should resolve files/directories and preserve NotFound"
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_canonicalize_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_canonicalize_exit");
-    let main_path = canary.join("main.omg");
-
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
-        .expect("windows canonicalize canary should compile to checked trees");
-    let outcome = interpret(&checked, &[]);
-    assert_eq!(
-        outcome.exit_code, 70,
-        "interpreter oracle should exit 70 (resolve + spelling + NotFound leg), got {}",
-        outcome.exit_code
-    );
 
     let build_dir = std::env::temp_dir().join(format!("omega-win-canon-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows canonicalize canary should compile");
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x64")
+        .expect("windows canonicalize canary should compile from its Windows root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -39408,12 +39415,6 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
     // darwin compile red until windows-gated (2026-07-20; found by the macOS
     // battery the same day the slice landed).
     "filesystem/windows_positioned_io_exit",
-    // Session slice 4a's canonicalize contract canary: windows-host compile
-    // sweep PREEMPTIVELY (the positioned-io precedent) -- the posix wrapper
-    // canonicalize path is already covered by native_canonicalize's raw twin
-    // and the macos battery, so the cross-host compile adds little for the
-    // risk of another darwin battery red.
-    "filesystem/windows_canonicalize_exit",
 ];
 
 /// Canaries compiled with an EXPLICIT cross target on EVERY host. Most are
@@ -46092,6 +46093,7 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("providers/runtime_import_call_argument_exit", "macos_arm64"),
     ("capabilities/windows_provides_import_exit", "windows_x64"),
     ("host/runtime_gui_memory_dc_blit_exit", "windows_x64"),
+    ("filesystem/windows_canonicalize_exit", "windows_x64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
