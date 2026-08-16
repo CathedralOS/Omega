@@ -21508,13 +21508,8 @@ fn assert_float_trapping_policy_canary_aborts(name: &str, reason_fragment: &str)
     let suffix = name.replace(['/', '\\'], "-");
     let build_dir = std::env::temp_dir().join(format!("omega-f5-{suffix}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("Trapping float policy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("Trapping float policy canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("Trapping float policy canary should run");
@@ -38837,13 +38832,20 @@ fn float_policy_adapters_retain_differential_results() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
-            root_path: main_path,
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
+        let native_compile = if matches!(
+            *case_name,
+            "arithmetic/float_trapping_divzero_traps" | "arithmetic/float_trapping_invalid_traps"
+        ) {
+            compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        } else {
+            compile(CompileOptions {
+                root_path: main_path,
+                build_dir: Some(build_dir.clone()),
+                target_name: None,
+                write_output: true,
+            })
+        };
+        native_compile.unwrap_or_else(|diagnostics| {
             panic!("{case_name} should compile natively: {diagnostics:#?}")
         });
         let output = Command::new(build_dir.join(executable_name()))
