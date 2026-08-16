@@ -11288,6 +11288,9 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_signed_affine_chain_runtime_parameters(expression))
                 .or_else(|| {
+                    shared_exact_same_root_affine_product_join_runtime_parameters(expression)
+                })
+                .or_else(|| {
                     shared_exact_distinct_root_affine_product_join_runtime_parameters(expression)
                 })
         }
@@ -13209,6 +13212,38 @@ fn shared_exact_distinct_root_affine_product_join_runtime_parameters(
         SharedBooleanRuntimeInput::IntegerScalar(left_root),
         SharedBooleanRuntimeInput::IntegerScalar(right_root),
     ]))
+}
+
+fn shared_exact_same_root_affine_product_join_runtime_parameters(
+    expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let LoweredDirectExpression::IntegerBinary {
+        kind: LoweredIntegerBinaryKind::ExactMultiply,
+        scalar_type: ScalarType::Integer(integer_type),
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    if integer_type.sign() != IntegerSign::Signed {
+        return None;
+    }
+    let (left_type, left_root, left_coefficient, _) =
+        shared_exact_affine_fork_branch_parameters(left)?;
+    let (right_type, right_root, right_coefficient, _) =
+        shared_exact_affine_fork_branch_parameters(right)?;
+    if left_type != *integer_type
+        || right_type != *integer_type
+        || left_root != right_root
+        || left_coefficient.1 == 0
+        || right_coefficient.1 == 0
+    {
+        return None;
+    }
+    Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+        left_root,
+    )]))
 }
 
 fn shared_exact_signed_affine_chain_runtime_parameters(

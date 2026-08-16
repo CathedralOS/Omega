@@ -96,6 +96,7 @@ const SOURCE: &str = r#"
         distinct_affine_fork_right: i16,
         affine_product_join_left: i16,
         affine_product_join_right: i16,
+        affine_quadratic_join_root: i16,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -302,7 +303,21 @@ const SOURCE: &str = r#"
         -10i16 <= affine_product_join_left,
         affine_product_join_left <= 10i16,
         -10i16 <= affine_product_join_right,
-        affine_product_join_right <= 10i16
+        affine_product_join_right <= 10i16,
+        affine_quadratic_join_root <= 32766i16,
+        -16385i16 <= affine_quadratic_join_root,
+        affine_quadratic_join_root <= 16382i16,
+        -32767i16 <= affine_quadratic_join_root,
+        -10921i16 <= affine_quadratic_join_root,
+        affine_quadratic_join_root <= 10923i16,
+        affine_quadratic_join_root <= 32764i16,
+        -16386i16 <= affine_quadratic_join_root,
+        affine_quadratic_join_root <= 16381i16,
+        -32764i16 <= affine_quadratic_join_root,
+        -16380i16 <= affine_quadratic_join_root,
+        affine_quadratic_join_root <= 16387i16,
+        -10i16 <= affine_quadratic_join_root,
+        affine_quadratic_join_root <= 10i16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -381,6 +396,8 @@ const SOURCE: &str = r#"
             && (((distinct_affine_fork_left + 3i16) * -2i16) - ((distinct_affine_fork_right - 4i16) * -2i16) < 32767i16)
             && ((((affine_product_join_left + 1i16) * 2i16) * ((affine_product_join_right - 1i16) * 3i16)) < 32767i16)
             && ((((affine_product_join_left + 3i16) * -2i16) * ((affine_product_join_right - 4i16) * -2i16)) < 32767i16)
+            && ((((affine_quadratic_join_root + 1i16) * 2i16) * ((affine_quadratic_join_root - 1i16) * 3i16)) < 32767i16)
+            && ((((affine_quadratic_join_root + 3i16) * -2i16) * ((affine_quadratic_join_root - 4i16) * 2i16)) < 32767i16)
             && enabled
     }
 "#;
@@ -432,6 +449,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let distinct_affine_fork_right_parameter = entry.parameters[69].id;
     let affine_product_join_left_parameter = entry.parameters[70].id;
     let affine_product_join_right_parameter = entry.parameters[71].id;
+    let affine_quadratic_join_root_parameter = entry.parameters[72].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -482,7 +500,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         44,
     );
     assert_eq!(shift_obligations.len(), 81);
-    assert_eq!(proof_obligations.len(), 297);
+    assert_eq!(proof_obligations.len(), 307);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -579,6 +597,31 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &redirected_affine_product_join,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
+    let mut redirected_affine_quadratic_join =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let quadratic_right_offset = redirected_affine_quadratic_join
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(operation.kind, OperationKind::ExactIntegerSubtract { left, .. } if left == affine_quadratic_join_root_parameter)
+        })
+        .expect("affine quadratic join retains its same-root right definition");
+    let OperationKind::ExactIntegerSubtract { left, .. } = &mut quadratic_right_offset.kind else {
+        unreachable!("selected one affine-quadratic right subtract")
+    };
+    *left = affine_product_join_right_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_affine_quadratic_join,
             &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
             &AdmissionProfile::default(),
         ),
@@ -1657,6 +1700,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(0),
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),

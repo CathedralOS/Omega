@@ -552,6 +552,20 @@ Remaining:
   computed roots, carrier drift, conversions, and unchecked arithmetic remain
   fenced. Every operation in both branches and the join retains independent
   evidence.
+  A same-root signature-bounded signed affine quadratic product join now
+  admits one outer exact multiply whose two disjoint, nonempty, ordered
+  landed-literal affine branches end at the same direct signed fixed-native
+  parameter with nonzero coefficients. The verifier selects the tightest
+  landed unary lower and upper signature bounds, composes the correlated
+  integer quadratic, and evaluates its exact discrete range at both endpoints
+  and the in-range floor/ceiling lattice points adjacent to the rational
+  vertex. Complete carrier containment yields the canonical two-bound
+  conjunction; a wholly disjoint range yields falsehood; partial overlap or
+  checked coefficient, vertex, or evaluation failure admits no family. Every
+  branch operation and the outer multiply retains separate evidence. Constant
+  collapse, distinct roots, relational premises, one-sided bounds, unsigned
+  carriers, malformed walks, computed roots, conversions, and stale evidence
+  remain fenced.
   A distinct-root signature-bounded signed affine product join now admits one
   outer exact multiply whose two disjoint, nonempty, ordered landed-literal
   affine branches end at different direct signed fixed-native parameters. The

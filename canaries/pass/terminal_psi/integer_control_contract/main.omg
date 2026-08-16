@@ -1726,6 +1726,26 @@ requires left <= 32764i16,
     (((((left + 3i16) * -2i16) * ((right - 4i16) * -2i16)) < 32767i16) && enabled)
 }
 
+machine terminal_same_root_affine_quadratic_product_join(value: i16, enabled: bool) -> bool
+requires value <= 32766i16,
+    -16385i16 <= value, value <= 16382i16,
+    -32767i16 <= value,
+    -10921i16 <= value, value <= 10923i16,
+    -10i16 <= value, value <= 10i16
+{
+    (((((value + 1i16) * 2i16) * ((value - 1i16) * 3i16)) < 32767i16) && enabled)
+}
+
+machine terminal_same_root_signed_affine_quadratic_product_join(value: i16, enabled: bool) -> bool
+requires value <= 32764i16,
+    -16386i16 <= value, value <= 16381i16,
+    -32764i16 <= value,
+    -16380i16 <= value, value <= 16387i16,
+    -10i16 <= value, value <= 10i16
+{
+    (((((value + 3i16) * -2i16) * ((value - 4i16) * 2i16)) < 32767i16) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
