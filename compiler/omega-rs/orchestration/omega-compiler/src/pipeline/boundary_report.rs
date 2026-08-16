@@ -28,7 +28,7 @@ pub(super) fn write_boundary_report_with_capabilities(
     checked: &CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut report = build_boundary_report(syntax);
-    append_capability_blast_radius(&mut report, checked);
+    append_capability_blast_radius(&mut report, checked)?;
 
     let writer =
         ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
