@@ -9,6 +9,7 @@ mod boundaries;
 mod builder;
 mod capacity;
 mod contracts;
+mod dynamic_conformances;
 mod facts;
 mod machine_metadata;
 mod merge;
