@@ -1109,6 +1109,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         )
     });
     json.push_str("\n  ],\n  \"content_partition_compositions\": [");
+    let mut partition_composition_keys = Vec::new();
     for (index, row) in partition_compositions.iter().enumerate() {
         if index > 0 {
             json.push(',');
@@ -1127,6 +1128,20 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
                 && row.source_fingerprint == row.source_plan.fingerprint,
             "content partition composition must retain its exact source-plan coordinates",
         );
+        validate_content_partition_input_custody(program, row);
+        let key = (
+            row.machine_symbol,
+            row.state_symbol,
+            row.statement_index,
+            row.call_ordinal,
+            row.source_fingerprint,
+            row.plan.fingerprint,
+        );
+        assert!(
+            !partition_composition_keys.contains(&key),
+            "content partition compositions must retain one exact row per call and plan",
+        );
+        partition_composition_keys.push(key);
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -1786,6 +1801,152 @@ fn exact_content_path(
             }
         })
         .collect()
+}
+
+fn validate_content_partition_input_custody(
+    program: &CheckedTrees,
+    row: &psi_checked_trees::ContentPartitionCompositionFact,
+) {
+    use psi_language_semantics::content::{ContentPlaceRoot, ContentPlaceVersion};
+    use psi_language_semantics::{
+        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    };
+
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == row.machine_symbol)
+        .expect("content partition composition must name an exact typed machine");
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == row.state_symbol)
+        .expect("content partition composition state must belong to its exact typed machine");
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(row.statement_index)
+        .expect("content partition composition statement index must be within its exact state");
+    let mut flow_states = program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, fact)| {
+            fact.machine_symbol == row.machine_symbol && fact.state_symbol == row.state_symbol
+        });
+    let flow_state = flow_states
+        .next()
+        .expect("content partition composition must name one exact checked flow state")
+        .1;
+    assert!(
+        flow_states.next().is_none(),
+        "content partition composition must name exactly one checked flow state",
+    );
+    let calls = program
+        .facts
+        .flow
+        .control
+        .calls
+        .span(flow_state.calls)
+        .expect("content partition composition flow state must retain an exact valid call span");
+    let mut coordinate_calls = calls.iter().filter(|call| {
+        call.statement_index == row.statement_index && call.call_ordinal == row.call_ordinal
+    });
+    let call = coordinate_calls
+        .next()
+        .expect("content partition composition must retain one exact checked call coordinate");
+    assert!(
+        coordinate_calls.next().is_none(),
+        "content partition composition must retain exactly one checked call coordinate",
+    );
+    assert_eq!(
+        call.target_symbol, row.source_callable,
+        "content partition composition must retain its exact checked source target",
+    );
+
+    assert!(
+        !row.input_claim_identities.is_empty(),
+        "content partition composition must retain at least one input claim identity",
+    );
+    let mut identities = Vec::new();
+    for identity in &row.input_claim_identities {
+        assert!(
+            *identity != PermissionClaimIdentity::Unknown,
+            "content partition composition input claim identities must be non-unknown",
+        );
+        assert!(
+            !identities.contains(identity),
+            "content partition composition input claim identities must be unique",
+        );
+        identities.push(*identity);
+    }
+    assert_eq!(
+        row.input_claim_identities,
+        row.input_claim_bindings
+            .iter()
+            .map(|binding| binding.claim_identity)
+            .collect::<Vec<_>>(),
+        "content partition composition input identities must exactly match ordered bindings",
+    );
+    for binding in &row.input_claim_bindings {
+        let (position, symbol, name, is_self) = match &binding.entry_place.root {
+            ContentPlaceRoot::Parameter {
+                position,
+                symbol,
+                name,
+                is_self,
+            } if binding.entry_place.version == ContentPlaceVersion::Entry => {
+                (*position, *symbol, name, *is_self)
+            }
+            _ => panic!(
+                "content partition composition input binding must retain an entry parameter place"
+            ),
+        };
+        let parameter = program
+            .state_parameters(state)
+            .get(usize::try_from(position).expect("partition input position must fit usize"))
+            .filter(|parameter| {
+                parameter.symbol == symbol
+                    && parameter.name.as_str() == name
+                    && parameter.is_self == is_self
+            })
+            .expect(
+                "content partition composition input binding must name its exact caller parameter",
+            );
+        let matching_events = program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.machine_symbol == row.machine_symbol
+                    && event.state_symbol == row.state_symbol
+                    && event.source == PermissionEventSource::StateEntry
+                    && event.kind == PermissionEventKind::Establish
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.claim_identity == binding.claim_identity
+                    && event.root == psi_facts::PlaceRoot::Symbol(parameter.symbol)
+            })
+            .filter(|(_, event)| {
+                let path = program
+                    .facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span(event.segments)
+                    .expect("partition input permission event must retain an exact valid path");
+                exact_content_path(program, path) == binding.entry_place.segments
+            })
+            .count();
+        assert_eq!(
+            matching_events, 1,
+            "content partition composition input binding must match one live retained permission event",
+        );
+    }
 }
 
 fn push_content_algebra_json(
@@ -4240,9 +4401,10 @@ mod tests {
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, symbol_label, task_activation_manifest_json,
         validate_content_conservation_plan, validate_content_identity_reshuffle,
-        validate_qualification_program_point, validate_qualification_receipt,
-        validate_qualification_source, validate_vacuous_qualification_use,
-        validated_content_projection_plans, validated_machine_semantic_domain_commitments,
+        validate_content_partition_input_custody, validate_qualification_program_point,
+        validate_qualification_receipt, validate_qualification_source,
+        validate_vacuous_qualification_use, validated_content_projection_plans,
+        validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -4653,6 +4815,12 @@ mod tests {
                         ..Default::default()
                     },
                 );
+                for _ in 0..5 {
+                    program
+                        .typed
+                        .statement_table
+                        .push_statement(&mut state_definition.statement_nodes, Default::default());
+                }
             }
             program
                 .typed
@@ -5322,6 +5490,345 @@ mod tests {
         claim_outcome_manifest_json(&program);
     }
 
+    fn content_partition_input_validation_fixture() -> CheckedTrees {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let reshuffle = program.facts.qualifications.content.identity_reshuffles[0].clone();
+        let entry_place = [
+            reshuffle.plan.equation.left(),
+            reshuffle.plan.equation.right(),
+        ]
+        .into_iter()
+        .find_map(|term| match term {
+            ContentConservationTerm::Projection { subject, .. }
+                if subject.version == ContentPlaceVersion::Entry =>
+            {
+                Some(subject.clone())
+            }
+            _ => None,
+        })
+        .expect("fixture entry projection subject");
+        let calls = program.facts.flow.control.calls.insert_many([FlowCallFact {
+            statement_index: 4,
+            call_ordinal: 2,
+            target_symbol: reshuffle.state_symbol,
+            ..Default::default()
+        }]);
+        program.facts.flow.control.states.insert(FlowStateFact {
+            machine_symbol: reshuffle.machine_symbol,
+            state_symbol: reshuffle.state_symbol,
+            calls,
+            ..Default::default()
+        });
+        program
+            .facts
+            .qualifications
+            .content
+            .partition_compositions
+            .push(ContentPartitionCompositionFact {
+                machine_symbol: reshuffle.machine_symbol,
+                state_symbol: reshuffle.state_symbol,
+                source_callable: reshuffle.plan.callable,
+                source_fingerprint: reshuffle.plan.fingerprint,
+                source_derivation_depth: 0,
+                source_plan: reshuffle.plan.clone(),
+                statement_index: 4,
+                call_ordinal: 2,
+                input_claim_identities: vec![reshuffle.claim_identity],
+                input_claim_bindings: vec![psi_checked_trees::ContentPartitionInputClaimBinding {
+                    claim_identity: reshuffle.claim_identity,
+                    entry_place,
+                }],
+                result_rewrites: Vec::new(),
+                substitutions: Vec::new(),
+                plan: reshuffle.plan,
+            });
+        program
+    }
+
+    #[test]
+    fn content_partition_input_manifest_accepts_exact_call_and_input_custody() {
+        let program = content_partition_input_validation_fixture();
+        let json = claim_outcome_manifest_json(&program);
+
+        assert!(json.contains("\"call\": {\"statement_index\": 4, \"call_ordinal\": 2}"));
+        assert!(json.contains("\"input_claim_identities\": [{\"kind\": \"established\""));
+        assert!(json.contains("\"entry_place\": {\"version\": \"entry\""));
+    }
+
+    #[test]
+    #[should_panic(expected = "statement index must be within its exact state")]
+    fn content_partition_input_manifest_rejects_out_of_range_statement() {
+        let mut program = content_partition_input_validation_fixture();
+        program.facts.qualifications.content.partition_compositions[0].statement_index = 5;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name one exact checked flow state")]
+    fn content_partition_input_manifest_rejects_missing_flow_state() {
+        let mut program = content_partition_input_validation_fixture();
+        program.facts.flow.control.states.clear();
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name exactly one checked flow state")]
+    fn content_partition_input_manifest_rejects_duplicate_flow_state() {
+        let mut program = content_partition_input_validation_fixture();
+        let duplicate = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .next()
+            .expect("fixture flow state")
+            .1
+            .clone();
+        program.facts.flow.control.states.insert(duplicate);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "flow state must retain an exact valid call span")]
+    fn content_partition_input_manifest_rejects_invalid_call_span() {
+        let mut program = content_partition_input_validation_fixture();
+        program.facts.flow.control.states.for_each_mut(|_, state| {
+            state.calls =
+                psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(999), 1);
+        });
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain one exact checked call coordinate")]
+    fn content_partition_input_manifest_rejects_wrong_call_ordinal() {
+        let mut program = content_partition_input_validation_fixture();
+        let calls = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .next()
+            .expect("fixture flow state")
+            .1
+            .calls;
+        program
+            .facts
+            .flow
+            .control
+            .calls
+            .span_mut(calls)
+            .expect("fixture calls")[0]
+            .call_ordinal = 3;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact checked source target")]
+    fn content_partition_input_manifest_rejects_wrong_call_target() {
+        let mut program = content_partition_input_validation_fixture();
+        let calls = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .next()
+            .expect("fixture flow state")
+            .1
+            .calls;
+        program
+            .facts
+            .flow
+            .control
+            .calls
+            .span_mut(calls)
+            .expect("fixture calls")[0]
+            .target_symbol = SymbolHandle::from_arena_index(999);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain exactly one checked call coordinate")]
+    fn content_partition_input_manifest_rejects_duplicate_call_coordinate() {
+        let mut program = content_partition_input_validation_fixture();
+        let old_calls = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .next()
+            .expect("fixture flow state")
+            .1
+            .calls;
+        let call = program
+            .facts
+            .flow
+            .control
+            .calls
+            .span(old_calls)
+            .expect("fixture calls")[0]
+            .clone();
+        let calls = program
+            .facts
+            .flow
+            .control
+            .calls
+            .insert_many([call.clone(), call]);
+        program
+            .facts
+            .flow
+            .control
+            .states
+            .for_each_mut(|_, state| state.calls = calls);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain at least one input claim identity")]
+    fn content_partition_input_manifest_rejects_empty_inputs() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.input_claim_identities.clear();
+        row.input_claim_bindings.clear();
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "input claim identities must be non-unknown")]
+    fn content_partition_input_manifest_rejects_unknown_identity() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.input_claim_identities[0] = PermissionClaimIdentity::Unknown;
+        row.input_claim_bindings[0].claim_identity = PermissionClaimIdentity::Unknown;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "input claim identities must be unique")]
+    fn content_partition_input_manifest_rejects_duplicate_identity() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.input_claim_identities
+            .push(row.input_claim_identities[0]);
+        row.input_claim_bindings
+            .push(row.input_claim_bindings[0].clone());
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "input identities must exactly match ordered bindings")]
+    fn content_partition_input_manifest_rejects_binding_identity_drift() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.input_claim_bindings[0].claim_identity = PermissionClaimIdentity::Established {
+            machine_symbol: row.machine_symbol,
+            state_symbol: row.state_symbol,
+            source: PermissionEventSource::StateEntry,
+            ordinal: 99,
+        };
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name its exact caller parameter")]
+    fn content_partition_input_manifest_rejects_wrong_entry_parameter() {
+        let mut program = content_partition_input_validation_fixture();
+        let ContentPlaceRoot::Parameter { symbol, .. } =
+            &mut program.facts.qualifications.content.partition_compositions[0]
+                .input_claim_bindings[0]
+                .entry_place
+                .root
+        else {
+            unreachable!("fixture binding is an entry parameter")
+        };
+        *symbol = SymbolHandle::from_arena_index(999);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match one live retained permission event")]
+    fn content_partition_input_manifest_rejects_binding_path_drift() {
+        let mut program = content_partition_input_validation_fixture();
+        program.facts.qualifications.content.partition_compositions[0].input_claim_bindings[0]
+            .entry_place
+            .segments
+            .push(psi_language_semantics::content::ContentPlaceSegment::FixedIndex(9));
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "paths must not retain a runtime index")]
+    fn content_partition_input_manifest_rejects_runtime_permission_path() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = program.facts.qualifications.content.partition_compositions[0].clone();
+        let runtime_path =
+            program
+                .facts
+                .flow
+                .ownership
+                .segments
+                .insert_many([psi_facts::PlaceSegment::Index {
+                    expression: ExpressionHandle::invalid(),
+                }]);
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .for_each_mut(|_, event| {
+                if event.source == PermissionEventSource::StateEntry {
+                    event.segments = runtime_path;
+                }
+            });
+        validate_content_partition_input_custody(&program, &row);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match one live retained permission event")]
+    fn content_partition_input_manifest_rejects_missing_permission_event() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = program.facts.qualifications.content.partition_compositions[0].clone();
+        program.facts.flow.ownership.permissions.clear();
+        validate_content_partition_input_custody(&program, &row);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match one live retained permission event")]
+    fn content_partition_input_manifest_rejects_ambiguous_permission_event() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = program.facts.qualifications.content.partition_compositions[0].clone();
+        let duplicate = program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .find(|(_, event)| event.source == PermissionEventSource::StateEntry)
+            .expect("fixture entry permission")
+            .1
+            .clone();
+        program.facts.flow.ownership.permissions.insert(duplicate);
+        validate_content_partition_input_custody(&program, &row);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain one exact row per call and plan")]
+    fn content_partition_input_manifest_rejects_duplicate_partition_row() {
+        let mut program = content_partition_input_validation_fixture();
+        let duplicate = program.facts.qualifications.content.partition_compositions[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .partition_compositions
+            .push(duplicate);
+        claim_outcome_manifest_json(&program);
+    }
+
     fn content_projection_validation_fixture() -> CheckedTrees {
         let domain_symbol = SymbolHandle::from_arena_index(90);
         let carrier_symbol = SymbolHandle::from_arena_index(91);
@@ -5804,6 +6311,12 @@ mod tests {
                 ..Default::default()
             },
         );
+        for _ in 0..5 {
+            program
+                .typed
+                .statement_table
+                .push_statement(&mut state.statement_nodes, Default::default());
+        }
         program.typed.push_machine_state(&mut machine, state);
         program.typed.push_machine(machine);
         let mut projection_machine = Machine {
@@ -6064,6 +6577,18 @@ mod tests {
             .content
             .conservation_plans
             .push(plan.clone());
+        let calls = program.facts.flow.control.calls.insert_many([FlowCallFact {
+            statement_index: 4,
+            call_ordinal: 2,
+            target_symbol: state_symbol,
+            ..Default::default()
+        }]);
+        program.facts.flow.control.states.insert(FlowStateFact {
+            machine_symbol,
+            state_symbol,
+            calls,
+            ..Default::default()
+        });
         program
             .facts
             .qualifications
@@ -6078,21 +6603,9 @@ mod tests {
                 source_plan: plan.clone(),
                 statement_index: 4,
                 call_ordinal: 2,
-                input_claim_identities: vec![
-                    psi_language_semantics::PermissionClaimIdentity::Established {
-                        machine_symbol: SymbolHandle::invalid(),
-                        state_symbol: SymbolHandle::invalid(),
-                        source: psi_language_semantics::PermissionEventSource::StateEntry,
-                        ordinal: 11,
-                    },
-                ],
+                input_claim_identities: vec![input_identity],
                 input_claim_bindings: vec![psi_checked_trees::ContentPartitionInputClaimBinding {
-                    claim_identity: psi_language_semantics::PermissionClaimIdentity::Established {
-                        machine_symbol: SymbolHandle::invalid(),
-                        state_symbol: SymbolHandle::invalid(),
-                        source: psi_language_semantics::PermissionEventSource::StateEntry,
-                        ordinal: 11,
-                    },
+                    claim_identity: input_identity,
                     entry_place: partition_entry_place,
                 }],
                 result_rewrites: vec![result_rewrite],
@@ -6170,7 +6683,6 @@ mod tests {
         );
         assert!(json.contains("\"source\": {\"version\": \"current\""));
         assert!(json.contains("\"target\": {\"version\": \"current\""));
-        assert!(json.contains("\"ordinal\": 11"));
         assert!(json.contains("\"ordinal\": 12"));
         assert!(json.contains(&format!(
             "\"input\": {{\"parameter\": \"{}\", \"path\": []}}",
