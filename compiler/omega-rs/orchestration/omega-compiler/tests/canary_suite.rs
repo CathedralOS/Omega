@@ -15724,7 +15724,8 @@ fn dead_trapping_let_traps_aborts() {
     let canary = pass_canary("expressions/dead_trapping_let_traps");
     let scratch =
         std::env::temp_dir().join(format!("omega-dead-trapping-let-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("dead trapping let canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
