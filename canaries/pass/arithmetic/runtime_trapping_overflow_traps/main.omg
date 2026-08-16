@@ -1,7 +1,8 @@
 // RUN CANARY: `in Trapping` actually TRAPS at runtime. x = i32::MAX, then
-// x + 1 -- the emitted overflow check executes ud2, the process dies with
-// STATUS_ILLEGAL_INSTRUCTION (0xC000001D on Windows), and exit_process(70) is
-// never reached. The suite asserts the exit code is NOT 70 (and is a crash
+// x + 1 -- the emitted overflow check executes the target trap (`ud2` on x86_64,
+// `brk #0` on AArch64). The process dies (Windows x86_64 reports
+// STATUS_ILLEGAL_INSTRUCTION; Unix hosts terminate by signal), so exit_process(70)
+// is never reached. The suite asserts the exit code is NOT 70 (and is a crash
 // status, not a clean exit). This locks the trap semantics end-to-end: if a
 // regression ever made Trapping silently wrap, this canary would exit 70 and
 // fail. Compiles cleanly (Trapping is the DECLARED escape from the decision-17
