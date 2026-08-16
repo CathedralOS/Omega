@@ -523,9 +523,24 @@ Remaining:
   their existing dispatch priority. Mathematical emptiness is falsehood,
   source divide/remainder casts require complete hull containment without a
   partial or falsehood admission, and checked replay failure admits no family.
+  A same-root affine fork/join now admits one exact add or subtract whose two
+  operands are disjoint, nonempty, independently admitted landed-literal
+  affine branches over the same fixed-native carrier and the exact same direct
+  machine parameter. The verifier replays each branch separately as checked
+  sign/magnitude `Al * root + Bl` and `Ar * root + Br`, then reconstructs the
+  join from `(Al + Ar, Bl + Br)` or `(Al - Ar, Bl - Br)`. A zero combined
+  coefficient decides only the join after both complete ordered branch walks;
+  every operation in both branches and the join retains separate evidence.
+  Mathematical empty preimages are falsehood, while checked coefficient,
+  offset, division, or definition-walk failure admits no family. The branch
+  definition walks must be disjoint and source ordered apart from their common
+  root. Distinct-root joins, one empty side, outer operations other than add or
+  subtract, conversions, runtime siblings, locals, members, calls, effects,
+  and stale or redirected definitions remain fenced.
 
   Next engineering frontiers are other proof-bearing results feeding another
-  proof-bearing operation, other computed exact-cast and wider exact-arithmetic
+  proof-bearing operation, distinct-root and other computed-sibling joins,
+  other computed exact-cast and wider exact-arithmetic
   premises, member/comparison mixtures, calls and effects, wider partial-value
   cleanup, nested ownership, returned transfer, loops, suspension, scoped
   ordering, and ranked tail recursion. Dynamic/nested indexing, wider

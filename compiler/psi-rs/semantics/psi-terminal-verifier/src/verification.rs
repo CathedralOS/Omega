@@ -5002,6 +5002,14 @@ enum ExactIntegerIntervalPreimage {
     Empty,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExactIntegerAffineForkBranch {
+    root: ScalarTerm,
+    coefficient: IntegerOffset,
+    offset: IntegerOffset,
+    definition_indices: BTreeSet<usize>,
+}
+
 impl IntegerOffset {
     fn from_value(value: IntegerValue) -> Self {
         match value {
@@ -6362,6 +6370,20 @@ fn exact_integer_add_obligation(
         };
     }
     if known_left.is_none()
+        && known_right.is_none()
+        && let Some(obligation) = exact_integer_affine_fork_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            ExactIntegerOffsetOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
         && let Some(constant) = known_right
         && landed_integer_constant_value(
             integer_type,
@@ -6863,6 +6885,17 @@ fn exact_integer_subtract_obligation(
         };
     }
     let Some(constant) = known_right else {
+        if let Some(obligation) = exact_integer_affine_fork_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            ExactIntegerOffsetOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        ) {
+            return obligation;
+        }
         if integer_type.sign() == IntegerSign::Unsigned {
             let bound = Proposition::LessOrEqual(right.clone(), left.clone());
             if semantic_axioms.contains(&bound) {
@@ -7571,6 +7604,155 @@ fn exact_integer_signed_affine_interval_obligation(
             }
             ExactIntegerIntervalPreimage::Empty => Proposition::Falsehood,
         },
+    )
+}
+
+fn exact_integer_affine_fork_branch(
+    integer_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<ExactIntegerAffineForkBranch> {
+    fixed_integer_type_interval(integer_type)?;
+    let mut coefficient = IntegerOffset::Nonnegative(1);
+    let mut offset = IntegerOffset::Nonnegative(0);
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut definition_indices = BTreeSet::new();
+    for _ in 0..=prior_axiom_count {
+        if !definition_indices.is_empty()
+            && matches!(
+                &variable,
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(root_type),
+                } if *root_type == integer_type && machine_parameter_values.contains(id)
+            )
+        {
+            return Some(ExactIntegerAffineForkBranch {
+                root: variable,
+                coefficient,
+                offset,
+                definition_indices,
+            });
+        }
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })?;
+        let (left, right, nested_coefficient, nested_offset) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                IntegerOffset::Nonnegative(1),
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+            ),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                IntegerOffset::Nonnegative(1),
+                IntegerOffset::from_subtrahend(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+            ),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                IntegerOffset::Nonnegative(0),
+            ),
+            _ => return None,
+        };
+        if landed_integer_constant_value(integer_type, left, semantic_axioms, definition_index)
+            .is_some()
+            || landed_integer_constant_value(integer_type, right, semantic_axioms, definition_index)
+                .is_none()
+            || !definition_indices.insert(definition_index)
+        {
+            return None;
+        }
+        offset = nested_offset
+            .checked_multiply_offset(coefficient)
+            .and_then(|nested| nested.checked_add(offset))?;
+        coefficient = coefficient.checked_multiply_offset(nested_coefficient)?;
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+    }
+    None
+}
+
+fn exact_integer_affine_fork_join_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    operation: ExactIntegerOffsetOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let left = exact_integer_affine_fork_branch(
+        integer_type,
+        left,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    let mut right = exact_integer_affine_fork_branch(
+        integer_type,
+        right,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    if left.root != right.root
+        || !left
+            .definition_indices
+            .is_disjoint(&right.definition_indices)
+        || left.definition_indices.iter().next_back()? >= right.definition_indices.iter().next()?
+    {
+        return None;
+    }
+    if operation == ExactIntegerOffsetOperation::Subtract {
+        right.coefficient = right.coefficient.negated();
+        right.offset = right.offset.negated();
+    }
+    let coefficient = left.coefficient.checked_add(right.coefficient)?;
+    let offset = left.offset.checked_add(right.offset)?;
+    exact_integer_signed_affine_interval_obligation(
+        integer_type,
+        left.root,
+        coefficient,
+        offset,
+        fixed_integer_type_interval(integer_type)?,
     )
 }
 
@@ -16332,6 +16514,161 @@ mod tests {
             ),
             None,
             "checked coefficient overflow admits no sandwich family",
+        );
+    }
+
+    #[test]
+    fn affine_fork_join_replays_correlated_branches_without_importing_prefix_proofs() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 type");
+        let root_id = ValueId::new(1791).expect("fork root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(integer_type));
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("fork value"),
+                ScalarType::Integer(integer_type),
+            )
+        };
+        let literal = |value| {
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).expect("fork literal")
+        };
+        let left_offset = value(1792);
+        let left_product = value(1793);
+        let right_offset = value(1794);
+        let right_product = value(1795);
+        let definitions = vec![
+            Proposition::Equal(
+                left_offset.clone(),
+                ScalarTerm::exact_integer_add(integer_type, root.clone(), literal(1))
+                    .expect("root + 1"),
+            ),
+            Proposition::Equal(
+                left_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, left_offset, literal(2))
+                    .expect("left * 2"),
+            ),
+            Proposition::Equal(
+                right_offset.clone(),
+                ScalarTerm::exact_integer_subtract(integer_type, root.clone(), literal(1))
+                    .expect("root - 1"),
+            ),
+            Proposition::Equal(
+                right_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, right_offset, literal(3))
+                    .expect("right * 3"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        let expected =
+            exact_integer_source_interval_obligation(integer_type, root.clone(), -6553, 6553);
+        assert_eq!(
+            exact_integer_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                ExactIntegerOffsetOperation::Add,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(expected.clone()),
+            "2 * (x + 1) + 3 * (x - 1) replays as 5 * x - 1",
+        );
+        assert_eq!(
+            exact_integer_add_obligation(
+                integer_type,
+                left_product.clone(),
+                right_product.clone(),
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            expected,
+            "the ordinary exact-add dispatch selects the correlated fork",
+        );
+
+        let cancel_left_offset = value(1796);
+        let cancel_left_product = value(1797);
+        let cancel_right_offset = value(1798);
+        let cancel_right_product = value(1799);
+        let cancellation_definitions = vec![
+            Proposition::Equal(
+                cancel_left_offset.clone(),
+                ScalarTerm::exact_integer_add(integer_type, root.clone(), literal(3))
+                    .expect("root + 3"),
+            ),
+            Proposition::Equal(
+                cancel_left_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, cancel_left_offset, literal(-2))
+                    .expect("left * -2"),
+            ),
+            Proposition::Equal(
+                cancel_right_offset.clone(),
+                ScalarTerm::exact_integer_subtract(integer_type, root.clone(), literal(4))
+                    .expect("root - 4"),
+            ),
+            Proposition::Equal(
+                cancel_right_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, cancel_right_offset, literal(-2))
+                    .expect("right * -2"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                cancel_left_product.clone(),
+                cancel_right_product.clone(),
+                &cancellation_definitions,
+                cancellation_definitions.len(),
+                &parameters,
+            ),
+            Proposition::Truth,
+            "-2 * (x + 3) - -2 * (x - 4) is the join-local constant -14",
+        );
+
+        assert_eq!(
+            exact_integer_affine_fork_join_obligation(
+                integer_type,
+                left_product.clone(),
+                left_product,
+                ExactIntegerOffsetOperation::Add,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "the two branch definition walks must be disjoint",
+        );
+        let reordered_definitions = vec![
+            definitions[2].clone(),
+            definitions[3].clone(),
+            definitions[0].clone(),
+            definitions[1].clone(),
+        ];
+        assert_eq!(
+            exact_integer_affine_fork_join_obligation(
+                integer_type,
+                value(1793),
+                value(1795),
+                ExactIntegerOffsetOperation::Add,
+                &reordered_definitions,
+                reordered_definitions.len(),
+                &parameters,
+            ),
+            None,
+            "right-branch definitions cannot precede the ordered left branch",
+        );
+        assert_eq!(
+            exact_integer_affine_fork_join_obligation(
+                integer_type,
+                cancel_left_product,
+                cancel_right_product,
+                ExactIntegerOffsetOperation::Subtract,
+                &cancellation_definitions,
+                cancellation_definitions.len(),
+                &BTreeSet::new(),
+            ),
+            None,
+            "a local or stale root cannot authorize the fork",
         );
     }
 

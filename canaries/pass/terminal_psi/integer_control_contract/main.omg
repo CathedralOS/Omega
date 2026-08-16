@@ -1662,6 +1662,26 @@ requires value <= 32764i16,
     (((((((((value + 3i16) * -2i16) - 1i16) as i8) + 3i8) * -2i8) - 1i8) < 127i8) && enabled)
 }
 
+machine terminal_affine_fork_add_join(value: i16, enabled: bool) -> bool
+requires value <= 32766i16,
+    -16385i16 <= value, value <= 16382i16,
+    -32767i16 <= value,
+    -10921i16 <= value, value <= 10923i16,
+    -6553i16 <= value, value <= 6553i16
+{
+    (((((value + 1i16) * 2i16) + ((value - 1i16) * 3i16)) < 32767i16) && enabled)
+}
+
+machine terminal_affine_fork_subtract_join(value: i16, enabled: bool) -> bool
+requires value <= 32764i16,
+    -16386i16 <= value, value <= 16381i16,
+    -32764i16 <= value,
+    -16379i16 <= value, value <= 16388i16,
+    -100i16 <= value, value <= 100i16
+{
+    (((((value + 3i16) * -2i16) - ((value - 4i16) * -2i16)) < 32767i16) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
