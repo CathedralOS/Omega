@@ -14,6 +14,7 @@ use crate::flow::{
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_cast_then_signed_multiply_runtime_parameter_positions_for_test,
+    exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test,
     exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
@@ -1827,6 +1828,155 @@ fn exact_cast_chain_classifier_accepts_only_ordered_partial_native_casts() {
     );
     assert_eq!(
         exact_cast_chain_runtime_parameter_positions_for_test(PrimitiveType::U8, &local_root, 1,),
+        None,
+        "local roots remain fenced",
+    );
+}
+
+#[test]
+fn computed_prefix_cast_chain_classifier_reuses_only_existing_pre_cast_families() {
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let local = |primitive_type| CheckedScalarExpression::Local {
+        position: 0,
+        primitive_type,
+    };
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cast = |target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let wrap = |source| cast(PrimitiveType::I32, cast(PrimitiveType::U64, source));
+
+    let affine = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I64,
+        binary(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I64,
+            parameter(PrimitiveType::I64),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::I64),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I64),
+    );
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &wrap(affine.clone()),
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let signed_product = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I64,
+        parameter(PrimitiveType::I64),
+        literal(-2i64, psi_numerics::literals::LandedIntegerType::I64),
+    );
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &wrap(signed_product),
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let shifts = binary(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::I64,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::I64,
+            parameter(PrimitiveType::I64),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &wrap(shifts),
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let divide_remainder = binary(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        PrimitiveType::U64,
+        binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            PrimitiveType::U64,
+            parameter(PrimitiveType::U64),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U64),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U64),
+    );
+    let unsigned_chain = cast(
+        PrimitiveType::U32,
+        cast(PrimitiveType::I64, divide_remainder),
+    );
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::I16,
+            &unsigned_chain,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U64,
+            &affine,
+            1,
+        ),
+        None,
+        "one computed cast remains on its established path",
+    );
+    let widened_source = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        parameter(PrimitiveType::U8),
+        literal(0i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    let widening_first_edge = cast(PrimitiveType::U8, cast(PrimitiveType::I16, widened_source));
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &widening_first_edge,
+            1,
+        ),
+        None,
+        "the innermost computed cast must also be partial",
+    );
+    let local_affine = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I64,
+        local(PrimitiveType::I64),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I64),
+    );
+    assert_eq!(
+        exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &wrap(local_affine),
+            1,
+        ),
         None,
         "local roots remain fenced",
     );

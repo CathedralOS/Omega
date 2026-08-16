@@ -1456,6 +1456,35 @@ requires 0i64 <= value, value <= 2147483647i64, value <= 255i64
     (((((value as u64) as i32) as u8) < 255u8) && enabled)
 }
 
+machine terminal_computed_affine_partial_exact_cast_chain(value: i64, enabled: bool) -> bool
+requires -4611686018427387904i64 <= value, value <= 4611686018427387903i64,
+    0i64 <= value, value <= 1073741823i64, value <= 127i64
+{
+    (((((((value * 2i64) + 1i64) as u64) as i32) as u8) < 255u8) && enabled)
+}
+
+machine terminal_computed_signed_product_partial_exact_cast_chain(
+    value: i64,
+    enabled: bool
+) -> bool
+requires -4611686018427387903i64 <= value, value <= 4611686018427387904i64,
+    -1073741823i64 <= value, -127i64 <= value,
+    -9223372036854775807i64 <= value, value <= 0i64
+{
+    ((((((value * -2i64) as u64) as i32) as u8) < 255u8) && enabled)
+}
+
+machine terminal_computed_shift_partial_exact_cast_chain(value: i64, enabled: bool) -> bool
+requires -4611686018427387904i64 <= value, value <= 4611686018427387903i64,
+    0i64 <= value, value <= 2147483647i64, value <= 255i64
+{
+    ((((((((value << 1u8) >> 1u16) as u64) as i32) as u8) < 255u8) && enabled))
+}
+
+machine terminal_computed_divide_partial_exact_cast_chain(value: u32, enabled: bool) -> bool {
+    (((((((value / 2u32) % 3u32) as i8) as u8) < 3u8) && enabled))
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
