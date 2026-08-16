@@ -84,6 +84,9 @@ const SOURCE: &str = r#"
         signed_product_widen_cast_signed_product_suffix: i8,
         remainder_cast_widen_affine_suffix: u16,
         affine_widen_cast_widen_divide_suffix: i8,
+        signed_affine_direct: i8,
+        signed_affine_cast: i8,
+        cast_signed_affine: i16,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -201,7 +204,18 @@ const SOURCE: &str = r#"
         -32i8 <= signed_product_widen_cast_signed_product_suffix,
         signed_product_widen_cast_signed_product_suffix <= 31i8,
         -1i8 <= affine_widen_cast_widen_divide_suffix,
-        affine_widen_cast_widen_divide_suffix <= 126i8
+        affine_widen_cast_widen_divide_suffix <= 126i8,
+        signed_affine_direct <= 124i8,
+        -66i8 <= signed_affine_direct, signed_affine_direct <= 61i8,
+        -67i8 <= signed_affine_direct, signed_affine_direct <= 60i8,
+        signed_affine_cast <= 124i8,
+        -66i8 <= signed_affine_cast, signed_affine_cast <= 61i8,
+        -67i8 <= signed_affine_cast, signed_affine_cast <= 60i8,
+        signed_affine_cast <= -4i8,
+        -128i16 <= cast_signed_affine, cast_signed_affine <= 127i16,
+        -131i16 <= cast_signed_affine, cast_signed_affine <= 124i16,
+        -66i16 <= cast_signed_affine, cast_signed_affine <= 61i16,
+        -67i16 <= cast_signed_affine, cast_signed_affine <= 60i16
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -268,6 +282,9 @@ const SOURCE: &str = r#"
             && (((((signed_product_widen_cast_signed_product_suffix * -2i8) as i16) as i8) * -2i8) < 127i8)
             && (((((remainder_cast_widen_affine_suffix % 3u16) as i16) as i32) + 1i32) < 2147483647i32)
             && ((((((((affine_widen_cast_widen_divide_suffix + 1i8) as i16) as u8) as i16) as u8) / 2u8) % 3u8) < 3u8)
+            && ((((signed_affine_direct + 3i8) * -2i8) - 1i8) < 127i8)
+            && ((((((signed_affine_cast + 3i8) * -2i8) - 1i8) as u8) < 255u8))
+            && (((((cast_signed_affine as i8) + 3i8) * -2i8) - 1i8) < 127i8)
             && enabled
     }
 "#;
@@ -312,6 +329,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let computed_affine_cast_chain_parameter = entry.parameters[37].id;
     let affine_widen_chain_shift_parameter = entry.parameters[50].id;
     let affine_widen_cast_shift_parameter = entry.parameters[55].id;
+    let signed_affine_direct_parameter = entry.parameters[60].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -362,7 +380,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         44,
     );
     assert_eq!(shift_obligations.len(), 81);
-    assert_eq!(proof_obligations.len(), 237);
+    assert_eq!(proof_obligations.len(), 248);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -473,6 +491,45 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &redirected_mixed_conversion,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
+    let mut redirected_signed_affine =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let signed_affine_offset = redirected_signed_affine
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { left, .. }
+                if left == signed_affine_direct_parameter =>
+            {
+                operation.result.scalar().map(|result| result.id)
+            }
+            _ => None,
+        })
+        .expect("signed-affine chain retains its offset definition");
+    let signed_affine_negative = redirected_signed_affine
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(operation.kind, OperationKind::ExactIntegerMultiply { left, .. } if left == signed_affine_offset)
+        })
+        .expect("signed-affine chain retains its negative multiply definition");
+    let OperationKind::ExactIntegerMultiply { left, .. } = &mut signed_affine_negative.kind else {
+        unreachable!("selected one exact-multiply operation")
+    };
+    *left = signed_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_signed_affine,
             &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
             &AdmissionProfile::default(),
         ),
@@ -1341,6 +1398,18 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(-4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(1),
             },
             TerminalScalarValue::Boolean(enabled),

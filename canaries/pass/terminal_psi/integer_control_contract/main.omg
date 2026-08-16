@@ -1609,6 +1609,27 @@ requires -1i8 <= value, value <= 126i8
     ((((((((value + 1i8) as i16) as u8) as i16) as u8) / 2u8) % 3u8) < 3u8) && enabled
 }
 
+machine terminal_signed_affine_direct(value: i8, enabled: bool) -> bool
+requires value <= 124i8, -66i8 <= value, value <= 61i8,
+    -67i8 <= value, value <= 60i8
+{
+    ((((value + 3i8) * -2i8) - 1i8) < 127i8) && enabled
+}
+
+machine terminal_signed_affine_then_partial_cast(value: i8, enabled: bool) -> bool
+requires value <= 124i8, -66i8 <= value, value <= 61i8,
+    -67i8 <= value, value <= 60i8, value <= -4i8
+{
+    ((((((value + 3i8) * -2i8) - 1i8) as u8) < 255u8) && enabled)
+}
+
+machine terminal_partial_cast_then_signed_affine(value: i16, enabled: bool) -> bool
+requires -128i16 <= value, value <= 127i16, -131i16 <= value, value <= 124i16,
+    -66i16 <= value, value <= 61i16, -67i16 <= value, value <= 60i16
+{
+    ((((((value as i8) + 3i8) * -2i8) - 1i8) < 127i8) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {

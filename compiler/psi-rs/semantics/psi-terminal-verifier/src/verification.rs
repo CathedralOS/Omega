@@ -1526,6 +1526,15 @@ fn exact_integer_cast_obligation(
     ) {
         return obligation;
     }
+    if let Some(obligation) = exact_integer_signed_affine_chain_cast_obligation(
+        source_type,
+        target_type,
+        operand.clone(),
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     if let Some(obligation) = exact_integer_offset_chain_cast_obligation(
         source_type,
         target_type,
@@ -4987,6 +4996,12 @@ enum ExactIntegerDivideRemainderTransfer {
     Remainder,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactIntegerIntervalPreimage {
+    Interval((i128, i128)),
+    Empty,
+}
+
 impl IntegerOffset {
     fn from_value(value: IntegerValue) -> Self {
         match value {
@@ -5036,6 +5051,10 @@ impl IntegerOffset {
 
     fn checked_multiply_value(self, factor: IntegerValue) -> Option<Self> {
         let factor = Self::from_value(factor);
+        self.checked_multiply_offset(factor)
+    }
+
+    fn checked_multiply_offset(self, factor: Self) -> Option<Self> {
         let product = self.checked_multiply(factor.magnitude())?;
         Some(match factor {
             Self::Negative(_) => product.negated(),
@@ -5609,6 +5628,48 @@ fn exact_integer_multiply_chain_cast_obligation(
         variable,
         cumulative_factor,
     ))
+}
+
+fn exact_integer_signed_affine_chain_cast_obligation(
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    operand: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if !partial_fixed_native_integer_cast(source_type, target_type) {
+        return None;
+    }
+    let (variable, coefficient, offset, _, saw_offset, saw_negative_factor) =
+        exact_integer_signed_affine_replay(
+            source_type,
+            operand,
+            IntegerOffset::Nonnegative(1),
+            IntegerOffset::Nonnegative(0),
+            false,
+            false,
+            semantic_axioms,
+            semantic_axioms.len(),
+        )?;
+    if !saw_offset
+        || !saw_negative_factor
+        || !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == source_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    exact_integer_signed_affine_interval_obligation(
+        source_type,
+        variable,
+        coefficient,
+        offset,
+        fixed_integer_type_interval(target_type)?,
+    )
 }
 
 fn exact_integer_signed_multiply_chain_cast_obligation(
@@ -6448,6 +6509,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_signed_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_cast_then_offset_obligation(
             integer_type,
             left.clone(),
@@ -6468,6 +6549,26 @@ fn exact_integer_add_obligation(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_affine_chain_obligation(
             integer_type,
             left.clone(),
             constant,
@@ -6946,6 +7047,25 @@ fn exact_integer_subtract_obligation(
         return obligation;
     }
     if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_signed_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
         && let Some(constant) = known_right
         && landed_integer_constant_value(
             integer_type,
@@ -6972,6 +7092,25 @@ fn exact_integer_subtract_obligation(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_affine_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_affine_chain_obligation(
             integer_type,
             left.clone(),
             constant,
@@ -7180,6 +7319,263 @@ fn exact_integer_mixed_add_subtract_chain_obligation(
         variable,
         offset,
     ))
+}
+
+fn exact_integer_signed_affine_initial_form(
+    constant: IntegerValue,
+    operation: ExactIntegerAffineOperation,
+) -> Option<(IntegerOffset, IntegerOffset, bool, bool)> {
+    let IntegerValue::Signed(constant_value) = constant else {
+        return None;
+    };
+    let constant = IntegerOffset::from_value(constant);
+    Some(match operation {
+        ExactIntegerAffineOperation::Add => (IntegerOffset::Nonnegative(1), constant, true, false),
+        ExactIntegerAffineOperation::Subtract => (
+            IntegerOffset::Nonnegative(1),
+            constant.negated(),
+            true,
+            false,
+        ),
+        ExactIntegerAffineOperation::Multiply => (
+            constant,
+            IntegerOffset::Nonnegative(0),
+            false,
+            constant_value < 0,
+        ),
+    })
+}
+
+fn exact_integer_signed_affine_replay(
+    integer_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    mut coefficient: IntegerOffset,
+    mut offset: IntegerOffset,
+    mut saw_offset: bool,
+    mut saw_negative_factor: bool,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+) -> Option<(ScalarTerm, IntegerOffset, IntegerOffset, usize, bool, bool)> {
+    if integer_type.sign() != IntegerSign::Signed
+        || integer_type.is_address()
+        || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
+    {
+        return None;
+    }
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (left, right, nested_coefficient, nested_offset, operation) = match definition {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                IntegerOffset::Nonnegative(1),
+                IntegerOffset::from_value(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                ExactIntegerAffineOperation::Add,
+            ),
+            ScalarTerm::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => (
+                left,
+                right,
+                IntegerOffset::Nonnegative(1),
+                IntegerOffset::from_subtrahend(landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?),
+                ExactIntegerAffineOperation::Subtract,
+            ),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == integer_type => {
+                let factor = landed_integer_constant_value(
+                    integer_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let IntegerValue::Signed(_) = factor else {
+                    return None;
+                };
+                (
+                    left,
+                    right,
+                    IntegerOffset::from_value(factor),
+                    IntegerOffset::Nonnegative(0),
+                    ExactIntegerAffineOperation::Multiply,
+                )
+            }
+            _ => break,
+        };
+        if landed_integer_constant_value(integer_type, left, semantic_axioms, definition_index)
+            .is_some()
+            || landed_integer_constant_value(integer_type, right, semantic_axioms, definition_index)
+                .is_none()
+        {
+            return None;
+        }
+        offset = nested_offset
+            .checked_multiply_offset(coefficient)
+            .and_then(|nested| nested.checked_add(offset))?;
+        coefficient = coefficient.checked_multiply_offset(nested_coefficient)?;
+        if operation == ExactIntegerAffineOperation::Multiply {
+            saw_negative_factor |= matches!(nested_coefficient, IntegerOffset::Negative(_));
+        } else {
+            saw_offset = true;
+        }
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+    }
+    Some((
+        variable,
+        coefficient,
+        offset,
+        prior_axiom_count,
+        saw_offset,
+        saw_negative_factor,
+    ))
+}
+
+fn exact_integer_signed_affine_preimage_interval(
+    coefficient: IntegerOffset,
+    offset: IntegerOffset,
+    interval: (i128, i128),
+) -> Option<ExactIntegerIntervalPreimage> {
+    if interval.0 > interval.1 {
+        return Some(ExactIntegerIntervalPreimage::Empty);
+    }
+    if coefficient.magnitude() == 0 {
+        let constant = match offset {
+            IntegerOffset::Nonnegative(value) => i128::try_from(value).ok(),
+            IntegerOffset::Negative(value) => signed_negative_magnitude(value),
+        };
+        return Some(
+            if constant.is_some_and(|value| interval.0 <= value && value <= interval.1) {
+                ExactIntegerIntervalPreimage::Interval((i128::MIN, i128::MAX))
+            } else {
+                ExactIntegerIntervalPreimage::Empty
+            },
+        );
+    }
+    let minimum = IntegerOffset::from_value(IntegerValue::Signed(interval.0));
+    let maximum = IntegerOffset::from_value(IntegerValue::Signed(interval.1));
+    let (lower_numerator, upper_numerator) = match coefficient {
+        IntegerOffset::Nonnegative(_) => (
+            minimum.checked_add(offset.negated())?,
+            maximum.checked_add(offset.negated())?,
+        ),
+        IntegerOffset::Negative(_) => (
+            offset.checked_add(maximum.negated())?,
+            offset.checked_add(minimum.negated())?,
+        ),
+    };
+    let lower = integer_offset_ceil_div(lower_numerator, coefficient.magnitude());
+    let upper = integer_offset_floor_div(upper_numerator, coefficient.magnitude());
+    let lower = match lower {
+        IntegerOffset::Nonnegative(value) => match i128::try_from(value) {
+            Ok(value) => value,
+            Err(_) => return Some(ExactIntegerIntervalPreimage::Empty),
+        },
+        IntegerOffset::Negative(value) if value > (1_u128 << 127) => i128::MIN,
+        IntegerOffset::Negative(value) => signed_negative_magnitude(value)?,
+    };
+    let upper = match upper {
+        IntegerOffset::Nonnegative(value) => i128::try_from(value).unwrap_or(i128::MAX),
+        IntegerOffset::Negative(value) if value > (1_u128 << 127) => {
+            return Some(ExactIntegerIntervalPreimage::Empty);
+        }
+        IntegerOffset::Negative(value) => signed_negative_magnitude(value)?,
+    };
+    Some(if lower > upper {
+        ExactIntegerIntervalPreimage::Empty
+    } else {
+        ExactIntegerIntervalPreimage::Interval((lower, upper))
+    })
+}
+
+fn exact_integer_signed_affine_interval_obligation(
+    root_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    coefficient: IntegerOffset,
+    offset: IntegerOffset,
+    interval: (i128, i128),
+) -> Option<Proposition> {
+    Some(
+        match exact_integer_signed_affine_preimage_interval(coefficient, offset, interval)? {
+            ExactIntegerIntervalPreimage::Interval((minimum, maximum)) => {
+                exact_integer_source_interval_obligation(root_type, root, minimum, maximum)
+            }
+            ExactIntegerIntervalPreimage::Empty => Proposition::Falsehood,
+        },
+    )
+}
+
+fn exact_integer_signed_affine_chain_obligation(
+    integer_type: psi_core::IntegerType,
+    variable: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let (coefficient, offset, saw_offset, saw_negative_factor) =
+        exact_integer_signed_affine_initial_form(initial_constant, initial_operation)?;
+    let (variable, coefficient, offset, _, saw_offset, saw_negative_factor) =
+        exact_integer_signed_affine_replay(
+            integer_type,
+            variable,
+            coefficient,
+            offset,
+            saw_offset,
+            saw_negative_factor,
+            semantic_axioms,
+            definition_axiom_count,
+        )?;
+    if !saw_offset
+        || !saw_negative_factor
+        || !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    exact_integer_signed_affine_interval_obligation(
+        integer_type,
+        variable,
+        coefficient,
+        offset,
+        fixed_integer_type_interval(integer_type)?,
+    )
 }
 
 fn exact_integer_affine_chain_obligation(
@@ -8213,6 +8609,25 @@ fn exact_integer_multiply_obligation_with_definitions(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_signed_affine_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_cast_affine_obligation(
             integer_type,
             variable.clone(),
@@ -8236,6 +8651,25 @@ fn exact_integer_multiply_obligation_with_definitions(
             integer_type,
             variable.clone(),
             constant,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_affine_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
             semantic_axioms,
             definition_axiom_count,
             machine_parameter_values,
@@ -8537,6 +8971,75 @@ fn exact_integer_cast_then_multiply_chain_obligation(
         }
     }
     None
+}
+
+fn exact_integer_cast_then_signed_affine_chain_obligation(
+    target_type: psi_core::IntegerType,
+    variable: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let (coefficient, offset, saw_offset, saw_negative_factor) =
+        exact_integer_signed_affine_initial_form(initial_constant, initial_operation)?;
+    let (variable, coefficient, offset, prior_axiom_count, saw_offset, saw_negative_factor) =
+        exact_integer_signed_affine_replay(
+            target_type,
+            variable,
+            coefficient,
+            offset,
+            saw_offset,
+            saw_negative_factor,
+            semantic_axioms,
+            definition_axiom_count,
+        )?;
+    if !saw_offset || !saw_negative_factor {
+        return None;
+    }
+    let (_, definition) = semantic_axioms[..prior_axiom_count]
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(index, axiom)| match axiom {
+            Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+            _ => None,
+        })?;
+    let ScalarTerm::IntegerExactCast {
+        source_type,
+        target_type: cast_target_type,
+        operand,
+    } = definition
+    else {
+        return None;
+    };
+    if *cast_target_type != target_type
+        || !partial_fixed_native_integer_cast(*source_type, target_type)
+        || !matches!(
+            operand.as_ref(),
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == *source_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    let interval = match exact_integer_signed_affine_preimage_interval(
+        coefficient,
+        offset,
+        fixed_integer_type_interval(target_type)?,
+    )? {
+        ExactIntegerIntervalPreimage::Interval(interval) => interval,
+        ExactIntegerIntervalPreimage::Empty => return Some(Proposition::Falsehood),
+    };
+    Some(exact_integer_source_interval_obligation(
+        *source_type,
+        (**operand).clone(),
+        interval.0,
+        interval.1,
+    ))
 }
 
 fn exact_integer_cast_then_signed_multiply_chain_obligation(
@@ -13113,6 +13616,263 @@ mod tests {
                 64,
             )),
             "post-cast negative multiplication intersects its reversed preimage with the source",
+        );
+    }
+
+    #[test]
+    fn signed_affine_three_placement_replays_negative_coefficients_without_importing_prefix_proofs()
+    {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 type");
+        let root_id = ValueId::new(1661).expect("signed-affine root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(i8_type));
+        let offset = ScalarTerm::value(
+            ValueId::new(1662).expect("signed-affine offset"),
+            ScalarType::Integer(i8_type),
+        );
+        let negative = ScalarTerm::value(
+            ValueId::new(1663).expect("signed-affine negative"),
+            ScalarType::Integer(i8_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                offset.clone(),
+                ScalarTerm::exact_integer_add(
+                    i8_type,
+                    root.clone(),
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(3)).expect("3i8"),
+                )
+                .expect("root + 3"),
+            ),
+            Proposition::Equal(
+                negative.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i8_type,
+                    offset,
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(-2)).expect("-2i8"),
+                )
+                .expect("offset * -2"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_signed_affine_chain_obligation(
+                i8_type,
+                negative.clone(),
+                IntegerValue::Signed(1),
+                ExactIntegerAffineOperation::Subtract,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i8_type,
+                root.clone(),
+                -67,
+                60,
+            )),
+            "a negative coefficient reverses the complete offset preimage",
+        );
+        assert_eq!(
+            exact_integer_signed_affine_chain_cast_obligation(
+                i8_type,
+                u8_type,
+                negative,
+                &definitions,
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i8_type,
+                root.clone(),
+                -128,
+                -3,
+            )),
+            "the pre-cast obligation replays the signed source form independently",
+        );
+
+        let wide_root_id = ValueId::new(1664).expect("post-cast root");
+        let wide_root = ScalarTerm::value(wide_root_id, ScalarType::Integer(i16_type));
+        let cast = ScalarTerm::value(
+            ValueId::new(1665).expect("post-cast value"),
+            ScalarType::Integer(i8_type),
+        );
+        let cast_offset = ScalarTerm::value(
+            ValueId::new(1666).expect("post-cast offset"),
+            ScalarType::Integer(i8_type),
+        );
+        let post_definitions = vec![
+            Proposition::Equal(
+                cast.clone(),
+                ScalarTerm::integer_exact_cast(i16_type, i8_type, wide_root.clone())
+                    .expect("i16 to i8 cast"),
+            ),
+            Proposition::Equal(
+                cast_offset.clone(),
+                ScalarTerm::exact_integer_add(
+                    i8_type,
+                    cast,
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(3)).expect("3i8"),
+                )
+                .expect("cast + 3"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_cast_then_signed_affine_chain_obligation(
+                i8_type,
+                cast_offset,
+                IntegerValue::Signed(-2),
+                ExactIntegerAffineOperation::Multiply,
+                &post_definitions,
+                post_definitions.len(),
+                &BTreeSet::from([wide_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i16_type, wide_root, -66, 61,
+            )),
+            "the post-cast prefix intersects the reversed target preimage with the source carrier",
+        );
+
+        let zero = ScalarTerm::value(
+            ValueId::new(1667).expect("zero result"),
+            ScalarType::Integer(i8_type),
+        );
+        let zero_definitions = definitions
+            .iter()
+            .cloned()
+            .chain([Proposition::Equal(
+                zero.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i8_type,
+                    ScalarTerm::value(
+                        ValueId::new(1663).expect("signed-affine negative"),
+                        ScalarType::Integer(i8_type),
+                    ),
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(0)).expect("0i8"),
+                )
+                .expect("negative * 0"),
+            )])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            exact_integer_signed_affine_chain_obligation(
+                i8_type,
+                zero,
+                IntegerValue::Signed(-128),
+                ExactIntegerAffineOperation::Subtract,
+                &zero_definitions,
+                zero_definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::Falsehood),
+            "a constant outside the carrier is mathematical falsehood, not checked failure",
+        );
+
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64 type");
+        let minimum_root_id = ValueId::new(1668).expect("MIN affine root");
+        let minimum_root = ScalarTerm::value(minimum_root_id, ScalarType::Integer(i64_type));
+        let minimum_offset = ScalarTerm::value(
+            ValueId::new(1669).expect("MIN affine offset"),
+            ScalarType::Integer(i64_type),
+        );
+        let minimum_definitions = vec![Proposition::Equal(
+            minimum_offset.clone(),
+            ScalarTerm::exact_integer_add(
+                i64_type,
+                minimum_root.clone(),
+                ScalarTerm::integer(i64_type, IntegerValue::Signed(0)).expect("0i64"),
+            )
+            .expect("root + 0"),
+        )];
+        assert_eq!(
+            exact_integer_signed_affine_chain_obligation(
+                i64_type,
+                minimum_offset,
+                IntegerValue::Signed(i64::MIN.into()),
+                ExactIntegerAffineOperation::Multiply,
+                &minimum_definitions,
+                minimum_definitions.len(),
+                &BTreeSet::from([minimum_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i64_type,
+                minimum_root,
+                0,
+                1,
+            )),
+            "MIN is handled by magnitude without host negation",
+        );
+
+        let overflow_first = ScalarTerm::value(
+            ValueId::new(1670).expect("overflow first"),
+            ScalarType::Integer(i64_type),
+        );
+        let overflow_second = ScalarTerm::value(
+            ValueId::new(1671).expect("overflow second"),
+            ScalarType::Integer(i64_type),
+        );
+        let overflow_third = ScalarTerm::value(
+            ValueId::new(1672).expect("overflow third"),
+            ScalarType::Integer(i64_type),
+        );
+        let overflow_definitions = vec![
+            Proposition::Equal(
+                overflow_first.clone(),
+                ScalarTerm::exact_integer_add(
+                    i64_type,
+                    ScalarTerm::value(minimum_root_id, ScalarType::Integer(i64_type)),
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(1)).expect("1i64"),
+                )
+                .expect("root + 1"),
+            ),
+            Proposition::Equal(
+                overflow_second.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i64_type,
+                    overflow_first,
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(i64::MIN.into()))
+                        .expect("MIN i64"),
+                )
+                .expect("offset * MIN"),
+            ),
+            Proposition::Equal(
+                overflow_third.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i64_type,
+                    overflow_second,
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(i64::MIN.into()))
+                        .expect("MIN i64"),
+                )
+                .expect("MIN product * MIN"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_signed_affine_chain_obligation(
+                i64_type,
+                overflow_third,
+                IntegerValue::Signed(4),
+                ExactIntegerAffineOperation::Multiply,
+                &overflow_definitions,
+                overflow_definitions.len(),
+                &BTreeSet::from([minimum_root_id]),
+            ),
+            None,
+            "checked coefficient or offset overflow admits no family",
+        );
+        assert_eq!(
+            exact_integer_signed_affine_chain_obligation(
+                i8_type,
+                ScalarTerm::value(
+                    ValueId::new(1673).expect("stale value"),
+                    ScalarType::Integer(i8_type),
+                ),
+                IntegerValue::Signed(-2),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "a stale definition cannot borrow the valid chain's evidence",
         );
     }
 

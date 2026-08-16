@@ -494,8 +494,28 @@ carrier interval back with mathematical ceiling/floor division and intersects
 it with the root carrier. If `A == 0`, the current obligation is true exactly
 when `B` is carrier-representable. Every earlier prefix remains independently
 proved, so later zero factors or cancellation supply no authority. Homogeneous
-chains continue to use their narrower existing families. A finite
-same-value-carrier exact-right-shift
+chains continue to use their narrower existing families.
+
+A separate signed-affine family admits the direct chain, that chain feeding
+one validator-legal partial fixed-native exact cast, and one direct partial
+cast feeding the chain. The signed-carrier chain is finite, left-associated,
+same-carrier, and contains both an exact add/subtract offset and at least one
+negative exact-multiply factor; every right sibling is an independently landed
+same-carrier literal. Ordered shrinking replay composes coefficient and offset
+as checked sign/magnitude `(A, B)` for `A * root + B`. A positive coefficient
+uses the ordinary interval preimage, a negative coefficient reverses the
+endpoints, `MIN` is handled by magnitude, and zero decides only the current
+obligation after complete shape validation. The direct, pre-cast, or post-cast
+carrier intersection emits only canonical root bounds. Every arithmetic prefix
+and cast retains separate evidence. Mathematical empty preimages are canonical
+falsehood; coefficient, offset, division, or interval-transfer failure admits
+no family. Homogeneous signed products, nonnegative affine chains, two-sided
+sandwiches, multiple conversions, runtime or computed siblings, literal-left
+and right-associated forms, carrier drift, locals, members, calls, effects,
+stale definitions, and redirected evidence remain on narrower paths or fail
+closed.
+
+A finite same-value-carrier exact-right-shift
 chain may also continue only through its left operand from a direct machine
 parameter. Every right operand must be a landed literal in one of the current
 fixed native signed or unsigned integer count carriers and independently satisfy
