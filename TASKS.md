@@ -433,6 +433,20 @@ Remaining:
   local to only the current proposition. Every multiply prefix and cast
   remains independently mandatory; mathematical emptiness is falsehood while
   checked product or interval failure admits no family.
+  A separate signed-affine family now covers three placements: a direct
+  signed-carrier chain, the same chain feeding one partial fixed-native exact
+  cast, and one direct partial cast feeding the chain. Each chain is finite,
+  nonempty, left-associated, rooted at one direct machine parameter, contains
+  at least one add/subtract offset and at least one negative multiply, and has
+  an independently landed same-carrier literal on every right edge. The
+  verifier replays every shrinking prefix as checked sign/magnitude
+  `A * root + B`; a negative `A` reverses the interval preimage, `MIN` never
+  uses host negation, and `A == 0` decides only the current obligation. Every
+  arithmetic prefix and cast retains independent evidence. Mathematical empty
+  preimages are falsehood, while checked coefficient, offset, division, or
+  interval failure admits no family. Homogeneous signed products,
+  nonnegative-affine chains, two-sided sandwiches, and conversion-chain forms
+  remain on their existing or fenced paths.
   A finite chain of at least two validator-legal partial fixed-native exact
   casts may now start at one direct integer machine parameter. For each cast
   prefix, the verifier follows only ordered shrinking cast definitions and

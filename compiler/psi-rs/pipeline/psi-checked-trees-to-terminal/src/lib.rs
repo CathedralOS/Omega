@@ -11169,10 +11169,12 @@ fn shared_integer_runtime_parameters_with_shells(
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
+                .or_else(|| shared_exact_cast_then_signed_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_offset_runtime_parameters(expression))
                 .or_else(|| shared_exact_add_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_mixed_add_subtract_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_signed_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactSubtract,
@@ -11214,10 +11216,12 @@ fn shared_integer_runtime_parameters_with_shells(
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
+                .or_else(|| shared_exact_cast_then_signed_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_offset_runtime_parameters(expression))
                 .or_else(|| shared_exact_subtract_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_mixed_add_subtract_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_signed_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactMultiply,
@@ -11259,11 +11263,13 @@ fn shared_integer_runtime_parameters_with_shells(
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
+                .or_else(|| shared_exact_cast_then_signed_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_multiply_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_signed_multiply_runtime_parameters(expression))
                 .or_else(|| shared_exact_multiply_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_signed_multiply_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_signed_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactShiftRight,
@@ -11448,6 +11454,9 @@ fn shared_integer_runtime_parameters_with_shells(
                         *scalar_type,
                         operand,
                     )
+                })
+                .or_else(|| {
+                    shared_exact_signed_affine_chain_cast_runtime_parameters(*scalar_type, operand)
                 })
                 .or_else(|| {
                     shared_exact_offset_chain_cast_runtime_parameters(*scalar_type, operand)
@@ -12840,6 +12849,212 @@ fn shared_exact_affine_cast_affine_runtime_parameters(
                         _ => return None,
                     }
                 }
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn checked_lowered_signed_pair_multiply(
+    left: Option<(bool, u128)>,
+    right: (bool, u128),
+) -> Option<(bool, u128)> {
+    let left = left?;
+    if left.1 == 0 || right.1 == 0 {
+        return Some((false, 0));
+    }
+    Some((left.0 ^ right.0, left.1.checked_mul(right.1)?))
+}
+
+fn checked_lowered_signed_pair_add(
+    left: Option<(bool, u128)>,
+    right: (bool, u128),
+) -> Option<(bool, u128)> {
+    let left = left?;
+    Some(match (left, right) {
+        ((false, left), (false, right)) => (false, left.checked_add(right)?),
+        ((true, left), (true, right)) => (true, left.checked_add(right)?),
+        ((false, left), (true, right)) if left >= right => (false, left - right),
+        ((false, left), (true, right)) => (true, right - left),
+        ((true, left), (false, right)) if right >= left => (false, right - left),
+        ((true, left), (false, right)) => (true, left - right),
+    })
+}
+
+fn lowered_signed_pair(value: i128) -> (bool, u128) {
+    let magnitude = value.unsigned_abs();
+    (value < 0 && magnitude != 0, magnitude)
+}
+
+fn checked_lowered_signed_affine_step(
+    coefficient: Option<(bool, u128)>,
+    offset: Option<(bool, u128)>,
+    kind: LoweredIntegerBinaryKind,
+    literal: i128,
+) -> (Option<(bool, u128)>, Option<(bool, u128)>) {
+    let (Some(coefficient), Some(offset)) = (coefficient, offset) else {
+        return (None, None);
+    };
+    let (nested_coefficient, nested_offset) = match kind {
+        LoweredIntegerBinaryKind::ExactAdd => ((false, 1), lowered_signed_pair(literal)),
+        LoweredIntegerBinaryKind::ExactSubtract => {
+            let (negative, magnitude) = lowered_signed_pair(literal);
+            ((false, 1), (magnitude != 0 && !negative, magnitude))
+        }
+        LoweredIntegerBinaryKind::ExactMultiply => (lowered_signed_pair(literal), (false, 0)),
+        _ => return (None, None),
+    };
+    let nested_offset = checked_lowered_signed_pair_multiply(Some(nested_offset), coefficient);
+    (
+        checked_lowered_signed_pair_multiply(Some(coefficient), nested_coefficient),
+        checked_lowered_signed_pair_add(nested_offset, offset),
+    )
+}
+
+fn shared_exact_signed_affine_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut coefficient = Some((false, 1_u128));
+    let mut offset = Some((false, 0_u128));
+    let mut saw_offset = false;
+    let mut saw_negative_factor = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind:
+                kind @ (LoweredIntegerBinaryKind::ExactAdd
+                | LoweredIntegerBinaryKind::ExactSubtract
+                | LoweredIntegerBinaryKind::ExactMultiply),
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let literal = signed_exact_multiply_landed_value(*integer_type, right)?;
+        if !native_fixed_integer_type(*integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+        {
+            return None;
+        }
+        (coefficient, offset) =
+            checked_lowered_signed_affine_step(coefficient, offset, *kind, literal);
+        saw_offset |= matches!(
+            kind,
+            LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract
+        );
+        saw_negative_factor |= *kind == LoweredIntegerBinaryKind::ExactMultiply && literal < 0;
+        chain_type = Some(*integer_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactAdd
+                    | LoweredIntegerBinaryKind::ExactSubtract
+                    | LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if coefficient.is_some()
+                && offset.is_some()
+                && saw_offset
+                && saw_negative_factor
+                && *root_type == *integer_type =>
+            {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_signed_affine_chain_cast_runtime_parameters(
+    target_type: ScalarType,
+    operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_type else {
+        return None;
+    };
+    let LoweredDirectExpression::IntegerBinary {
+        scalar_type: ScalarType::Integer(source_type),
+        ..
+    } = operand
+    else {
+        return None;
+    };
+    if !native_fixed_integer_type(target_type) || *source_type == target_type {
+        return None;
+    }
+    shared_exact_signed_affine_chain_runtime_parameters(operand)
+}
+
+fn shared_exact_cast_then_signed_affine_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut coefficient = Some((false, 1_u128));
+    let mut offset = Some((false, 0_u128));
+    let mut saw_offset = false;
+    let mut saw_negative_factor = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind:
+                kind @ (LoweredIntegerBinaryKind::ExactAdd
+                | LoweredIntegerBinaryKind::ExactSubtract
+                | LoweredIntegerBinaryKind::ExactMultiply),
+            scalar_type: ScalarType::Integer(target_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let literal = signed_exact_multiply_landed_value(*target_type, right)?;
+        if !native_fixed_integer_type(*target_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *target_type)
+        {
+            return None;
+        }
+        (coefficient, offset) =
+            checked_lowered_signed_affine_step(coefficient, offset, *kind, literal);
+        saw_offset |= matches!(
+            kind,
+            LoweredIntegerBinaryKind::ExactAdd | LoweredIntegerBinaryKind::ExactSubtract
+        );
+        saw_negative_factor |= *kind == LoweredIntegerBinaryKind::ExactMultiply && literal < 0;
+        chain_type = Some(*target_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind:
+                    LoweredIntegerBinaryKind::ExactAdd
+                    | LoweredIntegerBinaryKind::ExactSubtract
+                    | LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if coefficient.is_some()
+                && offset.is_some()
+                && saw_offset
+                && saw_negative_factor
+                && *cast_target_type == *target_type =>
+            {
+                let LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type: ScalarType::Integer(source_type),
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return (native_fixed_integer_type(*source_type) && *source_type != *target_type)
+                    .then(|| {
+                        BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                    });
             }
             _ => return None,
         }
