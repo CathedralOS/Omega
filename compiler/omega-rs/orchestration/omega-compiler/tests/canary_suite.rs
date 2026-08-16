@@ -705,7 +705,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let canary = pass_canary("providers/external_leaf_syscall_compile");
     let scratch = std::env::temp_dir().join(format!("omega-via-syscall-{}", std::process::id()));
     let build_dir = scratch.join("out");
-    compile_single_file_hosted_main(&canary, &scratch, "linux_x64")
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "linux_x64")
         .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
 
     let trust = fs::read_to_string(build_dir.join("trust_report.md"))
@@ -744,7 +745,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let arm_scratch =
         std::env::temp_dir().join(format!("omega-via-syscall-arm-{}", std::process::id()));
     let arm_out = arm_scratch.join("out");
-    compile_single_file_hosted_main(&canary, &arm_scratch, "linux_arm64")
+    let _ = fs::remove_dir_all(&arm_scratch);
+    compile_rooted_canary_for_target(&canary, arm_out.clone(), "linux_arm64")
         .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
     let arm_elf =
         fs::read(arm_out.join("omega-program")).expect("external-leaf arm syscall ELF emitted");
@@ -45952,6 +45954,8 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
 const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("time/runtime_time_host_native_exit", "windows_x64"),
     ("time/runtime_time_host_native_darwin_exit", "macos_arm64"),
+    ("providers/external_leaf_syscall_compile", "linux_x64"),
+    ("providers/external_leaf_syscall_compile", "linux_arm64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
