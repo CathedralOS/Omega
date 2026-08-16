@@ -12,6 +12,52 @@ use omega_object_file::{
 };
 use omega_target_operations::InstructionOperandLike;
 
+fn runtime_operand_storage_region(
+    operand: &omega_target_operations::InstructionOperand,
+) -> Option<omega_target_operations::RuntimeStorageRegion> {
+    operand
+        .runtime_string_pointer()
+        .map(|(region, _)| region)
+        .or_else(|| operand.runtime_string_length().map(|(region, _)| region))
+        .or_else(|| {
+            operand
+                .runtime_pointee_string_pointer()
+                .map(|(region, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_pointee_string_length()
+                .map(|(region, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_scalar_integer()
+                .map(|(region, _, _)| region)
+        })
+        .or_else(|| operand.runtime_scalar_float().map(|(region, _, _)| region))
+        .or_else(|| {
+            operand
+                .runtime_homogeneous_float_aggregate()
+                .map(|(region, _, _, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_system_v_aggregate()
+                .map(|(region, _, _, _, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_small_aggregate()
+                .map(|(region, _, _, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_large_aggregate()
+                .map(|(region, _, _, _)| region)
+        })
+        .or_else(|| operand.runtime_storage_address().map(|(region, _)| region))
+}
+
 pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
     function_symbol_handle: ObjectSymbolHandle,
@@ -105,42 +151,7 @@ pub(super) fn collect_data_address_relocations(
             continue;
         }
 
-        let region = operand
-            .runtime_string_pointer()
-            .map(|(region, _)| region)
-            .or_else(|| operand.runtime_string_length().map(|(region, _)| region))
-            .or_else(|| {
-                operand
-                    .runtime_pointee_string_pointer()
-                    .map(|(region, _)| region)
-            })
-            .or_else(|| {
-                operand
-                    .runtime_pointee_string_length()
-                    .map(|(region, _)| region)
-            })
-            .or_else(|| {
-                operand
-                    .runtime_scalar_integer()
-                    .map(|(region, _, _)| region)
-            })
-            .or_else(|| operand.runtime_scalar_float().map(|(region, _, _)| region))
-            .or_else(|| {
-                operand
-                    .runtime_homogeneous_float_aggregate()
-                    .map(|(region, _, _, _)| region)
-            })
-            .or_else(|| {
-                operand
-                    .runtime_small_aggregate()
-                    .map(|(region, _, _, _)| region)
-            })
-            .or_else(|| {
-                operand
-                    .runtime_large_aggregate()
-                    .map(|(region, _, _, _)| region)
-            })
-            .or_else(|| operand.runtime_storage_address().map(|(region, _)| region));
+        let region = runtime_operand_storage_region(operand);
 
         if let Some(region) = region {
             let symbol_name = storage_region_symbol_name(region, input.entry_machine_name);
@@ -170,5 +181,98 @@ pub(super) fn collect_data_address_relocations(
                 symbol,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, SystemVEightbyteClass, ValueShape, evaluate_call_plan,
+    };
+    use omega_target_operations::{
+        InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+    };
+
+    fn system_v_aggregate(region: RuntimeStorageRegion, byte_offset: usize) -> InstructionOperand {
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeSystemVAggregate {
+                region,
+                byte_offset,
+                byte_count: 16,
+                alignment: 8,
+                sse_eightbytes: 0b10,
+            },
+        }
+    }
+
+    #[test]
+    fn system_v_aggregate_storage_region_and_field_coordinates_are_exact() {
+        let result = system_v_aggregate(RuntimeStorageRegion::Machine, 128);
+        let receiver = InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        };
+        let argument = system_v_aggregate(RuntimeStorageRegion::Machine, 112);
+        let immediate = InstructionOperand {
+            kind: InstructionOperandKind::ImmediateInteger(7),
+        };
+        assert_eq!(
+            [
+                runtime_operand_storage_region(&result),
+                runtime_operand_storage_region(&receiver),
+                runtime_operand_storage_region(&argument),
+                runtime_operand_storage_region(&immediate),
+            ],
+            [
+                Some(RuntimeStorageRegion::Machine),
+                Some(RuntimeStorageRegion::Machine),
+                Some(RuntimeStorageRegion::Machine),
+                None,
+            ],
+        );
+
+        let aggregate_shape = ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Integer,
+            SystemVEightbyteClass::Sse,
+        );
+        let plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8), aggregate_shape],
+                result: Some(aggregate_shape),
+            },
+        )
+        .expect("exact SysV mixed-aggregate plan");
+        let operands = [result, receiver, argument];
+        let shape = Some(FieldModelCallShape {
+            passes_receiver: true,
+            result_present: true,
+        });
+        let instruction_text_offset = 446;
+        let selected_text_offset = instruction_text_offset
+            + omega_instruction_selection::foreign_float_control_prefix_width(
+                omega_target::Architecture::X86_64,
+            );
+        let coordinates = [0, 1, 2].map(|operand_index| {
+            data_address_relocation_offset_for_target_with_plan(
+                omega_target::NativeTarget::linux_x64(),
+                Some(HostOperationKey::default()),
+                &operands,
+                selected_text_offset,
+                operand_index,
+                false,
+                shape,
+                false,
+                &plan,
+            )
+        });
+
+        assert_eq!(coordinates, [516, 460, 477]);
     }
 }
