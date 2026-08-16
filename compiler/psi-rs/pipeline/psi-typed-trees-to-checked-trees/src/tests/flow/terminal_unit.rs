@@ -33,6 +33,7 @@ use crate::flow::{
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
     exact_runtime_divisor_chain_runtime_parameter_positions_for_test,
+    exact_same_root_affine_product_join_runtime_parameter_positions_for_test,
     exact_shift_cast_shift_runtime_parameter_positions_for_test,
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_left_chain_runtime_parameter_positions_for_test,
@@ -5179,6 +5180,138 @@ fn distinct_root_affine_product_join_classifier_requires_signed_direct_roots() {
         exact_distinct_root_affine_product_join_runtime_parameter_positions_for_test(&unsigned, 2),
         None,
         "the initial product-rectangle family is signed-only",
+    );
+}
+
+#[test]
+fn same_root_affine_product_join_classifier_requires_a_genuine_signed_quadratic() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let signed_branch = |position, offset, factor| {
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I16,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I16,
+                parameter(position, PrimitiveType::I16),
+                literal(offset, psi_numerics::literals::LandedIntegerType::I16),
+            ),
+            literal(factor, psi_numerics::literals::LandedIntegerType::I16),
+        )
+    };
+    let joined = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        signed_branch(0, 1, 2),
+        signed_branch(0, -1, 3),
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&joined, 1),
+        Some(vec![0]),
+    );
+    let concave = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        signed_branch(0, 3, -2),
+        signed_branch(0, -4, 2),
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&concave, 1),
+        Some(vec![0]),
+        "opposite branch signs retain a genuine concave quadratic",
+    );
+    let distinct_roots = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        signed_branch(0, 1, 2),
+        signed_branch(1, -1, 3),
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(
+            &distinct_roots,
+            2,
+        ),
+        None,
+        "distinct roots remain on the independent rectangle path",
+    );
+    let zero_branch = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        signed_branch(0, 1, 2),
+        signed_branch(0, -1, 0),
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&zero_branch, 1),
+        None,
+        "a constant collapse is not a quadratic family",
+    );
+    let direct_side = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        signed_branch(0, 1, 2),
+        parameter(0, PrimitiveType::I16),
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&direct_side, 1),
+        None,
+    );
+    let computed_branch = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I16,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I16,
+            parameter(0, PrimitiveType::I16),
+            parameter(0, PrimitiveType::I16),
+        ),
+        literal(1, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    let computed_root = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        signed_branch(0, 1, 2),
+        computed_branch,
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&computed_root, 1,),
+        None,
+        "a computed root is not signature-bound authority",
+    );
+    let unsigned_branch = |offset| {
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U16,
+            parameter(0, PrimitiveType::U16),
+            literal(offset, psi_numerics::literals::LandedIntegerType::U16),
+        )
+    };
+    let unsigned = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::U16,
+        unsigned_branch(1),
+        unsigned_branch(2),
+    );
+    assert_eq!(
+        exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&unsigned, 1),
+        None,
+        "the initial correlated quadratic family is signed-only",
     );
 }
 

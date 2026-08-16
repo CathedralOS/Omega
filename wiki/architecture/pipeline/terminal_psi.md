@@ -810,9 +810,27 @@ unsigned carriers, carrier drift, computed roots, conversions, overlapping or
 reordered definitions, and stale evidence remain fenced. Existing constant-
 factor, runtime-factor, chain, conversion, and add/subtract fork families keep
 priority.
+One same-root signature-bounded signed affine quadratic product join admits an
+outer fixed-native exact multiply when its two nonempty landed-literal affine
+branches have disjoint source-ordered definition walks, nonzero coefficients,
+and terminate at the same direct signed machine parameter. The root must
+retain landed unary lower and upper signature bounds. The verifier selects the
+tightest endpoints, composes the correlated checked integer quadratic, and
+evaluates its exact discrete range at both interval endpoints plus the
+in-range floor and ceiling adjacent to the rational vertex. Complete
+containment emits the canonical two-bound conjunction, a wholly disjoint range
+emits falsehood, and partial overlap or checked coefficient, vertex, or
+evaluation failure admits no family. Every branch operation and the outer
+multiply retains independent evidence. Constant collapse, distinct or
+computed roots, relational premises, one-sided bounds, unsigned carriers,
+carrier drift, conversions, overlapping or reordered definitions, and stale
+evidence remain fenced. Existing constant-factor, runtime-factor, chain, cast,
+and affine families keep priority; this correlated family precedes the
+distinct-root product rectangle.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands outside
-the admitted affine fork/join and affine product-join families,
+the admitted affine fork/join, affine quadratic product-join, and distinct-root
+affine product-join families,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and

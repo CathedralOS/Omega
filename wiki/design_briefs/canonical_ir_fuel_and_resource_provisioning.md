@@ -203,6 +203,13 @@ Selecting four unary signature endpoints, replaying both signed affine forms,
 and computing the four-corner product hull are verifier-only work and add no
 executable operation or fuel charge. A zero branch, containment decision, or
 falsehood result never removes a retained branch charge.
+A same-root signed affine quadratic product join likewise charges every exact
+operation in both complete branches and the outer exact multiply separately.
+Composing the correlated integer quadratic, selecting the two unary signature
+endpoints, and evaluating endpoint and vertex-adjacent lattice candidates are
+verifier-only work and add no executable operation or fuel charge. A constant
+collapse fence, containment decision, or falsehood result never removes a
+retained branch charge.
 A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains

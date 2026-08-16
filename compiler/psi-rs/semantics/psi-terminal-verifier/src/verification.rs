@@ -7858,6 +7858,117 @@ fn exact_integer_affine_forward_interval(
     Some((apply(lower_input)?, apply(upper_input)?))
 }
 
+fn exact_integer_affine_quadratic_range(
+    left_coefficient: IntegerOffset,
+    left_offset: IntegerOffset,
+    right_coefficient: IntegerOffset,
+    right_offset: IntegerOffset,
+    interval: (i128, i128),
+) -> Option<(i128, i128)> {
+    let left_coefficient = integer_offset_as_i128(left_coefficient)?;
+    let left_offset = integer_offset_as_i128(left_offset)?;
+    let right_coefficient = integer_offset_as_i128(right_coefficient)?;
+    let right_offset = integer_offset_as_i128(right_offset)?;
+    if left_coefficient == 0 || right_coefficient == 0 {
+        return None;
+    }
+    let quadratic = left_coefficient.checked_mul(right_coefficient)?;
+    let linear = left_coefficient
+        .checked_mul(right_offset)?
+        .checked_add(right_coefficient.checked_mul(left_offset)?)?;
+    let constant = left_offset.checked_mul(right_offset)?;
+    let apply = |value: i128| {
+        quadratic
+            .checked_mul(value.checked_mul(value)?)?
+            .checked_add(linear.checked_mul(value)?)?
+            .checked_add(constant)
+    };
+    let vertex_denominator = quadratic.checked_abs()?.checked_mul(2)?;
+    let vertex_numerator = if quadratic > 0 {
+        linear.checked_neg()?
+    } else {
+        linear
+    };
+    let vertex_floor = vertex_numerator.div_euclid(vertex_denominator);
+    let vertex_ceiling = if vertex_numerator.rem_euclid(vertex_denominator) == 0 {
+        vertex_floor
+    } else {
+        vertex_floor.checked_add(1)?
+    };
+    let mut minimum = None;
+    let mut maximum = None;
+    for candidate in [interval.0, interval.1, vertex_floor, vertex_ceiling] {
+        if candidate < interval.0 || candidate > interval.1 {
+            continue;
+        }
+        let value = apply(candidate)?;
+        minimum = Some(minimum.map_or(value, |minimum: i128| minimum.min(value)));
+        maximum = Some(maximum.map_or(value, |maximum: i128| maximum.max(value)));
+    }
+    Some((minimum?, maximum?))
+}
+
+fn exact_integer_same_root_affine_product_join_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if integer_type.sign() != IntegerSign::Signed {
+        return None;
+    }
+    let left = exact_integer_affine_fork_branch(
+        integer_type,
+        left,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    let right = exact_integer_affine_fork_branch(
+        integer_type,
+        right,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    if left.root != right.root
+        || matches!(left.coefficient, IntegerOffset::Nonnegative(0))
+        || matches!(right.coefficient, IntegerOffset::Nonnegative(0))
+        || !left
+            .definition_indices
+            .is_disjoint(&right.definition_indices)
+        || left.definition_indices.iter().next_back()? >= right.definition_indices.iter().next()?
+    {
+        return None;
+    }
+    let signature = exact_integer_signature_interval(
+        integer_type,
+        &left.root,
+        semantic_axioms,
+        definition_axiom_count,
+    )?;
+    if signature.selected_bounds.len() != 2 {
+        return None;
+    }
+    let joined = exact_integer_affine_quadratic_range(
+        left.coefficient,
+        left.offset,
+        right.coefficient,
+        right.offset,
+        signature.interval,
+    )?;
+    let carrier = fixed_integer_type_interval(integer_type)?;
+    if joined.1 < carrier.0 || joined.0 > carrier.1 {
+        return Some(Proposition::Falsehood);
+    }
+    if joined.0 < carrier.0 || joined.1 > carrier.1 {
+        return None;
+    }
+    Some(canonical_conjunction(signature.selected_bounds))
+}
+
 fn exact_integer_distinct_root_affine_fork_join_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
@@ -9048,6 +9159,19 @@ fn exact_integer_multiply_obligation_with_definitions(
         } else {
             Proposition::Falsehood
         };
+    }
+    if known_left.is_none()
+        && known_right.is_none()
+        && let Some(obligation) = exact_integer_same_root_affine_product_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
     }
     if known_left.is_none()
         && known_right.is_none()
@@ -17109,6 +17233,233 @@ mod tests {
             ),
             None,
             "right-branch definitions cannot precede the left branch",
+        );
+    }
+
+    #[test]
+    fn same_root_affine_product_join_uses_exact_discrete_quadratic_extrema() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
+        let root_id = ValueId::new(1811).expect("quadratic root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(integer_type));
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("quadratic value"),
+                ScalarType::Integer(integer_type),
+            )
+        };
+        let literal = |value| {
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).expect("literal")
+        };
+        let left = value(1812);
+        let right = value(1813);
+        let definitions = vec![
+            Proposition::Equal(
+                left.clone(),
+                ScalarTerm::exact_integer_add(integer_type, root.clone(), literal(10))
+                    .expect("root + 10"),
+            ),
+            Proposition::Equal(
+                right.clone(),
+                ScalarTerm::exact_integer_subtract(integer_type, root.clone(), literal(10))
+                    .expect("root - 10"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        let lower = Proposition::LessOrEqual(literal(-5), root.clone());
+        let upper = Proposition::LessOrEqual(root.clone(), literal(5));
+        let mut bounded = definitions.clone();
+        bounded.extend([
+            Proposition::LessOrEqual(literal(-100), root.clone()),
+            lower.clone(),
+            upper.clone(),
+        ]);
+        let expected = canonical_conjunction(vec![lower.clone(), upper.clone()]);
+        assert_eq!(
+            exact_integer_affine_quadratic_range(
+                IntegerOffset::Nonnegative(1),
+                IntegerOffset::Nonnegative(10),
+                IntegerOffset::Nonnegative(1),
+                IntegerOffset::Negative(10),
+                (-5, 5),
+            ),
+            Some((-100, -75)),
+            "correlated x² - 100 is tighter than the unsafe rectangle hull",
+        );
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(expected.clone()),
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation_with_definitions(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            expected,
+            "ordinary multiply dispatch selects the same-root quadratic before rectangles",
+        );
+
+        let bounds = |minimum, maximum| {
+            let mut bounded = definitions.clone();
+            bounded.extend([
+                Proposition::LessOrEqual(literal(minimum), root.clone()),
+                Proposition::LessOrEqual(root.clone(), literal(maximum)),
+            ]);
+            bounded
+        };
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounds(16, 17),
+                definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::Falsehood),
+            "a wholly out-of-carrier quadratic range is falsehood",
+        );
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounds(15, 16),
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "a partially overlapping quadratic range is not admitted",
+        );
+        let mut one_sided = definitions.clone();
+        one_sided.push(lower.clone());
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &one_sided,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "both direct signature endpoints are mandatory",
+        );
+        let mut relational_only = definitions.clone();
+        relational_only.push(Proposition::LessOrEqual(
+            root.clone(),
+            ScalarTerm::exact_integer_subtract(
+                integer_type,
+                literal(i128::from(i8::MAX)),
+                root.clone(),
+            )
+            .expect("MAX - root"),
+        ));
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &relational_only,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "relational premises do not replace unary signature bounds",
+        );
+
+        let other_root_id = ValueId::new(1814).expect("other root");
+        let other_root = ScalarTerm::value(other_root_id, ScalarType::Integer(integer_type));
+        let distinct_definitions = vec![
+            definitions[0].clone(),
+            Proposition::Equal(
+                right.clone(),
+                ScalarTerm::exact_integer_subtract(integer_type, other_root, literal(10))
+                    .expect("other root - 10"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &distinct_definitions,
+                distinct_definitions.len(),
+                &BTreeSet::from([root_id, other_root_id]),
+            ),
+            None,
+            "distinct roots remain on the rectangle family",
+        );
+
+        let zero = value(1815);
+        let mut zero_definitions = vec![
+            definitions[0].clone(),
+            Proposition::Equal(
+                zero.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, root.clone(), literal(0))
+                    .expect("root * 0"),
+            ),
+        ];
+        zero_definitions.extend([lower.clone(), upper.clone()]);
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                zero,
+                &zero_definitions,
+                2,
+                &parameters,
+            ),
+            None,
+            "a zero branch is a narrower constant collapse, not a quadratic",
+        );
+
+        let mut reordered = vec![definitions[1].clone(), definitions[0].clone()];
+        reordered.extend([lower, upper]);
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &reordered,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "the disjoint branch definitions remain source ordered",
+        );
+        assert_eq!(
+            exact_integer_affine_quadratic_range(
+                IntegerOffset::Nonnegative(i128::MAX as u128),
+                IntegerOffset::Nonnegative(0),
+                IntegerOffset::Nonnegative(2),
+                IntegerOffset::Nonnegative(0),
+                (-1, 1),
+            ),
+            None,
+            "checked quadratic composition failure admits no family",
+        );
+        assert_eq!(
+            exact_integer_same_root_affine_product_join_obligation(
+                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type"),
+                left,
+                right,
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "the correlated quadratic family is signed-only",
         );
     }
 
