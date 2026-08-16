@@ -763,8 +763,26 @@ the existing one-sided paths. Runtime, computed, zero, signed `-1`, or mistyped
 divisors; carrier drift; invalid, widening, or repeated casts; intervening
 operations; nonparameter roots; malformed definitions; and stale evidence
 remain fenced.
+One same-root affine fork/join admits an outer exact add or subtract with two
+nonempty proof-bearing operands. Each operand must be a disjoint, independently
+admitted direct landed-literal affine branch on the same fixed-native carrier,
+and both branch walks must terminate at the exact same machine-signature
+parameter. Terminal production retains the complete left branch, then the
+complete right branch, then the join. The verifier walks those definition sets
+separately, requires them to be disjoint and source ordered apart from their
+common root, and composes checked sign/magnitude `Al * root + Bl` and
+`Ar * root + Br`. The join carrier is pulled back through the sum or difference
+of those forms. A zero combined coefficient decides only the join after both
+branches validate; every branch operation remains independently evidenced.
+Mathematical empty preimages are falsehood, while checked composition failure
+admits no family. One empty branch, distinct roots, carrier drift, literal-left
+or right-associated forms, runtime or computed branch siblings, conversions,
+outer operations other than add/subtract, locals, members, calls, effects,
+overlapping or reordered definitions, and stale or redirected evidence remain
+fenced. Existing direct, linear, cast, and conversion families keep priority.
 Terminal retains every operation and obligation, and every
-operation's evidence is checked independently. Two computed operands,
+operation's evidence is checked independently. Two computed operands outside
+the same-root affine fork/join,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and

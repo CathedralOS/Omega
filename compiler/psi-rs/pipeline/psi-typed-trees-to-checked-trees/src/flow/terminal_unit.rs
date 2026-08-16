@@ -1641,6 +1641,12 @@ fn shared_integer_runtime_inputs_with_shells(
                         scalar_parameter_count,
                     )
                 })
+                .or_else(|| {
+                    shared_exact_affine_fork_join_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactSubtract,
@@ -1750,6 +1756,12 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_signed_affine_chain_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_affine_fork_join_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -3882,22 +3894,23 @@ fn signed_pair(value: i64) -> (bool, u128) {
     (value < 0 && magnitude != 0, magnitude)
 }
 
-fn checked_signed_affine_step(
+fn negated_signed_pair((negative, magnitude): (bool, u128)) -> (bool, u128) {
+    (magnitude != 0 && !negative, magnitude)
+}
+
+fn checked_affine_pair_step(
     coefficient: Option<(bool, u128)>,
     offset: Option<(bool, u128)>,
     kind: CheckedIntegerBinaryKind,
-    literal: i64,
+    literal: (bool, u128),
 ) -> (Option<(bool, u128)>, Option<(bool, u128)>) {
     let (Some(coefficient), Some(offset)) = (coefficient, offset) else {
         return (None, None);
     };
     let (nested_coefficient, nested_offset) = match kind {
-        CheckedIntegerBinaryKind::ExactAdd => ((false, 1), signed_pair(literal)),
-        CheckedIntegerBinaryKind::ExactSubtract => {
-            let (negative, magnitude) = signed_pair(literal);
-            ((false, 1), (magnitude != 0 && !negative, magnitude))
-        }
-        CheckedIntegerBinaryKind::ExactMultiply => (signed_pair(literal), (false, 0)),
+        CheckedIntegerBinaryKind::ExactAdd => ((false, 1), literal),
+        CheckedIntegerBinaryKind::ExactSubtract => ((false, 1), negated_signed_pair(literal)),
+        CheckedIntegerBinaryKind::ExactMultiply => (literal, (false, 0)),
         _ => return (None, None),
     };
     let nested_offset = checked_signed_pair_multiply(Some(nested_offset), coefficient);
@@ -3905,6 +3918,133 @@ fn checked_signed_affine_step(
         checked_signed_pair_multiply(Some(coefficient), nested_coefficient),
         checked_signed_pair_add(nested_offset, offset),
     )
+}
+
+fn checked_signed_affine_step(
+    coefficient: Option<(bool, u128)>,
+    offset: Option<(bool, u128)>,
+    kind: CheckedIntegerBinaryKind,
+    literal: i64,
+) -> (Option<(bool, u128)>, Option<(bool, u128)>) {
+    checked_affine_pair_step(coefficient, offset, kind, signed_pair(literal))
+}
+
+fn checked_affine_landed_literal_pair(
+    primitive_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+) -> Option<(bool, u128)> {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    match (
+        primitive_type,
+        literal.landing().map(|landing| landing.landed_type),
+    ) {
+        (PrimitiveType::I8, Some(psi_numerics::literals::LandedIntegerType::I8))
+        | (PrimitiveType::I16, Some(psi_numerics::literals::LandedIntegerType::I16))
+        | (PrimitiveType::I32, Some(psi_numerics::literals::LandedIntegerType::I32))
+        | (PrimitiveType::I64, Some(psi_numerics::literals::LandedIntegerType::I64)) => {
+            literal.value_i64().map(signed_pair)
+        }
+        (PrimitiveType::U8, Some(psi_numerics::literals::LandedIntegerType::U8))
+        | (PrimitiveType::U16, Some(psi_numerics::literals::LandedIntegerType::U16))
+        | (PrimitiveType::U32, Some(psi_numerics::literals::LandedIntegerType::U32))
+        | (PrimitiveType::U64, Some(psi_numerics::literals::LandedIntegerType::U64)) => {
+            literal.value_u64().map(|value| (false, u128::from(value)))
+        }
+        _ => None,
+    }
+}
+
+fn shared_exact_affine_fork_branch(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<(PrimitiveType, usize, (bool, u128), (bool, u128))> {
+    let mut branch_type = None;
+    let mut coefficient = Some((false, 1_u128));
+    let mut offset = Some((false, 0_u128));
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                kind @ (CheckedIntegerBinaryKind::ExactAdd
+                | CheckedIntegerBinaryKind::ExactSubtract
+                | CheckedIntegerBinaryKind::ExactMultiply),
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if branch_type.is_some_and(|branch_type| branch_type != *primitive_type) {
+            return None;
+        }
+        let literal = checked_affine_landed_literal_pair(*primitive_type, right)?;
+        (coefficient, offset) = checked_affine_pair_step(coefficient, offset, *kind, literal);
+        branch_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactAdd
+                    | CheckedIntegerBinaryKind::ExactSubtract
+                    | CheckedIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if Some(*root_type) == branch_type && *position < scalar_parameter_count => {
+                return Some((*root_type, *position, coefficient?, offset?));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_affine_fork_join_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::IntegerBinary {
+        kind:
+            outer_kind @ (CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract),
+        primitive_type,
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    let (left_type, left_root, left_coefficient, left_offset) =
+        shared_exact_affine_fork_branch(left, scalar_parameter_count)?;
+    let (right_type, right_root, mut right_coefficient, mut right_offset) =
+        shared_exact_affine_fork_branch(right, scalar_parameter_count)?;
+    if left_type != *primitive_type || right_type != *primitive_type || left_root != right_root {
+        return None;
+    }
+    if *outer_kind == CheckedIntegerBinaryKind::ExactSubtract {
+        right_coefficient = negated_signed_pair(right_coefficient);
+        right_offset = negated_signed_pair(right_offset);
+    }
+    checked_signed_pair_add(Some(left_coefficient), right_coefficient)?;
+    checked_signed_pair_add(Some(left_offset), right_offset)?;
+    Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+        left_root,
+    )]))
+}
+
+#[cfg(test)]
+pub(crate) fn exact_affine_fork_join_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_affine_fork_join_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 fn shared_exact_signed_affine_chain_runtime_inputs(

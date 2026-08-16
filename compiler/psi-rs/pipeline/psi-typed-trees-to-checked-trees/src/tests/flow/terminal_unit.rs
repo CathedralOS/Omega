@@ -3,6 +3,7 @@ use crate::flow::{
     exact_affine_cast_affine_runtime_parameter_positions_for_test,
     exact_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_affine_chain_runtime_parameter_positions_for_test,
+    exact_affine_fork_join_runtime_parameter_positions_for_test,
     exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test,
     exact_arithmetic_then_shift_runtime_parameter_positions_for_test,
     exact_cast_chain_runtime_parameter_positions_for_test,
@@ -4831,6 +4832,148 @@ fn signed_affine_cast_affine_classifier_preserves_two_branch_priority() {
 }
 
 #[test]
+fn affine_fork_join_classifier_requires_two_disjoint_branches_on_one_root() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let i16_literal = |value| literal(value, psi_numerics::literals::LandedIntegerType::I16);
+    let branch = |position, offset, factor| {
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I16,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I16,
+                parameter(position, PrimitiveType::I16),
+                i16_literal(offset),
+            ),
+            i16_literal(factor),
+        )
+    };
+
+    let joined = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I16,
+        branch(0, 1, 2),
+        branch(0, -1, 3),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&joined, 2),
+        Some(vec![0]),
+    );
+    let cancellation = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        PrimitiveType::I16,
+        branch(0, 3, -2),
+        branch(0, -4, -2),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&cancellation, 2),
+        Some(vec![0]),
+        "a zero combined coefficient remains a valid join-local result",
+    );
+
+    let distinct_roots = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I16,
+        branch(0, 1, 2),
+        branch(1, -1, 3),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&distinct_roots, 2),
+        None,
+        "distinct roots require multivariate proof design",
+    );
+    let empty_right = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I16,
+        branch(0, 1, 2),
+        parameter(0, PrimitiveType::I16),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&empty_right, 2),
+        None,
+        "both proof-bearing branches must be nonempty",
+    );
+    let runtime_sibling = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I16,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I16,
+            parameter(0, PrimitiveType::I16),
+            parameter(0, PrimitiveType::I16),
+        ),
+        branch(0, 1, 2),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&runtime_sibling, 2),
+        None,
+        "a branch sibling must be an independently landed literal",
+    );
+    let linear_chain = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I16,
+        branch(0, 1, 2),
+        i16_literal(1),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&linear_chain, 2),
+        None,
+        "one-sided chains retain their existing classifier priority",
+    );
+
+    let i64_literal = |value| literal(value, psi_numerics::literals::LandedIntegerType::I64);
+    let overflow_branch = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I64,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I64,
+            operation(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                PrimitiveType::I64,
+                parameter(0, PrimitiveType::I64),
+                i64_literal(i64::MAX),
+            ),
+            i64_literal(i64::MAX),
+        ),
+        i64_literal(i64::MAX),
+    );
+    let overflow = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I64,
+        overflow_branch,
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I64,
+            parameter(0, PrimitiveType::I64),
+            i64_literal(1),
+        ),
+    );
+    assert_eq!(
+        exact_affine_fork_join_runtime_parameter_positions_for_test(&overflow, 2),
+        None,
+        "checked branch coefficient overflow admits no family",
+    );
+}
+
+#[test]
 fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     let checked = checked(
         r#"
@@ -7388,8 +7531,17 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    let same_root_affine_fork = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "two_nested_exact_add_operands_integer_comparison_convergence",
+        ))
+        .expect("two independently landed affine branches retain the scalar-return plan");
+    assert!(same_root_affine_fork.shared_boolean_convergence.is_some());
     for machine in [
-        "two_nested_exact_add_operands_integer_comparison_convergence",
         "nested_exact_add_computed_sibling_integer_comparison_convergence",
         "local_exact_add_chain_integer_comparison_convergence",
     ] {

@@ -184,6 +184,12 @@ target add, subtract, and multiply separately. Checked sign/magnitude replay on
 both sides, either reversed negative preimage, zero-coefficient decisions, and
 the exact cast-carrier intersection are verifier-only work and add no
 executable operation or fuel charge.
+A same-root affine fork/join likewise charges every exact operation in the
+complete left branch, every exact operation in the complete right branch, and
+the outer exact add or subtract separately. Replaying both correlated affine
+forms, checking their disjoint source-ordered definitions, and reconstructing
+the combined root preimage are verifier-only work and add no executable
+operation or fuel charge. Cancellation never removes a retained branch charge.
 A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains
