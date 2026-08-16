@@ -469,6 +469,38 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         "\"requirement_identity\": \"{}\"",
         json_identity(&mask_save.requirement_identity)
     )));
+    let authority_flow = qualification
+        .split_once("\"boundary_authority_flow\": [")
+        .expect("qualification artifact publishes boundary authority rows")
+        .1;
+    let entry_identity = format!(
+        "\"requirement_identity\": \"{}\"",
+        json_identity(&entry.requirement_identity)
+    );
+    let entry_identity_offset = authority_flow
+        .find(&entry_identity)
+        .expect("authority rows retain the exact inherited entry identity");
+    let entry_row_start = authority_flow[..entry_identity_offset]
+        .rfind("\n    {")
+        .expect("entry authority row begins before its identity");
+    let entry_row_end = authority_flow[entry_identity_offset..]
+        .find("\n    }")
+        .map(|end| entry_identity_offset + end)
+        .expect("entry authority row ends after its identity");
+    let entry_row = &authority_flow[entry_row_start..entry_row_end];
+    assert!(entry_row.contains("\"boundary\": \"TimerRoot\""));
+    assert!(entry_row.contains("\"requirement_owner\": \"InterruptEntry\""));
+    assert!(entry_row.contains(&format!(
+        "\"receipt_identity\": \"0x{:016x}\"",
+        selected.identity_fingerprint()
+    )));
+    assert!(
+        !authority_flow.contains(&format!(
+            "\"requirement_identity\": \"{}\"",
+            json_identity(&lookalike_entry.requirement_identity)
+        )),
+        "the unrelated look-alike requirement must not acquire an authority row"
+    );
     assert!(qualification.contains("\"predicate_body\": \"bodyless\""));
     assert!(qualification.contains("\"parameter_index\": 0"));
     assert!(qualification.contains("\"domain\": \"InterruptAcknowledgement::Pending\""));

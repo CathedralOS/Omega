@@ -450,7 +450,7 @@ pub(crate) fn bind_selected_provider_plan_facts(
     facts: omega_effects::SelectedProviderPlanFacts,
     root_grants: &[String],
 ) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
-    let granted_receipts = facts
+    let granted_plans = facts
         .plans()
         .iter()
         .filter(|plan| {
@@ -458,28 +458,57 @@ pub(crate) fn bind_selected_provider_plan_facts(
                 .iter()
                 .any(|grant| grant == &plan.name || grant == &plan.schema.trait_name)
         })
-        .map(|plan| (plan.schema.trait_name.clone(), plan.identity_fingerprint()))
         .collect::<Vec<_>>();
-    let receipt_updates = checked
-        .facts
-        .semantic
-        .facts
-        .iter()
-        .filter(|(_, fact)| {
-            fact.evidence.origin
-                == psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
-                && fact.evidence.receipt_identity == 0
-                && fact.evidence.source_symbol.is_valid()
-        })
-        .filter_map(|(handle, fact)| {
-            granted_receipts
-                .iter()
-                .find(|(boundary, _)| {
-                    evidence_source_names_boundary(checked, fact.evidence.source_symbol, boundary)
-                })
-                .map(|(_, identity)| (handle, *identity))
-        })
-        .collect::<Vec<_>>();
+    let mut receipt_updates = Vec::new();
+    let mut receipt_diagnostics = Vec::new();
+    for (handle, fact) in checked.facts.semantic.facts.iter().filter(|(_, fact)| {
+        fact.evidence.origin == psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+            && fact.evidence.receipt_identity == 0
+    }) {
+        let Some(owner) = checked.typed.traits().iter().find(|definition| {
+            definition.is_boundary && definition.symbol == fact.evidence.source_symbol
+        }) else {
+            receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "admitted qualification evidence source does not name an exact boundary requirement owner",
+            ));
+            continue;
+        };
+        let Some(requirement) = checked
+            .typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|requirement| requirement.symbol == fact.evidence.requirement_symbol)
+        else {
+            receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "admitted qualification evidence requirement does not belong to its exact boundary owner",
+            ));
+            continue;
+        };
+        let requirement_identity = checked
+            .typed
+            .normalized_trait_requirement_overload_identity(owner, requirement)
+            .identity();
+        let matches = granted_plans
+            .iter()
+            .filter(|plan| {
+                plan.schema
+                    .methods
+                    .iter()
+                    .any(|method| method.requirement_identity == requirement_identity)
+            })
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => {}
+            [plan] => receipt_updates.push((handle, plan.identity_fingerprint())),
+            _ => receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "admitted qualification requirement `{requirement_identity}` matches {} granted selected provider plans",
+                matches.len()
+            ))),
+        }
+    }
+    if !receipt_diagnostics.is_empty() {
+        return Err(receipt_diagnostics);
+    }
     retain_selected_operator_provider_evidence(checked, candidates, &facts)?;
     for (fact, identity) in receipt_updates {
         checked
@@ -941,31 +970,6 @@ fn expected_float_intrinsic(
         _ => return None,
     };
     Some(format!("{}::{operation}.{format}", namespace.as_str()))
-}
-
-fn evidence_source_names_boundary(
-    checked: &psi_checked_trees::CheckedTrees,
-    source_symbol: psi_symbols::SymbolHandle,
-    boundary_name: &str,
-) -> bool {
-    if checked.typed.traits().iter().any(|definition| {
-        definition.symbol == source_symbol
-            && same_semantic_name(definition.name.as_str(), boundary_name)
-    }) {
-        return true;
-    }
-    checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == source_symbol)
-        .is_some_and(|machine| {
-            checked
-                .typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| same_semantic_name(conformance.name.as_str(), boundary_name))
-        })
 }
 
 /// Resolve one external-root boundary slot only from the immutable provider
@@ -2300,6 +2304,82 @@ mod tests {
         }
     }
 
+    fn push_boundary_requirement(
+        checked: &mut psi_checked_trees::CheckedTrees,
+        owner_symbol: psi_symbols::SymbolHandle,
+        owner_name: &str,
+        requirement_symbol: psi_symbols::SymbolHandle,
+        requirement_name: &str,
+    ) -> String {
+        let mut owner = psi_typed_trees::trait_definition::TraitDefinition {
+            symbol: owner_symbol,
+            is_boundary: true,
+            name: psi_typed_trees::name::Identifier::generated(owner_name),
+            ..Default::default()
+        };
+        checked.typed.push_trait_machine_signature(
+            &mut owner,
+            psi_typed_trees::signature::StateSignature {
+                symbol: requirement_symbol,
+                name: psi_typed_trees::name::Identifier::generated(requirement_name),
+                ..Default::default()
+            },
+        );
+        checked.typed.push_trait_definition(owner);
+        let owner = checked
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == owner_symbol)
+            .expect("inserted boundary owner");
+        let requirement = checked
+            .typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|requirement| requirement.symbol == requirement_symbol)
+            .expect("inserted boundary requirement");
+        checked
+            .typed
+            .normalized_trait_requirement_overload_identity(owner, requirement)
+            .identity()
+    }
+
+    fn set_exact_requirement(
+        plan: &mut ProviderPlan,
+        schema: &str,
+        owner: &str,
+        requirement_identity: &str,
+    ) {
+        plan.schema.trait_name = schema.to_owned();
+        plan.schema.methods[0].requirement_owner = owner.to_owned();
+        plan.schema.methods[0].requirement_identity = requirement_identity.to_owned();
+        plan.rows[0].requirement_identity = requirement_identity.to_owned();
+    }
+
+    fn append_admitted_fact(
+        checked: &mut psi_checked_trees::CheckedTrees,
+        subject_symbol: psi_symbols::SymbolHandle,
+        domain_symbol: psi_symbols::SymbolHandle,
+        owner_symbol: psi_symbols::SymbolHandle,
+        requirement_symbol: psi_symbols::SymbolHandle,
+    ) -> psi_facts::FactHandle {
+        let place = checked.facts.semantic.append_symbol_place(subject_symbol);
+        checked.facts.semantic.append_fact(psi_facts::Fact {
+            place: psi_facts::FactPlace::Place(place),
+            point: psi_facts::ProgramPoint::Global,
+            origin: psi_facts::FactOrigin::CallEnsures,
+            evidence: psi_facts::QualificationEvidence::from_admitted_requirement(
+                owner_symbol,
+                requirement_symbol,
+            ),
+            payload: psi_facts::FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol,
+            },
+        })
+    }
+
     #[test]
     fn selected_synchronous_invocation_graph_rejects_cycles_only_after_selection() {
         let mut alpha = selection_plan("alpha", &["run"], &["run"]);
@@ -2387,35 +2467,33 @@ mod tests {
     }
 
     #[test]
-    fn granted_selected_plan_attaches_receipt_to_matching_admitted_fact() {
-        let boundary_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
+    fn granted_selected_plan_attaches_receipt_by_exact_inherited_requirement() {
+        let owner_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
         let subject_symbol = psi_symbols::SymbolHandle::from_arena_index(8);
         let domain_symbol = psi_symbols::SymbolHandle::from_arena_index(9);
+        let requirement_symbol = psi_symbols::SymbolHandle::from_arena_index(10);
         let mut checked = psi_checked_trees::CheckedTrees::default();
-        checked
-            .typed
-            .push_trait_definition(psi_typed_trees::trait_definition::TraitDefinition {
-                symbol: boundary_symbol,
-                is_boundary: true,
-                name: psi_typed_trees::name::Identifier::generated("Pair"),
-                ..Default::default()
-            });
-        let place = checked.facts.semantic.append_symbol_place(subject_symbol);
-        let fact = checked.facts.semantic.append_fact(psi_facts::Fact {
-            place: psi_facts::FactPlace::Place(place),
-            point: psi_facts::ProgramPoint::Global,
-            origin: psi_facts::FactOrigin::CallEnsures,
-            evidence: psi_facts::QualificationEvidence::from_origin(
-                psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
-                boundary_symbol,
-            ),
-            payload: psi_facts::FactPayload::DomainMembership {
-                value: Default::default(),
-                domain: Default::default(),
-                domain_symbol,
-            },
-        });
-        let selected = selection_plan("FirstProvider", &["first"], &["first"]);
+        let requirement_identity = push_boundary_requirement(
+            &mut checked,
+            owner_symbol,
+            "PairBase",
+            requirement_symbol,
+            "first",
+        );
+        let fact = append_admitted_fact(
+            &mut checked,
+            subject_symbol,
+            domain_symbol,
+            owner_symbol,
+            requirement_symbol,
+        );
+        let mut selected = selection_plan("FirstProvider", &["first"], &["first"]);
+        set_exact_requirement(
+            &mut selected,
+            "PairChild",
+            "PairBase",
+            &requirement_identity,
+        );
         let identity = selected.identity_fingerprint();
 
         bind_selected_provider_plan_facts(
@@ -2426,9 +2504,9 @@ mod tests {
                 &["FirstProvider".to_owned()],
             )
             .expect("canonical selected facts"),
-            &["Pair".to_owned()],
+            &["PairChild".to_owned()],
         )
-        .expect("selected granted provider plan");
+        .expect("exact inherited requirement binds the selected child-schema plan");
 
         assert_eq!(
             checked
@@ -2440,6 +2518,174 @@ mod tests {
                 .receipt_identity,
             identity
         );
+    }
+
+    #[test]
+    fn granted_selected_plan_does_not_stamp_a_different_exact_requirement() {
+        let owner_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
+        let selected_requirement = psi_symbols::SymbolHandle::from_arena_index(10);
+        let evidence_requirement = psi_symbols::SymbolHandle::from_arena_index(11);
+        let mut checked = psi_checked_trees::CheckedTrees::default();
+        let mut owner = psi_typed_trees::trait_definition::TraitDefinition {
+            symbol: owner_symbol,
+            is_boundary: true,
+            name: psi_typed_trees::name::Identifier::generated("PairBase"),
+            ..Default::default()
+        };
+        for (symbol, name) in [
+            (selected_requirement, "first"),
+            (evidence_requirement, "second"),
+        ] {
+            checked.typed.push_trait_machine_signature(
+                &mut owner,
+                psi_typed_trees::signature::StateSignature {
+                    symbol,
+                    name: psi_typed_trees::name::Identifier::generated(name),
+                    ..Default::default()
+                },
+            );
+        }
+        checked.typed.push_trait_definition(owner);
+        let owner = checked
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == owner_symbol)
+            .expect("inserted boundary owner");
+        let requirement = checked
+            .typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|requirement| requirement.symbol == selected_requirement)
+            .expect("selected boundary requirement");
+        let requirement_identity = checked
+            .typed
+            .normalized_trait_requirement_overload_identity(owner, requirement)
+            .identity();
+        let fact = append_admitted_fact(
+            &mut checked,
+            psi_symbols::SymbolHandle::from_arena_index(8),
+            psi_symbols::SymbolHandle::from_arena_index(9),
+            owner_symbol,
+            evidence_requirement,
+        );
+        let mut selected = selection_plan("FirstProvider", &["first"], &["first"]);
+        set_exact_requirement(
+            &mut selected,
+            "PairChild",
+            "PairBase",
+            &requirement_identity,
+        );
+
+        bind_selected_provider_plan_facts(
+            &mut checked,
+            std::slice::from_ref(&selected),
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &["FirstProvider".to_owned()],
+            )
+            .expect("canonical selected facts"),
+            &["PairChild".to_owned()],
+        )
+        .expect("a different exact requirement is simply not stamped");
+
+        assert_eq!(
+            checked
+                .facts
+                .semantic
+                .facts
+                .get(fact)
+                .evidence
+                .receipt_identity,
+            0
+        );
+    }
+
+    #[test]
+    fn admitted_receipt_rejects_a_requirement_outside_its_exact_owner() {
+        let owner_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
+        let requirement_symbol = psi_symbols::SymbolHandle::from_arena_index(10);
+        let mut checked = psi_checked_trees::CheckedTrees::default();
+        let requirement_identity = push_boundary_requirement(
+            &mut checked,
+            owner_symbol,
+            "PairBase",
+            requirement_symbol,
+            "first",
+        );
+        append_admitted_fact(
+            &mut checked,
+            psi_symbols::SymbolHandle::from_arena_index(8),
+            psi_symbols::SymbolHandle::from_arena_index(9),
+            owner_symbol,
+            psi_symbols::SymbolHandle::from_arena_index(11),
+        );
+        let mut selected = selection_plan("FirstProvider", &["first"], &["first"]);
+        set_exact_requirement(
+            &mut selected,
+            "PairChild",
+            "PairBase",
+            &requirement_identity,
+        );
+
+        let diagnostics = bind_selected_provider_plan_facts(
+            &mut checked,
+            std::slice::from_ref(&selected),
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &["FirstProvider".to_owned()],
+            )
+            .expect("canonical selected facts"),
+            &["PairChild".to_owned()],
+        )
+        .expect_err("an admitted requirement outside the exact owner must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("does not belong to its exact boundary owner")
+        }));
+    }
+
+    #[test]
+    fn admitted_receipt_rejects_duplicate_exact_granted_plan_matches() {
+        let owner_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
+        let requirement_symbol = psi_symbols::SymbolHandle::from_arena_index(10);
+        let mut checked = psi_checked_trees::CheckedTrees::default();
+        let requirement_identity = push_boundary_requirement(
+            &mut checked,
+            owner_symbol,
+            "PairBase",
+            requirement_symbol,
+            "first",
+        );
+        append_admitted_fact(
+            &mut checked,
+            psi_symbols::SymbolHandle::from_arena_index(8),
+            psi_symbols::SymbolHandle::from_arena_index(9),
+            owner_symbol,
+            requirement_symbol,
+        );
+        let mut first = selection_plan("FirstProvider", &["first"], &["first"]);
+        set_exact_requirement(&mut first, "PairChildA", "PairBase", &requirement_identity);
+        let mut second = selection_plan("SecondProvider", &["first"], &["first"]);
+        set_exact_requirement(&mut second, "PairChildB", "PairBase", &requirement_identity);
+
+        let diagnostics = bind_selected_provider_plan_facts(
+            &mut checked,
+            &[first.clone(), second.clone()],
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                &[first, second],
+                &["FirstProvider".to_owned(), "SecondProvider".to_owned()],
+            )
+            .expect("distinct selected slots may retain duplicate requirement identities"),
+            &["PairChildA".to_owned(), "PairChildB".to_owned()],
+        )
+        .expect_err("two granted exact matches must reject rather than choose by order");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("matches 2 granted selected provider plans")
+        }));
     }
 
     #[test]
