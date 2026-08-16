@@ -169,6 +169,10 @@ Likewise, a finite retained exact-multiply literal chain followed by one partial
 fixed-native exact cast charges every multiply operation and the cast; the
 verifier's cumulative-product inverse-interval reconstruction adds no
 executable work.
+The signed-product widening uses identical accounting for its direct,
+pre-cast, and post-cast homogeneous chains: every multiply and cast remains
+charged separately, while checked sign/magnitude accumulation and reversed
+negative-product interval replay add no executable work.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no

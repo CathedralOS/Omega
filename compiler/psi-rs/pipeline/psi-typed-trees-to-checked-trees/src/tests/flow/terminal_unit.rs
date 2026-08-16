@@ -12,6 +12,7 @@ use crate::flow::{
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
+    exact_cast_then_signed_multiply_runtime_parameter_positions_for_test,
     exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
@@ -27,6 +28,8 @@ use crate::flow::{
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_then_arithmetic_runtime_parameter_positions_for_test,
+    exact_signed_multiply_chain_cast_runtime_parameter_positions_for_test,
+    exact_signed_multiply_chain_runtime_parameter_positions_for_test,
 };
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedScalarExpression,
@@ -1634,6 +1637,129 @@ fn exact_cast_then_multiply_classifier_accepts_one_finite_left_nonnegative_liter
     assert_eq!(
         exact_cast_then_multiply_runtime_parameter_positions_for_test(&right_associated, 1),
         None
+    );
+}
+
+#[test]
+fn signed_multiply_classifiers_accept_checked_negative_products_in_all_three_placements() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let multiply = |primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactMultiply,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cast = |source_type, target_type| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(parameter(source_type)),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+
+    let direct = multiply(
+        PrimitiveType::I8,
+        multiply(
+            PrimitiveType::I8,
+            parameter(PrimitiveType::I8),
+            literal(-2i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(-3i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_signed_multiply_chain_runtime_parameter_positions_for_test(&direct, 1),
+        Some(vec![0]),
+    );
+    let pre_cast = multiply(
+        PrimitiveType::I16,
+        parameter(PrimitiveType::I16),
+        literal(-2i64, psi_numerics::literals::LandedIntegerType::I16),
+    );
+    assert_eq!(
+        exact_signed_multiply_chain_cast_runtime_parameter_positions_for_test(
+            PrimitiveType::I8,
+            &pre_cast,
+            1,
+        ),
+        Some(vec![0]),
+    );
+    let post_cast = multiply(
+        PrimitiveType::I8,
+        multiply(
+            PrimitiveType::I8,
+            cast(PrimitiveType::I16, PrimitiveType::I8),
+            literal(-2i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(0i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_cast_then_signed_multiply_runtime_parameter_positions_for_test(&post_cast, 1),
+        Some(vec![0]),
+    );
+
+    let nonnegative = multiply(
+        PrimitiveType::I8,
+        multiply(
+            PrimitiveType::I8,
+            parameter(PrimitiveType::I8),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_signed_multiply_chain_runtime_parameter_positions_for_test(&nonnegative, 1),
+        None,
+    );
+    let overflow = multiply(
+        PrimitiveType::I64,
+        multiply(
+            PrimitiveType::I64,
+            multiply(
+                PrimitiveType::I64,
+                parameter(PrimitiveType::I64),
+                literal(i64::MIN, psi_numerics::literals::LandedIntegerType::I64),
+            ),
+            literal(i64::MIN, psi_numerics::literals::LandedIntegerType::I64),
+        ),
+        literal(4i64, psi_numerics::literals::LandedIntegerType::I64),
+    );
+    assert_eq!(
+        exact_signed_multiply_chain_runtime_parameter_positions_for_test(&overflow, 1),
+        None,
+    );
+    let zero_before_large_factors = multiply(
+        PrimitiveType::I64,
+        multiply(
+            PrimitiveType::I64,
+            multiply(
+                PrimitiveType::I64,
+                multiply(
+                    PrimitiveType::I64,
+                    parameter(PrimitiveType::I64),
+                    literal(0i64, psi_numerics::literals::LandedIntegerType::I64),
+                ),
+                literal(i64::MIN, psi_numerics::literals::LandedIntegerType::I64),
+            ),
+            literal(i64::MIN, psi_numerics::literals::LandedIntegerType::I64),
+        ),
+        literal(4i64, psi_numerics::literals::LandedIntegerType::I64),
+    );
+    assert_eq!(
+        exact_signed_multiply_chain_runtime_parameter_positions_for_test(
+            &zero_before_large_factors,
+            1,
+        ),
+        Some(vec![0]),
+        "an earlier executed zero resets a reversed-walk product overflow",
     );
 }
 
@@ -6326,6 +6452,20 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .shared_boolean_convergence
             .is_some()
     );
+    let negative_factor_multiply_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "negative_factor_exact_multiply_chain_integer_comparison_convergence",
+        ))
+        .expect("the finite signed exact-multiply chain retains its scalar-return plan");
+    assert!(
+        negative_factor_multiply_chain
+            .shared_boolean_convergence
+            .is_some()
+    );
     for machine in [
         "exact_cast_then_multiply_chain_u16_to_u8_integer_comparison_convergence",
         "zero_factor_exact_cast_then_multiply_chain_integer_comparison_convergence",
@@ -6370,7 +6510,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
     }
     for machine in [
         "runtime_factor_exact_multiply_chain_integer_comparison_convergence",
-        "negative_factor_exact_multiply_chain_integer_comparison_convergence",
         "reversed_exact_multiply_chain_integer_comparison_convergence",
         "local_exact_multiply_chain_integer_comparison_convergence",
         "widened_exact_multiply_chain_integer_comparison_convergence",

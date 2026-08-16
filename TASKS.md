@@ -425,6 +425,14 @@ Remaining:
   source divisor proposition, the cast, and every target divisor proposition
   keeps separate mandatory evidence, and each target operation depends only on
   its own independently landed safe divisor.
+  The three homogeneous exact-multiply placements—direct, feeding one partial
+  exact cast, and rooted at one direct partial exact cast—also admit finite
+  signed-carrier chains containing at least one negative independently landed
+  factor. A checked sign/magnitude cumulative product reverses negative
+  preimages, handles the signed minimum without host negation, and keeps zero
+  local to only the current proposition. Every multiply prefix and cast
+  remains independently mandatory; mathematical emptiness is falsehood while
+  checked product or interval failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

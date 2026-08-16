@@ -680,6 +680,20 @@ composition overflow. For every family, stale
 operation/factor/divisor/count evidence and missing evidence reject. Multiply
 and left shift additionally reject cumulative arithmetic
 overflow. One
+signed-product widening applies only to the three homogeneous exact-multiply
+placements: a direct chain, a chain feeding one partial fixed-native exact
+cast, or a chain rooted at one direct partial cast. The signed carrier chain
+must contain at least one negative independently landed right factor. Ordered
+shrinking definitions accumulate the mathematical product as checked
+sign/magnitude, so `MIN` needs no host negation; a negative product reverses
+the target interval before carrier intersection. Zero makes only the current
+proposition true, and every earlier multiply and cast retains separate
+evidence. Mathematical empty preimages are falsehood; checked product or
+division failure admits no family. Unsigned/nonnegative and mixed affine paths
+remain unchanged, while runtime or computed factors, literal-left and
+right-associated forms, carrier drift, additional operations or casts,
+nonparameter roots, stale definitions, and redirected evidence remain fenced.
+One
 separate computed-cast exception accepts a direct
 fixed-integer parameter
 widened through any finite chain of valid fixed-carrier widenings and then

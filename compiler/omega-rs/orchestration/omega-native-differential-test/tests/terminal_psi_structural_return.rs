@@ -890,6 +890,10 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             shift_remainder_direct: u8,
             divide_cast_divide: u16,
             signed_divide_cast_remainder: i16,
+            signed_multiply_chain: i8,
+            signed_multiply_cast: i16,
+            signed_cast_multiply: u16,
+            signed_minimum_factor: i64,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -943,7 +947,13 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             shift_cast_remainder <= 127u16,
             affine_divide_direct <= 254u8,
             affine_divide_direct <= 126u8,
-            shift_remainder_direct <= 127u8
+            shift_remainder_direct <= 127u8,
+            -63i8 <= signed_multiply_chain, signed_multiply_chain <= 64i8,
+            -21i8 <= signed_multiply_chain, signed_multiply_chain <= 21i8,
+            -63i16 <= signed_multiply_cast, signed_multiply_cast <= 64i16,
+            0i16 <= signed_multiply_cast, signed_multiply_cast <= 0i16,
+            signed_cast_multiply <= 127u16, signed_cast_multiply <= 64u16,
+            0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -982,6 +992,10 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && (((((shift_remainder_direct >> 1i8) << 2u16) / 2u8) % 3u8) < 3u8)
                 && (((((divide_cast_divide % 64u16) as i8) / 2i8) % 3i8) < 3i8)
                 && (((((signed_divide_cast_remainder / 512i16) as i8) / 2i8) % 3i8) < 3i8)
+                && ((((signed_multiply_chain * -2i8) * 3i8) < 127i8))
+                && ((((signed_multiply_cast * -512i16) as i8) < 127i8))
+                && (((((signed_cast_multiply as i8) * -2i8) * 0i8) <= 0i8))
+                && (((signed_minimum_factor * -9223372036854775808i64) * 1i64) <= 0i64)
                 && enabled
         }
     "#;
@@ -1026,7 +1040,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             .iter()
             .filter(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
             .count(),
-        20,
+        22,
     );
     assert_eq!(
         operations
@@ -1053,7 +1067,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerMultiply { .. }
             ))
             .count(),
-        15,
+        22,
     );
     assert_eq!(
         operations
@@ -1116,7 +1130,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::IntegerExactCast { .. }
             ))
             .count(),
-        20,
+        22,
     );
     assert_eq!(
         abstract_plan
@@ -1158,7 +1172,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        15,
+        22,
     );
     assert_eq!(
         abstract_plan

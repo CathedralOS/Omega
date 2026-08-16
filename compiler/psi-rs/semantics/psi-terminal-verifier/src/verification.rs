@@ -1499,6 +1499,15 @@ fn exact_integer_cast_obligation(
     ) {
         return obligation;
     }
+    if let Some(obligation) = exact_integer_signed_multiply_chain_cast_obligation(
+        source_type,
+        target_type,
+        operand.clone(),
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     if let Some(obligation) = exact_integer_offset_chain_cast_obligation(
         source_type,
         target_type,
@@ -3952,6 +3961,15 @@ impl IntegerOffset {
         }
     }
 
+    fn checked_multiply_value(self, factor: IntegerValue) -> Option<Self> {
+        let factor = Self::from_value(factor);
+        let product = self.checked_multiply(factor.magnitude())?;
+        Some(match factor {
+            Self::Negative(_) => product.negated(),
+            Self::Nonnegative(_) => product,
+        })
+    }
+
     const fn negated(self) -> Self {
         match self {
             Self::Nonnegative(0) | Self::Negative(0) => Self::Nonnegative(0),
@@ -3979,6 +3997,16 @@ impl IntegerOffset {
                 .is_some_and(|value| integer_type.admits(IntegerValue::Signed(value))),
         }
     }
+}
+
+fn checked_signed_integer_product(
+    product: Option<IntegerOffset>,
+    factor: IntegerValue,
+) -> Option<IntegerOffset> {
+    if IntegerOffset::from_value(factor).magnitude() == 0 {
+        return Some(IntegerOffset::Nonnegative(0));
+    }
+    product?.checked_multiply_value(factor)
 }
 
 fn exact_integer_divide_remainder_chain_cast_obligation(
@@ -4508,6 +4536,137 @@ fn exact_integer_multiply_chain_cast_obligation(
         variable,
         cumulative_factor,
     ))
+}
+
+fn exact_integer_signed_multiply_chain_cast_obligation(
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if source_type.sign() != IntegerSign::Signed
+        || source_type.is_address()
+        || target_type.is_address()
+        || !matches!(source_type.bits(), 8 | 16 | 32 | 64)
+        || !matches!(target_type.bits(), 8 | 16 | 32 | 64)
+        || source_type == target_type
+        || source_type.can_widen_to(target_type)
+        || !source_type.can_exact_cast_to(target_type)
+    {
+        return None;
+    }
+    let mut product = Some(IntegerOffset::Nonnegative(1));
+    let mut saw_negative = false;
+    let mut prior_axiom_count = semantic_axioms.len();
+    let mut followed_definition = false;
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let ScalarTerm::ExactIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        } = definition
+        else {
+            break;
+        };
+        if *scalar_type != source_type
+            || landed_integer_constant_value(source_type, left, semantic_axioms, definition_index)
+                .is_some()
+        {
+            break;
+        }
+        let factor =
+            landed_integer_constant_value(source_type, right, semantic_axioms, definition_index)?;
+        let IntegerValue::Signed(factor_value) = factor else {
+            return None;
+        };
+        product = checked_signed_integer_product(product, factor);
+        saw_negative |= factor_value < 0;
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+        followed_definition = true;
+    }
+    if !followed_definition
+        || !saw_negative
+        || !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == source_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    exact_integer_signed_product_interval_obligation(source_type, target_type, variable, product?)
+}
+
+fn exact_integer_signed_product_interval_obligation(
+    root_type: psi_core::IntegerType,
+    interval_type: psi_core::IntegerType,
+    root: ScalarTerm,
+    product: IntegerOffset,
+) -> Option<Proposition> {
+    if product.magnitude() == 0 {
+        return Some(Proposition::Truth);
+    }
+    let interval_minimum = integer_value_as_i128(interval_type.minimum_value())?;
+    let interval_maximum = integer_value_as_i128(interval_type.maximum_value())?;
+    let magnitude = product.magnitude();
+    let (minimum, maximum) = if magnitude > i128::MAX as u128 {
+        (0, 0)
+    } else {
+        let magnitude = i128::try_from(magnitude).ok()?;
+        let signed_product = match product {
+            IntegerOffset::Nonnegative(_) => magnitude,
+            IntegerOffset::Negative(_) => magnitude.checked_neg()?,
+        };
+        if signed_product > 0 {
+            (
+                checked_integer_ceil_division(interval_minimum, signed_product)?,
+                checked_integer_floor_division(interval_maximum, signed_product)?,
+            )
+        } else {
+            (
+                checked_integer_ceil_division(interval_maximum, signed_product)?,
+                checked_integer_floor_division(interval_minimum, signed_product)?,
+            )
+        }
+    };
+    Some(exact_integer_source_interval_obligation(
+        root_type, root, minimum, maximum,
+    ))
+}
+
+fn checked_integer_floor_division(dividend: i128, divisor: i128) -> Option<i128> {
+    let quotient = dividend.checked_div(divisor)?;
+    let remainder = dividend.checked_rem(divisor)?;
+    Some(if remainder != 0 && (remainder < 0) != (divisor < 0) {
+        quotient.checked_sub(1)?
+    } else {
+        quotient
+    })
+}
+
+fn checked_integer_ceil_division(dividend: i128, divisor: i128) -> Option<i128> {
+    let quotient = dividend.checked_div(divisor)?;
+    let remainder = dividend.checked_rem(divisor)?;
+    Some(if remainder != 0 && (remainder < 0) == (divisor < 0) {
+        quotient.checked_add(1)?
+    } else {
+        quotient
+    })
 }
 
 fn exact_integer_affine_chain_cast_obligation(
@@ -6720,11 +6879,47 @@ fn exact_integer_multiply_obligation_with_definitions(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_cast_then_signed_multiply_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_cast_affine_obligation(
             integer_type,
             variable.clone(),
             constant,
             ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_multiply_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
             semantic_axioms,
             definition_axiom_count,
             machine_parameter_values,
@@ -7009,6 +7204,97 @@ fn exact_integer_cast_then_multiply_chain_obligation(
     None
 }
 
+fn exact_integer_cast_then_signed_multiply_chain_obligation(
+    target_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    factor: IntegerValue,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if target_type.sign() != IntegerSign::Signed
+        || target_type.is_address()
+        || !matches!(target_type.bits(), 8 | 16 | 32 | 64)
+    {
+        return None;
+    }
+    let IntegerValue::Signed(factor_value) = factor else {
+        return None;
+    };
+    let mut product = checked_signed_integer_product(Some(IntegerOffset::Nonnegative(1)), factor);
+    let mut saw_negative = factor_value < 0;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    for _ in 0..=prior_axiom_count {
+        let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })?;
+        match definition {
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } if *scalar_type == target_type => {
+                if landed_integer_constant_value(
+                    target_type,
+                    left,
+                    semantic_axioms,
+                    definition_index,
+                )
+                .is_some()
+                {
+                    return None;
+                }
+                let nested_factor = landed_integer_constant_value(
+                    target_type,
+                    right,
+                    semantic_axioms,
+                    definition_index,
+                )?;
+                let IntegerValue::Signed(nested_value) = nested_factor else {
+                    return None;
+                };
+                product = checked_signed_integer_product(product, nested_factor);
+                saw_negative |= nested_value < 0;
+                variable = (**left).clone();
+                prior_axiom_count = definition_index;
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: cast_target_type,
+                operand,
+            } if saw_negative
+                && *cast_target_type == target_type
+                && !source_type.is_address()
+                && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                && *source_type != target_type
+                && !source_type.can_widen_to(target_type)
+                && source_type.can_exact_cast_to(target_type)
+                && matches!(
+                    operand.as_ref(),
+                    ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Integer(root_type),
+                    } if *root_type == *source_type && machine_parameter_values.contains(id)
+                ) =>
+            {
+                return exact_integer_signed_product_interval_obligation(
+                    *source_type,
+                    target_type,
+                    (**operand).clone(),
+                    product?,
+                );
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
 fn exact_integer_scaled_interval_obligation(
     root_type: psi_core::IntegerType,
     interval_type: psi_core::IntegerType,
@@ -7132,6 +7418,76 @@ fn exact_integer_multiply_chain_obligation(
         variable,
         cumulative_factor,
     ))
+}
+
+fn exact_integer_signed_multiply_chain_obligation(
+    integer_type: psi_core::IntegerType,
+    mut variable: ScalarTerm,
+    factor: IntegerValue,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if integer_type.sign() != IntegerSign::Signed {
+        return None;
+    }
+    let IntegerValue::Signed(factor_value) = factor else {
+        return None;
+    };
+    let mut product = checked_signed_integer_product(Some(IntegerOffset::Nonnegative(1)), factor);
+    let mut saw_negative = factor_value < 0;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut followed_definition = false;
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &variable => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let ScalarTerm::ExactIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        } = definition
+        else {
+            break;
+        };
+        if *scalar_type != integer_type
+            || landed_integer_constant_value(integer_type, left, semantic_axioms, definition_index)
+                .is_some()
+        {
+            break;
+        }
+        let nested_factor =
+            landed_integer_constant_value(integer_type, right, semantic_axioms, definition_index)?;
+        let IntegerValue::Signed(nested_value) = nested_factor else {
+            return None;
+        };
+        product = checked_signed_integer_product(product, nested_factor);
+        saw_negative |= nested_value < 0;
+        variable = (**left).clone();
+        prior_axiom_count = definition_index;
+        followed_definition = true;
+    }
+    if !followed_definition
+        || !saw_negative
+        || !matches!(
+            &variable,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == integer_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    exact_integer_signed_product_interval_obligation(integer_type, integer_type, variable, product?)
 }
 
 fn nonnegative_integer_factor(
@@ -11113,6 +11469,167 @@ mod tests {
                 Proposition::LessOrEqual(negative_twenty_one, signed_root.clone()),
                 Proposition::LessOrEqual(signed_root, positive_twenty_one),
             ])
+        );
+    }
+
+    #[test]
+    fn signed_multiply_chains_reverse_preimages_and_preserve_zero_and_minimum() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 type");
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 type");
+        let root_id = ValueId::new(1601).expect("signed-product root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(i8_type));
+        let inner = ScalarTerm::value(
+            ValueId::new(1602).expect("signed-product inner"),
+            ScalarType::Integer(i8_type),
+        );
+        let definitions = vec![Proposition::Equal(
+            inner.clone(),
+            ScalarTerm::exact_integer_multiply(
+                i8_type,
+                root.clone(),
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(-2)).expect("-2i8"),
+            )
+            .expect("root * -2"),
+        )];
+        let expected = canonical_conjunction(vec![
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(-21)).expect("-21i8"),
+                root.clone(),
+            ),
+            Proposition::LessOrEqual(
+                root.clone(),
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(21)).expect("21i8"),
+            ),
+        ]);
+        assert_eq!(
+            exact_integer_signed_multiply_chain_obligation(
+                i8_type,
+                inner.clone(),
+                IntegerValue::Signed(3),
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(expected.clone()),
+            "a negative cumulative product reverses the carrier preimage",
+        );
+        assert_eq!(
+            exact_integer_signed_multiply_chain_obligation(
+                i8_type,
+                inner.clone(),
+                IntegerValue::Signed(-3),
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(expected),
+            "two negative factors restore the positive carrier preimage",
+        );
+        assert_eq!(
+            exact_integer_signed_multiply_chain_obligation(
+                i8_type,
+                inner,
+                IntegerValue::Signed(0),
+                &definitions,
+                definitions.len(),
+                &BTreeSet::from([root_id]),
+            ),
+            Some(Proposition::Truth),
+            "zero decides only the current prefix",
+        );
+
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64 type");
+        let minimum_root_id = ValueId::new(1607).expect("minimum-factor root");
+        let minimum_root = ScalarTerm::value(minimum_root_id, ScalarType::Integer(i64_type));
+        let minimum_product = ScalarTerm::value(
+            ValueId::new(1608).expect("minimum-factor product"),
+            ScalarType::Integer(i64_type),
+        );
+        let minimum_definitions = vec![Proposition::Equal(
+            minimum_product.clone(),
+            ScalarTerm::exact_integer_multiply(
+                i64_type,
+                minimum_root.clone(),
+                ScalarTerm::integer(i64_type, IntegerValue::Signed(i64::MIN.into()))
+                    .expect("MIN i64"),
+            )
+            .expect("root * MIN"),
+        )];
+        assert_eq!(
+            exact_integer_signed_multiply_chain_obligation(
+                i64_type,
+                minimum_product,
+                IntegerValue::Signed(1),
+                &minimum_definitions,
+                minimum_definitions.len(),
+                &BTreeSet::from([minimum_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i64_type,
+                minimum_root,
+                0,
+                1,
+            )),
+            "signed MIN is accumulated by magnitude without host negation",
+        );
+
+        let wide_root_id = ValueId::new(1603).expect("wide root");
+        let wide_root = ScalarTerm::value(wide_root_id, ScalarType::Integer(i16_type));
+        let wide_product = ScalarTerm::value(
+            ValueId::new(1604).expect("wide product"),
+            ScalarType::Integer(i16_type),
+        );
+        let wide_definitions = vec![Proposition::Equal(
+            wide_product.clone(),
+            ScalarTerm::exact_integer_multiply(
+                i16_type,
+                wide_root.clone(),
+                ScalarTerm::integer(i16_type, IntegerValue::Signed(-512)).expect("-512i16"),
+            )
+            .expect("wide root * -512"),
+        )];
+        assert_eq!(
+            exact_integer_signed_multiply_chain_cast_obligation(
+                i16_type,
+                i8_type,
+                wide_product,
+                &wide_definitions,
+                &BTreeSet::from([wide_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i16_type, wide_root, 0, 0,
+            )),
+            "the negative pre-cast product reverses the target interval",
+        );
+
+        let unsigned_root_id = ValueId::new(1605).expect("unsigned root");
+        let unsigned_root = ScalarTerm::value(unsigned_root_id, ScalarType::Integer(u16_type));
+        let cast = ScalarTerm::value(
+            ValueId::new(1606).expect("signed cast"),
+            ScalarType::Integer(i8_type),
+        );
+        let cast_definitions = vec![Proposition::Equal(
+            cast.clone(),
+            ScalarTerm::integer_exact_cast(u16_type, i8_type, unsigned_root.clone())
+                .expect("u16 to i8 cast"),
+        )];
+        assert_eq!(
+            exact_integer_cast_then_signed_multiply_chain_obligation(
+                i8_type,
+                cast,
+                IntegerValue::Signed(-2),
+                &cast_definitions,
+                cast_definitions.len(),
+                &BTreeSet::from([unsigned_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                u16_type,
+                unsigned_root,
+                0,
+                64,
+            )),
+            "post-cast negative multiplication intersects its reversed preimage with the source",
         );
     }
 
