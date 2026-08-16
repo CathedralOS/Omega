@@ -102,7 +102,13 @@ fn build_machine_graph(
         );
     }
 
-    let states = append_machine_states(state_graph, program, &segments, &segment_transitions)?;
+    let states = append_machine_states(
+        state_graph,
+        program,
+        machine,
+        &segments,
+        &segment_transitions,
+    )?;
 
     Ok(MachineGraph {
         symbol: machine_symbol,
