@@ -1588,6 +1588,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1671,6 +1677,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1749,6 +1761,12 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -1851,6 +1869,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1942,6 +1966,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -2019,6 +2049,12 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -2246,6 +2282,17 @@ fn shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_inputs(
     )
 }
 
+fn shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    shared_exact_computed_suffix_runtime_inputs(
+        expression,
+        scalar_parameter_count,
+        shared_exact_computed_prefix_widen_chain_suffix_root_runtime_inputs,
+    )
+}
+
 type SharedExactComputedSuffixRootRuntimeInputs = fn(
     PrimitiveType,
     &CheckedScalarExpression,
@@ -2322,6 +2369,66 @@ fn shared_exact_computed_prefix_cast_chain_suffix_root_runtime_inputs(
         operand,
         scalar_parameter_count,
     )
+}
+
+fn shared_exact_computed_prefix_widen_chain_suffix_root_runtime_inputs(
+    target_type: PrimitiveType,
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut expected_target = target_type;
+    let mut saw_widen = false;
+    while let CheckedScalarExpression::IntegerWiden {
+        primitive_type: widen_target,
+        operand,
+        ..
+    } = expression
+    {
+        if *widen_target != expected_target {
+            return None;
+        }
+        let source_type = crate::values::scalar_expression_type(operand)?;
+        if !strict_fixed_native_primitive_widen(source_type, *widen_target) {
+            return None;
+        }
+        expected_target = source_type;
+        expression = operand;
+        saw_widen = true;
+    }
+    saw_widen.then_some(())?;
+    shared_exact_computed_suffix_runtime_inputs(
+        expression,
+        scalar_parameter_count,
+        shared_exact_direct_parameter_suffix_root_runtime_inputs,
+    )
+}
+
+fn shared_exact_direct_parameter_suffix_root_runtime_inputs(
+    target_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    } = expression
+    else {
+        return None;
+    };
+    (*primitive_type == target_type && *position < scalar_parameter_count)
+        .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
+}
+
+fn strict_fixed_native_primitive_widen(source: PrimitiveType, target: PrimitiveType) -> bool {
+    let Some(source_interval) = fixed_native_primitive_interval(source) else {
+        return false;
+    };
+    let Some(target_interval) = fixed_native_primitive_interval(target) else {
+        return false;
+    };
+    source != target
+        && target_interval.0 <= source_interval.0
+        && source_interval.1 <= target_interval.1
 }
 
 fn shared_exact_cast_chain_then_affine_runtime_inputs(
@@ -2501,6 +2608,23 @@ pub(crate) fn exact_computed_prefix_cast_chain_then_computed_suffix_runtime_para
     scalar_parameter_count: usize,
 ) -> Option<Vec<usize>> {
     shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_inputs(
+        expression,
+        scalar_parameter_count,
+    )?
+    .into_iter()
+    .map(|input| match input {
+        SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+        _ => None,
+    })
+    .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_computed_prefix_widen_chain_then_computed_suffix_runtime_inputs(
         expression,
         scalar_parameter_count,
     )?

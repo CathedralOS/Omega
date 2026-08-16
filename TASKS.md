@@ -468,6 +468,17 @@ Remaining:
   another operation's evidence. Zero coefficients remain local to the current
   target obligation; a mathematical empty interval is falsehood, while
   malformed shape or checked transfer failure admits no family.
+  A separate wider-arithmetic composition now permits one nonempty admitted
+  computed prefix to pass through a finite nonempty chain of strict valid
+  fixed-native integer widenings and feed one nonempty admitted computed
+  suffix. Both sides independently select affine, homogeneous signed-product,
+  exact-shift, or landed-safe-literal divide/remainder algebra. Every widening
+  definition is retained and validated in order; each target interval pulls
+  back through numeric-identity widening by intersecting the source carrier,
+  then reuses only the selected source inverse or carrier-total hull. Every
+  exact operation retains independent evidence. Mathematical emptiness is
+  falsehood, divide/remainder partial overlap and checked replay failure admit
+  no family, and zero coefficients remain local to the current obligation.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

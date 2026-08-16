@@ -567,6 +567,19 @@ source family's existing inverse transfer or complete-hull rule. Mathematical
 emptiness is canonical falsehood; malformed shapes and checked replay failure
 admit no family. Empty-sided, one-cast, direct, and narrower sandwich shapes
 remain on their existing dispatch paths.
+A separate total-conversion composition admits a nonempty affine, homogeneous
+signed-product, exact-shift, or carrier-total landed-divisor prefix, followed by
+one or more ordered strict valid fixed-native `IntegerWiden` operations and a
+nonempty affine, homogeneous signed-product, exact-shift, or landed-safe-literal
+divide/remainder suffix. The verifier validates every adjacent widening edge
+and shrinking definition prefix. Widening preserves the mathematical integer,
+so each target preimage intersects the original source carrier before the
+selected source inverse or complete-hull replay. Every exact operation retains
+independent evidence; every widening remains an ordinary retained executable
+operation without invented proof evidence. Mathematical emptiness is canonical
+falsehood, divide/remainder partial overlap and checked replay failure admit no
+family, and zero remains local after complete shape validation. Direct,
+widen-roundtrip, cast, and multi-cast paths keep their existing priority.
 The unified sandwich permits nonempty finite exact-shift chains on both sides
 of one validator-legal partial fixed-native cast. Counts remain independently
 landed, heterogeneous, legal fixed-native literals, and either side may be

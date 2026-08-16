@@ -17,6 +17,7 @@ use crate::flow::{
     exact_cast_then_signed_multiply_runtime_parameter_positions_for_test,
     exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test,
     exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test,
+    exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
@@ -2283,6 +2284,140 @@ fn computed_prefix_cast_chain_computed_suffix_classifier_covers_the_four_by_four
         ),
         None,
         "one cast remains on its established sandwich paths",
+    );
+}
+
+#[test]
+fn computed_prefix_widen_chain_computed_suffix_classifier_covers_the_four_by_four_matrix() {
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let widen = |target_type, operand| CheckedScalarExpression::IntegerWiden {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+    };
+    let signed_widen_chain = |source| widen(PrimitiveType::I32, widen(PrimitiveType::I16, source));
+    let unsigned_widen_chain =
+        |source| widen(PrimitiveType::I32, widen(PrimitiveType::I16, source));
+    let sources = [
+        signed_widen_chain(binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I8,
+            parameter(PrimitiveType::I8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        )),
+        signed_widen_chain(binary(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I8,
+            parameter(PrimitiveType::I8),
+            literal(-2i64, psi_numerics::literals::LandedIntegerType::I8),
+        )),
+        signed_widen_chain(binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::I8,
+            parameter(PrimitiveType::I8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        )),
+        unsigned_widen_chain(binary(
+            CheckedIntegerBinaryKind::ExactRemainder,
+            PrimitiveType::U8,
+            parameter(PrimitiveType::U8),
+            literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+        )),
+    ];
+    for source in sources {
+        let targets = [
+            binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I32,
+                source.clone(),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                PrimitiveType::I32,
+                source.clone(),
+                literal(-2i64, psi_numerics::literals::LandedIntegerType::I32),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactShiftLeft,
+                PrimitiveType::I32,
+                source.clone(),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactDivide,
+                PrimitiveType::I32,
+                source,
+                literal(2i64, psi_numerics::literals::LandedIntegerType::I32),
+            ),
+        ];
+        for target in targets {
+            assert_eq!(
+                exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+                    &target, 1,
+                ),
+                Some(vec![0]),
+            );
+        }
+    }
+
+    let missing_widen = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I8,
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I8,
+            parameter(PrimitiveType::I8),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+    );
+    assert_eq!(
+        exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &missing_widen,
+            1,
+        ),
+        None,
+        "direct compositions retain their narrower paths",
+    );
+
+    let invalid_widen = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U32,
+        widen(
+            PrimitiveType::U32,
+            binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I16,
+                parameter(PrimitiveType::I16),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+            ),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U32),
+    );
+    assert_eq!(
+        exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &invalid_widen,
+            1,
+        ),
+        None,
+        "signed-to-unsigned conversion is not a valid widening edge",
     );
 }
 
@@ -7035,7 +7170,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "runtime_factor_exact_multiply_chain_integer_comparison_convergence",
         "reversed_exact_multiply_chain_integer_comparison_convergence",
         "local_exact_multiply_chain_integer_comparison_convergence",
-        "widened_exact_multiply_chain_integer_comparison_convergence",
         "two_computed_exact_multiply_operands_integer_comparison_convergence",
     ] {
         let fenced_multiply_chain = checked
@@ -7050,6 +7184,19 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             });
         assert!(fenced_multiply_chain.shared_boolean_convergence.is_none());
     }
+    let widened_multiply_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "widened_exact_multiply_chain_integer_comparison_convergence",
+        ))
+        .expect("the affine-widen-affine cohort retains its scalar-return plan");
+    assert!(
+        widened_multiply_chain.shared_boolean_convergence.is_some(),
+        "strict widening now joins independently proved source and target affine chains",
+    );
     for carrier in ["u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"] {
         let machine = format!("exact_shift_right_chain_{carrier}_integer_comparison_convergence");
         let shift_right_chain = checked
@@ -7114,7 +7261,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "runtime_count_exact_shift_right_chain_integer_comparison_convergence",
         "local_exact_shift_right_chain_integer_comparison_convergence",
         "right_associated_exact_shift_right_integer_comparison_convergence",
-        "widened_exact_shift_right_chain_integer_comparison_convergence",
     ] {
         let fenced_shift_right_chain = checked
             .facts
@@ -7132,6 +7278,21 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
                 .is_none()
         );
     }
+    let widened_shift_right_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "widened_exact_shift_right_chain_integer_comparison_convergence",
+        ))
+        .expect("the shift-widen-shift cohort retains its scalar-return plan");
+    assert!(
+        widened_shift_right_chain
+            .shared_boolean_convergence
+            .is_some(),
+        "strict widening now joins independently proved source and target shift chains",
+    );
     let mixed_shift_chain = checked
         .facts
         .flow
@@ -7212,7 +7373,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "runtime_count_exact_shift_left_chain_integer_comparison_convergence",
         "computed_count_exact_shift_left_chain_integer_comparison_convergence",
         "local_exact_shift_left_chain_integer_comparison_convergence",
-        "widened_exact_shift_left_chain_integer_comparison_convergence",
     ] {
         let fenced_shift_left_chain = checked
             .facts
@@ -7226,6 +7386,21 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             });
         assert!(fenced_shift_left_chain.shared_boolean_convergence.is_none());
     }
+    let widened_shift_left_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "widened_exact_shift_left_chain_integer_comparison_convergence",
+        ))
+        .expect("the shift-widen-shift cohort retains its scalar-return plan");
+    assert!(
+        widened_shift_left_chain
+            .shared_boolean_convergence
+            .is_some(),
+        "strict widening now joins independently proved source and target shift chains",
+    );
     let arithmetic_then_shift = checked
         .facts
         .flow
@@ -7255,7 +7430,6 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
         "runtime_sibling_mixed_exact_add_subtract_chain_integer_comparison_convergence",
         "right_associated_mixed_exact_add_subtract_chain_integer_comparison_convergence",
         "local_mixed_exact_add_subtract_chain_integer_comparison_convergence",
-        "widened_mixed_exact_add_subtract_chain_integer_comparison_convergence",
         "reversed_subtract_mixed_exact_add_subtract_chain_integer_comparison_convergence",
     ] {
         let fenced_mixed_chain = checked
@@ -7265,6 +7439,21 @@ fn nominal_scalar_cleanup_accepts_finite_short_circuit_continuation_chain() {
             .for_machine(machine_named(&checked, machine));
         assert!(fenced_mixed_chain.is_none_or(|plan| plan.shared_boolean_convergence.is_none()));
     }
+    let widened_mixed_affine_chain = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(
+            &checked,
+            "widened_mixed_exact_add_subtract_chain_integer_comparison_convergence",
+        ))
+        .expect("the affine-widen-affine cohort retains its scalar-return plan");
+    assert!(
+        widened_mixed_affine_chain
+            .shared_boolean_convergence
+            .is_some(),
+        "strict widening now joins independently proved source and target affine chains",
+    );
     for machine in [
         "nested_exact_add_feeds_multiply_integer_comparison_convergence",
         "nested_exact_subtract_feeds_multiply_integer_comparison_convergence",

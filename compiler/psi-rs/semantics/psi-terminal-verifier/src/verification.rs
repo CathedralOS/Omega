@@ -1869,60 +1869,183 @@ fn exact_integer_computed_prefix_cast_chain_interval_obligation(
                 Proposition::Equal(left, right) if left == &value => Some(right),
                 _ => None,
             })?;
+    if matches!(
+        definition,
+        ScalarTerm::ExactIntegerDivide { .. } | ScalarTerm::ExactIntegerRemainder { .. }
+    ) {
+        let hull = exact_integer_divide_remainder_chain_hull(
+            expected_target,
+            value,
+            semantic_axioms,
+            prior_axiom_count,
+            machine_parameter_values,
+        )?;
+        if hull.0 < cast_interval.0 || hull.1 > cast_interval.1 {
+            return None;
+        }
+        return exact_integer_carrier_total_hull_obligation(hull, interval);
+    }
+    exact_integer_computed_prefix_interval_obligation(
+        expected_target,
+        value,
+        interval,
+        semantic_axioms,
+        prior_axiom_count,
+        machine_parameter_values,
+    )
+}
+
+fn exact_integer_computed_prefix_interval_obligation(
+    value_type: psi_core::IntegerType,
+    value: ScalarTerm,
+    interval: (i128, i128),
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let definition = semantic_axioms[..definition_axiom_count.min(semantic_axioms.len())]
+        .iter()
+        .rev()
+        .find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == &value => Some(right),
+            _ => None,
+        })?;
     match definition {
         ScalarTerm::ExactIntegerDivide { .. } | ScalarTerm::ExactIntegerRemainder { .. } => {
             let hull = exact_integer_divide_remainder_chain_hull(
-                expected_target,
+                value_type,
                 value,
                 semantic_axioms,
-                prior_axiom_count,
+                definition_axiom_count,
                 machine_parameter_values,
             )?;
-            if hull.0 < cast_interval.0 || hull.1 > cast_interval.1 {
-                return None;
-            }
             exact_integer_carrier_total_hull_obligation(hull, interval)
         }
         ScalarTerm::ExactIntegerShiftLeft { .. } | ScalarTerm::ExactIntegerShiftRight { .. } => {
             exact_integer_shift_prefix_interval_obligation(
-                expected_target,
+                value_type,
                 value,
                 interval,
                 semantic_axioms,
-                prior_axiom_count,
+                definition_axiom_count,
                 machine_parameter_values,
             )
         }
         ScalarTerm::ExactIntegerAdd { .. } | ScalarTerm::ExactIntegerSubtract { .. } => {
             exact_integer_affine_prefix_interval_obligation(
-                expected_target,
+                value_type,
                 value,
                 interval,
                 semantic_axioms,
-                prior_axiom_count,
+                definition_axiom_count,
                 machine_parameter_values,
             )
         }
         ScalarTerm::ExactIntegerMultiply { .. } => exact_integer_affine_prefix_interval_obligation(
-            expected_target,
+            value_type,
             value.clone(),
             interval,
             semantic_axioms,
-            prior_axiom_count,
+            definition_axiom_count,
             machine_parameter_values,
         )
         .or_else(|| {
             exact_integer_signed_product_prefix_interval_obligation(
-                expected_target,
+                value_type,
                 value,
                 interval,
                 semantic_axioms,
-                prior_axiom_count,
+                definition_axiom_count,
                 machine_parameter_values,
             )
         }),
         _ => None,
     }
+}
+
+fn exact_integer_computed_prefix_widen_chain_interval_obligation(
+    target_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    requested_interval: (i128, i128),
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let mut expected_target = target_type;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut widen_count = 0_usize;
+    for _ in 0..=prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let ScalarTerm::IntegerWiden {
+            source_type,
+            target_type: widen_target,
+            operand,
+        } = definition
+        else {
+            break;
+        };
+        if *widen_target != expected_target || !source_type.can_widen_to(*widen_target) {
+            return None;
+        }
+        value = (**operand).clone();
+        expected_target = *source_type;
+        prior_axiom_count = definition_index;
+        widen_count += 1;
+    }
+    if widen_count == 0 {
+        return None;
+    }
+    let source_interval = fixed_integer_type_interval(expected_target)?;
+    let interval = (
+        requested_interval.0.max(source_interval.0),
+        requested_interval.1.min(source_interval.1),
+    );
+    exact_integer_computed_prefix_interval_obligation(
+        expected_target,
+        value,
+        interval,
+        semantic_axioms,
+        prior_axiom_count,
+        machine_parameter_values,
+    )
+}
+
+fn exact_integer_computed_prefix_conversion_interval_obligation(
+    target_type: psi_core::IntegerType,
+    value: ScalarTerm,
+    requested_interval: (i128, i128),
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    exact_integer_computed_prefix_cast_chain_interval_obligation(
+        target_type,
+        value.clone(),
+        requested_interval,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )
+    .or_else(|| {
+        exact_integer_computed_prefix_widen_chain_interval_obligation(
+            target_type,
+            value,
+            requested_interval,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    })
 }
 
 fn exact_integer_affine_prefix_interval_obligation(
@@ -2686,7 +2809,7 @@ fn exact_integer_cast_chain_then_shift_suffix_obligation(
                 Proposition::Falsehood
             });
         }
-        if let Some(obligation) = exact_integer_computed_prefix_cast_chain_interval_obligation(
+        if let Some(obligation) = exact_integer_computed_prefix_conversion_interval_obligation(
             value_type,
             value.clone(),
             interval,
@@ -7437,7 +7560,7 @@ fn exact_integer_cast_chain_then_affine_suffix_obligation(
         }
         let target_interval = fixed_integer_type_interval(target_type)?;
         if coefficient == 0 {
-            if exact_integer_computed_prefix_cast_chain_interval_obligation(
+            if exact_integer_computed_prefix_conversion_interval_obligation(
                 target_type,
                 variable.clone(),
                 target_interval,
@@ -7462,7 +7585,7 @@ fn exact_integer_cast_chain_then_affine_suffix_obligation(
             ) {
                 Ok(Some(interval)) => {
                     if let Some(obligation) =
-                        exact_integer_computed_prefix_cast_chain_interval_obligation(
+                        exact_integer_computed_prefix_conversion_interval_obligation(
                             target_type,
                             variable.clone(),
                             interval,
@@ -7475,7 +7598,7 @@ fn exact_integer_cast_chain_then_affine_suffix_obligation(
                     }
                 }
                 Ok(None) => {
-                    if exact_integer_computed_prefix_cast_chain_interval_obligation(
+                    if exact_integer_computed_prefix_conversion_interval_obligation(
                         target_type,
                         variable.clone(),
                         target_interval,
@@ -8385,7 +8508,7 @@ fn exact_integer_cast_chain_then_signed_product_suffix_obligation(
             let product = product?;
             let target_interval = fixed_integer_type_interval(target_type)?;
             if product.magnitude() == 0 {
-                if exact_integer_computed_prefix_cast_chain_interval_obligation(
+                if exact_integer_computed_prefix_conversion_interval_obligation(
                     target_type,
                     variable.clone(),
                     target_interval,
@@ -8420,7 +8543,7 @@ fn exact_integer_cast_chain_then_signed_product_suffix_obligation(
                     }
                 };
                 if let Some(obligation) =
-                    exact_integer_computed_prefix_cast_chain_interval_obligation(
+                    exact_integer_computed_prefix_conversion_interval_obligation(
                         target_type,
                         variable.clone(),
                         preimage,
@@ -13520,6 +13643,252 @@ mod tests {
             ),
             None,
             "reordered cast definitions remain fail-closed",
+        );
+    }
+
+    #[test]
+    fn computed_prefix_widen_chain_computed_suffix_composes_existing_interval_algebras() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let root_id = ValueId::new(2101).expect("widen sandwich root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(i8_type));
+        let source = ScalarTerm::value(
+            ValueId::new(2102).expect("source affine"),
+            ScalarType::Integer(i8_type),
+        );
+        let first = ScalarTerm::value(
+            ValueId::new(2103).expect("first widen"),
+            ScalarType::Integer(i16_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(2104).expect("second widen"),
+            ScalarType::Integer(i32_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                source.clone(),
+                ScalarTerm::exact_integer_add(
+                    i8_type,
+                    root.clone(),
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("root + 1"),
+            ),
+            Proposition::Equal(
+                first.clone(),
+                ScalarTerm::integer_widen(i8_type, i16_type, source).expect("i8 to i16"),
+            ),
+            Proposition::Equal(
+                second.clone(),
+                ScalarTerm::integer_widen(i16_type, i32_type, first).expect("i16 to i32"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_computed_prefix_widen_chain_interval_obligation(
+                i32_type,
+                second.clone(),
+                (0, 100),
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i8_type,
+                root.clone(),
+                -1,
+                99,
+            )),
+            "target intervals cross each strict widening before source inversion",
+        );
+        assert!(
+            exact_integer_cast_chain_then_affine_suffix_obligation(
+                i32_type,
+                second.clone(),
+                IntegerValue::Signed(1),
+                ExactIntegerAffineOperation::Add,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "target affine prefixes compose across the widening seam",
+        );
+        assert!(
+            exact_integer_cast_chain_then_signed_product_suffix_obligation(
+                i32_type,
+                second.clone(),
+                IntegerValue::Signed(-2),
+                &definitions,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "target signed products compose across the widening seam",
+        );
+        assert!(
+            exact_integer_cast_chain_then_shift_suffix_obligation(
+                i32_type,
+                second.clone(),
+                1,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "target left shifts compose across the widening seam",
+        );
+        assert_eq!(
+            exact_integer_cast_chain_then_affine_suffix_obligation(
+                i32_type,
+                second.clone(),
+                IntegerValue::Signed(0),
+                ExactIntegerAffineOperation::Multiply,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::Truth),
+            "zero decides only its target prefix after full widening-shape validation",
+        );
+
+        let product_root_id = ValueId::new(2111).expect("product root");
+        let product_root = ScalarTerm::value(product_root_id, ScalarType::Integer(i8_type));
+        let product = ScalarTerm::value(
+            ValueId::new(2112).expect("signed product"),
+            ScalarType::Integer(i8_type),
+        );
+        let product_widened = ScalarTerm::value(
+            ValueId::new(2113).expect("product widened"),
+            ScalarType::Integer(i16_type),
+        );
+        let product_definitions = vec![
+            Proposition::Equal(
+                product.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i8_type,
+                    product_root,
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(-2)).expect("-2i8"),
+                )
+                .expect("root * -2"),
+            ),
+            Proposition::Equal(
+                product_widened.clone(),
+                ScalarTerm::integer_widen(i8_type, i16_type, product).expect("i8 to i16"),
+            ),
+        ];
+        assert!(
+            exact_integer_computed_prefix_widen_chain_interval_obligation(
+                i16_type,
+                product_widened,
+                (-100, 100),
+                &product_definitions,
+                product_definitions.len(),
+                &BTreeSet::from([product_root_id]),
+            )
+            .is_some(),
+            "negative source products retain reversed inverse replay",
+        );
+
+        let shift_root_id = ValueId::new(2121).expect("shift root");
+        let shift_root = ScalarTerm::value(shift_root_id, ScalarType::Integer(u8_type));
+        let shifted = ScalarTerm::value(
+            ValueId::new(2122).expect("shifted"),
+            ScalarType::Integer(u8_type),
+        );
+        let shift_widened = ScalarTerm::value(
+            ValueId::new(2123).expect("shift widened"),
+            ScalarType::Integer(i16_type),
+        );
+        let shift_definitions = vec![
+            Proposition::Equal(
+                shifted.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    u8_type,
+                    u8_type,
+                    shift_root,
+                    ScalarTerm::integer(u8_type, IntegerValue::Unsigned(1)).expect("1u8"),
+                )
+                .expect("root >> 1"),
+            ),
+            Proposition::Equal(
+                shift_widened.clone(),
+                ScalarTerm::integer_widen(u8_type, i16_type, shifted).expect("u8 to i16"),
+            ),
+        ];
+        assert!(
+            exact_integer_computed_prefix_widen_chain_interval_obligation(
+                i16_type,
+                shift_widened,
+                (0, 100),
+                &shift_definitions,
+                shift_definitions.len(),
+                &BTreeSet::from([shift_root_id]),
+            )
+            .is_some(),
+            "source shifts retain their ordered inverse replay",
+        );
+
+        let divide_root_id = ValueId::new(2131).expect("divide root");
+        let divide_root = ScalarTerm::value(divide_root_id, ScalarType::Integer(u8_type));
+        let remainder = ScalarTerm::value(
+            ValueId::new(2132).expect("remainder"),
+            ScalarType::Integer(u8_type),
+        );
+        let remainder_widened = ScalarTerm::value(
+            ValueId::new(2133).expect("remainder widened"),
+            ScalarType::Integer(i16_type),
+        );
+        let divide_definitions = vec![
+            Proposition::Equal(
+                remainder.clone(),
+                ScalarTerm::exact_integer_remainder(
+                    u8_type,
+                    divide_root,
+                    ScalarTerm::integer(u8_type, IntegerValue::Unsigned(3)).expect("3u8"),
+                )
+                .expect("root % 3"),
+            ),
+            Proposition::Equal(
+                remainder_widened.clone(),
+                ScalarTerm::integer_widen(u8_type, i16_type, remainder).expect("u8 to i16"),
+            ),
+        ];
+        let divide_parameters = BTreeSet::from([divide_root_id]);
+        for (interval, expected) in [
+            ((0, 2), Some(Proposition::Truth)),
+            ((3, 4), Some(Proposition::Falsehood)),
+            ((0, 1), None),
+        ] {
+            assert_eq!(
+                exact_integer_computed_prefix_widen_chain_interval_obligation(
+                    i16_type,
+                    remainder_widened.clone(),
+                    interval,
+                    &divide_definitions,
+                    divide_definitions.len(),
+                    &divide_parameters,
+                ),
+                expected,
+            );
+        }
+
+        let mut stale = definitions;
+        stale.swap(1, 2);
+        assert_eq!(
+            exact_integer_cast_chain_then_affine_suffix_obligation(
+                i32_type,
+                second,
+                IntegerValue::Signed(1),
+                ExactIntegerAffineOperation::Add,
+                &stale,
+                stale.len(),
+                &parameters,
+            ),
+            None,
+            "reordered widening definitions remain fail-closed",
         );
     }
 
