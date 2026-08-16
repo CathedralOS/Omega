@@ -45191,6 +45191,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_let_mut_reassign_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
     "calls/runtime_value_call_statement_recursive_walk_exit",
+    "control_flow/arm_pattern_rest_optout_exit",
     "control_flow/case_pattern_rename_waive_exit",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_branching_helper_value",
