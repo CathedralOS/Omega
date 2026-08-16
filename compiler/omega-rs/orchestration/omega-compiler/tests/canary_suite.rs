@@ -17101,6 +17101,25 @@ fn provider_type_target_default_canary_selects_target_default() {
 }
 
 #[test]
+fn provider_type_target_default_override_canary_selects_build_override() {
+    let canary = pass_canary("providers/provider_type_target_default_override");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("build provider override should resolve the Pick slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let pick_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Pick")
+        .expect("Pick must retain its selected build-override provider plan");
+    assert_eq!(pick_plan.provider_type, "SecondProvider");
+}
+
+#[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 standard self-forwarding adapter: the receiver forwards as argument
     // 0, and std Console::write reaches the write_byte leaf through that same
@@ -45246,6 +45265,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "providers/runtime_adapter_dispatch_exit",
     "providers/provider_type_slot_selected",
     "providers/provider_type_target_default",
+    "providers/provider_type_target_default_override",
     "providers/runtime_adapter_forwarding_exit",
     "providers/runtime_boundary_capability_state_forwarding_exit",
     "providers/checked_boundary_operator_dispatch_exit",
