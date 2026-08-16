@@ -405,7 +405,7 @@ fn validate_qualification_receipt(
 fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts::ProgramPoint) {
     use psi_facts::ProgramPoint;
 
-    let (machine_symbol, state_symbol, statement_index) = match point {
+    let (machine_symbol, state_symbol, statement_index, call_ordinal) = match point {
         ProgramPoint::Global | ProgramPoint::Definition { .. } => return,
         ProgramPoint::Machine { machine_symbol } => {
             program
@@ -418,35 +418,40 @@ fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts
         ProgramPoint::State {
             machine_symbol,
             state_symbol,
-        } => (machine_symbol, state_symbol, None),
+        } => (machine_symbol, state_symbol, None, None),
         ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             statement_index,
-        }
-        | ProgramPoint::Call {
+        } => (machine_symbol, state_symbol, Some(statement_index), None),
+        ProgramPoint::Call {
             machine_symbol,
             state_symbol,
             statement_index,
-            ..
+            call_ordinal,
         }
         | ProgramPoint::CallRequires {
             machine_symbol,
             state_symbol,
             statement_index,
-            ..
+            call_ordinal,
         }
         | ProgramPoint::CallEnsures {
             machine_symbol,
             state_symbol,
             statement_index,
-            ..
-        }
-        | ProgramPoint::Exit {
+            call_ordinal,
+        } => (
+            machine_symbol,
+            state_symbol,
+            Some(statement_index),
+            Some(call_ordinal),
+        ),
+        ProgramPoint::Exit {
             machine_symbol,
             state_symbol,
             statement_index,
-        } => (machine_symbol, state_symbol, Some(statement_index)),
+        } => (machine_symbol, state_symbol, Some(statement_index), None),
     };
     let machine = program
         .machines()
@@ -468,6 +473,32 @@ fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts
                     .statements(state.statement_nodes)
                     .len(),
             "qualification evidence program point statement index must be within its exact typed state",
+        );
+    }
+    if let (Some(statement_index), Some(call_ordinal)) = (statement_index, call_ordinal) {
+        let flow_state = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .find(|(_, state)| {
+                state.machine_symbol == machine_symbol && state.state_symbol == state_symbol
+            })
+            .map(|(_, state)| state)
+            .expect("qualification evidence call point must name an exact checked flow state");
+        assert!(
+            program
+                .facts
+                .flow
+                .control
+                .calls
+                .span_or_empty(flow_state.calls)
+                .iter()
+                .any(|call| {
+                    call.statement_index == statement_index && call.call_ordinal == call_ordinal
+                }),
+            "qualification evidence call point must name an exact owned checked flow call",
         );
     }
 }
@@ -3345,7 +3376,7 @@ mod tests {
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
-        ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
+        ContentPartitionResultRewrite, DataCarryFact, FlowCallFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
         MachineContractPlan, MachineMutationFact, MachineServiceReachRows, StateWriteFramePlan,
         SuspensionCrossingCarryFact, VacuousQualificationUse,
@@ -4040,6 +4071,21 @@ mod tests {
         }
         program.typed.push_machine_state(&mut machine, state);
         program.typed.push_machine(machine);
+        let mut calls = Default::default();
+        program.facts.flow.control.calls.append_to_span(
+            &mut calls,
+            FlowCallFact {
+                statement_index: 2,
+                call_ordinal: 1,
+                ..Default::default()
+            },
+        );
+        program.facts.flow.control.states.append(FlowStateFact {
+            machine_symbol,
+            state_symbol,
+            calls,
+            ..Default::default()
+        });
         let (requirement_owner, requirement) =
             push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
         let place = program.facts.semantic.append_symbol_place(subject);
@@ -4242,6 +4288,89 @@ mod tests {
                 machine_symbol,
                 state_symbol,
                 statement_index: 1,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "call point must name an exact checked flow state")]
+    fn qualification_manifest_rejects_call_without_flow_state() {
+        let machine_symbol = SymbolHandle::from_arena_index(80);
+        let state_symbol = SymbolHandle::from_arena_index(81);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Worker::run"),
+            ..Default::default()
+        };
+        let mut state = State {
+            symbol: state_symbol,
+            name: Identifier::generated("run"),
+            ..Default::default()
+        };
+        program
+            .typed
+            .statement_table
+            .push_statement(&mut state.statement_nodes, Default::default());
+        program.typed.push_machine_state(&mut machine, state);
+        program.typed.push_machine(machine);
+
+        validate_qualification_program_point(
+            &program,
+            ProgramPoint::Call {
+                machine_symbol,
+                state_symbol,
+                statement_index: 0,
+                call_ordinal: 0,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "call point must name an exact owned checked flow call")]
+    fn qualification_manifest_rejects_wrong_call_ordinal() {
+        let machine_symbol = SymbolHandle::from_arena_index(80);
+        let state_symbol = SymbolHandle::from_arena_index(81);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Worker::run"),
+            ..Default::default()
+        };
+        let mut state = State {
+            symbol: state_symbol,
+            name: Identifier::generated("run"),
+            ..Default::default()
+        };
+        program
+            .typed
+            .statement_table
+            .push_statement(&mut state.statement_nodes, Default::default());
+        program.typed.push_machine_state(&mut machine, state);
+        program.typed.push_machine(machine);
+        let mut calls = Default::default();
+        program.facts.flow.control.calls.append_to_span(
+            &mut calls,
+            FlowCallFact {
+                statement_index: 0,
+                call_ordinal: 1,
+                ..Default::default()
+            },
+        );
+        program.facts.flow.control.states.append(FlowStateFact {
+            machine_symbol,
+            state_symbol,
+            calls,
+            ..Default::default()
+        });
+
+        validate_qualification_program_point(
+            &program,
+            ProgramPoint::CallEnsures {
+                machine_symbol,
+                state_symbol,
+                statement_index: 0,
+                call_ordinal: 2,
             },
         );
     }
