@@ -926,10 +926,18 @@ pub fn index_compatibility_manifest_json(program: &CheckedTrees) -> String {
 pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     let ownership = &program.facts.flow.ownership;
     let mut json = String::from("{\n  \"claim_outcome_maps\": [");
+    let mut claim_outcome_coordinates = Vec::new();
     for (map_index, (_, map)) in ownership.claim_outcome_maps.iter().enumerate() {
         if map_index > 0 {
             json.push(',');
         }
+        let coordinate = (map.machine_symbol, map.state_symbol);
+        assert!(
+            !claim_outcome_coordinates.contains(&coordinate),
+            "claim outcome maps must retain one row per exact machine and state",
+        );
+        claim_outcome_coordinates.push(coordinate);
+        let entries = validated_claim_outcome_entries(program, map);
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, map.machine_symbol));
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -944,12 +952,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             &state_label_from_symbol(program, map.state_symbol),
         );
         json.push_str(",\n      \"entries\": [");
-        for (entry_index, entry) in ownership
-            .claim_outcome_entries
-            .span_or_empty(map.entries)
-            .iter()
-            .enumerate()
-        {
+        for (entry_index, entry) in entries.iter().enumerate() {
             if entry_index > 0 {
                 json.push(',');
             }
@@ -1246,6 +1249,121 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn validated_claim_outcome_entries<'program>(
+    program: &'program CheckedTrees,
+    map: &psi_checked_trees::FlowClaimOutcomeMapFact,
+) -> &'program [psi_checked_trees::FlowClaimOutcomeEntryFact] {
+    use psi_checked_trees::FlowClaimOutcomeSource;
+    use psi_language_semantics::{
+        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+        PermissionProvenance,
+    };
+
+    let ownership = &program.facts.flow.ownership;
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == map.machine_symbol);
+    let machine = machines
+        .next()
+        .expect("claim outcome map must name an exact typed machine");
+    assert!(
+        machines.next().is_none(),
+        "claim outcome map machine must resolve to exactly one typed machine",
+    );
+    let mut states = program
+        .machine_states(machine)
+        .iter()
+        .filter(|state| state.symbol == map.state_symbol);
+    let state = states
+        .next()
+        .expect("claim outcome map state must belong to its exact typed machine");
+    assert!(
+        states.next().is_none(),
+        "claim outcome map state must resolve to exactly one state owned by its machine",
+    );
+    let entries = ownership
+        .claim_outcome_entries
+        .span(map.entries)
+        .expect("claim outcome map must retain an exact valid entry span");
+    let mut output_paths = Vec::new();
+    for entry in entries {
+        let output_path = ownership
+            .segments
+            .span(entry.output_segments)
+            .expect("claim outcome entry must retain an exact valid output path span");
+        assert!(
+            !output_paths.contains(&output_path),
+            "claim outcome map must retain one entry per exact output path",
+        );
+        output_paths.push(output_path);
+        match entry.source {
+            FlowClaimOutcomeSource::Unknown => {
+                panic!("claim outcome entry must retain an exact known source")
+            }
+            FlowClaimOutcomeSource::Input {
+                parameter_symbol,
+                segments,
+            } => {
+                assert!(
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .any(|parameter| parameter.symbol == parameter_symbol),
+                    "claim outcome input source must name an exact parameter owned by its state",
+                );
+                let source_path = ownership
+                    .segments
+                    .span(segments)
+                    .expect("claim outcome input source must retain an exact valid path span");
+                let mut origins = Vec::new();
+                for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
+                    event.machine_symbol == map.machine_symbol
+                        && event.state_symbol == map.state_symbol
+                        && event.source == PermissionEventSource::StateEntry
+                        && event.kind == PermissionEventKind::Establish
+                        && event.access == PermissionAccess::Owned
+                        && event.obligation_live
+                        && event.root == psi_facts::PlaceRoot::Symbol(parameter_symbol)
+                        && ownership.segments.span(event.segments) == Some(source_path)
+                        && event.claim_identity != PermissionClaimIdentity::Unknown
+                        && event.provenance != PermissionProvenance::Unknown
+                }) {
+                    let origin = (event.claim_identity, event.provenance);
+                    if !origins.contains(&origin) {
+                        origins.push(origin);
+                    }
+                }
+                assert_eq!(
+                    origins.len(),
+                    1,
+                    "claim outcome input source must resolve to one distinct live retained permission origin",
+                );
+            }
+            FlowClaimOutcomeSource::Established {
+                claim_identity,
+                provenance,
+            } => {
+                assert!(
+                    claim_identity != PermissionClaimIdentity::Unknown,
+                    "claim outcome established source must retain a non-unknown claim identity",
+                );
+                assert!(
+                    provenance != PermissionProvenance::Unknown,
+                    "claim outcome established source must retain non-unknown provenance",
+                );
+                assert!(
+                    ownership.permissions.iter().any(|(_, event)| {
+                        event.claim_identity == claim_identity && event.provenance == provenance
+                    }),
+                    "claim outcome established source must match one retained permission event",
+                );
+            }
+        }
+    }
+    entries
 }
 
 fn validated_content_projection_plans(
@@ -3893,9 +4011,10 @@ mod tests {
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowCallFact, FlowClaimOutcomeEntryFact,
-        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
-        MachineContractPlan, MachineMutationFact, MachineQualifications, MachineServiceReachRows,
-        StateWriteFramePlan, SuspensionCrossingCarryFact, VacuousQualificationUse,
+        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowPermissionEventFact, FlowStateFact,
+        MachineActivationCarryFact, MachineContractPlan, MachineMutationFact,
+        MachineQualifications, MachineServiceReachRows, StateWriteFramePlan,
+        SuspensionCrossingCarryFact, VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, Place, PlaceRoot, ProgramPoint,
@@ -3910,7 +4029,8 @@ mod tests {
     };
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, BlockingSummary, CarryAddress, CarryCpu, CarryHostThread,
-        CarryPolicy, CarrySuspension, MachineSupplyMode, MachineTerminationPlan,
+        CarryPolicy, CarrySuspension, MachineSupplyMode, MachineTerminationPlan, PermissionAccess,
+        PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PermissionProvenance,
         QualificationEvidenceOrigin, RankingViewId, RankingWitness, SemanticDomainId,
         SuspensionInterface, SuspensionPlan, SuspensionSummary, TerminationGuarantee,
         TerminationInterface,
@@ -3922,7 +4042,7 @@ mod tests {
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::operator::OperatorDefinition;
-    use psi_typed_trees::signature::StateSignature;
+    use psi_typed_trees::signature::{StateParameter, StateSignature};
     use psi_typed_trees::state::State;
     use psi_typed_trees::statement::StatementNode;
     use psi_typed_trees::trait_definition::TraitDefinition;
@@ -4252,6 +4372,404 @@ mod tests {
             machine_blocking_summary(&program, unknown_machine),
             BlockingSummary::default()
         );
+    }
+
+    fn claim_outcome_validation_fixture() -> (
+        CheckedTrees,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+    ) {
+        let machine_symbol = SymbolHandle::from_arena_index(100);
+        let state_symbol = SymbolHandle::from_arena_index(101);
+        let parameter_symbol = SymbolHandle::from_arena_index(102);
+        let other_machine_symbol = SymbolHandle::from_arena_index(103);
+        let other_state_symbol = SymbolHandle::from_arena_index(104);
+        let mut program = CheckedTrees::default();
+        for (machine, state, machine_name, state_name) in [
+            (machine_symbol, state_symbol, "Claims::map", "map"),
+            (
+                other_machine_symbol,
+                other_state_symbol,
+                "OtherClaims::map",
+                "map",
+            ),
+        ] {
+            let mut machine_definition = Machine {
+                symbol: machine,
+                name: Identifier::generated(machine_name),
+                ..Default::default()
+            };
+            let mut state_definition = State {
+                symbol: state,
+                name: Identifier::generated(state_name),
+                ..Default::default()
+            };
+            if machine == machine_symbol {
+                program.typed.push_state_parameter(
+                    &mut state_definition,
+                    StateParameter {
+                        symbol: parameter_symbol,
+                        name: Identifier::generated("resource"),
+                        ..Default::default()
+                    },
+                );
+            }
+            program
+                .typed
+                .push_machine_state(&mut machine_definition, state_definition);
+            program.typed.push_machine(machine_definition);
+        }
+        let input_identity = PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::StateEntry,
+            ordinal: 0,
+        };
+        let input_provenance = PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::StateEntry,
+        };
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source: PermissionEventSource::StateEntry,
+                kind: PermissionEventKind::Establish,
+                access: PermissionAccess::Owned,
+                claim_identity: input_identity,
+                provenance: input_provenance,
+                root: PlaceRoot::Symbol(parameter_symbol),
+                obligation_live: true,
+                ..Default::default()
+            });
+        let established_identity = PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::Statement { statement_index: 0 },
+            ordinal: 1,
+        };
+        let established_provenance = PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::Statement { statement_index: 0 },
+        };
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source: PermissionEventSource::Statement { statement_index: 0 },
+                kind: PermissionEventKind::Transfer,
+                access: PermissionAccess::Owned,
+                claim_identity: established_identity,
+                provenance: established_provenance,
+                root: PlaceRoot::Symbol(state_symbol),
+                obligation_live: true,
+                ..Default::default()
+            });
+        let input_output = program
+            .facts
+            .flow
+            .ownership
+            .segments
+            .insert_many([psi_facts::PlaceSegment::FixedIndex { index: 0 }]);
+        let established_output = program
+            .facts
+            .flow
+            .ownership
+            .segments
+            .insert_many([psi_facts::PlaceSegment::FixedIndex { index: 1 }]);
+        let entries = program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_entries
+            .insert_many([
+                FlowClaimOutcomeEntryFact {
+                    output_segments: input_output,
+                    source: FlowClaimOutcomeSource::Input {
+                        parameter_symbol,
+                        segments: Default::default(),
+                    },
+                },
+                FlowClaimOutcomeEntryFact {
+                    output_segments: established_output,
+                    source: FlowClaimOutcomeSource::Established {
+                        claim_identity: established_identity,
+                        provenance: established_provenance,
+                    },
+                },
+            ]);
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .insert(FlowClaimOutcomeMapFact {
+                machine_symbol,
+                state_symbol,
+                entries,
+            });
+        (
+            program,
+            machine_symbol,
+            state_symbol,
+            parameter_symbol,
+            other_machine_symbol,
+            other_state_symbol,
+        )
+    }
+
+    fn first_claim_outcome_entries_mut(
+        program: &mut CheckedTrees,
+    ) -> &mut [FlowClaimOutcomeEntryFact] {
+        let entries = program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .iter()
+            .next()
+            .expect("fixture map")
+            .1
+            .entries;
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_entries
+            .span_mut(entries)
+            .expect("fixture entries")
+    }
+
+    #[test]
+    fn claim_outcome_manifest_accepts_exact_sources_and_explicit_empty_map() {
+        let (mut program, _, _, _, other_machine, other_state) = claim_outcome_validation_fixture();
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .insert(FlowClaimOutcomeMapFact {
+                machine_symbol: other_machine,
+                state_symbol: other_state,
+                entries: Default::default(),
+            });
+
+        let json = claim_outcome_manifest_json(&program);
+        assert!(json.contains("\"kind\": \"input\""));
+        assert!(json.contains("\"kind\": \"established\""));
+        assert_eq!(json.matches("\"entries\": [").count(), 2);
+        assert!(json.contains("\"entries\": [\n      ]"));
+    }
+
+    #[test]
+    #[should_panic(expected = "state must belong to its exact typed machine")]
+    fn claim_outcome_manifest_rejects_cross_machine_state() {
+        let (mut program, _, _, _, _, other_state) = claim_outcome_validation_fixture();
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .for_each_mut(|_, map| map.state_symbol = other_state);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "one row per exact machine and state")]
+    fn claim_outcome_manifest_rejects_duplicate_map_coordinate() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        let duplicate = program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .iter()
+            .next()
+            .expect("fixture map")
+            .1
+            .clone();
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .insert(duplicate);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "exact valid entry span")]
+    fn claim_outcome_manifest_rejects_invalid_entry_span() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .for_each_mut(|_, map| {
+                map.entries =
+                    psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(999), 1);
+            });
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "exact valid output path span")]
+    fn claim_outcome_manifest_rejects_invalid_output_path_span() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[0].output_segments =
+            psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(999), 1);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "one entry per exact output path")]
+    fn claim_outcome_manifest_rejects_duplicate_output_path() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        let entries = first_claim_outcome_entries_mut(&mut program);
+        entries[1].output_segments = entries[0].output_segments;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain an exact known source")]
+    fn claim_outcome_manifest_rejects_unknown_source() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[0].source = FlowClaimOutcomeSource::Unknown;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "exact parameter owned by its state")]
+    fn claim_outcome_manifest_rejects_missing_input_parameter() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[0].source = FlowClaimOutcomeSource::Input {
+            parameter_symbol: SymbolHandle::from_arena_index(999),
+            segments: Default::default(),
+        };
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "input source must retain an exact valid path span")]
+    fn claim_outcome_manifest_rejects_invalid_input_path_span() {
+        let (mut program, _, _, parameter, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[0].source = FlowClaimOutcomeSource::Input {
+            parameter_symbol: parameter,
+            segments: psi_arena::HandleSpan::from_parts(
+                psi_arena::Handle::from_arena_index(999),
+                1,
+            ),
+        };
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "one distinct live retained permission origin")]
+    fn claim_outcome_manifest_rejects_absent_input_origin() {
+        let (mut program, ..) = claim_outcome_validation_fixture();
+        program.facts.flow.ownership.permissions = Default::default();
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "one distinct live retained permission origin")]
+    fn claim_outcome_manifest_rejects_ambiguous_input_origin() {
+        let (mut program, machine, state, parameter, ..) = claim_outcome_validation_fixture();
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: PermissionEventSource::StateEntry,
+                kind: PermissionEventKind::Establish,
+                access: PermissionAccess::Owned,
+                claim_identity: PermissionClaimIdentity::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::StateEntry,
+                    ordinal: 9,
+                },
+                provenance: PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::StateEntry,
+                },
+                root: PlaceRoot::Symbol(parameter),
+                obligation_live: true,
+                ..Default::default()
+            });
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "non-unknown claim identity")]
+    fn claim_outcome_manifest_rejects_unknown_established_identity() {
+        let (mut program, machine, state, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[1].source =
+            FlowClaimOutcomeSource::Established {
+                claim_identity: PermissionClaimIdentity::Unknown,
+                provenance: PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::Statement { statement_index: 0 },
+                },
+            };
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain non-unknown provenance")]
+    fn claim_outcome_manifest_rejects_unknown_established_provenance() {
+        let (mut program, machine, state, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[1].source =
+            FlowClaimOutcomeSource::Established {
+                claim_identity: PermissionClaimIdentity::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::Statement { statement_index: 0 },
+                    ordinal: 1,
+                },
+                provenance: PermissionProvenance::Unknown,
+            };
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must match one retained permission event")]
+    fn claim_outcome_manifest_rejects_detached_established_pair() {
+        let (mut program, machine, state, ..) = claim_outcome_validation_fixture();
+        first_claim_outcome_entries_mut(&mut program)[1].source =
+            FlowClaimOutcomeSource::Established {
+                claim_identity: PermissionClaimIdentity::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::Statement { statement_index: 0 },
+                    ordinal: 99,
+                },
+                provenance: PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::Statement { statement_index: 0 },
+                },
+            };
+        claim_outcome_manifest_json(&program);
     }
 
     fn content_projection_validation_fixture() -> CheckedTrees {
@@ -4716,20 +5234,27 @@ mod tests {
         let projection_state_symbol = SymbolHandle::from_arena_index(23);
         let domain_symbol = SymbolHandle::from_arena_index(24);
         let carrier_symbol = SymbolHandle::from_arena_index(25);
+        let parameter_symbol = SymbolHandle::from_arena_index(26);
         let mut program = CheckedTrees::default();
         let mut machine = Machine {
             symbol: machine_symbol,
             name: Identifier::generated("Region::partition"),
             ..Default::default()
         };
-        program.typed.push_machine_state(
-            &mut machine,
-            State {
-                symbol: state_symbol,
-                name: Identifier::generated("entry"),
+        let mut state = State {
+            symbol: state_symbol,
+            name: Identifier::generated("entry"),
+            ..Default::default()
+        };
+        program.typed.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated("region"),
                 ..Default::default()
             },
         );
+        program.typed.push_machine_state(&mut machine, state);
         program.typed.push_machine(machine);
         let mut projection_machine = Machine {
             symbol: projection_machine_symbol,
@@ -4771,6 +5296,62 @@ mod tests {
                 symbol: SymbolHandle::invalid(),
             },
         ]);
+        let input_identity = PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::StateEntry,
+            ordinal: 6,
+        };
+        let input_provenance = PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::StateEntry,
+        };
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source: PermissionEventSource::StateEntry,
+                kind: PermissionEventKind::Establish,
+                access: PermissionAccess::Owned,
+                claim_identity: input_identity,
+                provenance: input_provenance,
+                root: PlaceRoot::Symbol(parameter_symbol),
+                obligation_live: true,
+                ..Default::default()
+            });
+        let established_identity = PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::Statement { statement_index: 2 },
+            ordinal: 7,
+        };
+        let established_provenance = PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::StateEntry,
+        };
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source: PermissionEventSource::Statement { statement_index: 2 },
+                kind: PermissionEventKind::Transfer,
+                access: PermissionAccess::Owned,
+                claim_identity: established_identity,
+                provenance: established_provenance,
+                root: PlaceRoot::Symbol(state_symbol),
+                obligation_live: true,
+                ..Default::default()
+            });
         let entries = program
             .facts
             .flow
@@ -4780,27 +5361,15 @@ mod tests {
                 FlowClaimOutcomeEntryFact {
                     output_segments,
                     source: FlowClaimOutcomeSource::Input {
-                        parameter_symbol: SymbolHandle::invalid(),
+                        parameter_symbol,
                         segments: Default::default(),
                     },
                 },
                 FlowClaimOutcomeEntryFact {
                     output_segments: Default::default(),
                     source: FlowClaimOutcomeSource::Established {
-                        claim_identity:
-                            psi_language_semantics::PermissionClaimIdentity::Established {
-                                machine_symbol: SymbolHandle::invalid(),
-                                state_symbol: SymbolHandle::invalid(),
-                                source: psi_language_semantics::PermissionEventSource::Statement {
-                                    statement_index: 2,
-                                },
-                                ordinal: 7,
-                            },
-                        provenance: psi_language_semantics::PermissionProvenance::Established {
-                            machine_symbol: SymbolHandle::invalid(),
-                            state_symbol: SymbolHandle::invalid(),
-                            source: psi_language_semantics::PermissionEventSource::StateEntry,
-                        },
+                        claim_identity: established_identity,
+                        provenance: established_provenance,
                     },
                 },
             ]);
