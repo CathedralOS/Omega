@@ -45183,6 +45183,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/arm_pattern_rest_optout_exit",
     "control_flow/case_pattern_rename_waive_exit",
     "control_flow/runtime_boolean_or_guard_exit",
+    "control_flow/runtime_branching_helper_string",
     "control_flow/runtime_branching_helper_value",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
