@@ -45159,6 +45159,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_branching_helper_value",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
+    "control_flow/runtime_integer_literal_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_nested_branch_value",
