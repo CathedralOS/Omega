@@ -36648,6 +36648,20 @@ fn named_float_to_integer_trapping_requirements_trap_in_both_engines() {
 
 #[test]
 fn named_float_provider_calls_rewrite_to_selected_builtins() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct FloatProviderContract {
+        intrinsic: String,
+        parameter_count: usize,
+        parameter_type_identities: Vec<String>,
+        has_result: bool,
+        result_type_identity: Option<String>,
+        service_reach: Vec<String>,
+        synchronous_invocations: Vec<String>,
+        may_suspend: bool,
+        may_block: bool,
+        terminates_guarantee: bool,
+    }
+
     const DIFFERENTIAL_SUITE_ID: &str =
         "omega.float.hardware.macos_arm64.minimum-maximum-square-root.v1";
     const DIFFERENTIAL_COVERAGE: &[&str] = &[
@@ -36658,13 +36672,14 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         "binary32 exact square root",
         "binary64 exact square root",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8832_03eb_f03f_0646;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x95b9_9ee8_79ba_1128;
 
     let canary = pass_canary("float/named_provider_min_max_sqrt_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float provider calls should compile to checked trees");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
+    let mut selected_contract_rows = std::collections::BTreeMap::new();
     for operator_use in checked.facts.operators.named_uses() {
         if operator_use.provider_plan_identity == 0 {
             continue;
@@ -36676,11 +36691,39 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
         };
+        let [method] = plan.schema.methods.as_slice() else {
+            panic!("named float plan must contain exactly one service method");
+        };
+        assert_eq!(plan.schema.trait_name, method.requirement_identity);
+        assert_eq!(method.requirement_owner, method.requirement_identity);
+        assert_eq!(method.name, "realize");
+        assert_eq!(row.method, method.name);
+        assert_eq!(row.requirement_identity, method.requirement_identity);
         let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
             &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
+        let contract = FloatProviderContract {
+            intrinsic: name.clone(),
+            parameter_count: method.parameter_count,
+            parameter_type_identities: method.parameter_type_identities.clone(),
+            has_result: method.has_result,
+            result_type_identity: method.result_type_identity.clone(),
+            service_reach: method.service_reach.clone(),
+            synchronous_invocations: method.synchronous_invocations.clone(),
+            may_suspend: method.may_suspend,
+            may_block: method.may_block,
+            terminates_guarantee: method.terminates_guarantee,
+        };
+        match selected_contract_rows.entry(method.requirement_identity.clone()) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(contract);
+            }
+            std::collections::btree_map::Entry::Occupied(entry) => {
+                assert_eq!(entry.get(), &contract, "selected provider contract drifted");
+            }
+        }
         selected_intrinsics.insert(name.clone());
         selected_plan_identities.push(plan.identity_fingerprint());
 
@@ -36732,6 +36775,78 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         .into_iter()
         .collect()
     );
+    let expected_contract =
+        |intrinsic: &str, parameter_type_identities: &[&str], result_type_identity: &str| {
+            FloatProviderContract {
+                intrinsic: intrinsic.to_owned(),
+                parameter_count: parameter_type_identities.len(),
+                parameter_type_identities: parameter_type_identities
+                    .iter()
+                    .map(|identity| (*identity).to_owned())
+                    .collect(),
+                has_result: true,
+                result_type_identity: Some(result_type_identity.to_owned()),
+                service_reach: Vec::new(),
+                synchronous_invocations: Vec::new(),
+                may_suspend: false,
+                may_block: false,
+                terminates_guarantee: false,
+            }
+        };
+    let expected_contract_rows: std::collections::BTreeMap<_, _> = [
+        (
+            "operator::F32::maximum(named(name(f32)),named(name(f32)))->named(name(f32))",
+            expected_contract(
+                "F32::maximum.f32",
+                &["named(name(f32))", "named(name(f32))"],
+                "named(name(f32))",
+            ),
+        ),
+        (
+            "operator::F32::minimum(named(name(f32)),named(name(f32)))->named(name(f32))",
+            expected_contract(
+                "F32::minimum.f32",
+                &["named(name(f32))", "named(name(f32))"],
+                "named(name(f32))",
+            ),
+        ),
+        (
+            "operator::F32::square_root(named(name(f32)))->named(name(f32))",
+            expected_contract(
+                "F32::square_root.f32",
+                &["named(name(f32))"],
+                "named(name(f32))",
+            ),
+        ),
+        (
+            "operator::F64::maximum(named(name(f64)),named(name(f64)))->named(name(f64))",
+            expected_contract(
+                "F64::maximum.f64",
+                &["named(name(f64))", "named(name(f64))"],
+                "named(name(f64))",
+            ),
+        ),
+        (
+            "operator::F64::minimum(named(name(f64)),named(name(f64)))->named(name(f64))",
+            expected_contract(
+                "F64::minimum.f64",
+                &["named(name(f64))", "named(name(f64))"],
+                "named(name(f64))",
+            ),
+        ),
+        (
+            "operator::F64::square_root(named(name(f64)))->named(name(f64))",
+            expected_contract(
+                "F64::square_root.f64",
+                &["named(name(f64))"],
+                "named(name(f64))",
+            ),
+        ),
+    ]
+    .into_iter()
+    .map(|(requirement, contract)| (requirement.to_owned(), contract))
+    .collect();
+    assert_eq!(selected_contract_rows, expected_contract_rows);
     selected_plan_identities.sort_unstable();
     selected_plan_identities.dedup();
     assert_eq!(
