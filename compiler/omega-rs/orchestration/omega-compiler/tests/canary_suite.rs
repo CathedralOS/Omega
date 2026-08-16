@@ -32533,23 +32533,44 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
 // the KERNEL32 catalog default), and abs(-42) delivers 42 through the result
 // place (ZII would exit 71). NATIVE-ONLY: no interpreter provider exists for
 // authored bindings, so unlike its neighbors this test runs no interp oracle.
+#[test]
+fn windows_external_import_canary_selects_exact_free_import_plan() {
+    let canary = pass_canary("capabilities/windows_provides_import_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("free DllImport leaf should resolve the Beeper slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let beeper_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Beeper")
+        .expect("Beeper must retain its selected free DllImport plan");
+    assert_eq!(beeper_plan.provider_type, "");
+    assert!(beeper_plan.covers_schema());
+    assert_eq!(beeper_plan.rows.len(), 1);
+    assert_eq!(beeper_plan.rows[0].method, "beep");
+    assert!(matches!(
+        &beeper_plan.rows[0].binding,
+        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+            if library == "msvcrt.dll" && symbol == "abs"
+    ));
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_external_import_exit_canary_runs() {
     let canary = pass_canary("capabilities/windows_provides_import_exit");
-    let main_path = canary.join("main.omg");
 
     let build_dir =
         std::env::temp_dir().join(format!("omega-external-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("source external import canary should compile");
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x64")
+        .expect("source external import canary should compile from its Windows root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -39357,14 +39378,12 @@ fn domain_operator_competing_binding_meanings_fail_at_use_site() {
     );
 }
 
-/// Pass canaries whose authored bindings exist only on a WINDOWS host (a
-/// `windows_x64` external leaf with no other-target lowering and no
-/// explicit `target` block to cross-compile against). Compiled by
-/// `pass_canaries_compile` on windows hosts only; their `_canary_runs` twins
-/// are `#[cfg(windows)]`-gated the same way.
+/// Pass canaries intentionally confined to a WINDOWS host because their
+/// authored implementation or platform behavior has no other-target lowering.
+/// Compiled by `pass_canaries_compile` on windows hosts only; their
+/// `_canary_runs` twins are `#[cfg(windows)]`-gated the same way.
 #[cfg_attr(not(windows), allow(dead_code))]
 const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
-    "capabilities/windows_provides_import_exit",
     // gdi32 memory-DC blit: the canary IS the windows pixel path
     // (CreateCompatibleDC + StretchDIBits); on darwin the Gui provider
     // substitution swaps in MacosGui, which has no dc_create -- a
@@ -46060,6 +46079,7 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("providers/external_leaf_syscall_compile", "linux_arm64"),
     ("providers/external_leaf_dllimport_compile", "macos_arm64"),
     ("providers/runtime_import_call_argument_exit", "macos_arm64"),
+    ("capabilities/windows_provides_import_exit", "windows_x64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
