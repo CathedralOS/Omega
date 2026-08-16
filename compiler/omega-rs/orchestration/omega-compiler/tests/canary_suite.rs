@@ -17175,6 +17175,33 @@ fn external_leaf_via_canary_selects_exact_free_import_plan() {
 }
 
 #[test]
+fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
+    let canary = pass_canary("providers/external_leaf_dllimport_compile");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("free DllImport leaf should resolve the Leaf slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let leaf_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Leaf")
+        .expect("Leaf must retain its selected free DllImport plan");
+    assert_eq!(leaf_plan.provider_type, "");
+    assert!(leaf_plan.covers_schema());
+    assert_eq!(leaf_plan.rows.len(), 1);
+    assert_eq!(leaf_plan.rows[0].method, "exit");
+    assert!(matches!(
+        &leaf_plan.rows[0].binding,
+        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+            if library == "libSystem.B.dylib" && symbol == "_exit"
+    ));
+}
+
+#[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 standard self-forwarding adapter: the receiver forwards as argument
     // 0, and std Console::write reaches the write_byte leaf through that same
@@ -45956,6 +45983,7 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("time/runtime_time_host_native_darwin_exit", "macos_arm64"),
     ("providers/external_leaf_syscall_compile", "linux_x64"),
     ("providers/external_leaf_syscall_compile", "linux_arm64"),
+    ("providers/external_leaf_dllimport_compile", "macos_arm64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
@@ -46945,7 +46973,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/test_owner_provider_override_compile",
     "providers/provider_type_target_default",
     "providers/provider_type_target_default_override",
-    "providers/external_leaf_dllimport_compile",
     "providers/runtime_import_call_argument_exit",
     "providers/runtime_adapter_dispatch_exit",
     "providers/runtime_result_domain_requirement_overload_exit",

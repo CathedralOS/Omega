@@ -1,0 +1,6 @@
+// Darwin import provider canary: the supported target selects its exact entry.
+target macos_arm64 { }
+
+machine build(b: &mut Build) {
+    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
