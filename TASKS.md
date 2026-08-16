@@ -447,6 +447,22 @@ Remaining:
   interval failure admits no family. Homogeneous signed products,
   nonnegative-affine chains, two-sided sandwiches, and conversion-chain forms
   remain on their existing or fenced paths.
+  A consolidated two-sided signed-affine sandwich now crosses exactly one
+  validator-legal partial cast between signed fixed-native carriers. The
+  source and target are finite nonempty left-associated add/subtract/multiply
+  chains with independently landed same-carrier signed literals. Either the
+  source itself contains an offset and a negative multiply, permitting any
+  target affine prefix, or the source remains on the established nonnegative
+  affine algebra and the current target prefix contains both an offset and a
+  negative multiply. The verifier replays checked sign/magnitude `(As, Bs)`
+  and `(At, Bt)`, reverses either negative preimage, intersects the exact cast
+  carriers, and reconstructs only the current target obligation. Zero on
+  either side remains local after full shape validation; every source prefix,
+  cast, and target prefix keeps separate evidence. Mathematical emptiness is
+  falsehood, while checked coefficient, offset, division, or interval failure
+  admits no family. The all-nonnegative sandwich, one-sided signed-affine and
+  homogeneous signed-product paths, thin product/offset permutations, and
+  conversion-spine forms retain their existing priority or fence.
   A finite chain of at least two validator-legal partial fixed-native exact
   casts may now start at one direct integer machine parameter. For each cast
   prefix, the verifier follows only ordered shrinking cast definitions and

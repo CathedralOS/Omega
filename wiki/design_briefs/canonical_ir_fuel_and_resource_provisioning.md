@@ -178,6 +178,12 @@ multiply, and one-sided partial cast separately in its direct, pre-cast, and
 post-cast placements. Checked sign/magnitude coefficient-and-offset
 composition, reversed negative-coefficient preimages, and carrier intersection
 are verifier work only and add no executable fuel.
+The two-sided signed-affine sandwich likewise charges every retained source
+add, subtract, and multiply, the one partial exact cast, and every retained
+target add, subtract, and multiply separately. Checked sign/magnitude replay on
+both sides, either reversed negative preimage, zero-coefficient decisions, and
+the exact cast-carrier intersection are verifier-only work and add no
+executable operation or fuel charge.
 A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains

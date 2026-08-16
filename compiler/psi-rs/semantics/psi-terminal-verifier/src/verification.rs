@@ -6409,6 +6409,26 @@ fn exact_integer_add_obligation(
             semantic_axioms,
             definition_axiom_count,
         ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_affine_cast_affine_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Add,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && let Some(constant) = known_right
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
         && let Some(obligation) = exact_integer_divide_remainder_then_affine_obligation(
             integer_type,
             left.clone(),
@@ -6921,6 +6941,25 @@ fn exact_integer_subtract_obligation(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_then_arithmetic_chain_obligation(
+            integer_type,
+            left.clone(),
+            constant,
+            ExactIntegerAffineOperation::Subtract,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if known_left.is_none()
+        && landed_integer_constant_value(
+            integer_type,
+            &right,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_affine_cast_affine_obligation(
             integer_type,
             left.clone(),
             constant,
@@ -7945,6 +7984,124 @@ fn exact_integer_affine_cast_affine_obligation(
     None
 }
 
+fn exact_integer_signed_affine_cast_affine_obligation(
+    target_type: psi_core::IntegerType,
+    variable: ScalarTerm,
+    initial_constant: IntegerValue,
+    initial_operation: ExactIntegerAffineOperation,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let (target_coefficient, target_offset, target_saw_offset, target_saw_negative_factor) =
+        exact_integer_signed_affine_initial_form(initial_constant, initial_operation)?;
+    let (
+        cast_value,
+        target_coefficient,
+        target_offset,
+        cast_definition_count,
+        target_saw_offset,
+        target_saw_negative_factor,
+    ) = exact_integer_signed_affine_replay(
+        target_type,
+        variable,
+        target_coefficient,
+        target_offset,
+        target_saw_offset,
+        target_saw_negative_factor,
+        semantic_axioms,
+        definition_axiom_count,
+    )?;
+    let (cast_definition_index, cast_definition) = semantic_axioms[..cast_definition_count]
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(index, axiom)| match axiom {
+            Proposition::Equal(left, right) if left == &cast_value => Some((index, right)),
+            _ => None,
+        })?;
+    let ScalarTerm::IntegerExactCast {
+        source_type,
+        target_type: cast_target_type,
+        operand,
+    } = cast_definition
+    else {
+        return None;
+    };
+    if *cast_target_type != target_type
+        || source_type.sign() != IntegerSign::Signed
+        || !partial_fixed_native_integer_cast(*source_type, target_type)
+    {
+        return None;
+    }
+    let (
+        source_root,
+        source_coefficient,
+        source_offset,
+        source_definition_count,
+        source_saw_offset,
+        source_saw_negative_factor,
+    ) = exact_integer_signed_affine_replay(
+        *source_type,
+        (**operand).clone(),
+        IntegerOffset::Nonnegative(1),
+        IntegerOffset::Nonnegative(0),
+        false,
+        false,
+        semantic_axioms,
+        cast_definition_index,
+    )?;
+    let source_followed_definition = source_definition_count < cast_definition_index;
+    if !source_followed_definition
+        || !matches!(
+            &source_root,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == *source_type && machine_parameter_values.contains(id)
+        )
+        || !((source_saw_offset && source_saw_negative_factor)
+            || (!source_saw_negative_factor && target_saw_offset && target_saw_negative_factor))
+    {
+        return None;
+    }
+    if target_coefficient.magnitude() == 0 {
+        return Some(if target_offset.is_representable(target_type) {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        });
+    }
+    let target_preimage = match exact_integer_signed_affine_preimage_interval(
+        target_coefficient,
+        target_offset,
+        fixed_integer_type_interval(target_type)?,
+    )? {
+        ExactIntegerIntervalPreimage::Interval(interval) => interval,
+        ExactIntegerIntervalPreimage::Empty => return Some(Proposition::Falsehood),
+    };
+    let source_carrier = fixed_integer_type_interval(*source_type)?;
+    let target_carrier = fixed_integer_type_interval(target_type)?;
+    let lower = target_preimage
+        .0
+        .max(source_carrier.0)
+        .max(target_carrier.0);
+    let upper = target_preimage
+        .1
+        .min(source_carrier.1)
+        .min(target_carrier.1);
+    if lower > upper {
+        return Some(Proposition::Falsehood);
+    }
+    exact_integer_signed_affine_interval_obligation(
+        *source_type,
+        source_root,
+        source_coefficient,
+        source_offset,
+        (lower, upper),
+    )
+}
+
 fn exact_integer_cast_then_affine_chain_obligation(
     target_type: psi_core::IntegerType,
     mut variable: ScalarTerm,
@@ -8555,6 +8712,25 @@ fn exact_integer_multiply_obligation_with_definitions(
             definition_axiom_count,
         ) == Some(constant)
         && let Some(obligation) = exact_integer_shift_then_arithmetic_chain_obligation(
+            integer_type,
+            variable.clone(),
+            constant,
+            ExactIntegerAffineOperation::Multiply,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    if chain_orientation
+        && landed_integer_constant_value(
+            integer_type,
+            &constant_term,
+            semantic_axioms,
+            definition_axiom_count,
+        ) == Some(constant)
+        && let Some(obligation) = exact_integer_signed_affine_cast_affine_obligation(
             integer_type,
             variable.clone(),
             constant,
@@ -15823,6 +15999,339 @@ mod tests {
             ),
             Some(Proposition::Truth),
             "a target-side zero decides only the current obligation after full source validation",
+        );
+    }
+
+    #[test]
+    fn signed_affine_cast_affine_reverses_each_side_and_keeps_zero_local() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 type");
+        let root_id = ValueId::new(1761).expect("source-negative root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(i16_type));
+        let source_add = ScalarTerm::value(
+            ValueId::new(1762).expect("source-negative add"),
+            ScalarType::Integer(i16_type),
+        );
+        let source_negative = ScalarTerm::value(
+            ValueId::new(1763).expect("source-negative product"),
+            ScalarType::Integer(i16_type),
+        );
+        let cast = ScalarTerm::value(
+            ValueId::new(1764).expect("source-negative cast"),
+            ScalarType::Integer(i8_type),
+        );
+        let target_add = ScalarTerm::value(
+            ValueId::new(1765).expect("source-negative target add"),
+            ScalarType::Integer(i8_type),
+        );
+        let source_negative_definitions = vec![
+            Proposition::Equal(
+                source_add.clone(),
+                ScalarTerm::exact_integer_add(
+                    i16_type,
+                    root.clone(),
+                    ScalarTerm::integer(i16_type, IntegerValue::Signed(3)).expect("3i16"),
+                )
+                .expect("root + 3"),
+            ),
+            Proposition::Equal(
+                source_negative.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i16_type,
+                    source_add,
+                    ScalarTerm::integer(i16_type, IntegerValue::Signed(-2)).expect("-2i16"),
+                )
+                .expect("source add * -2"),
+            ),
+            Proposition::Equal(
+                cast.clone(),
+                ScalarTerm::integer_exact_cast(i16_type, i8_type, source_negative)
+                    .expect("signed affine i16 to i8 cast"),
+            ),
+            Proposition::Equal(
+                target_add.clone(),
+                ScalarTerm::exact_integer_add(
+                    i8_type,
+                    cast.clone(),
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("cast + 1"),
+            ),
+        ];
+        let source_negative_parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                target_add.clone(),
+                IntegerValue::Signed(2),
+                ExactIntegerAffineOperation::Multiply,
+                &source_negative_definitions,
+                source_negative_definitions.len(),
+                &source_negative_parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i16_type,
+                root.clone(),
+                -34,
+                29,
+            )),
+            "a source-negative form reverses the target interval after cast intersection",
+        );
+
+        let target_negative_root_id = ValueId::new(1771).expect("target-negative root");
+        let target_negative_root =
+            ScalarTerm::value(target_negative_root_id, ScalarType::Integer(i16_type));
+        let source_positive_add = ScalarTerm::value(
+            ValueId::new(1772).expect("source-positive add"),
+            ScalarType::Integer(i16_type),
+        );
+        let source_positive = ScalarTerm::value(
+            ValueId::new(1773).expect("source-positive product"),
+            ScalarType::Integer(i16_type),
+        );
+        let target_negative_cast = ScalarTerm::value(
+            ValueId::new(1774).expect("target-negative cast"),
+            ScalarType::Integer(i8_type),
+        );
+        let target_negative_add = ScalarTerm::value(
+            ValueId::new(1775).expect("target-negative add"),
+            ScalarType::Integer(i8_type),
+        );
+        let target_negative_definitions = vec![
+            Proposition::Equal(
+                source_positive_add.clone(),
+                ScalarTerm::exact_integer_add(
+                    i16_type,
+                    target_negative_root.clone(),
+                    ScalarTerm::integer(i16_type, IntegerValue::Signed(3)).expect("3i16"),
+                )
+                .expect("root + 3"),
+            ),
+            Proposition::Equal(
+                source_positive.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i16_type,
+                    source_positive_add,
+                    ScalarTerm::integer(i16_type, IntegerValue::Signed(2)).expect("2i16"),
+                )
+                .expect("source add * 2"),
+            ),
+            Proposition::Equal(
+                target_negative_cast.clone(),
+                ScalarTerm::integer_exact_cast(i16_type, i8_type, source_positive)
+                    .expect("positive affine i16 to i8 cast"),
+            ),
+            Proposition::Equal(
+                target_negative_add.clone(),
+                ScalarTerm::exact_integer_add(
+                    i8_type,
+                    target_negative_cast,
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(3)).expect("3i8"),
+                )
+                .expect("cast + 3"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                target_negative_add,
+                IntegerValue::Signed(-2),
+                ExactIntegerAffineOperation::Multiply,
+                &target_negative_definitions,
+                target_negative_definitions.len(),
+                &BTreeSet::from([target_negative_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i16_type,
+                target_negative_root,
+                -36,
+                27,
+            )),
+            "a target-negative form reverses before the source-positive inverse",
+        );
+
+        let target_zero = ScalarTerm::value(
+            ValueId::new(1766).expect("target zero"),
+            ScalarType::Integer(i8_type),
+        );
+        let mut zero_definitions = source_negative_definitions.clone();
+        zero_definitions.push(Proposition::Equal(
+            target_zero.clone(),
+            ScalarTerm::exact_integer_multiply(
+                i8_type,
+                cast,
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(0)).expect("0i8"),
+            )
+            .expect("cast * 0"),
+        ));
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                target_zero.clone(),
+                IntegerValue::Signed(127),
+                ExactIntegerAffineOperation::Add,
+                &zero_definitions,
+                zero_definitions.len(),
+                &source_negative_parameters,
+            ),
+            Some(Proposition::Truth),
+            "a target zero decides only its current representable constant",
+        );
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                target_zero,
+                IntegerValue::Signed(-128),
+                ExactIntegerAffineOperation::Subtract,
+                &zero_definitions,
+                zero_definitions.len(),
+                &source_negative_parameters,
+            ),
+            Some(Proposition::Falsehood),
+            "an unrepresentable target constant is mathematical falsehood",
+        );
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                target_add,
+                IntegerValue::Signed(2),
+                ExactIntegerAffineOperation::Multiply,
+                &[Proposition::Truth],
+                1,
+                &source_negative_parameters,
+            ),
+            None,
+            "stale definitions cannot authorize either sign-reversing side",
+        );
+
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64 type");
+        let minimum_root_id = ValueId::new(1781).expect("MIN sandwich root");
+        let minimum_root = ScalarTerm::value(minimum_root_id, ScalarType::Integer(i64_type));
+        let minimum_offset = ScalarTerm::value(
+            ValueId::new(1782).expect("MIN sandwich offset"),
+            ScalarType::Integer(i64_type),
+        );
+        let minimum_product = ScalarTerm::value(
+            ValueId::new(1783).expect("MIN sandwich product"),
+            ScalarType::Integer(i64_type),
+        );
+        let minimum_cast = ScalarTerm::value(
+            ValueId::new(1784).expect("MIN sandwich cast"),
+            ScalarType::Integer(i8_type),
+        );
+        let minimum_definitions = vec![
+            Proposition::Equal(
+                minimum_offset.clone(),
+                ScalarTerm::exact_integer_add(
+                    i64_type,
+                    minimum_root.clone(),
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(0)).expect("0i64"),
+                )
+                .expect("MIN root + 0"),
+            ),
+            Proposition::Equal(
+                minimum_product.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i64_type,
+                    minimum_offset,
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(i64::MIN.into()))
+                        .expect("MIN i64"),
+                )
+                .expect("root * MIN"),
+            ),
+            Proposition::Equal(
+                minimum_cast.clone(),
+                ScalarTerm::integer_exact_cast(i64_type, i8_type, minimum_product)
+                    .expect("MIN product to i8 cast"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                minimum_cast,
+                IntegerValue::Signed(0),
+                ExactIntegerAffineOperation::Add,
+                &minimum_definitions,
+                minimum_definitions.len(),
+                &BTreeSet::from([minimum_root_id]),
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i64_type,
+                minimum_root,
+                0,
+                0,
+            )),
+            "MIN is accumulated by magnitude without host negation",
+        );
+
+        let overflow_first = ScalarTerm::value(
+            ValueId::new(1785).expect("overflow first"),
+            ScalarType::Integer(i64_type),
+        );
+        let overflow_second = ScalarTerm::value(
+            ValueId::new(1786).expect("overflow second"),
+            ScalarType::Integer(i64_type),
+        );
+        let overflow_third = ScalarTerm::value(
+            ValueId::new(1787).expect("overflow third"),
+            ScalarType::Integer(i64_type),
+        );
+        let overflow_cast = ScalarTerm::value(
+            ValueId::new(1788).expect("overflow cast"),
+            ScalarType::Integer(i8_type),
+        );
+        let mut overflow_definitions = minimum_definitions[..1].to_vec();
+        overflow_definitions.extend([
+            Proposition::Equal(
+                overflow_first.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i64_type,
+                    ScalarTerm::value(
+                        ValueId::new(1782).expect("MIN sandwich offset"),
+                        ScalarType::Integer(i64_type),
+                    ),
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(i64::MIN.into()))
+                        .expect("MIN i64"),
+                )
+                .expect("offset * MIN"),
+            ),
+            Proposition::Equal(
+                overflow_second.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i64_type,
+                    overflow_first,
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(i64::MIN.into()))
+                        .expect("MIN i64"),
+                )
+                .expect("first * MIN"),
+            ),
+            Proposition::Equal(
+                overflow_third.clone(),
+                ScalarTerm::exact_integer_multiply(
+                    i64_type,
+                    overflow_second,
+                    ScalarTerm::integer(i64_type, IntegerValue::Signed(4)).expect("4i64"),
+                )
+                .expect("second * 4"),
+            ),
+            Proposition::Equal(
+                overflow_cast.clone(),
+                ScalarTerm::integer_exact_cast(i64_type, i8_type, overflow_third)
+                    .expect("overflow product to i8 cast"),
+            ),
+        ]);
+        assert_eq!(
+            exact_integer_signed_affine_cast_affine_obligation(
+                i8_type,
+                overflow_cast,
+                IntegerValue::Signed(1),
+                ExactIntegerAffineOperation::Add,
+                &overflow_definitions,
+                overflow_definitions.len(),
+                &BTreeSet::from([minimum_root_id]),
+            ),
+            None,
+            "checked coefficient overflow admits no sandwich family",
         );
     }
 

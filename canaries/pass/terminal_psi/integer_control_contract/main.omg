@@ -1630,6 +1630,38 @@ requires -128i16 <= value, value <= 127i16, -131i16 <= value, value <= 124i16,
     ((((((value as i8) + 3i8) * -2i8) - 1i8) < 127i8) && enabled)
 }
 
+machine terminal_signed_affine_cast_affine(value: i16, enabled: bool) -> bool
+requires value <= 32764i16,
+    -16386i16 <= value, value <= 16381i16,
+    -16387i16 <= value, value <= 16380i16,
+    -67i16 <= value, value <= 60i16,
+    -66i16 <= value,
+    -34i16 <= value, value <= 29i16
+{
+    ((((((((value + 3i16) * -2i16) - 1i16) as i8) + 1i8) * 2i8) < 127i8) && enabled)
+}
+
+machine terminal_affine_cast_signed_affine(value: i16, enabled: bool) -> bool
+requires value <= 32764i16,
+    -16387i16 <= value, value <= 16380i16,
+    -67i16 <= value, value <= 60i16, value <= 59i16,
+    -36i16 <= value, value <= 27i16
+{
+    ((((((((value + 3i16) * 2i16) as i8) + 3i8) * -2i8) - 1i8) < 127i8) && enabled)
+}
+
+machine terminal_signed_affine_cast_signed_affine(value: i16, enabled: bool) -> bool
+requires value <= 32764i16,
+    -16386i16 <= value, value <= 16381i16,
+    -16387i16 <= value, value <= 16380i16,
+    -67i16 <= value, value <= 60i16,
+    -65i16 <= value,
+    -34i16 <= value, value <= 29i16,
+    -33i16 <= value, value <= 30i16
+{
+    (((((((((value + 3i16) * -2i16) - 1i16) as i8) + 3i8) * -2i8) - 1i8) < 127i8) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
