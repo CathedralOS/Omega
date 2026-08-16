@@ -1019,6 +1019,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         )
     });
     json.push_str("\n  ],\n  \"content_identity_reshuffles\": [");
+    let mut identity_reshuffle_keys = Vec::new();
     for (index, row) in identity_reshuffles.iter().enumerate() {
         if index > 0 {
             json.push(',');
@@ -1031,6 +1032,21 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
                 && row.state_symbol == row.plan.callable,
             "content identity reshuffle must retain its exact plan owner and callable",
         );
+        validate_content_identity_reshuffle(program, row);
+        let key = (
+            row.machine_symbol,
+            row.state_symbol,
+            row.claim_identity,
+            row.input_parameter_symbol,
+            row.input_segments,
+            row.output_segments,
+            row.plan.fingerprint,
+        );
+        assert!(
+            !identity_reshuffle_keys.contains(&key),
+            "content identity reshuffles must retain one exact witness row per plan",
+        );
+        identity_reshuffle_keys.push(key);
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -1055,13 +1071,19 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_claim_path_json(
             &mut json,
             program,
-            ownership.segments.span_or_empty(row.input_segments),
+            ownership
+                .segments
+                .span(row.input_segments)
+                .expect("validated content identity reshuffle input path"),
         );
         json.push_str("},\n      \"output_path\": ");
         push_claim_path_json(
             &mut json,
             program,
-            ownership.segments.span_or_empty(row.output_segments),
+            ownership
+                .segments
+                .span(row.output_segments)
+                .expect("validated content identity reshuffle output path"),
         );
         json.push_str(",\n      \"algebra\": ");
         push_content_algebra_json(&mut json, &row.plan.algebra);
@@ -1549,6 +1571,221 @@ fn validate_content_conservation_term(
             }
         }
     }
+}
+
+fn validate_content_identity_reshuffle(
+    program: &CheckedTrees,
+    row: &psi_checked_trees::ContentIdentityReshuffleFact,
+) {
+    use psi_checked_trees::FlowClaimOutcomeSource;
+    use psi_language_semantics::content::{
+        ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentStructuralPlace,
+    };
+    use psi_language_semantics::{
+        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    };
+
+    let ownership = &program.facts.flow.ownership;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == row.machine_symbol)
+        .expect("content identity reshuffle must name an exact typed machine");
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == row.state_symbol)
+        .expect("content identity reshuffle state must belong to its exact typed machine");
+    let mut parameters = program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.symbol == row.input_parameter_symbol);
+    let (parameter_position, parameter) = parameters
+        .next()
+        .expect("content identity reshuffle input must name an exact parameter owned by its state");
+    assert!(
+        parameters.next().is_none(),
+        "content identity reshuffle input must resolve to exactly one parameter owned by its state",
+    );
+    let input_path = ownership
+        .segments
+        .span(row.input_segments)
+        .expect("content identity reshuffle input must retain an exact valid path span");
+    let output_path = ownership
+        .segments
+        .span(row.output_segments)
+        .expect("content identity reshuffle output must retain an exact valid path span");
+    assert!(
+        row.claim_identity != PermissionClaimIdentity::Unknown,
+        "content identity reshuffle must retain a non-unknown claim identity",
+    );
+    let mut entry_identities = Vec::new();
+    for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
+        event.machine_symbol == row.machine_symbol
+            && event.state_symbol == row.state_symbol
+            && event.source == PermissionEventSource::StateEntry
+            && event.kind == PermissionEventKind::Establish
+            && event.access == PermissionAccess::Owned
+            && event.obligation_live
+            && event.root == psi_facts::PlaceRoot::Symbol(row.input_parameter_symbol)
+            && ownership.segments.span(event.segments) == Some(input_path)
+            && event.claim_identity != PermissionClaimIdentity::Unknown
+    }) {
+        if !entry_identities.contains(&event.claim_identity) {
+            entry_identities.push(event.claim_identity);
+        }
+    }
+    let [entry_identity] = entry_identities.as_slice() else {
+        panic!(
+            "content identity reshuffle input must resolve to one distinct live retained permission identity"
+        )
+    };
+    assert_eq!(
+        row.claim_identity, *entry_identity,
+        "content identity reshuffle must retain its exact input permission identity",
+    );
+
+    let mut maps = ownership.claim_outcome_maps.iter().filter(|(_, map)| {
+        map.machine_symbol == row.machine_symbol && map.state_symbol == row.state_symbol
+    });
+    let map = maps
+        .next()
+        .expect("content identity reshuffle must name one exact retained claim outcome map")
+        .1;
+    assert!(
+        maps.next().is_none(),
+        "content identity reshuffle must name exactly one retained claim outcome map",
+    );
+    let matching_outcomes = validated_claim_outcome_entries(program, map)
+        .iter()
+        .filter(|entry| {
+            ownership.segments.span(entry.output_segments) == Some(output_path)
+                && matches!(
+                    entry.source,
+                    FlowClaimOutcomeSource::Input {
+                        parameter_symbol,
+                        segments,
+                    } if parameter_symbol == row.input_parameter_symbol
+                        && ownership.segments.span(segments) == Some(input_path)
+                )
+        })
+        .count();
+    assert_eq!(
+        matching_outcomes, 1,
+        "content identity reshuffle must retain one exact input-relative claim outcome",
+    );
+
+    let input_subject = ContentStructuralPlace {
+        version: ContentPlaceVersion::Entry,
+        root: ContentPlaceRoot::Parameter {
+            position: u32::try_from(parameter_position)
+                .expect("content identity reshuffle parameter position must fit u32"),
+            symbol: parameter.symbol,
+            name: parameter.name.as_str().to_owned(),
+            is_self: parameter.is_self,
+        },
+        segments: exact_content_path(program, input_path),
+    };
+    let output_subject = ContentStructuralPlace {
+        version: ContentPlaceVersion::Current,
+        root: ContentPlaceRoot::Result,
+        segments: exact_content_path(program, output_path),
+    };
+    fn projection_subject(term: &ContentConservationTerm) -> Option<&ContentStructuralPlace> {
+        match term {
+            ContentConservationTerm::Projection { subject, .. } => Some(subject),
+            ContentConservationTerm::Separate(_) => None,
+        }
+    }
+    let left = projection_subject(row.plan.equation.left());
+    let right = projection_subject(row.plan.equation.right());
+    assert!(
+        matches!(
+            (left, right),
+            (Some(left), Some(right))
+                if (left == &input_subject && right == &output_subject)
+                    || (left == &output_subject && right == &input_subject)
+        ),
+        "content identity reshuffle equation must retain its exact input and output projection subjects",
+    );
+}
+
+fn exact_content_path(
+    program: &CheckedTrees,
+    path: &[psi_facts::PlaceSegment],
+) -> Vec<psi_language_semantics::content::ContentPlaceSegment> {
+    use psi_language_semantics::content::{
+        ContentCaseSegment, ContentFieldSegment, ContentPlaceSegment,
+    };
+
+    path.iter()
+        .map(|segment| match segment {
+            psi_facts::PlaceSegment::Case { variant } => {
+                let mut variants = program.data_definitions().iter().flat_map(|definition| {
+                    program
+                        .data_members(definition)
+                        .iter()
+                        .filter_map(|member| match member {
+                            psi_typed_trees::data::DataMember::Variant(candidate)
+                                if candidate.symbol == *variant =>
+                            {
+                                Some(candidate)
+                            }
+                            psi_typed_trees::data::DataMember::Field(_)
+                            | psi_typed_trees::data::DataMember::Variant(_) => None,
+                        })
+                });
+                let candidate = variants.next().expect(
+                    "content identity reshuffle case path must name an exact typed variant",
+                );
+                assert!(
+                    variants.next().is_none(),
+                    "content identity reshuffle case path must resolve to exactly one typed variant",
+                );
+                ContentPlaceSegment::Case(ContentCaseSegment {
+                    symbol: candidate.symbol,
+                    name: candidate.name.as_str().to_owned(),
+                })
+            }
+            psi_facts::PlaceSegment::Field { symbol } => {
+                let mut fields = program.data_definitions().iter().flat_map(|definition| {
+                    program
+                        .data_members(definition)
+                        .iter()
+                        .flat_map(|member| match member {
+                            psi_typed_trees::data::DataMember::Field(field) => {
+                                std::slice::from_ref(field)
+                            }
+                            psi_typed_trees::data::DataMember::Variant(variant) => {
+                                program.data_payload_fields(variant)
+                            }
+                        })
+                        .filter(|field| field.symbol == *symbol)
+                });
+                let field = fields.next().expect(
+                    "content identity reshuffle field path must name an exact typed field",
+                );
+                assert!(
+                    fields.next().is_none(),
+                    "content identity reshuffle field path must resolve to exactly one typed field",
+                );
+                ContentPlaceSegment::Field(ContentFieldSegment {
+                    symbol: field.symbol,
+                    name: field.name.as_str().to_owned(),
+                })
+            }
+            psi_facts::PlaceSegment::FixedIndex { index } => {
+                ContentPlaceSegment::FixedIndex(
+                    u64::try_from(*index)
+                        .expect("content identity reshuffle fixed index must fit u64"),
+                )
+            }
+            psi_facts::PlaceSegment::Index { .. } => {
+                panic!("content identity reshuffle paths must not retain a runtime index")
+            }
+        })
+        .collect()
 }
 
 fn push_content_algebra_json(
@@ -4001,11 +4238,11 @@ mod tests {
         machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
         qualification_requirement_identity, qualification_subject,
-        specialization_instance_contract_fingerprint, task_activation_manifest_json,
-        validate_content_conservation_plan, validate_qualification_program_point,
-        validate_qualification_receipt, validate_qualification_source,
-        validate_vacuous_qualification_use, validated_content_projection_plans,
-        validated_machine_semantic_domain_commitments,
+        specialization_instance_contract_fingerprint, symbol_label, task_activation_manifest_json,
+        validate_content_conservation_plan, validate_content_identity_reshuffle,
+        validate_qualification_program_point, validate_qualification_receipt,
+        validate_qualification_source, validate_vacuous_qualification_use,
+        validated_content_projection_plans, validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -4478,12 +4715,6 @@ mod tests {
                 obligation_live: true,
                 ..Default::default()
             });
-        let input_output = program
-            .facts
-            .flow
-            .ownership
-            .segments
-            .insert_many([psi_facts::PlaceSegment::FixedIndex { index: 0 }]);
         let established_output = program
             .facts
             .flow
@@ -4497,7 +4728,7 @@ mod tests {
             .claim_outcome_entries
             .insert_many([
                 FlowClaimOutcomeEntryFact {
-                    output_segments: input_output,
+                    output_segments: Default::default(),
                     source: FlowClaimOutcomeSource::Input {
                         parameter_symbol,
                         segments: Default::default(),
@@ -4769,6 +5000,325 @@ mod tests {
                     source: PermissionEventSource::Statement { statement_index: 0 },
                 },
             };
+        claim_outcome_manifest_json(&program);
+    }
+
+    fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
+        let (mut program, machine, state, parameter, ..) = claim_outcome_validation_fixture();
+        let domain = SymbolHandle::from_arena_index(105);
+        let carrier_symbol = SymbolHandle::from_arena_index(106);
+        let projection_machine_symbol = SymbolHandle::from_arena_index(107);
+        let projection_state_symbol = SymbolHandle::from_arena_index(108);
+        let carrier = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: carrier_symbol,
+                name: Identifier::generated("Resource"),
+            });
+        let semantic_domain = program.typed.semantic_domains.intern("Resource::Counted");
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: domain,
+            name: Identifier::generated("Resource::Counted"),
+            target_type: carrier,
+            semantic_id: semantic_domain,
+            ..Default::default()
+        });
+        let mut projection_machine = Machine {
+            symbol: projection_machine_symbol,
+            name: Identifier::generated("Resource::content"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut projection_machine,
+            State {
+                symbol: projection_state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(projection_machine);
+        let algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(Unit))".to_owned(),
+        };
+        let expression = ContentProjectionExpression::CountedQuantity {
+            magnitude: ContentScalarExpression::Natural("1".to_owned()),
+        };
+        let projection_identity = projection_fingerprint(&algebra, &expression);
+        program
+            .facts
+            .qualifications
+            .content
+            .plans
+            .push(ContentProjectionPlan {
+                domain,
+                semantic_domain,
+                carrier_identity: program
+                    .typed
+                    .normalized_type_identity(carrier)
+                    .into_string(),
+                machine: projection_machine_symbol,
+                algebra: algebra.clone(),
+                expression,
+                fingerprint: projection_identity,
+            });
+        let input = ContentConservationTerm::Projection {
+            domain,
+            semantic_domain,
+            projection_machine: projection_machine_symbol,
+            projection_fingerprint: projection_identity,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: ContentPlaceRoot::Parameter {
+                    position: 0,
+                    symbol: parameter,
+                    name: "resource".to_owned(),
+                    is_self: false,
+                },
+                segments: Vec::new(),
+            },
+        };
+        let output = ContentConservationTerm::Projection {
+            domain,
+            semantic_domain,
+            projection_machine: projection_machine_symbol,
+            projection_fingerprint: projection_identity,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: ContentPlaceRoot::Result,
+                segments: Vec::new(),
+            },
+        };
+        let equation = ContentConservationEquation::new(input, output);
+        let fingerprint = conservation_fingerprint(&algebra, &equation);
+        let claim_identity = program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .find_map(|(_, event)| {
+                (event.source == PermissionEventSource::StateEntry).then_some(event.claim_identity)
+            })
+            .expect("fixture entry identity");
+        program
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .push(ContentIdentityReshuffleFact {
+                machine_symbol: machine,
+                state_symbol: state,
+                claim_identity,
+                input_parameter_symbol: parameter,
+                input_segments: Default::default(),
+                output_segments: Default::default(),
+                plan: ContentConservationPlan {
+                    owner_kind: ContentConservationOwnerKind::Machine,
+                    owner: machine,
+                    callable: state,
+                    algebra,
+                    equation,
+                    fingerprint,
+                },
+            });
+        program
+    }
+
+    #[test]
+    fn content_identity_reshuffle_manifest_accepts_exact_witness_custody() {
+        let program = content_identity_reshuffle_validation_fixture();
+        let json = claim_outcome_manifest_json(&program);
+        assert!(json.contains("\"content_identity_reshuffles\": [\n    {"));
+        assert!(json.contains("\"input\": {\"parameter\":"));
+        assert!(json.contains("\"output_path\": []"));
+    }
+
+    #[test]
+    #[should_panic(expected = "input must retain an exact valid path span")]
+    fn content_identity_reshuffle_manifest_rejects_invalid_input_span() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        program.facts.qualifications.content.identity_reshuffles[0].input_segments =
+            psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(999), 1);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "output must retain an exact valid path span")]
+    fn content_identity_reshuffle_manifest_rejects_invalid_output_span() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        program.facts.qualifications.content.identity_reshuffles[0].output_segments =
+            psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(999), 1);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "exact parameter owned by its state")]
+    fn content_identity_reshuffle_manifest_rejects_missing_parameter() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        program.facts.qualifications.content.identity_reshuffles[0].input_parameter_symbol =
+            SymbolHandle::from_arena_index(999);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain a non-unknown claim identity")]
+    fn content_identity_reshuffle_manifest_rejects_unknown_claim_identity() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        program.facts.qualifications.content.identity_reshuffles[0].claim_identity =
+            PermissionClaimIdentity::Unknown;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact input permission identity")]
+    fn content_identity_reshuffle_manifest_rejects_wrong_claim_identity() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let row = &mut program.facts.qualifications.content.identity_reshuffles[0];
+        row.claim_identity = PermissionClaimIdentity::Established {
+            machine_symbol: row.machine_symbol,
+            state_symbol: row.state_symbol,
+            source: PermissionEventSource::StateEntry,
+            ordinal: 99,
+        };
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "one distinct live retained permission identity")]
+    fn content_identity_reshuffle_manifest_rejects_ambiguous_entry_identity() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let row = program.facts.qualifications.content.identity_reshuffles[0].clone();
+        program
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol: row.machine_symbol,
+                state_symbol: row.state_symbol,
+                source: PermissionEventSource::StateEntry,
+                kind: PermissionEventKind::Establish,
+                access: PermissionAccess::Owned,
+                claim_identity: PermissionClaimIdentity::Established {
+                    machine_symbol: row.machine_symbol,
+                    state_symbol: row.state_symbol,
+                    source: PermissionEventSource::StateEntry,
+                    ordinal: 99,
+                },
+                provenance: PermissionProvenance::Established {
+                    machine_symbol: row.machine_symbol,
+                    state_symbol: row.state_symbol,
+                    source: PermissionEventSource::StateEntry,
+                },
+                root: PlaceRoot::Symbol(row.input_parameter_symbol),
+                obligation_live: true,
+                ..Default::default()
+            });
+        validate_content_identity_reshuffle(&program, &row);
+    }
+
+    #[test]
+    #[should_panic(expected = "one exact input-relative claim outcome")]
+    fn content_identity_reshuffle_manifest_rejects_absent_input_outcome() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let unmatched_output = program
+            .facts
+            .flow
+            .ownership
+            .segments
+            .insert_many([psi_facts::PlaceSegment::FixedIndex { index: 9 }]);
+        program.facts.qualifications.content.identity_reshuffles[0].output_segments =
+            unmatched_output;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "paths must not retain a runtime index")]
+    fn content_identity_reshuffle_manifest_rejects_runtime_index_path() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let runtime_output =
+            program
+                .facts
+                .flow
+                .ownership
+                .segments
+                .insert_many([psi_facts::PlaceSegment::Index {
+                    expression: ExpressionHandle::invalid(),
+                }]);
+        program.facts.qualifications.content.identity_reshuffles[0].output_segments =
+            runtime_output;
+        first_claim_outcome_entries_mut(&mut program)[0].output_segments = runtime_output;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "field path must name an exact typed field")]
+    fn content_identity_reshuffle_manifest_rejects_missing_typed_segment() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let missing_output =
+            program
+                .facts
+                .flow
+                .ownership
+                .segments
+                .insert_many([psi_facts::PlaceSegment::Field {
+                    symbol: SymbolHandle::from_arena_index(999),
+                }]);
+        program.facts.qualifications.content.identity_reshuffles[0].output_segments =
+            missing_output;
+        first_claim_outcome_entries_mut(&mut program)[0].output_segments = missing_output;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "equation must retain its exact input and output projection subjects"
+    )]
+    fn content_identity_reshuffle_manifest_rejects_subject_drift() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let row = &mut program.facts.qualifications.content.identity_reshuffles[0];
+        let mutate_subject = |term: &ContentConservationTerm| match term {
+            ContentConservationTerm::Projection {
+                domain,
+                semantic_domain,
+                projection_machine,
+                projection_fingerprint,
+                subject,
+            } if subject.version == ContentPlaceVersion::Entry => {
+                let mut subject = subject.clone();
+                let ContentPlaceRoot::Parameter { position, .. } = &mut subject.root else {
+                    unreachable!("fixture entry subject is a parameter")
+                };
+                *position = 1;
+                ContentConservationTerm::Projection {
+                    domain: *domain,
+                    semantic_domain: *semantic_domain,
+                    projection_machine: *projection_machine,
+                    projection_fingerprint: *projection_fingerprint,
+                    subject,
+                }
+            }
+            other => other.clone(),
+        };
+        let left = mutate_subject(row.plan.equation.left());
+        let right = mutate_subject(row.plan.equation.right());
+        row.plan.equation = ContentConservationEquation::new(left, right);
+        row.plan.fingerprint = conservation_fingerprint(&row.plan.algebra, &row.plan.equation);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain one exact witness row per plan")]
+    fn content_identity_reshuffle_manifest_rejects_duplicate_row() {
+        let mut program = content_identity_reshuffle_validation_fixture();
+        let duplicate = program.facts.qualifications.content.identity_reshuffles[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .push(duplicate);
         claim_outcome_manifest_json(&program);
     }
 
@@ -5359,14 +5909,14 @@ mod tests {
             .claim_outcome_entries
             .insert_many([
                 FlowClaimOutcomeEntryFact {
-                    output_segments,
+                    output_segments: Default::default(),
                     source: FlowClaimOutcomeSource::Input {
                         parameter_symbol,
                         segments: Default::default(),
                     },
                 },
                 FlowClaimOutcomeEntryFact {
-                    output_segments: Default::default(),
+                    output_segments,
                     source: FlowClaimOutcomeSource::Established {
                         claim_identity: established_identity,
                         provenance: established_provenance,
@@ -5426,7 +5976,7 @@ mod tests {
                 version: ContentPlaceVersion::Entry,
                 root: ContentPlaceRoot::Parameter {
                     position: 0,
-                    symbol: SymbolHandle::invalid(),
+                    symbol: parameter_symbol,
                     name: "region".to_owned(),
                     is_self: false,
                 },
@@ -5502,13 +6052,8 @@ mod tests {
             .push(ContentIdentityReshuffleFact {
                 machine_symbol,
                 state_symbol,
-                claim_identity: psi_language_semantics::PermissionClaimIdentity::Established {
-                    machine_symbol: SymbolHandle::invalid(),
-                    state_symbol: SymbolHandle::invalid(),
-                    source: psi_language_semantics::PermissionEventSource::StateEntry,
-                    ordinal: 9,
-                },
-                input_parameter_symbol: SymbolHandle::invalid(),
+                claim_identity: input_identity,
+                input_parameter_symbol: parameter_symbol,
                 input_segments: Default::default(),
                 output_segments: Default::default(),
                 plan: plan.clone(),
@@ -5627,8 +6172,11 @@ mod tests {
         assert!(json.contains("\"target\": {\"version\": \"current\""));
         assert!(json.contains("\"ordinal\": 11"));
         assert!(json.contains("\"ordinal\": 12"));
-        assert!(json.contains("\"input\": {\"parameter\": \"invalid\", \"path\": []}"));
-        assert!(json.contains("\"ordinal\": 9"));
+        assert!(json.contains(&format!(
+            "\"input\": {{\"parameter\": \"{}\", \"path\": []}}",
+            symbol_label(&program, parameter_symbol)
+        )));
+        assert!(json.contains("\"ordinal\": 6"));
         assert!(json.contains(&format!("\"semantic_domain_id\": {}", semantic_domain.0)));
         assert!(json.contains("\"kind\": \"counted_quantity\""));
         assert!(json.contains("\"unit\": \"named(name(ByteUnit))\""));
