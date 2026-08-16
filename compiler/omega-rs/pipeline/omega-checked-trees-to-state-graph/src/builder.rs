@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::capacity::{
     StateGraphCapacity, estimated_machine_segment_capacity, machine_statement_count,
 };
+use crate::dynamic_conformances::validated_dynamic_conformance_bindings;
 use crate::facts::{remap_invariants, remap_proof_obligations};
 use crate::machine_metadata::{
     machine_blocking_summary, machine_contains, machine_owned_data, machine_service_reach,
@@ -61,7 +62,7 @@ pub(crate) fn build_state_graph_with_workers(
             .map(|(_, fact)| fact),
     );
     state_graph.semantics.facts.dynamic_conformances =
-        program.facts.dynamic_conformances.binding_facts();
+        validated_dynamic_conformance_bindings(&program)?;
 
     Ok(state_graph)
 }
