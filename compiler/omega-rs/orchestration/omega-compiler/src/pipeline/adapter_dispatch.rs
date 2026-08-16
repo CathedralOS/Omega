@@ -506,21 +506,25 @@ fn resolve_selected_adapter_row(
         )));
     }
 
-    let actual_parameters = typed.state_parameters(entry);
-    let forward_receiver = match actual_parameters.len() {
-        count if count == method.parameter_count => false,
-        count
-            if method.parameter_count.checked_add(1) == Some(count)
-                && actual_parameters.first().is_some_and(|parameter| {
-                    named_type_symbol(typed, parameter.type_reference)
-                        == Some(requirement_owner.symbol)
-                }) =>
-        {
-            true
-        }
-        count => {
+    // ServiceMethod arity excludes the language receiver. A concrete
+    // provider's `self` is therefore part of its exact realization, not the
+    // explicit boundary binding that adapter dispatch may forward.
+    let actual_parameters = typed
+        .state_parameters(entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let forward_receiver = match exact_adapter_receiver_shape(
+        typed,
+        &actual_parameters,
+        method.parameter_count,
+        requirement_owner.symbol,
+    ) {
+        Some(forward_receiver) => forward_receiver,
+        None => {
+            let count = actual_parameters.len();
             return Err(Diagnostic::error(format!(
-                "selected checked adapter `{machine}` has {count} entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
+                "selected checked adapter `{machine}` has {count} non-self entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
                 method.requirement_identity, method.parameter_count, requirement_owner.name,
             )));
         }
@@ -617,6 +621,26 @@ fn named_type_symbol(
         return None;
     };
     symbol.is_valid().then_some(*symbol)
+}
+
+fn exact_adapter_receiver_shape(
+    typed: &TypedTrees,
+    actual_parameters: &[&psi_typed_trees::signature::StateParameter],
+    requirement_parameter_count: usize,
+    requirement_owner: psi_symbols::SymbolHandle,
+) -> Option<bool> {
+    match actual_parameters.len() {
+        count if count == requirement_parameter_count => Some(false),
+        count
+            if requirement_parameter_count.checked_add(1) == Some(count)
+                && actual_parameters.first().is_some_and(|parameter| {
+                    named_type_symbol(typed, parameter.type_reference) == Some(requirement_owner)
+                }) =>
+        {
+            Some(true)
+        }
+        _ => None,
+    }
 }
 
 fn resolve_adapter_call<'adapter>(
@@ -734,6 +758,12 @@ mod tests {
             machine echo(value: i32) -> i32;
             machine emit(value: i32);
         }
+        boundary trait Stateful {
+            machine touch(&mut self);
+        }
+        boundary trait Forward {
+            machine send(value: i32);
+        }
 
         data EchoProvider {}
         machine EchoProvider::echo_adapter(value: i32) -> i32 satisfies Echo::echo {
@@ -746,6 +776,13 @@ mod tests {
             transition { _ -> (value) }
         }
         machine OtherProvider::emit_adapter(value: i32) satisfies Other::emit {}
+
+        data StatefulProvider {}
+        machine StatefulProvider::touch(&mut self) satisfies Stateful::touch {}
+
+        data ForwardProvider {}
+        machine ForwardProvider::send_adapter(service: Forward, value: i32)
+            satisfies Forward::send {}
 
         data EchoClient { service: Echo; }
         machine EchoClient::run(&mut self) -> i32 {
@@ -932,6 +969,78 @@ mod tests {
                     assert!(!adapter.forward_receiver);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn concrete_provider_self_is_excluded_from_adapter_arity() {
+        let fixture = fixture();
+        let selected = plan(&fixture.plans, "Stateful");
+        let row = &selected.rows[checked_row(selected, "touch")];
+
+        let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
+            .expect("concrete provider self is an exact realization receiver")
+            .expect("checked row yields adapter");
+        assert_eq!(adapter.adapter_target, "StatefulProvider::touch");
+        assert!(!adapter.forward_receiver);
+    }
+
+    #[test]
+    fn exact_leading_non_self_requirement_receiver_is_forwarded() {
+        let fixture = fixture();
+        let selected = plan(&fixture.plans, "Forward");
+        let row = &selected.rows[checked_row(selected, "send")];
+
+        let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
+            .expect("exact leading boundary binding resolves")
+            .expect("checked row yields adapter");
+        assert_eq!(adapter.adapter_target, "ForwardProvider::send_adapter");
+        assert!(adapter.forward_receiver);
+    }
+
+    #[test]
+    fn wrong_nonleading_or_multiple_non_self_receivers_never_forward() {
+        let fixture = fixture();
+        let selected = plan(&fixture.plans, "Forward");
+        let row = &selected.rows[checked_row(selected, "send")];
+        let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+            unreachable!()
+        };
+        let adapter = fixture
+            .typed
+            .machines()
+            .iter()
+            .find(|candidate| candidate.name.as_str() == machine)
+            .expect("forwarding adapter");
+        let entry = fixture
+            .typed
+            .machine_states(adapter)
+            .first()
+            .expect("forwarding entry");
+        let parameters = fixture
+            .typed
+            .state_parameters(entry)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .collect::<Vec<_>>();
+        let owner = fixture
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Forward")
+            .expect("Forward boundary trait")
+            .symbol;
+        let cases = [
+            (vec![parameters[1]], 0),
+            (vec![parameters[1], parameters[0]], 1),
+            (parameters, 0),
+        ];
+
+        for (actual, required) in cases {
+            assert_eq!(
+                exact_adapter_receiver_shape(&fixture.typed, &actual, required, owner),
+                None,
+            );
         }
     }
 
