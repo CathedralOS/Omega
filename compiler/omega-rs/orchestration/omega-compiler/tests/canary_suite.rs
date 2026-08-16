@@ -39482,6 +39482,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("build/uefi_program_entry_wrong_calling_policy", "uefi_x64"),
     ("calls/machine_self_call_recursion_rejected", "linux_x64"),
     ("calls/guard_call_vs_call_rejected", "linux_x64"),
+    ("calls/guarded_value_call_terminal_rejected", "linux_x64"),
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
