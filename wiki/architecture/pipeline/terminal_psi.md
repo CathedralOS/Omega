@@ -515,6 +515,28 @@ and right-associated forms, carrier drift, locals, members, calls, effects,
 stale definitions, and redirected evidence remain on narrower paths or fail
 closed.
 
+A consolidated two-sided signed-affine sandwich admits exactly one
+validator-legal partial exact cast between signed fixed-native carriers, with
+nonempty left-associated landed-literal add/subtract/multiply chains on both
+sides. The source-qualified branch requires an offset and a negative multiply
+in the source and accepts each target affine prefix. The target-qualified
+branch keeps the source on the established nonnegative affine algebra and
+requires the current target prefix to contain an offset and a negative
+multiply. For each target obligation the verifier replays checked
+sign/magnitude `(At, Bt)`, reverses a negative target preimage, intersects the
+target preimage with both cast carriers, and replays checked `(As, Bs)` to the
+direct source parameter, reversing again when needed. `MIN` is never host
+negated. A zero target coefficient decides only target constant
+representability after full source/cast validation; a zero source coefficient
+decides only whether its constant lies in the surviving interval. Every source
+prefix, cast, and target prefix retains separate evidence. Mathematical empty
+preimages or intersections are canonical falsehood; checked coefficient,
+offset, division, or interval-transfer failure admits no family. Empty sides,
+all-nonnegative sandwiches, homogeneous signed products, thin product/offset
+permutations, unsigned or address carriers, multiple conversions, runtime or
+computed siblings, noncanonical roots, intervening operations, and stale or
+redirected definitions remain on narrower paths or fail closed.
+
 A finite same-value-carrier exact-right-shift
 chain may also continue only through its left operand from a direct machine
 parameter. Every right operand must be a landed literal in one of the current

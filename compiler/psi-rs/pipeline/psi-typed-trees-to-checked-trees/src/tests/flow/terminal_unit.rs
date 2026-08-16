@@ -35,6 +35,7 @@ use crate::flow::{
     exact_shift_left_chain_runtime_parameter_positions_for_test,
     exact_shift_right_chain_cast_runtime_parameter_positions_for_test,
     exact_shift_then_arithmetic_runtime_parameter_positions_for_test,
+    exact_signed_affine_cast_affine_runtime_parameter_positions_for_test,
     exact_signed_affine_chain_cast_runtime_parameter_positions_for_test,
     exact_signed_affine_chain_runtime_parameter_positions_for_test,
     exact_signed_multiply_chain_cast_runtime_parameter_positions_for_test,
@@ -4684,6 +4685,148 @@ fn exact_affine_cast_affine_classifier_unifies_both_nonempty_sides() {
     assert_eq!(
         exact_affine_cast_affine_runtime_parameter_positions_for_test(&fenced, 1),
         None,
+    );
+}
+
+#[test]
+fn signed_affine_cast_affine_classifier_preserves_two_branch_priority() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let i16_literal = |value| literal(value, psi_numerics::literals::LandedIntegerType::I16);
+    let i8_literal = |value| literal(value, psi_numerics::literals::LandedIntegerType::I8);
+    let cast = |source| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::I8,
+        operand: Box::new(source),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let source = |factor| {
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I16,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I16,
+                parameter(PrimitiveType::I16),
+                i16_literal(3),
+            ),
+            i16_literal(factor),
+        )
+    };
+    let target = |root, factor| {
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I8,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I8,
+                root,
+                i8_literal(3),
+            ),
+            i8_literal(factor),
+        )
+    };
+
+    let source_negative = target(cast(source(-2)), 2);
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(&source_negative, 1,),
+        Some(vec![0]),
+    );
+    let target_negative = target(cast(source(2)), -2);
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(&target_negative, 1,),
+        Some(vec![0]),
+    );
+    let both_negative = target(cast(source(-2)), -2);
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(&both_negative, 1),
+        Some(vec![0]),
+    );
+
+    let all_nonnegative = target(cast(source(2)), 2);
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(&all_nonnegative, 1,),
+        None,
+        "the established nonnegative sandwich keeps priority",
+    );
+    assert_eq!(
+        exact_affine_cast_affine_runtime_parameter_positions_for_test(&all_nonnegative, 1),
+        Some(vec![0]),
+    );
+    let empty_source = target(cast(parameter(PrimitiveType::I16)), -2);
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(&empty_source, 1),
+        None,
+        "the one-sided post-cast signed-affine path keeps priority",
+    );
+    let source_product_without_offset = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I16,
+        parameter(PrimitiveType::I16),
+        i16_literal(-2),
+    );
+    let target_offset_only = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I8,
+        cast(source_product_without_offset),
+        i8_literal(1),
+    );
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(
+            &target_offset_only,
+            1,
+        ),
+        None,
+        "a thin homogeneous-product/offset permutation remains fenced",
+    );
+
+    let i64_literal = |value| literal(value, psi_numerics::literals::LandedIntegerType::I64);
+    let overflow_source = operation(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I64,
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I64,
+            operation(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                PrimitiveType::I64,
+                operation(
+                    CheckedIntegerBinaryKind::ExactAdd,
+                    PrimitiveType::I64,
+                    parameter(PrimitiveType::I64),
+                    i64_literal(0),
+                ),
+                i64_literal(i64::MIN),
+            ),
+            i64_literal(i64::MIN),
+        ),
+        i64_literal(4),
+    );
+    let overflow = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I8,
+        cast(overflow_source),
+        i8_literal(1),
+    );
+    assert_eq!(
+        exact_signed_affine_cast_affine_runtime_parameter_positions_for_test(&overflow, 1),
+        None,
+        "checked coefficient overflow admits no shared runtime-input family",
     );
 }
 
