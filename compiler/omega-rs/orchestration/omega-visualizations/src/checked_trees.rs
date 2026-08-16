@@ -965,13 +965,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n      ]\n    }");
     }
-    let mut content_projections = program
-        .facts
-        .qualifications
-        .content
-        .plans
-        .iter()
-        .collect::<Vec<_>>();
+    let mut content_projections = validated_content_projection_plans(program);
     content_projections.sort_by_key(|plan| {
         (
             qualification_symbol_label(program, plan.domain),
@@ -1217,6 +1211,84 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn validated_content_projection_plans(
+    program: &CheckedTrees,
+) -> Vec<&psi_language_semantics::content::ContentProjectionPlan> {
+    use psi_language_semantics::content::projection_fingerprint;
+
+    let mut seen_domains = Vec::new();
+    let mut seen_semantic_domains = Vec::new();
+    program
+        .facts
+        .qualifications
+        .content
+        .plans
+        .iter()
+        .map(|plan| {
+            assert!(
+                plan.domain.is_valid(),
+                "content projection plan must name a nonempty exact declared domain",
+            );
+            let mut domains = program
+                .domain_definitions()
+                .iter()
+                .filter(|domain| domain.symbol == plan.domain);
+            let domain = domains
+                .next()
+                .expect("content projection plan must name a nonempty exact declared domain");
+            assert!(
+                domains.next().is_none(),
+                "content projection plan domain must resolve to exactly one declaration",
+            );
+            assert!(
+                plan.semantic_domain.is_valid()
+                    && domain.semantic_id == plan.semantic_domain
+                    && program
+                        .semantic_domains
+                        .name(plan.semantic_domain)
+                        .is_some(),
+                "content projection plan must retain its exact registered semantic domain",
+            );
+            assert!(
+                !plan.carrier_identity.is_empty()
+                    && domain.target_type.is_valid()
+                    && plan.carrier_identity
+                        == program
+                            .normalized_type_identity(domain.target_type)
+                            .into_string(),
+                "content projection plan must retain its exact normalized carrier identity",
+            );
+            let mut machines = program
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == plan.machine);
+            machines
+                .next()
+                .expect("content projection plan must name an exact typed projection machine");
+            assert!(
+                machines.next().is_none(),
+                "content projection plan machine must resolve to exactly one typed machine",
+            );
+            assert_eq!(
+                plan.fingerprint,
+                projection_fingerprint(&plan.algebra, &plan.expression),
+                "content projection plan must retain its exact normalized fingerprint",
+            );
+            assert!(
+                !seen_domains.contains(&plan.domain),
+                "content projection plans must retain one row per exact domain",
+            );
+            seen_domains.push(plan.domain);
+            assert!(
+                !seen_semantic_domains.contains(&plan.semantic_domain),
+                "content projection plans must retain one row per exact semantic domain",
+            );
+            seen_semantic_domains.push(plan.semantic_domain);
+            plan
+        })
+        .collect()
 }
 
 fn push_content_algebra_json(
@@ -3672,7 +3744,7 @@ mod tests {
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
         validate_qualification_program_point, validate_qualification_receipt,
         validate_qualification_source, validate_vacuous_qualification_use,
-        validated_machine_semantic_domain_commitments,
+        validated_content_projection_plans, validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3691,7 +3763,7 @@ mod tests {
         ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
         ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
         ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
-        conservation_fingerprint,
+        conservation_fingerprint, projection_fingerprint,
     };
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, BlockingSummary, CarryAddress, CarryCpu, CarryHostThread,
@@ -3712,6 +3784,7 @@ mod tests {
     use psi_typed_trees::statement::StatementNode;
     use psi_typed_trees::trait_definition::TraitDefinition;
     use psi_typed_trees::typed_trees::MachineSpecialization;
+    use psi_typed_trees::types::TypeReferenceNode;
 
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceEntryAuthorityFlow,
@@ -4038,12 +4111,168 @@ mod tests {
         );
     }
 
+    fn content_projection_validation_fixture() -> CheckedTrees {
+        let domain_symbol = SymbolHandle::from_arena_index(90);
+        let carrier_symbol = SymbolHandle::from_arena_index(91);
+        let machine_symbol = SymbolHandle::from_arena_index(92);
+        let mut program = CheckedTrees::default();
+        let carrier = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: carrier_symbol,
+                name: Identifier::generated("Resource"),
+            });
+        let semantic_domain = program.typed.semantic_domains.intern("Resource::Counted");
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: domain_symbol,
+            name: Identifier::generated("Resource::Counted"),
+            target_type: carrier,
+            semantic_id: semantic_domain,
+            ..Default::default()
+        });
+        program.typed.push_machine(Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Resource::content"),
+            ..Default::default()
+        });
+        let algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(Unit))".to_owned(),
+        };
+        let expression = ContentProjectionExpression::CountedQuantity {
+            magnitude: ContentScalarExpression::Natural("1".to_owned()),
+        };
+        let fingerprint = projection_fingerprint(&algebra, &expression);
+        program
+            .facts
+            .qualifications
+            .content
+            .plans
+            .push(ContentProjectionPlan {
+                domain: domain_symbol,
+                semantic_domain,
+                carrier_identity: program
+                    .typed
+                    .normalized_type_identity(carrier)
+                    .into_string(),
+                machine: machine_symbol,
+                algebra,
+                expression,
+                fingerprint,
+            });
+        program
+    }
+
+    #[test]
+    fn content_projection_manifest_accepts_exact_normalized_plan_custody() {
+        let program = content_projection_validation_fixture();
+        let plans = validated_content_projection_plans(&program);
+
+        assert_eq!(
+            plans,
+            program
+                .facts
+                .qualifications
+                .content
+                .plans
+                .iter()
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name a nonempty exact declared domain")]
+    fn content_projection_manifest_rejects_missing_domain() {
+        let mut program = content_projection_validation_fixture();
+        program.facts.qualifications.content.plans[0].domain = SymbolHandle::from_arena_index(99);
+        validated_content_projection_plans(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact registered semantic domain")]
+    fn content_projection_manifest_rejects_unregistered_semantic_domain() {
+        let mut program = content_projection_validation_fixture();
+        program.facts.qualifications.content.plans[0].semantic_domain = SemanticDomainId(u32::MAX);
+        validated_content_projection_plans(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact normalized carrier identity")]
+    fn content_projection_manifest_rejects_carrier_identity_drift() {
+        let mut program = content_projection_validation_fixture();
+        program.facts.qualifications.content.plans[0].carrier_identity =
+            "named(name(Unrelated))".to_owned();
+        validated_content_projection_plans(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact typed projection machine")]
+    fn content_projection_manifest_rejects_missing_projection_machine() {
+        let mut program = content_projection_validation_fixture();
+        program.facts.qualifications.content.plans[0].machine = SymbolHandle::from_arena_index(99);
+        validated_content_projection_plans(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact normalized fingerprint")]
+    fn content_projection_manifest_rejects_fingerprint_drift() {
+        let mut program = content_projection_validation_fixture();
+        program.facts.qualifications.content.plans[0].fingerprint ^= 1;
+        validated_content_projection_plans(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain one row per exact domain")]
+    fn content_projection_manifest_rejects_duplicate_domain() {
+        let mut program = content_projection_validation_fixture();
+        let duplicate = program.facts.qualifications.content.plans[0].clone();
+        program.facts.qualifications.content.plans.push(duplicate);
+        validated_content_projection_plans(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain one row per exact semantic domain")]
+    fn content_projection_manifest_rejects_duplicate_semantic_domain() {
+        let mut program = content_projection_validation_fixture();
+        let first = program.facts.qualifications.content.plans[0].clone();
+        let second_domain_symbol = SymbolHandle::from_arena_index(93);
+        let second_carrier = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::from_arena_index(94),
+                name: Identifier::generated("OtherResource"),
+            });
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: second_domain_symbol,
+            name: Identifier::generated("OtherResource::Counted"),
+            target_type: second_carrier,
+            semantic_id: first.semantic_domain,
+            ..Default::default()
+        });
+        let mut duplicate_semantic = first;
+        duplicate_semantic.domain = second_domain_symbol;
+        duplicate_semantic.carrier_identity = program
+            .typed
+            .normalized_type_identity(second_carrier)
+            .into_string();
+        program
+            .facts
+            .qualifications
+            .content
+            .plans
+            .push(duplicate_semantic);
+        validated_content_projection_plans(&program);
+    }
+
     #[test]
     fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         let machine_symbol = SymbolHandle::from_arena_index(20);
         let state_symbol = SymbolHandle::from_arena_index(21);
         let projection_machine_symbol = SymbolHandle::from_arena_index(22);
         let projection_state_symbol = SymbolHandle::from_arena_index(23);
+        let domain_symbol = SymbolHandle::from_arena_index(24);
+        let carrier_symbol = SymbolHandle::from_arena_index(25);
         let mut program = CheckedTrees::default();
         let mut machine = Machine {
             symbol: machine_symbol,
@@ -4073,6 +4302,24 @@ mod tests {
             },
         );
         program.typed.push_machine(projection_machine);
+        let carrier = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: carrier_symbol,
+                name: Identifier::generated("Region"),
+            });
+        let semantic_domain = program
+            .typed
+            .semantic_domains
+            .intern("Region::PartitionedContent");
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: domain_symbol,
+            name: Identifier::generated("Region::PartitionedContent"),
+            target_type: carrier,
+            semantic_id: semantic_domain,
+            ..Default::default()
+        });
         let output_segments = program.facts.flow.ownership.segments.insert_many([
             psi_facts::PlaceSegment::Case {
                 variant: SymbolHandle::invalid(),
@@ -4124,38 +4371,45 @@ mod tests {
                 state_symbol,
                 entries,
             });
+        let projection_algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(ByteUnit))".to_owned(),
+        };
+        let projection_expression = ContentProjectionExpression::CountedQuantity {
+            magnitude: ContentScalarExpression::Arithmetic {
+                operator: ContentArithmeticOperator::Add,
+                left: Box::new(ContentScalarExpression::RuntimeScalarEmbedding(vec![
+                    ContentFieldSegment {
+                        symbol: SymbolHandle::invalid(),
+                        name: "length".to_owned(),
+                    },
+                ])),
+                right: Box::new(ContentScalarExpression::Natural("1".to_owned())),
+            },
+        };
+        let projection_identity =
+            projection_fingerprint(&projection_algebra, &projection_expression);
         program
             .facts
             .qualifications
             .content
             .plans
             .push(ContentProjectionPlan {
-                domain: SymbolHandle::invalid(),
-                semantic_domain: SemanticDomainId(41),
-                carrier_identity: "named(name(Region))".to_owned(),
+                domain: domain_symbol,
+                semantic_domain,
+                carrier_identity: program
+                    .typed
+                    .normalized_type_identity(carrier)
+                    .into_string(),
                 machine: projection_machine_symbol,
-                algebra: ContentAlgebraIdentity::CountedQuantity {
-                    unit: "named(name(ByteUnit))".to_owned(),
-                },
-                expression: ContentProjectionExpression::CountedQuantity {
-                    magnitude: ContentScalarExpression::Arithmetic {
-                        operator: ContentArithmeticOperator::Add,
-                        left: Box::new(ContentScalarExpression::RuntimeScalarEmbedding(vec![
-                            ContentFieldSegment {
-                                symbol: SymbolHandle::invalid(),
-                                name: "length".to_owned(),
-                            },
-                        ])),
-                        right: Box::new(ContentScalarExpression::Natural("1".to_owned())),
-                    },
-                },
-                fingerprint: 0x0123_4567_89ab_cdef,
+                algebra: projection_algebra,
+                expression: projection_expression,
+                fingerprint: projection_identity,
             });
         let input = ContentConservationTerm::Projection {
-            domain: SymbolHandle::invalid(),
-            semantic_domain: SemanticDomainId(41),
-            projection_machine: SymbolHandle::invalid(),
-            projection_fingerprint: 0x0123_4567_89ab_cdef,
+            domain: domain_symbol,
+            semantic_domain,
+            projection_machine: projection_machine_symbol,
+            projection_fingerprint: projection_identity,
             subject: ContentStructuralPlace {
                 version: ContentPlaceVersion::Entry,
                 root: ContentPlaceRoot::Parameter {
@@ -4168,10 +4422,10 @@ mod tests {
             },
         };
         let output = ContentConservationTerm::Projection {
-            domain: SymbolHandle::invalid(),
-            semantic_domain: SemanticDomainId(41),
-            projection_machine: SymbolHandle::invalid(),
-            projection_fingerprint: 0x0123_4567_89ab_cdef,
+            domain: domain_symbol,
+            semantic_domain,
+            projection_machine: projection_machine_symbol,
+            projection_fingerprint: projection_identity,
             subject: ContentStructuralPlace {
                 version: ContentPlaceVersion::Current,
                 root: ContentPlaceRoot::Result,
@@ -4363,13 +4617,15 @@ mod tests {
         assert!(json.contains("\"ordinal\": 12"));
         assert!(json.contains("\"input\": {\"parameter\": \"invalid\", \"path\": []}"));
         assert!(json.contains("\"ordinal\": 9"));
-        assert!(json.contains("\"semantic_domain_id\": 41"));
+        assert!(json.contains(&format!("\"semantic_domain_id\": {}", semantic_domain.0)));
         assert!(json.contains("\"kind\": \"counted_quantity\""));
         assert!(json.contains("\"unit\": \"named(name(ByteUnit))\""));
         assert!(json.contains("\"kind\": \"runtime_scalar_embedding\""));
         assert!(json.contains("\"path\": [\"length\"]"));
         assert!(json.contains("\"operator\": \"add\""));
-        assert!(json.contains("\"fingerprint\": \"0x0123456789abcdef\""));
+        assert!(json.contains(&format!(
+            "\"fingerprint\": \"0x{projection_identity:016x}\""
+        )));
         assert!(
             conservation.contains(
                 "\"callable_overload_identity\": \"named-callable(path(Region::partition)"
