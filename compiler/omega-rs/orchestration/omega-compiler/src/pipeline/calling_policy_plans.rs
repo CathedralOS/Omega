@@ -74,28 +74,69 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
     dispatch_only_parameter_count: usize,
 ) -> Result<Option<BoundaryEntryPlan>, String> {
     let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
-    let Some(signature) = typed.traits().iter().find_map(|definition| {
-        (definition.name.as_str().rsplit("::").next() == Some(trait_leaf)).then(|| {
+    let candidates = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.name.as_str().rsplit("::").next() == Some(trait_leaf))
+        .flat_map(|definition| {
             typed
                 .trait_machine_signatures(definition)
                 .iter()
-                .find(|signature| {
-                    signature.name.as_str() == method_name
-                        && typed
+                .filter(|signature| signature.name.as_str() == method_name)
+                .map(|signature| {
+                    (
+                        signature,
+                        typed
                             .normalized_trait_requirement_overload_identity(definition, signature)
-                            .identity()
-                            == requirement_identity
+                            .identity(),
+                    )
                 })
-        })?
-    }) else {
+        })
+        .collect::<Vec<_>>();
+    let Some(candidate_index) = exact_compatibility_overload_index(
+        trait_name,
+        method_name,
+        requirement_identity,
+        candidates.iter().map(|(_, identity)| identity.as_str()),
+    )?
+    else {
         return Ok(None);
     };
+    let signature = candidates[candidate_index].0;
     let materialized = call_signature_from_typed(typed, signature, &[])?;
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
     evaluate_ordinary_boundary_entry_plan(policy, &classified)
         .map(|validated| Some(validated.plan().clone()))
         .map_err(|diagnostic| diagnostic.to_string())
+}
+
+fn exact_compatibility_overload_index<'identity>(
+    trait_name: &str,
+    method_name: &str,
+    requirement_identity: &str,
+    candidate_identities: impl IntoIterator<Item = &'identity str>,
+) -> Result<Option<usize>, String> {
+    if requirement_identity.is_empty() {
+        return Err(format!(
+            "compatibility calling-plan lookup for `{trait_name}::{method_name}` has no exact requirement overload identity"
+        ));
+    }
+    let mut matches = candidate_identities
+        .into_iter()
+        .enumerate()
+        .filter(|(_, identity)| *identity == requirement_identity);
+    let Some((candidate_index, _)) = matches.next() else {
+        return Ok(None);
+    };
+    let duplicate_count = matches.count();
+    if duplicate_count != 0 {
+        return Err(format!(
+            "compatibility calling-plan lookup for `{trait_name}::{method_name}` matches {} exact requirement overload rows for identity `{requirement_identity}`",
+            duplicate_count + 1,
+        ));
+    }
+    Ok(Some(candidate_index))
 }
 
 fn compatibility_call_signature(
@@ -1906,6 +1947,53 @@ mod tests {
         );
         assert_eq!(wire.result, Some(ValueShape::integer(4, 4)));
         assert!(compatibility_call_signature(&signature, CallingPolicy::MicrosoftX64, 4).is_err());
+    }
+
+    #[test]
+    fn compatibility_lookup_requires_one_exact_nonempty_overload_identity() {
+        let cases: [(&str, &str, &[&str], Result<Option<usize>, &str>); 5] = [
+            (
+                "empty",
+                "",
+                &["exact"],
+                Err(
+                    "compatibility calling-plan lookup for `pkg::Readable::read` has no exact requirement overload identity",
+                ),
+            ),
+            ("absent", "missing", &["first", "second"], Ok(None)),
+            ("name-only singleton", "exact", &["lookalike"], Ok(None)),
+            (
+                "unique same-name overload",
+                "exact",
+                &["lookalike", "exact", "other"],
+                Ok(Some(1)),
+            ),
+            (
+                "duplicate exact",
+                "exact",
+                &["exact", "lookalike", "exact"],
+                Err(
+                    "compatibility calling-plan lookup for `pkg::Readable::read` matches 2 exact requirement overload rows for identity `exact`",
+                ),
+            ),
+        ];
+
+        for (case, requirement_identity, candidates, expected) in cases {
+            let actual = exact_compatibility_overload_index(
+                "pkg::Readable",
+                "read",
+                requirement_identity,
+                candidates.iter().copied(),
+            );
+            assert_eq!(
+                actual
+                    .as_ref()
+                    .map(|candidate_index| *candidate_index)
+                    .map_err(String::as_str),
+                expected,
+                "case: {case}",
+            );
+        }
     }
 
     #[test]
