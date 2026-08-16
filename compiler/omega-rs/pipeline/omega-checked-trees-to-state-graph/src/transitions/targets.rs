@@ -41,15 +41,25 @@ pub(super) fn plan_transition_target(
         }
     }
 
-    match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named {
-            path, arguments: _, ..
-        } if is_local_transition_path(
+    let local_transition = if let TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(target)
+    {
+        is_local_transition_path(
             source_key,
             program.statement_table.name_path_members(path.members),
             path.head_symbol,
-        ) =>
-        {
+            path.symbol,
+            source_machine,
+            program,
+        )?
+    } else {
+        false
+    };
+
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
+            path, arguments: _, ..
+        } if local_transition => {
             let members = program.statement_table.name_path_members(path.members);
             let name = members
                 .last()
@@ -255,8 +265,32 @@ fn is_local_transition_path(
     source_key: StateKey,
     path: &[psi_checked_trees::name::Identifier],
     head_symbol: psi_symbols::SymbolHandle,
-) -> bool {
-    path.len() == 1 || path.len() == 2 && head_symbol == source_key.machine
+    target_symbol: SymbolHandle,
+    source_machine: &Machine,
+    program: &CheckedTrees,
+) -> Result<bool, Diagnostic> {
+    if path.len() == 1 {
+        return Ok(true);
+    }
+    if path.len() != 2 || path[0].as_str() != "self" {
+        return Ok(false);
+    }
+    if head_symbol == source_key.machine {
+        return Ok(true);
+    }
+
+    // The symbol resolver's exact local-state fallback stamps `self.X` with
+    // the target state as both its head and final symbol. Only the current
+    // machine's own entry uses that carrier as call-spelled recursion; local
+    // substates retain their existing nested routing. Validate ownership
+    // before the entry-name discriminator so duplicate or cross-owned local
+    // symbols still fail closed here.
+    if head_symbol == target_symbol && target_symbol.is_valid() {
+        let target = exact_owned_state(program, source_machine, target_symbol, "local target")?;
+        return Ok(machine_targets_own_entry(source_machine, &target.name));
+    }
+
+    Ok(false)
 }
 
 fn exact_self_sibling_transition(
@@ -1001,6 +1035,47 @@ mod tests {
                 .expect("measured self entry"),
             ),
             measured.source_key
+        );
+    }
+
+    #[test]
+    fn resolver_local_state_head_preserves_existing_recursion_rules() {
+        let mut fixture = target_fixture();
+        let target = named_target(
+            &mut fixture.program,
+            &["self", "run"],
+            fixture.source_key.state,
+            fixture.source_key.state,
+        );
+        assert!(
+            error_message(plan_transition_target(
+                fixture.source_key,
+                &fixture.segments,
+                target,
+                &fixture.program,
+            ))
+            .contains("WITHOUT a measure")
+        );
+        fixture
+            .program
+            .typed
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.symbol == fixture.source_key.machine)
+            .expect("source machine")
+            .termination_plan
+            .implementation_witness = Some(psi_language_semantics::RankingWitness::default());
+        assert_eq!(
+            state_target_key(
+                plan_transition_target(
+                    fixture.source_key,
+                    &fixture.segments,
+                    target,
+                    &fixture.program,
+                )
+                .expect("measured resolver-carrier self entry"),
+            ),
+            fixture.source_key
         );
     }
 }
