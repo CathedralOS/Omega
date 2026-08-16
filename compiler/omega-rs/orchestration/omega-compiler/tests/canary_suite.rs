@@ -18587,7 +18587,8 @@ fn runtime_local_string_field_copy_through_mut_exit_canary_runs() {
         "omega-local-string-field-copy-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("local string field copy canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45150,6 +45151,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_exit_code_exit",
     "calls/runtime_inline_recursive_walk_exit",
     "calls/runtime_let_mut_reassign_exit",
+    "calls/runtime_local_string_field_copy_through_mut_exit",
     "calls/runtime_min_call_result_arithmetic_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
     "calls/runtime_value_call_statement_recursive_walk_exit",
