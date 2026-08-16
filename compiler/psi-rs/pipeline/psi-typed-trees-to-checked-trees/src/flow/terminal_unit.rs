@@ -1900,6 +1900,12 @@ fn shared_integer_runtime_inputs_with_shells(
                         scalar_parameter_count,
                     )
                 })
+                .or_else(|| {
+                    shared_exact_distinct_root_affine_product_join_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
         }
         CheckedScalarExpression::IntegerBinary {
             kind: CheckedIntegerBinaryKind::ExactShiftRight,
@@ -4083,6 +4089,53 @@ fn shared_exact_distinct_root_affine_fork_join_runtime_inputs(
         SharedBooleanRuntimeInput::IntegerScalar(left_root),
         SharedBooleanRuntimeInput::IntegerScalar(right_root),
     ]))
+}
+
+fn shared_exact_distinct_root_affine_product_join_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactMultiply,
+        primitive_type:
+            primitive_type @ (PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64),
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    let (left_type, left_root, _, _) =
+        shared_exact_affine_fork_branch(left, scalar_parameter_count)?;
+    let (right_type, right_root, _, _) =
+        shared_exact_affine_fork_branch(right, scalar_parameter_count)?;
+    if left_type != *primitive_type || right_type != *primitive_type || left_root == right_root {
+        return None;
+    }
+    Some(BTreeSet::from([
+        SharedBooleanRuntimeInput::IntegerScalar(left_root),
+        SharedBooleanRuntimeInput::IntegerScalar(right_root),
+    ]))
+}
+
+#[cfg(test)]
+pub(crate) fn exact_distinct_root_affine_product_join_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_distinct_root_affine_product_join_runtime_inputs(
+        expression,
+        scalar_parameter_count,
+    )?
+    .into_iter()
+    .map(|input| match input {
+        SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+        _ => None,
+    })
+    .collect()
 }
 
 #[cfg(test)]

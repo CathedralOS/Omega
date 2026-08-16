@@ -795,9 +795,24 @@ roots, carrier drift, overlapping or reordered definitions, conversions, and
 checked interval failure remain fenced. Every operation in both branches and
 the join retains independent evidence, and existing narrower families retain
 priority.
+One distinct-root signature-bounded signed affine product join admits an outer
+fixed-native exact multiply when its two nonempty landed-literal affine
+branches have disjoint source-ordered definition walks and terminate at two
+different direct signed machine parameters. Both roots must retain landed
+unary lower and upper signature bounds. The verifier selects the tightest
+endpoints, maps them through the checked signed affine branches, and forms the
+exact interval hull of all four corner products. Complete containment emits
+the canonical four-bound conjunction, a wholly disjoint hull emits falsehood,
+and partial overlap or checked corner multiplication failure admits no family.
+Every branch operation and the outer multiply retains independent evidence.
+Same-root quadratic correlation, relational premises, one-sided bounds,
+unsigned carriers, carrier drift, computed roots, conversions, overlapping or
+reordered definitions, and stale evidence remain fenced. Existing constant-
+factor, runtime-factor, chain, conversion, and add/subtract fork families keep
+priority.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands outside
-the admitted affine fork/join families,
+the admitted affine fork/join and affine product-join families,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and

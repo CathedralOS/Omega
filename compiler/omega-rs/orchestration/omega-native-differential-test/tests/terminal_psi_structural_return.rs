@@ -928,6 +928,8 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             affine_fork_subtract_join: i16,
             distinct_affine_fork_left: i16,
             distinct_affine_fork_right: i16,
+            affine_product_join_left: i16,
+            affine_product_join_right: i16,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -1118,7 +1120,23 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             -100i16 <= distinct_affine_fork_left,
             distinct_affine_fork_left <= 100i16,
             -100i16 <= distinct_affine_fork_right,
-            distinct_affine_fork_right <= 100i16
+            distinct_affine_fork_right <= 100i16,
+            affine_product_join_left <= 32766i16,
+            -16385i16 <= affine_product_join_left,
+            affine_product_join_left <= 16382i16,
+            affine_product_join_left <= 32764i16,
+            -16386i16 <= affine_product_join_left,
+            affine_product_join_left <= 16381i16,
+            -32767i16 <= affine_product_join_right,
+            -10921i16 <= affine_product_join_right,
+            affine_product_join_right <= 10923i16,
+            -32764i16 <= affine_product_join_right,
+            -16379i16 <= affine_product_join_right,
+            affine_product_join_right <= 16388i16,
+            -10i16 <= affine_product_join_left,
+            affine_product_join_left <= 10i16,
+            -10i16 <= affine_product_join_right,
+            affine_product_join_right <= 10i16
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -1195,6 +1213,8 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && (((affine_fork_subtract_join + 3i16) * -2i16) - ((affine_fork_subtract_join - 4i16) * -2i16) < 32767i16)
                 && (((distinct_affine_fork_left + 1i16) * 2i16) + ((distinct_affine_fork_right - 1i16) * 3i16) < 32767i16)
                 && (((distinct_affine_fork_left + 3i16) * -2i16) - ((distinct_affine_fork_right - 4i16) * -2i16) < 32767i16)
+                && ((((affine_product_join_left + 1i16) * 2i16) * ((affine_product_join_right - 1i16) * 3i16)) < 32767i16)
+                && ((((affine_product_join_left + 3i16) * -2i16) * ((affine_product_join_right - 4i16) * -2i16)) < 32767i16)
                 && enabled
         }
     "#;
@@ -1253,7 +1273,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             .iter()
             .filter(|operation| matches!(operation.kind, OperationKind::ExactIntegerAdd { .. }))
             .count(),
-        42,
+        44,
     );
     assert_eq!(
         operations
@@ -1263,7 +1283,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerSubtract { .. }
             ))
             .count(),
-        16,
+        18,
     );
     assert_eq!(
         operations
@@ -1273,7 +1293,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 OperationKind::ExactIntegerMultiply { .. }
             ))
             .count(),
-        49,
+        55,
     );
     assert_eq!(
         operations
@@ -1359,7 +1379,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        42,
+        44,
     );
     assert_eq!(
         abstract_plan
@@ -1373,7 +1393,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        16,
+        18,
     );
     assert_eq!(
         abstract_plan
@@ -1387,7 +1407,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 )
             })
             .count(),
-        49,
+        55,
     );
     assert_eq!(
         abstract_plan

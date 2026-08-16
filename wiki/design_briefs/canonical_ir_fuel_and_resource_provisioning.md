@@ -197,6 +197,12 @@ signature bounds, intersecting both root intervals with their carrier, mapping
 the two checked signed affine forms forward, and computing their Minkowski sum
 or difference are verifier-only work and add no executable operation or fuel
 charge. A containment or falsehood decision never removes a branch charge.
+A distinct-root signed affine product join likewise charges every exact
+operation in both complete branches and the outer exact multiply separately.
+Selecting four unary signature endpoints, replaying both signed affine forms,
+and computing the four-corner product hull are verifier-only work and add no
+executable operation or fuel charge. A zero branch, containment decision, or
+falsehood result never removes a retained branch charge.
 A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains

@@ -1704,6 +1704,28 @@ requires left <= 32764i16,
     (((((left + 3i16) * -2i16) - ((right - 4i16) * -2i16)) < 32767i16) && enabled)
 }
 
+machine terminal_distinct_affine_product_join(left: i16, right: i16, enabled: bool) -> bool
+requires left <= 32766i16,
+    -16385i16 <= left, left <= 16382i16,
+    -32767i16 <= right,
+    -10921i16 <= right, right <= 10923i16,
+    -10i16 <= left, left <= 10i16,
+    -10i16 <= right, right <= 10i16
+{
+    (((((left + 1i16) * 2i16) * ((right - 1i16) * 3i16)) < 32767i16) && enabled)
+}
+
+machine terminal_distinct_signed_affine_product_join(left: i16, right: i16, enabled: bool) -> bool
+requires left <= 32764i16,
+    -16386i16 <= left, left <= 16381i16,
+    -32764i16 <= right,
+    -16379i16 <= right, right <= 16388i16,
+    -10i16 <= left, left <= 10i16,
+    -10i16 <= right, right <= 10i16
+{
+    (((((left + 3i16) * -2i16) * ((right - 4i16) * -2i16)) < 32767i16) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
