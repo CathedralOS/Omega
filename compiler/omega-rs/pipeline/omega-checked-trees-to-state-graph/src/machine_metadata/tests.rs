@@ -132,6 +132,428 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
     assert_eq!(contained[0].type_name.as_str(), "Worker");
 }
 
+struct ContainedTopologyFixture {
+    program: CheckedTrees,
+    root: Machine,
+    root_data: SymbolHandle,
+    leaf_data: SymbolHandle,
+    field: SymbolHandle,
+    leaf_type: psi_checked_trees::types::TypeReferenceHandle,
+    first_target: SymbolHandle,
+    second_target: SymbolHandle,
+}
+
+fn contained_topology_fixture(include_second_target: bool) -> ContainedTopologyFixture {
+    let root_data = SymbolHandle::from_arena_index(71);
+    let leaf_data = SymbolHandle::from_arena_index(72);
+    let field = SymbolHandle::from_arena_index(73);
+    let root_symbol = SymbolHandle::from_arena_index(74);
+    let first_target = SymbolHandle::from_arena_index(75);
+    let second_target = SymbolHandle::from_arena_index(76);
+    let mut program = CheckedTrees::default();
+    let leaf_type = program
+        .typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: leaf_data,
+            name: Identifier::generated("Leaf"),
+        });
+    program.typed.push_data_definition(DataDefinition {
+        symbol: leaf_data,
+        name: Identifier::generated("Leaf"),
+        ..Default::default()
+    });
+    let mut root_definition = DataDefinition {
+        symbol: root_data,
+        name: Identifier::generated("Root"),
+        ..Default::default()
+    };
+    program.typed.push_data_member(
+        &mut root_definition,
+        DataMember::Field(DataField {
+            identity: None,
+            symbol: field,
+            name: Identifier::generated("leaf"),
+            relevance: Default::default(),
+            type_reference: leaf_type,
+        }),
+    );
+    program.typed.push_data_definition(root_definition);
+    program.typed.push_machine(Machine {
+        symbol: first_target,
+        name: Identifier::generated("Leaf::read"),
+        attached_data: Some(Identifier::generated("Leaf")),
+        ..Default::default()
+    });
+    if include_second_target {
+        program.typed.push_machine(Machine {
+            symbol: second_target,
+            name: Identifier::generated("Leaf::write"),
+            attached_data: Some(Identifier::generated("Leaf")),
+            ..Default::default()
+        });
+    }
+    let root = Machine {
+        symbol: root_symbol,
+        name: Identifier::generated("Root::run"),
+        attached_data: Some(Identifier::generated("Root")),
+        ..Default::default()
+    };
+    program.typed.push_machine(root.clone());
+
+    let targets = program.facts.carry.contained_targets.insert_many(
+        [first_target]
+            .into_iter()
+            .chain(include_second_target.then_some(second_target))
+            .map(|machine| ContainedMachineTargetFact { machine }),
+    );
+    let fields = program
+        .facts
+        .carry
+        .contained_fields
+        .insert_many([ContainedMachineFieldFact {
+            field,
+            data: leaf_data,
+            type_reference: leaf_type,
+            targets,
+        }]);
+    program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: first_target,
+            fields: HandleSpan::empty(),
+        });
+    if include_second_target {
+        program
+            .facts
+            .carry
+            .machine_topologies
+            .append(MachineCarryTopologyFact {
+                machine: second_target,
+                fields: HandleSpan::empty(),
+            });
+    }
+    program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: root_symbol,
+            fields,
+        });
+
+    ContainedTopologyFixture {
+        program,
+        root,
+        root_data,
+        leaf_data,
+        field,
+        leaf_type,
+        first_target,
+        second_target,
+    }
+}
+
+fn contained_topology_panic(program: &CheckedTrees, root: &Machine) -> String {
+    metadata_panic(|| {
+        let mut graph = StateGraph::default();
+        machine_contains(&mut graph, program, root)
+    })
+}
+
+fn root_contained_fields(
+    program: &CheckedTrees,
+    root: SymbolHandle,
+) -> HandleSpan<ContainedMachineFieldFact> {
+    program
+        .facts
+        .carry
+        .topology_for_machine(root)
+        .expect("root topology")
+        .fields
+}
+
+#[test]
+fn contained_topology_validates_all_targets_and_preserves_first_representative() {
+    let mut fixture = contained_topology_fixture(true);
+    fixture
+        .program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: SymbolHandle::from_arena_index(77),
+            fields: HandleSpan::empty(),
+        });
+    let mut graph = StateGraph::default();
+    let contains = machine_contains(&mut graph, &fixture.program, &fixture.root);
+    let contained = graph.contained_machines.span_or_empty(contains);
+
+    assert_eq!(contained.len(), 1);
+    assert_eq!(contained[0].type_symbol, fixture.first_target);
+    assert_ne!(contained[0].type_symbol, fixture.second_target);
+    assert_eq!(contained[0].type_name.as_str(), "Leaf");
+}
+
+#[test]
+fn contained_topology_preserves_explicit_empty_row() {
+    let mut fixture = contained_topology_fixture(false);
+    fixture.program.facts.carry.machine_topologies = Default::default();
+    fixture
+        .program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: fixture.root.symbol,
+            fields: HandleSpan::empty(),
+        });
+    let mut graph = StateGraph::default();
+    let contains = machine_contains(&mut graph, &fixture.program, &fixture.root);
+
+    assert!(contains.is_empty());
+}
+
+#[test]
+fn contained_topology_rejects_missing_and_duplicate_machine_row() {
+    let mut missing = contained_topology_fixture(false);
+    missing.program.facts.carry.machine_topologies = Default::default();
+    assert!(
+        contained_topology_panic(&missing.program, &missing.root)
+            .contains("topology row is missing")
+    );
+
+    let mut duplicate = contained_topology_fixture(false);
+    duplicate
+        .program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: duplicate.root.symbol,
+            fields: HandleSpan::empty(),
+        });
+    assert!(
+        contained_topology_panic(&duplicate.program, &duplicate.root)
+            .contains("topology row is duplicated")
+    );
+}
+
+#[test]
+fn contained_topology_rejects_invalid_field_span_and_owner() {
+    let mut invalid_span = contained_topology_fixture(false);
+    invalid_span.program.facts.carry.machine_topologies = Default::default();
+    invalid_span
+        .program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: invalid_span.root.symbol,
+            fields: HandleSpan::from_parts(
+                psi_arena::Handle::<ContainedMachineFieldFact>::from_arena_index(999),
+                1,
+            ),
+        });
+    assert!(
+        contained_topology_panic(&invalid_span.program, &invalid_span.root)
+            .contains("field span is invalid")
+    );
+
+    let mut absent_owner = contained_topology_fixture(false);
+    absent_owner
+        .program
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == absent_owner.root.symbol)
+        .expect("root machine")
+        .attached_data = None;
+    assert!(
+        contained_topology_panic(&absent_owner.program, &absent_owner.root)
+            .contains("no attached data owner")
+    );
+
+    let mut cross_owner = contained_topology_fixture(false);
+    cross_owner
+        .program
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == cross_owner.root.symbol)
+        .expect("root machine")
+        .attached_data = Some(Identifier::generated("Leaf"));
+    assert!(
+        contained_topology_panic(&cross_owner.program, &cross_owner.root)
+            .contains("field belongs to another data owner")
+    );
+}
+
+#[test]
+fn contained_topology_rejects_field_tuple_and_identity_drift() {
+    let mut tuple_drift = contained_topology_fixture(false);
+    let fields = root_contained_fields(&tuple_drift.program, tuple_drift.root.symbol);
+    tuple_drift
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .span_mut_or_empty(fields)[0]
+        .data = tuple_drift.root_data;
+    assert!(
+        contained_topology_panic(&tuple_drift.program, &tuple_drift.root)
+            .contains("data coordinate drifted")
+    );
+
+    let mut duplicate = contained_topology_fixture(false);
+    duplicate.program.facts.carry.contained_fields = Default::default();
+    let targets = duplicate
+        .program
+        .facts
+        .carry
+        .contained_targets
+        .insert_many([ContainedMachineTargetFact {
+            machine: duplicate.first_target,
+        }]);
+    let field = ContainedMachineFieldFact {
+        field: duplicate.field,
+        data: duplicate.leaf_data,
+        type_reference: duplicate.leaf_type,
+        targets,
+    };
+    let fields = duplicate
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .insert_many([field.clone(), field]);
+    duplicate.program.facts.carry.machine_topologies = Default::default();
+    duplicate
+        .program
+        .facts
+        .carry
+        .machine_topologies
+        .append(MachineCarryTopologyFact {
+            machine: duplicate.root.symbol,
+            fields,
+        });
+    assert!(
+        contained_topology_panic(&duplicate.program, &duplicate.root)
+            .contains("field identity is empty or duplicated")
+    );
+}
+
+#[test]
+fn contained_topology_rejects_invalid_empty_and_duplicate_targets() {
+    let mut empty = contained_topology_fixture(false);
+    let fields = root_contained_fields(&empty.program, empty.root.symbol);
+    empty
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .span_mut_or_empty(fields)[0]
+        .targets = HandleSpan::empty();
+    assert!(
+        contained_topology_panic(&empty.program, &empty.root)
+            .contains("target span is empty or invalid")
+    );
+
+    let mut invalid = contained_topology_fixture(false);
+    let fields = root_contained_fields(&invalid.program, invalid.root.symbol);
+    invalid
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .span_mut_or_empty(fields)[0]
+        .targets = HandleSpan::from_parts(
+        psi_arena::Handle::<ContainedMachineTargetFact>::from_arena_index(999),
+        1,
+    );
+    assert!(
+        contained_topology_panic(&invalid.program, &invalid.root)
+            .contains("target span is empty or invalid")
+    );
+
+    let mut duplicate = contained_topology_fixture(false);
+    let targets = duplicate
+        .program
+        .facts
+        .carry
+        .contained_targets
+        .insert_many([
+            ContainedMachineTargetFact {
+                machine: duplicate.first_target,
+            },
+            ContainedMachineTargetFact {
+                machine: duplicate.first_target,
+            },
+        ]);
+    let fields = root_contained_fields(&duplicate.program, duplicate.root.symbol);
+    duplicate
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .span_mut_or_empty(fields)[0]
+        .targets = targets;
+    assert!(
+        contained_topology_panic(&duplicate.program, &duplicate.root)
+            .contains("target identity is empty or duplicated")
+    );
+}
+
+#[test]
+fn contained_topology_rejects_missing_and_wrong_attached_target() {
+    let mut missing = contained_topology_fixture(false);
+    let targets =
+        missing
+            .program
+            .facts
+            .carry
+            .contained_targets
+            .insert_many([ContainedMachineTargetFact {
+                machine: SymbolHandle::from_arena_index(999),
+            }]);
+    let fields = root_contained_fields(&missing.program, missing.root.symbol);
+    missing
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .span_mut_or_empty(fields)[0]
+        .targets = targets;
+    assert!(
+        contained_topology_panic(&missing.program, &missing.root)
+            .contains("exact typed machine is missing")
+    );
+
+    let mut wrong_attached = contained_topology_fixture(false);
+    let targets = wrong_attached
+        .program
+        .facts
+        .carry
+        .contained_targets
+        .insert_many([ContainedMachineTargetFact {
+            machine: wrong_attached.root.symbol,
+        }]);
+    let fields = root_contained_fields(&wrong_attached.program, wrong_attached.root.symbol);
+    wrong_attached
+        .program
+        .facts
+        .carry
+        .contained_fields
+        .span_mut_or_empty(fields)[0]
+        .targets = targets;
+    assert!(
+        contained_topology_panic(&wrong_attached.program, &wrong_attached.root)
+            .contains("attached to another data definition")
+    );
+}
+
 fn push_operational_contract(
     program: &mut CheckedTrees,
     machine_symbol: SymbolHandle,

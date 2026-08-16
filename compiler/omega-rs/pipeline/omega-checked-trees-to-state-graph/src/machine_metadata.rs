@@ -308,42 +308,124 @@ pub(crate) fn machine_contains(
     program: &CheckedTrees,
     machine: &Machine,
 ) -> HandleSpan<ContainedGraph> {
+    let machine = exact_typed_machine(program, machine.symbol);
+    let carry = &program.facts.carry;
+    let mut matching_topologies = carry
+        .machine_topologies
+        .iter()
+        .map(|(_, topology)| topology)
+        .filter(|topology| topology.machine == machine.symbol);
+    let topology = matching_topologies.next().unwrap_or_else(|| {
+        panic!("state-graph topology invariant: exact machine topology row is missing")
+    });
+    assert!(
+        matching_topologies.next().is_none(),
+        "state-graph topology invariant: exact machine topology row is duplicated"
+    );
+    let fields = carry.contained_fields.span_or_empty(topology.fields);
+    assert!(
+        topology.fields.is_empty() || !fields.is_empty(),
+        "state-graph topology invariant: contained field span is invalid"
+    );
+
+    let attached_data = if fields.is_empty() {
+        None
+    } else {
+        let attached_name = machine.attached_data.as_ref().unwrap_or_else(|| {
+            panic!("state-graph topology invariant: contained fields have no attached data owner")
+        });
+        let mut owners = program
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.name == *attached_name);
+        let owner = owners.next().unwrap_or_else(|| {
+            panic!("state-graph topology invariant: attached data owner is missing")
+        });
+        assert!(
+            owners.next().is_none(),
+            "state-graph topology invariant: attached data owner is duplicated"
+        );
+        Some(owner)
+    };
+
     let mut contains = HandleSpan::empty();
-    for contained in program
-        .facts
-        .carry
-        .contained_fields_for_machine(machine.symbol)
-    {
-        let Some(field) = program.data_definitions().iter().find_map(|definition| {
+    for (index, contained) in fields.iter().enumerate() {
+        assert!(
+            contained.field.is_valid()
+                && !fields[..index]
+                    .iter()
+                    .any(|candidate| candidate.field == contained.field),
+            "state-graph topology invariant: contained field identity is empty or duplicated"
+        );
+
+        let mut field_owners = program.data_definitions().iter().flat_map(|definition| {
             program
                 .data_members(definition)
                 .iter()
-                .find_map(|member| match member {
+                .filter_map(move |member| match member {
                     psi_checked_trees::data::DataMember::Field(field)
                         if field.symbol == contained.field =>
                     {
-                        Some(field)
+                        Some((definition, field))
                     }
                     _ => None,
                 })
-        }) else {
-            continue;
-        };
-        let Some(field_data) = program
+        });
+        let (field_owner, field) = field_owners.next().unwrap_or_else(|| {
+            panic!("state-graph topology invariant: contained field is missing")
+        });
+        assert!(
+            field_owners.next().is_none(),
+            "state-graph topology invariant: contained field identity is cross-owned or duplicated"
+        );
+        assert_eq!(
+            Some(field_owner.symbol),
+            attached_data.map(|owner| owner.symbol),
+            "state-graph topology invariant: contained field belongs to another data owner"
+        );
+        assert_eq!(
+            contained.type_reference, field.type_reference,
+            "state-graph topology invariant: contained field type-reference coordinate drifted"
+        );
+        assert_eq!(
+            program.type_reference_symbol(contained.type_reference),
+            contained.data,
+            "state-graph topology invariant: contained field data coordinate drifted"
+        );
+
+        let mut field_data_matches = program
             .data_definitions()
             .iter()
-            .find(|definition| definition.symbol == contained.data)
-        else {
-            continue;
-        };
-        let Some(target) = program
-            .facts
-            .carry
-            .contained_targets_for_field(contained)
-            .first()
-        else {
-            continue;
-        };
+            .filter(|definition| definition.symbol == contained.data);
+        let field_data = field_data_matches.next().unwrap_or_else(|| {
+            panic!("state-graph topology invariant: contained field data definition is missing")
+        });
+        assert!(
+            field_data_matches.next().is_none(),
+            "state-graph topology invariant: contained field data definition is duplicated"
+        );
+
+        let targets = carry.contained_targets.span_or_empty(contained.targets);
+        assert!(
+            !contained.targets.is_empty() && !targets.is_empty(),
+            "state-graph topology invariant: contained target span is empty or invalid"
+        );
+        for (target_index, target) in targets.iter().enumerate() {
+            assert!(
+                target.machine.is_valid()
+                    && !targets[..target_index]
+                        .iter()
+                        .any(|candidate| candidate.machine == target.machine),
+                "state-graph topology invariant: contained target identity is empty or duplicated"
+            );
+            let target_machine = exact_typed_machine(program, target.machine);
+            assert_eq!(
+                target_machine.attached_data.as_ref(),
+                Some(&field_data.name),
+                "state-graph topology invariant: contained target is attached to another data definition"
+            );
+        }
+        let target = &targets[0];
 
         let contained_symbol = program
             .symbols
