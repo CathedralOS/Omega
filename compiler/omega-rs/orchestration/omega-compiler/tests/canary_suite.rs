@@ -17190,6 +17190,11 @@ fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("boundary capability should forward through a state parameter");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);
@@ -17199,7 +17204,8 @@ fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
         "omega-boundary-capability-state-forwarding-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("boundary capability should compile through native storage planning");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45221,6 +45227,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "providers/runtime_adapter_dispatch_exit",
     "providers/provider_type_slot_selected",
     "providers/runtime_adapter_forwarding_exit",
+    "providers/runtime_boundary_capability_state_forwarding_exit",
     "providers/checked_boundary_operator_dispatch_exit",
     "providers/runtime_result_domain_requirement_overload_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
