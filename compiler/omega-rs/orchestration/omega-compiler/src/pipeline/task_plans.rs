@@ -48,28 +48,21 @@ pub(super) fn elaborate_task_activation_plans(
             ))]);
         }
 
-        let Some(contract) = program
-            .facts
-            .contract_plans
-            .for_machine(target_machine.symbol)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "task activation target `{}` has no checked machine contract",
-                target_machine.name
-            ))]);
-        };
-        let Some(suspension) = program.facts.suspensions.for_machine(target_machine.symbol) else {
-            return Err(vec![Diagnostic::error(format!(
-                "task activation target `{}` has no checked suspension plan",
-                target_machine.name
-            ))]);
-        };
-        let Some(blocking) = program.facts.blocking.for_machine(target_machine.symbol) else {
-            return Err(vec![Diagnostic::error(format!(
-                "task activation target `{}` has no checked blocking plan",
-                target_machine.name
-            ))]);
-        };
+        let contract = exact_task_machine_contract(
+            program,
+            target_machine.symbol,
+            target_machine.name.as_str(),
+        )?;
+        let suspension = exact_task_machine_suspension(
+            program,
+            target_machine.symbol,
+            target_machine.name.as_str(),
+        )?;
+        let blocking = exact_task_machine_blocking(
+            program,
+            target_machine.symbol,
+            target_machine.name.as_str(),
+        )?;
         let machine_contract = normalized_id(
             contract.fingerprint,
             MachineContractId::from_normalized_identity,
@@ -162,6 +155,78 @@ pub(super) fn elaborate_task_activation_plans(
     }
 
     Ok(TaskActivationPlanSet { activations })
+}
+
+fn exact_task_machine_contract<'program>(
+    program: &'program CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<&'program psi_checked_trees::MachineContractPlan, Vec<Diagnostic>> {
+    let mut matches = program
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine);
+    let plan = matches.next().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has no checked machine contract"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has duplicate exact checked machine contracts"
+        ))]);
+    }
+    Ok(plan)
+}
+
+fn exact_task_machine_suspension(
+    program: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<psi_language_semantics::SuspensionPlan, Vec<Diagnostic>> {
+    let mut matches = program
+        .facts
+        .suspensions
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let plan = matches.next().map(|fact| fact.plan).ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has no checked suspension plan"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has duplicate exact checked suspension plans"
+        ))]);
+    }
+    Ok(plan)
+}
+
+fn exact_task_machine_blocking(
+    program: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<psi_language_semantics::BlockingPlan, Vec<Diagnostic>> {
+    let mut matches = program
+        .facts
+        .blocking
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let plan = matches.next().map(|fact| fact.plan).ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has no checked blocking plan"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has duplicate exact checked blocking plans"
+        ))]);
+    }
+    Ok(plan)
 }
 
 fn selected_task_runtime_provider(
@@ -1094,6 +1159,205 @@ mod tests {
                 preserve_host_thread: true,
             }
         );
+    }
+
+    fn activation_operational_fixture() -> (
+        CheckedTrees,
+        psi_symbols::SymbolHandle,
+        psi_symbols::SymbolHandle,
+    ) {
+        let target = psi_symbols::SymbolHandle::from_arena_index(1);
+        let unrelated = psi_symbols::SymbolHandle::from_arena_index(2);
+        let mut program = CheckedTrees::default();
+        program.facts.contract_plans.machines = vec![
+            psi_checked_trees::MachineContractPlan {
+                machine: target,
+                closed_scalar_values: Default::default(),
+                crash: Default::default(),
+                fingerprint: 0x1111,
+            },
+            psi_checked_trees::MachineContractPlan {
+                machine: unrelated,
+                closed_scalar_values: Default::default(),
+                crash: Default::default(),
+                fingerprint: 0x2222,
+            },
+        ];
+        program.facts.suspensions.machines = vec![
+            psi_checked_trees::MachineSuspensionFact {
+                machine: target,
+                plan: psi_language_semantics::SuspensionPlan {
+                    interface: psi_language_semantics::SuspensionInterface::InternalInferred,
+                    checked_may_suspend: true,
+                },
+            },
+            psi_checked_trees::MachineSuspensionFact {
+                machine: unrelated,
+                plan: psi_language_semantics::SuspensionPlan {
+                    interface: psi_language_semantics::SuspensionInterface::PublishedMaySuspend(
+                        false,
+                    ),
+                    checked_may_suspend: false,
+                },
+            },
+        ];
+        program.facts.blocking.machines = vec![
+            psi_checked_trees::MachineBlockingFact {
+                machine: target,
+                plan: psi_language_semantics::BlockingPlan {
+                    interface: psi_language_semantics::BlockingInterface::PublishedMayBlock(false),
+                    checked_may_block: false,
+                },
+            },
+            psi_checked_trees::MachineBlockingFact {
+                machine: unrelated,
+                plan: psi_language_semantics::BlockingPlan {
+                    interface: psi_language_semantics::BlockingInterface::InternalInferred,
+                    checked_may_block: true,
+                },
+            },
+        ];
+        (program, target, unrelated)
+    }
+
+    fn operational_error<T>(result: Result<T, Vec<Diagnostic>>) -> String {
+        match result {
+            Ok(_) => panic!("invalid exact operational rows must fail closed"),
+            Err(diagnostics) => diagnostics
+                .first()
+                .expect("operational diagnostic")
+                .message
+                .clone(),
+        }
+    }
+
+    #[test]
+    fn activation_operational_rows_preserve_independent_exact_axes() {
+        let (program, target, _) = activation_operational_fixture();
+
+        assert_eq!(
+            exact_task_machine_contract(&program, target, "Target")
+                .expect("exact contract")
+                .fingerprint,
+            0x1111
+        );
+        assert!(
+            exact_task_machine_suspension(&program, target, "Target")
+                .expect("exact suspension")
+                .checked_may_suspend
+        );
+        assert!(
+            !exact_task_machine_blocking(&program, target, "Target")
+                .expect("exact blocking")
+                .checked_may_block
+        );
+    }
+
+    #[test]
+    fn activation_operational_rejects_missing_contract() {
+        let (mut program, target, _) = activation_operational_fixture();
+        program
+            .facts
+            .contract_plans
+            .machines
+            .retain(|plan| plan.machine != target);
+
+        assert!(
+            operational_error(exact_task_machine_contract(&program, target, "Target"))
+                .contains("no checked machine contract")
+        );
+    }
+
+    #[test]
+    fn activation_operational_rejects_missing_suspension() {
+        let (mut program, target, _) = activation_operational_fixture();
+        program
+            .facts
+            .suspensions
+            .machines
+            .retain(|fact| fact.machine != target);
+
+        assert!(
+            operational_error(exact_task_machine_suspension(&program, target, "Target"))
+                .contains("no checked suspension plan")
+        );
+    }
+
+    #[test]
+    fn activation_operational_rejects_missing_blocking() {
+        let (mut program, target, _) = activation_operational_fixture();
+        program
+            .facts
+            .blocking
+            .machines
+            .retain(|fact| fact.machine != target);
+
+        assert!(
+            operational_error(exact_task_machine_blocking(&program, target, "Target"))
+                .contains("no checked blocking plan")
+        );
+    }
+
+    #[test]
+    fn activation_operational_rejects_duplicate_contract() {
+        let (mut program, target, _) = activation_operational_fixture();
+        let mut duplicate = program.facts.contract_plans.machines[0].clone();
+        duplicate.fingerprint = 0x3333;
+        program.facts.contract_plans.machines.push(duplicate);
+
+        assert!(
+            operational_error(exact_task_machine_contract(&program, target, "Target"))
+                .contains("duplicate exact checked machine contracts")
+        );
+    }
+
+    #[test]
+    fn activation_operational_rejects_duplicate_suspension() {
+        let (mut program, target, _) = activation_operational_fixture();
+        let mut duplicate = program.facts.suspensions.machines[0];
+        duplicate.plan.checked_may_suspend = false;
+        program.facts.suspensions.machines.push(duplicate);
+
+        assert!(
+            operational_error(exact_task_machine_suspension(&program, target, "Target"))
+                .contains("duplicate exact checked suspension plans")
+        );
+    }
+
+    #[test]
+    fn activation_operational_rejects_duplicate_blocking() {
+        let (mut program, target, _) = activation_operational_fixture();
+        let mut duplicate = program.facts.blocking.machines[0];
+        duplicate.plan.checked_may_block = true;
+        program.facts.blocking.machines.push(duplicate);
+
+        assert!(
+            operational_error(exact_task_machine_blocking(&program, target, "Target"))
+                .contains("duplicate exact checked blocking plans")
+        );
+    }
+
+    #[test]
+    fn activation_operational_ignores_unrelated_duplicate_rows() {
+        let (mut program, target, _) = activation_operational_fixture();
+        let unrelated_contract = program.facts.contract_plans.machines[1].clone();
+        let unrelated_suspension = program.facts.suspensions.machines[1];
+        let unrelated_blocking = program.facts.blocking.machines[1];
+        program
+            .facts
+            .contract_plans
+            .machines
+            .push(unrelated_contract);
+        program
+            .facts
+            .suspensions
+            .machines
+            .push(unrelated_suspension);
+        program.facts.blocking.machines.push(unrelated_blocking);
+
+        assert!(exact_task_machine_contract(&program, target, "Target").is_ok());
+        assert!(exact_task_machine_suspension(&program, target, "Target").is_ok());
+        assert!(exact_task_machine_blocking(&program, target, "Target").is_ok());
     }
 
     fn activation_target_fixture() -> (
