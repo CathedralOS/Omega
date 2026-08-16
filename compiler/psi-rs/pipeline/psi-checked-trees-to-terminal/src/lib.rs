@@ -11253,6 +11253,9 @@ fn shared_integer_runtime_parameters_with_shells(
                     shared_exact_divide_remainder_cross_chain_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_divide_remainder_cast_sandwich_runtime_parameters(expression)
+                })
                 .or_else(|| shared_exact_runtime_divisor_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_divide_remainder_runtime_parameters(expression))
                 .or_else(|| shared_exact_divide_remainder_chain_runtime_parameters(expression))
@@ -13156,6 +13159,37 @@ fn shared_exact_divide_remainder_cross_cast_runtime_parameters(
                 }
                 let (_, position) =
                     lowered_exact_cross_cast_parameter_root(operand, source_family)?;
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_divide_remainder_cast_sandwich_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let family = ExactCrossCastChainFamily::DivideRemainder;
+    let mut target_type = None;
+    loop {
+        let (integer_type, left) = lowered_exact_cross_cast_chain_link(expression, family)?;
+        if !native_fixed_integer_type(integer_type)
+            || target_type.is_some_and(|target_type| target_type != integer_type)
+        {
+            return None;
+        }
+        target_type = Some(integer_type);
+        match left {
+            nested if lowered_exact_cross_cast_chain_family(nested) == Some(family) => {
+                expression = nested;
+            }
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if Some(*cast_target_type) == target_type => {
+                let (_, position) = lowered_exact_cross_cast_parameter_root(operand, family)?;
                 return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                     position,
                 )]));

@@ -103,6 +103,16 @@ converse direction, affine or shift proofs replay from the direct parameter as
 usual, while each following divide/remainder proof depends only on its landed
 safe divisor. Every operation and every evidence item remains independent.
 
+A finite nonempty landed-literal exact-divide/remainder chain may likewise
+cross one validator-legal partial fixed-native exact cast into another finite
+nonempty landed-literal exact-divide/remainder chain. The cast obligation
+replays the complete source carrier through the ordered toward-zero quotient
+and dividend-sign remainder hull transfers and is admitted only when the final
+hull lies wholly in the target carrier. There is no partial-overlap or
+falsehood widening for that cast. Every source operation, the cast, and every
+target operation retains separate evidence; each target proposition depends
+only on its own landed safe divisor.
+
 Path facts must reach the operation through verified terminal control. Count
 masking, machine overflow behavior, or a producer claim cannot discharge an
 obligation. The verifier passes only the reconstructed proposition and exact

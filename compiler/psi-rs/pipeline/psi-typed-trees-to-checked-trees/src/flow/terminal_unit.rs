@@ -1864,6 +1864,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_divide_remainder_cast_sandwich_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_runtime_divisor_chain_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -4451,6 +4457,43 @@ fn shared_exact_divide_remainder_cross_cast_runtime_inputs(
     }
 }
 
+fn shared_exact_divide_remainder_cast_sandwich_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let family = ExactCrossCastChainFamily::DivideRemainder;
+    let mut target_type = None;
+    loop {
+        let (primitive_type, left) = checked_exact_cross_cast_chain_link(expression, family)?;
+        if fixed_native_primitive_interval(primitive_type).is_none()
+            || target_type.is_some_and(|target_type| target_type != primitive_type)
+        {
+            return None;
+        }
+        target_type = Some(primitive_type);
+        match left {
+            nested if checked_exact_cross_cast_chain_family(nested) == Some(family) => {
+                expression = nested;
+            }
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target_type,
+                operand,
+                ..
+            } if Some(*cast_target_type) == target_type => {
+                let (_, position) = checked_exact_cross_cast_parameter_root(
+                    operand,
+                    family,
+                    scalar_parameter_count,
+                )?;
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
 fn shared_exact_divide_remainder_cross_chain_runtime_inputs(
     mut expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
@@ -4512,6 +4555,20 @@ pub(crate) fn exact_divide_remainder_cross_cast_runtime_parameter_positions_for_
     scalar_parameter_count: usize,
 ) -> Option<Vec<usize>> {
     shared_exact_divide_remainder_cross_cast_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_divide_remainder_cast_sandwich_runtime_inputs(expression, scalar_parameter_count)?
         .into_iter()
         .map(|input| match input {
             SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),

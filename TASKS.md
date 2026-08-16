@@ -417,6 +417,14 @@ Remaining:
   converse direction, affine or shift proofs use their established direct-root
   reconstruction while each following divide/remainder proof depends only on
   its own landed safe divisor. Every operation retains independent evidence.
+  A finite nonempty exact-divide/remainder chain may also cross one
+  validator-legal partial fixed-native exact cast into another finite nonempty
+  exact-divide/remainder chain. The cast replays the complete carrier-total
+  source hull and is admitted only when that hull wholly fits the target
+  carrier; it does not manufacture a partial-overlap or falsehood case. Every
+  source divisor proposition, the cast, and every target divisor proposition
+  keeps separate mandatory evidence, and each target operation depends only on
+  its own independently landed safe divisor.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

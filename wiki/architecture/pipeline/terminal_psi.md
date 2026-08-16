@@ -653,6 +653,20 @@ be nonempty; casts, runtime or computed divisors/siblings/counts, unsafe or
 mistyped divisors, negative factors, carrier drift, intervening operations,
 nonparameter roots, stale definitions, and checked replay failure remain
 fenced. Existing narrower and cross-cast families are unchanged.
+A separate two-sided sandwich admits a finite nonempty landed-literal exact-
+divide/remainder chain, one validator-legal partial fixed-native exact cast,
+and a finite nonempty target exact-divide/remainder chain. Both sides use
+ordered left-associated same-carrier definitions and independently landed
+safe divisors. The cast replays the complete source carrier through the source
+quotient/remainder hull transfers and is admitted only when that hull wholly
+fits the target carrier; failure to prove full containment admits no family
+rather than constructing a partial or false proposition. Every source
+operation, the cast, and every target operation retains independent evidence,
+and each target proposition uses only its own divisor. Empty sides remain on
+the existing one-sided paths. Runtime, computed, zero, signed `-1`, or mistyped
+divisors; carrier drift; invalid, widening, or repeated casts; intervening
+operations; nonparameter roots; malformed definitions; and stale evidence
+remain fenced.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands,
 nonconstant siblings, runtime or computed multiply factors or shift counts,

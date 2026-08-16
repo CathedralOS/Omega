@@ -50,6 +50,8 @@ pub(crate) use terminal_unit::exact_cast_then_shift_left_runtime_parameter_posit
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_shift_right_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test;

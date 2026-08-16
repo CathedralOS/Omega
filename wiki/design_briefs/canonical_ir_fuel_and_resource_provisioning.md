@@ -247,6 +247,11 @@ charge every retained operation and ordinary value leaf separately. Replaying
 the carrier-total divide/remainder hull, affine safe interval, or ordered shift
 preimage and comparing hull containment or disjointness are verifier work and
 add no executable fuel.
+A finite nonempty exact-divide/remainder chain crossing one partial exact cast
+into another finite nonempty exact-divide/remainder chain charges every source
+operation, the cast, and every target operation separately. Replaying the
+carrier-total source hull for the cast and checking each independently safe
+target divisor adds no executable work.
 
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
