@@ -19540,7 +19540,8 @@ fn match_exhaustive_by_case_union_domain_canary_runs() {
         "omega-match-exhaustive-union-domain-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case-union-domain canary should compile without a `_` arm");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45197,6 +45198,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/record_pattern_arm_rename_guard_exit",
     "control_flow/state_transition_chain",
     "data/case_payload_native_construction",
+    "data/match_exhaustive_by_case_union_domain",
     "data/match_exhaustive_by_cases",
     "data/record_pattern_bind_all_exit",
     "data/record_pattern_double_underscore_field",
