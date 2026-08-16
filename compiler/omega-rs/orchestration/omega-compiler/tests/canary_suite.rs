@@ -17509,15 +17509,34 @@ fn runtime_import_call_argument_exit_canary_runs() {
     // assert only -- the interpreter does not serve custom-capability
     // imports (its own rung).
     let canary = pass_canary("providers/runtime_import_call_argument_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("free DllImport leaf should resolve the Leaf slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let leaf_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Leaf")
+        .expect("Leaf must retain its selected free DllImport plan");
+    assert_eq!(leaf_plan.provider_type, "");
+    assert!(leaf_plan.covers_schema());
+    assert_eq!(leaf_plan.rows.len(), 1);
+    assert_eq!(leaf_plan.rows[0].method, "exit");
+    assert!(matches!(
+        &leaf_plan.rows[0].binding,
+        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+            if library == "libSystem.B.dylib" && symbol == "_exit"
+    ));
+
     let build_dir = std::env::temp_dir().join(format!("omega-import-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("authored-import call canary should compile");
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "macos_arm64")
+        .expect("authored-import call canary should compile from its Darwin root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("authored-import call canary should run");
@@ -46040,6 +46059,7 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("providers/external_leaf_syscall_compile", "linux_x64"),
     ("providers/external_leaf_syscall_compile", "linux_arm64"),
     ("providers/external_leaf_dllimport_compile", "macos_arm64"),
+    ("providers/runtime_import_call_argument_exit", "macos_arm64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
@@ -47029,7 +47049,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/test_owner_provider_override_compile",
     "providers/provider_type_target_default",
     "providers/provider_type_target_default_override",
-    "providers/runtime_import_call_argument_exit",
     "providers/runtime_adapter_dispatch_exit",
     "providers/runtime_result_domain_requirement_overload_exit",
     "providers/runtime_adapter_forwarding_exit",
