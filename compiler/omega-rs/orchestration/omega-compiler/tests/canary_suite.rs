@@ -17022,7 +17022,8 @@ fn runtime_result_domain_requirement_overload_exit_canary_runs() {
         "omega-result-overloaded-provider-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("result-overloaded provider requirements should compile natively");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45200,6 +45201,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/runtime_inherited_trait_default_exit",
     "traits/runtime_generic_trait_default_exit",
     "providers/checked_boundary_operator_dispatch_exit",
+    "providers/runtime_result_domain_requirement_overload_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
     "arithmetic/runtime_abs_desugar_exit",
     "arithmetic/runtime_sqrt_builtin_exit",
