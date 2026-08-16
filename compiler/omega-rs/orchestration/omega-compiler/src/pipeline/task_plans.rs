@@ -234,31 +234,17 @@ fn selected_task_runtime_provider(
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     selection: &TaskStartSelection,
 ) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
-    let Some(authored_requirement_identity) = program.traits().iter().find_map(|definition| {
-        program
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|signature| signature.symbol == selection.requirement)
-            .map(|signature| {
-                program
-                    .normalized_trait_requirement_overload_identity(definition, signature)
-                    .identity()
-            })
-    }) else {
-        return Err(vec![Diagnostic::error(
-            "TaskRuntime activation names an unknown authored requirement",
-        )]);
-    };
+    let (requirement_owner, _, authored_requirement_identity) =
+        exact_task_runtime_requirement(program, selection)?;
     let matches = selected_provider_plans
         .plans()
         .iter()
         .filter(|plan| {
-            plan.schema.trait_name.rsplit("::").next() == Some("TaskRuntime")
-                && plan
-                    .schema
-                    .methods
-                    .iter()
-                    .any(|method| method.requirement_identity == authored_requirement_identity)
+            plan.schema.trait_name == requirement_owner.name.as_str()
+                && plan.schema.methods.iter().any(|method| {
+                    method.requirement_owner == requirement_owner.name.as_str()
+                        && method.requirement_identity == authored_requirement_identity
+                })
         })
         .collect::<Vec<_>>();
     let [plan] = matches.as_slice() else {
@@ -278,7 +264,7 @@ fn selected_task_runtime_provider(
         .methods
         .iter()
         .filter(|method| {
-            method.name == requirement_name
+            method.requirement_owner == requirement_owner.name.as_str()
                 && method.requirement_identity == authored_requirement_identity
         })
         .collect::<Vec<_>>();
@@ -318,6 +304,56 @@ fn selected_task_runtime_provider(
         provider_plan_name: plan.name.clone(),
         requirement_identity: method.requirement_identity.clone(),
     })
+}
+
+fn exact_task_runtime_requirement<'program>(
+    program: &'program CheckedTrees,
+    selection: &TaskStartSelection,
+) -> Result<
+    (
+        &'program psi_checked_trees::trait_definition::TraitDefinition,
+        &'program psi_checked_trees::signature::StateSignature,
+        String,
+    ),
+    Vec<Diagnostic>,
+> {
+    let mut owners = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == selection.requirement_owner);
+    let owner = owners.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "TaskRuntime activation requirement must name one exact retained trait owner",
+        )]
+    })?;
+    if owners.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "TaskRuntime activation requirement owner must resolve uniquely",
+        )]);
+    }
+    if !owner.is_boundary {
+        return Err(vec![Diagnostic::error(
+            "TaskRuntime activation requirement owner must be an exact boundary trait",
+        )]);
+    }
+    let mut signatures = program
+        .trait_machine_signatures(owner)
+        .iter()
+        .filter(|signature| signature.symbol == selection.requirement);
+    let signature = signatures.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "TaskRuntime activation requirement must belong to its exact retained owner",
+        )]
+    })?;
+    if signatures.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "TaskRuntime activation requirement must resolve uniquely within its exact owner",
+        )]);
+    }
+    let identity = program
+        .normalized_trait_requirement_overload_identity(owner, signature)
+        .identity();
+    Ok((owner, signature, identity))
 }
 
 struct ActivationCarryCrossings<'program> {
@@ -622,6 +658,7 @@ fn validate_activation_carry_crossing(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct TaskStartSelection {
+    requirement_owner: psi_symbols::SymbolHandle,
     requirement: psi_symbols::SymbolHandle,
     target_machine: psi_symbols::SymbolHandle,
     target_entry: psi_symbols::SymbolHandle,
@@ -830,6 +867,7 @@ fn append_task_start_selection(
     );
     hash.u64(entry_identity(program, target_machine, target_entry));
     let selection = TaskStartSelection {
+        requirement_owner: definition.symbol,
         requirement,
         target_machine: target_machine.symbol,
         target_entry: target_entry.symbol,
@@ -1358,6 +1396,199 @@ mod tests {
         assert!(exact_task_machine_contract(&program, target, "Target").is_ok());
         assert!(exact_task_machine_suspension(&program, target, "Target").is_ok());
         assert!(exact_task_machine_blocking(&program, target, "Target").is_ok());
+    }
+
+    struct ActivationRequirementFixture {
+        program: CheckedTrees,
+        selection: TaskStartSelection,
+        other_owner: psi_symbols::SymbolHandle,
+        other_requirement: psi_symbols::SymbolHandle,
+        private_owner: psi_symbols::SymbolHandle,
+        private_requirement: psi_symbols::SymbolHandle,
+    }
+
+    fn activation_requirement_fixture(duplicate_requirement: bool) -> ActivationRequirementFixture {
+        let owner = psi_symbols::SymbolHandle::from_arena_index(1);
+        let requirement = psi_symbols::SymbolHandle::from_arena_index(2);
+        let other_owner = psi_symbols::SymbolHandle::from_arena_index(3);
+        let other_requirement = psi_symbols::SymbolHandle::from_arena_index(4);
+        let private_owner = psi_symbols::SymbolHandle::from_arena_index(5);
+        let private_requirement = psi_symbols::SymbolHandle::from_arena_index(6);
+        let mut program = CheckedTrees::default();
+
+        let mut task_runtime = psi_checked_trees::trait_definition::TraitDefinition {
+            symbol: owner,
+            is_boundary: true,
+            name: psi_checked_trees::name::Identifier::generated("core::TaskRuntime"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut task_runtime,
+            psi_checked_trees::signature::StateSignature {
+                symbol: requirement,
+                name: psi_checked_trees::name::Identifier::generated("start"),
+                ..Default::default()
+            },
+        );
+        if duplicate_requirement {
+            program.typed.push_trait_machine_signature(
+                &mut task_runtime,
+                psi_checked_trees::signature::StateSignature {
+                    symbol: requirement,
+                    name: psi_checked_trees::name::Identifier::generated("duplicate"),
+                    ..Default::default()
+                },
+            );
+        }
+        program.typed.push_trait_definition(task_runtime);
+
+        let mut other = psi_checked_trees::trait_definition::TraitDefinition {
+            symbol: other_owner,
+            is_boundary: true,
+            name: psi_checked_trees::name::Identifier::generated("other::TaskRuntime"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut other,
+            psi_checked_trees::signature::StateSignature {
+                symbol: other_requirement,
+                name: psi_checked_trees::name::Identifier::generated("start"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(other);
+
+        let mut private = psi_checked_trees::trait_definition::TraitDefinition {
+            symbol: private_owner,
+            is_boundary: false,
+            name: psi_checked_trees::name::Identifier::generated("PrivateRuntime"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut private,
+            psi_checked_trees::signature::StateSignature {
+                symbol: private_requirement,
+                name: psi_checked_trees::name::Identifier::generated("start"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(private);
+
+        ActivationRequirementFixture {
+            program,
+            selection: TaskStartSelection {
+                requirement_owner: owner,
+                requirement,
+                target_machine: psi_symbols::SymbolHandle::from_arena_index(7),
+                target_entry: psi_symbols::SymbolHandle::from_arena_index(8),
+                fingerprint: 1,
+                operation: TaskStartOperation::Start,
+            },
+            other_owner,
+            other_requirement,
+            private_owner,
+            private_requirement,
+        }
+    }
+
+    fn requirement_error(program: &CheckedTrees, selection: &TaskStartSelection) -> String {
+        match exact_task_runtime_requirement(program, selection) {
+            Ok(_) => panic!("invalid exact requirement custody must fail closed"),
+            Err(diagnostics) => diagnostics
+                .first()
+                .expect("requirement diagnostic")
+                .message
+                .clone(),
+        }
+    }
+
+    #[test]
+    fn activation_requirement_retains_exact_boundary_owner_and_signature() {
+        let fixture = activation_requirement_fixture(false);
+        let (owner, signature, identity) =
+            exact_task_runtime_requirement(&fixture.program, &fixture.selection)
+                .expect("exact requirement");
+
+        assert_eq!(owner.symbol, fixture.selection.requirement_owner);
+        assert_eq!(signature.symbol, fixture.selection.requirement);
+        assert!(identity.contains("core::TaskRuntime::start"));
+    }
+
+    #[test]
+    fn activation_requirement_rejects_missing_owner() {
+        let mut fixture = activation_requirement_fixture(false);
+        fixture.selection.requirement_owner = psi_symbols::SymbolHandle::invalid();
+
+        assert!(requirement_error(&fixture.program, &fixture.selection).contains("one exact"));
+    }
+
+    #[test]
+    fn activation_requirement_rejects_duplicate_owner() {
+        let mut fixture = activation_requirement_fixture(false);
+        fixture.program.typed.push_trait_definition(
+            psi_checked_trees::trait_definition::TraitDefinition {
+                symbol: fixture.selection.requirement_owner,
+                is_boundary: true,
+                name: psi_checked_trees::name::Identifier::generated("duplicate::TaskRuntime"),
+                ..Default::default()
+            },
+        );
+
+        assert!(requirement_error(&fixture.program, &fixture.selection).contains("uniquely"));
+    }
+
+    #[test]
+    fn activation_requirement_rejects_non_boundary_owner() {
+        let mut fixture = activation_requirement_fixture(false);
+        fixture.selection.requirement_owner = fixture.private_owner;
+        fixture.selection.requirement = fixture.private_requirement;
+
+        assert!(requirement_error(&fixture.program, &fixture.selection).contains("boundary"));
+    }
+
+    #[test]
+    fn activation_requirement_rejects_missing_owned_signature() {
+        let mut fixture = activation_requirement_fixture(false);
+        fixture.selection.requirement = psi_symbols::SymbolHandle::invalid();
+
+        assert!(
+            requirement_error(&fixture.program, &fixture.selection)
+                .contains("belong to its exact retained owner")
+        );
+    }
+
+    #[test]
+    fn activation_requirement_rejects_duplicate_owned_signature() {
+        let fixture = activation_requirement_fixture(true);
+
+        assert!(
+            requirement_error(&fixture.program, &fixture.selection)
+                .contains("resolve uniquely within its exact owner")
+        );
+    }
+
+    #[test]
+    fn activation_requirement_rejects_cross_owner_signature_drift() {
+        let mut fixture = activation_requirement_fixture(false);
+        fixture.selection.requirement_owner = fixture.other_owner;
+
+        assert!(
+            requirement_error(&fixture.program, &fixture.selection)
+                .contains("belong to its exact retained owner")
+        );
+    }
+
+    #[test]
+    fn activation_requirement_ignores_unrelated_trait_and_signature() {
+        let fixture = activation_requirement_fixture(false);
+        assert_ne!(fixture.other_owner, fixture.selection.requirement_owner);
+        assert_ne!(fixture.other_requirement, fixture.selection.requirement);
+
+        let (owner, signature, _) =
+            exact_task_runtime_requirement(&fixture.program, &fixture.selection)
+                .expect("unrelated retained trait does not perturb exact owner");
+        assert_eq!(owner.symbol, fixture.selection.requirement_owner);
+        assert_eq!(signature.symbol, fixture.selection.requirement);
     }
 
     fn activation_target_fixture() -> (
@@ -2147,6 +2378,46 @@ mod tests {
         .expect("select complete TaskRuntime provider");
         let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check and specialize task start");
+
+        let mut foreign_leaf_plan = provider_plans[0].clone();
+        foreign_leaf_plan.schema.trait_name = "other::TaskRuntime".to_owned();
+        let foreign_leaf_selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            &[foreign_leaf_plan.clone()],
+            &[foreign_leaf_plan.name.clone()],
+        )
+        .expect("same-leaf foreign schema remains a structurally complete plan");
+        let diagnostics = elaborate_task_activation_plans(
+            &checked,
+            &foreign_leaf_selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("same-leaf foreign schema must not satisfy exact TaskRuntime owner");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("no retained selected provider plan")
+        );
+
+        let mut wrong_method_owner_plan = provider_plans[0].clone();
+        for method in &mut wrong_method_owner_plan.schema.methods {
+            method.requirement_owner = "other::TaskRuntime".to_owned();
+        }
+        let wrong_method_owner_selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            &[wrong_method_owner_plan.clone()],
+            &[wrong_method_owner_plan.name.clone()],
+        )
+        .expect("method-owner drift remains structurally complete");
+        let diagnostics = elaborate_task_activation_plans(
+            &checked,
+            &wrong_method_owner_selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("method owner drift must not satisfy exact TaskRuntime requirement");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("no retained selected provider plan")
+        );
 
         let task_activations =
             elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64())
