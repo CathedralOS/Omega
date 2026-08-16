@@ -2005,6 +2005,9 @@ fn shared_integer_runtime_inputs_with_shells(
             scalar_parameter_count,
         )
         .or_else(|| {
+            shared_exact_cast_chain_runtime_inputs(*primitive_type, operand, scalar_parameter_count)
+        })
+        .or_else(|| {
             shared_exact_divide_remainder_chain_cast_runtime_inputs(
                 *primitive_type,
                 operand,
@@ -2094,6 +2097,67 @@ fn shared_roundtrip_exact_cast_runtime_inputs(
     };
     (saw_widen && *primitive_type == target_type && *position < scalar_parameter_count)
         .then(|| BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)]))
+}
+
+fn shared_exact_cast_chain_runtime_inputs(
+    target_type: PrimitiveType,
+    mut operand: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    fixed_native_primitive_interval(target_type)?;
+    let mut expected_target = target_type;
+    let mut followed_nested_cast = false;
+    loop {
+        match operand {
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: cast_target,
+                operand: cast_operand,
+                ..
+            } if partial_fixed_native_primitive_cast(*cast_target, expected_target) => {
+                expected_target = *cast_target;
+                operand = cast_operand;
+                followed_nested_cast = true;
+            }
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: root_type,
+            } if followed_nested_cast
+                && partial_fixed_native_primitive_cast(*root_type, expected_target)
+                && *position < scalar_parameter_count =>
+            {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn partial_fixed_native_primitive_cast(source: PrimitiveType, target: PrimitiveType) -> bool {
+    let Some(source_interval) = fixed_native_primitive_interval(source) else {
+        return false;
+    };
+    let Some(target_interval) = fixed_native_primitive_interval(target) else {
+        return false;
+    };
+    source != target
+        && !(target_interval.0 <= source_interval.0 && source_interval.1 <= target_interval.1)
+}
+
+#[cfg(test)]
+pub(crate) fn exact_cast_chain_runtime_parameter_positions_for_test(
+    target_type: PrimitiveType,
+    operand: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_cast_chain_runtime_inputs(target_type, operand, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy)]

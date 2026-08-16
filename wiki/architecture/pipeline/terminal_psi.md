@@ -693,6 +693,17 @@ division failure admits no family. Unsigned/nonnegative and mixed affine paths
 remain unchanged, while runtime or computed factors, literal-left and
 right-associated forms, carrier drift, additional operations or casts,
 nonparameter roots, stale definitions, and redirected evidence remain fenced.
+One cast-only composition admits a finite chain of at least two partial
+fixed-native exact casts rooted at a direct integer machine parameter. Every
+adjacent edge remains independently validator-legal; for each prefix the
+verifier walks only ordered shrinking result definitions and intersects the
+root carrier with every source and target carrier reached so far. The
+canonical surviving root bounds prove only the current cast, so no earlier
+cast proof or evidence is imported. Mathematical empty intersection is
+falsehood; malformed, reordered, cyclic, mistyped, widening, same-type, local-
+rooted, intervening-operation, missing-evidence, or redirected-evidence shapes
+remain fail-closed. The direct one-cast and widen-then-narrow paths are
+unchanged.
 One
 separate computed-cast exception accepts a direct
 fixed-integer parameter

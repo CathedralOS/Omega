@@ -433,6 +433,14 @@ Remaining:
   local to only the current proposition. Every multiply prefix and cast
   remains independently mandatory; mathematical emptiness is falsehood while
   checked product or interval failure admits no family.
+  A finite chain of at least two validator-legal partial fixed-native exact
+  casts may now start at one direct integer machine parameter. For each cast
+  prefix, the verifier follows only ordered shrinking cast definitions and
+  intersects the root carrier with every carrier reached so far. The resulting
+  canonical root bounds prove only that cast; every earlier cast retains its
+  own mandatory evidence. A mathematical empty intersection is falsehood,
+  while malformed definitions or carrier reconstruction failure admit no
+  family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

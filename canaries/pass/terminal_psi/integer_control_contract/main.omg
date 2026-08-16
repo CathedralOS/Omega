@@ -1450,6 +1450,12 @@ requires 0i64 <= value, value <= 1i64
     (((value * -9223372036854775808i64) * 1i64) <= 0i64) && enabled
 }
 
+machine terminal_partial_exact_cast_chain(value: i64, enabled: bool) -> bool
+requires 0i64 <= value, value <= 2147483647i64, value <= 255i64
+{
+    (((((value as u64) as i32) as u8) < 255u8) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
