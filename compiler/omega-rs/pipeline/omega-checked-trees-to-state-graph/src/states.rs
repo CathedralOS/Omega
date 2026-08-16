@@ -39,7 +39,7 @@ pub(crate) fn append_machine_states(
         )?;
         let contracts = state_contract_summary(state_graph, program, segment, segment_transitions);
         let values = state_value_summary(state_graph, program, segment.key);
-        let boundaries = state_boundary_summary(state_graph, program, segment.key);
+        let boundaries = state_boundary_summary(state_graph, program, segment.key)?;
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         let ownership = state_ownership_summary(state_graph, program, segment.key);
         state_graph.states.append_to_span(
