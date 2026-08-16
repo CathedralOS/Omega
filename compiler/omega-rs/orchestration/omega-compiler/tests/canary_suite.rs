@@ -19659,7 +19659,8 @@ fn runtime_array_literal_string_field_exit_canary_runs() {
         "omega-array-literal-string-field-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("array literal string field canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45204,6 +45205,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/match_exhaustive_by_cases",
     "data/record_pattern_bind_all_exit",
     "data/record_pattern_double_underscore_field",
+    "data/runtime_array_literal_string_field_exit",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
     "data/runtime_mixed_shape_exit",
