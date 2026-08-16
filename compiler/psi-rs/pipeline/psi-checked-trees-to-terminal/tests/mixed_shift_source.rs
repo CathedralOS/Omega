@@ -79,6 +79,11 @@ const SOURCE: &str = r#"
         signed_product_widen_chain_signed_product_suffix: i8,
         remainder_widen_chain_affine_suffix: u8,
         affine_widen_chain_divide_suffix: i8,
+        affine_widen_cast_shift_suffix: i8,
+        shift_cast_widen_affine_suffix: u16,
+        signed_product_widen_cast_signed_product_suffix: i8,
+        remainder_cast_widen_affine_suffix: u16,
+        affine_widen_cast_widen_divide_suffix: i8,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -188,7 +193,15 @@ const SOURCE: &str = r#"
         affine_widen_chain_shift_suffix <= 126i8,
         -63i8 <= signed_product_widen_chain_signed_product_suffix,
         signed_product_widen_chain_signed_product_suffix <= 64i8,
-        affine_widen_chain_divide_suffix <= 126i8
+        affine_widen_chain_divide_suffix <= 126i8,
+        -1i8 <= affine_widen_cast_shift_suffix,
+        affine_widen_cast_shift_suffix <= 126i8,
+        -63i8 <= signed_product_widen_cast_signed_product_suffix,
+        signed_product_widen_cast_signed_product_suffix <= 64i8,
+        -32i8 <= signed_product_widen_cast_signed_product_suffix,
+        signed_product_widen_cast_signed_product_suffix <= 31i8,
+        -1i8 <= affine_widen_cast_widen_divide_suffix,
+        affine_widen_cast_widen_divide_suffix <= 126i8
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -250,6 +263,11 @@ const SOURCE: &str = r#"
             && (((((signed_product_widen_chain_signed_product_suffix * -2i8) as i16) as i32) * -2i32) < 2147483647i32)
             && (((((remainder_widen_chain_affine_suffix % 3u8) as i16) as i32) + 1i32) < 2147483647i32)
             && ((((((affine_widen_chain_divide_suffix + 1i8) as i16) as i32) / 2i32) % 3i32) < 3i32)
+            && (((((affine_widen_cast_shift_suffix + 1i8) as i16) as u8) << 1u8) < 255u8)
+            && (((((shift_cast_widen_affine_suffix >> 1u8) as i16) as i32) + 1i32) < 2147483647i32)
+            && (((((signed_product_widen_cast_signed_product_suffix * -2i8) as i16) as i8) * -2i8) < 127i8)
+            && (((((remainder_cast_widen_affine_suffix % 3u16) as i16) as i32) + 1i32) < 2147483647i32)
+            && ((((((((affine_widen_cast_widen_divide_suffix + 1i8) as i16) as u8) as i16) as u8) / 2u8) % 3u8) < 3u8)
             && enabled
     }
 "#;
@@ -293,6 +311,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let exact_cast_chain_parameter = entry.parameters[36].id;
     let computed_affine_cast_chain_parameter = entry.parameters[37].id;
     let affine_widen_chain_shift_parameter = entry.parameters[50].id;
+    let affine_widen_cast_shift_parameter = entry.parameters[55].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -330,7 +349,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        36,
+        37,
     );
     assert_eq!(
         operations
@@ -340,10 +359,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        43,
+        44,
     );
-    assert_eq!(shift_obligations.len(), 79);
-    assert_eq!(proof_obligations.len(), 220);
+    assert_eq!(shift_obligations.len(), 81);
+    assert_eq!(proof_obligations.len(), 237);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -415,6 +434,45 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     assert!(matches!(
         psi_terminal_verifier::verify_module(
             &changed_count,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
+    let mut redirected_mixed_conversion =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let mixed_conversion_affine = redirected_mixed_conversion
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { left, .. }
+                if left == affine_widen_cast_shift_parameter =>
+            {
+                operation.result.scalar().map(|result| result.id)
+            }
+            _ => None,
+        })
+        .expect("mixed conversion sandwich retains its source affine result");
+    let mixed_first_widen = redirected_mixed_conversion
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(operation.kind, OperationKind::IntegerWiden { operand } if operand == mixed_conversion_affine)
+        })
+        .expect("mixed conversion sandwich retains its first widening definition");
+    let OperationKind::IntegerWiden { operand } = &mut mixed_first_widen.kind else {
+        unreachable!("selected one integer-widen operation")
+    };
+    *operand = signed_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_mixed_conversion,
             &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
             &AdmissionProfile::default(),
         ),
@@ -1259,6 +1317,26 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(-1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
                 value: IntegerValue::Unsigned(4),
             },
             TerminalScalarValue::Integer {

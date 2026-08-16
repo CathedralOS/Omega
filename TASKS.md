@@ -479,6 +479,20 @@ Remaining:
   exact operation retains independent evidence. Mathematical emptiness is
   falsehood, divide/remainder partial overlap and checked replay failure admit
   no family, and zero coefficients remain local to the current obligation.
+  A heterogeneous conversion-spine sandwich now composes the same nonempty
+  computed prefixes and suffixes across a finite contiguous word containing at
+  least one strict valid fixed-native integer widening and at least one
+  validator-legal partial fixed-native exact cast. Every adjacent carrier and
+  shrinking definition is validated in order. Each cast prefix independently
+  intersects all preceding conversion carriers and replays only the selected
+  source inverse or complete-hull algebra; each target prefix walks the entire
+  conversion word before the same source replay. Widenings remain retained
+  numeric-identity operations without invented evidence, while every source
+  operation, partial cast, and target operation keeps separate evidence. Pure
+  widening, pure cast, one-edge, direct, and narrower sandwich shapes retain
+  their existing dispatch priority. Mathematical emptiness is falsehood,
+  source divide/remainder casts require complete hull containment without a
+  partial or falsehood admission, and checked replay failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

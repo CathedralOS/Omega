@@ -580,6 +580,25 @@ operation without invented proof evidence. Mathematical emptiness is canonical
 falsehood, divide/remainder partial overlap and checked replay failure admit no
 family, and zero remains local after complete shape validation. Direct,
 widen-roundtrip, cast, and multi-cast paths keep their existing priority.
+A heterogeneous conversion-spine composition requires both conversion kinds:
+at least one strict valid fixed-native `IntegerWiden` and at least one
+validator-legal partial `IntegerExactCast`, with at least two contiguous edges
+between nonempty computed source and target families. Each cast obligation
+walks its complete preceding conversion prefix, intersects every carrier, and
+then reuses only the source family's established inverse or complete-hull
+algebra. Target affine, signed-product, and shift obligations walk the complete
+conversion word before source replay; target divide/remainder operations retain
+their own landed safe-divisor proofs. Widenings are retained numeric identity,
+not proof authority, and every partial cast remains independently evidenced.
+Source divide/remainder may prove a cast only by complete hull containment;
+partial overlap or disjointness does not manufacture cast evidence. Empty
+affine/product/shift mathematics is falsehood, checked transfer failure is no
+admission, and zero coefficients remain local after complete shape validation.
+Pure widening, pure cast, one-edge, direct, widen-roundtrip, and narrower
+sandwich shapes stay on their existing dispatch paths. Carrier drift, invalid
+conversion direction, stale or reordered definitions, intervening shells,
+calls, effects, local/member roots, invalid literals, arithmetic overflow, and
+missing or redirected evidence remain fenced.
 The unified sandwich permits nonempty finite exact-shift chains on both sides
 of one validator-legal partial fixed-native cast. Counts remain independently
 landed, heterogeneous, legal fixed-native literals, and either side may be

@@ -197,6 +197,12 @@ exact operation, every retained `IntegerWiden`, and every target exact operation
 separately. Validating ordered strict widening edges, intersecting the target
 preimage with the source carrier, and replaying the selected source algebra are
 verifier-only work and add no executable operation or fuel charge.
+A heterogeneous computed-prefix/conversion-spine/computed-suffix composition
+likewise charges every source exact operation, every retained widening, every
+partial exact cast, and every target exact operation separately. Walking the
+mixed conversion word, validating adjacent carriers, intersecting representable
+intervals, and replaying existing source or target algebra remain verifier-only
+work. No cast evidence or fuel charge is supplied by an earlier cast or widen.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no
