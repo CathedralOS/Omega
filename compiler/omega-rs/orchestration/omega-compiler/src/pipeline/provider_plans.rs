@@ -1748,6 +1748,86 @@ fn exact_schema_method_for_row<'plan>(
     Ok(*method)
 }
 
+fn exact_canonical_provider_schema(
+    typed: &TypedTrees,
+    plan: &ProviderPlan,
+) -> Result<ServiceSchema, psi_diagnostics::Diagnostic> {
+    if plan.schema.trait_name.is_empty() {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` has no exact canonical typed schema identity",
+            plan.name,
+        )));
+    }
+
+    let trait_matches = typed
+        .traits()
+        .iter()
+        .filter(|definition| {
+            definition.is_boundary && definition.name.as_str() == plan.schema.trait_name
+        })
+        .collect::<Vec<_>>();
+    let operator_matches = typed
+        .operators()
+        .iter()
+        .filter(|operator| {
+            operator.is_boundary
+                && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                    typed, operator,
+                ) == plan.schema.trait_name
+        })
+        .collect::<Vec<_>>();
+
+    match (trait_matches.as_slice(), operator_matches.as_slice()) {
+        ([definition], []) => {
+            let argument_matches = typed
+                .conformances()
+                .iter()
+                .filter(|conformance| {
+                    conformance
+                        .carrier_name()
+                        .is_some_and(|carrier| carrier.as_str() == plan.provider_type)
+                        && conformance.trait_name.as_str() == definition.name.as_str()
+                })
+                .collect::<Vec<_>>();
+            let arguments = match argument_matches.as_slice() {
+                [] => Vec::new(),
+                [conformance] => typed
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments)
+                    .to_vec(),
+                _ => {
+                    return Err(psi_diagnostics::Diagnostic::error(format!(
+                        "ProviderPlan `{}` provider `{}` resolves to {} exact carrier argument rows for canonical typed schema `{}`",
+                        plan.name,
+                        plan.provider_type,
+                        argument_matches.len(),
+                        plan.schema.trait_name,
+                    )));
+                }
+            };
+            ServiceSchema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
+                psi_diagnostics::Diagnostic::error(format!(
+                    "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary schema",
+                    plan.name, plan.schema.trait_name,
+                ))
+            })
+        }
+        ([], [operator]) => ServiceSchema::from_typed_operator(typed, operator).ok_or_else(|| {
+            psi_diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary-operator schema",
+                plan.name, plan.schema.trait_name,
+            ))
+        }),
+        _ => Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` exact schema `{}` resolves to {} canonical typed boundary traits and {} canonical typed boundary operators",
+            plan.name,
+            plan.schema.trait_name,
+            trait_matches.len(),
+            operator_matches.len(),
+        ))),
+    }
+}
+
 fn exact_row_for_schema_method<'plan>(
     plan: &'plan ProviderPlan,
     method: &omega_effects::provider_plan::ServiceMethod,
@@ -2012,10 +2092,11 @@ fn exact_authored_invocations(
 
 /// Validate every derived candidate before coverage and selection. A partial
 /// candidate may wait for more conformances, but duplicate/stray rows and
-/// malformed binding shapes are invalid in their own right. For checked
-/// adapters, normalized service reach must also fit inside the satisfied
-/// requirement's declared ceiling. Independent operational refinement is
-/// validated by the machine-conformance checker that produced the candidate.
+/// malformed binding shapes are invalid in their own right. The freely
+/// constructible retained schema must first equal the canonical typed schema;
+/// only then may checked-adapter reach be compared with its public ceiling.
+/// Independent operational refinement is validated by the machine-conformance
+/// checker that produced the candidate.
 pub(crate) fn validate_provider_plan_candidates(
     typed: &TypedTrees,
     plans: &[omega_effects::provider_plan::ProviderPlan],
@@ -2025,8 +2106,25 @@ pub(crate) fn validate_provider_plan_candidates(
     let service_reach_plan = psi_effects::infer_service_reaches(typed, &effect_plan);
     let invocation_plan = psi_effects::infer_synchronous_invocations(typed);
     for plan in plans {
+        let structural_diagnostics = plan.validate_candidate_against_schema();
+        if structural_diagnostics.is_empty() {
+            let canonical_schema = match exact_canonical_provider_schema(typed, plan) {
+                Ok(schema) => schema,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            if plan.schema != canonical_schema {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "ProviderPlan `{}` retained schema `{}` does not equal its exact canonical typed schema",
+                    plan.name, plan.schema.trait_name,
+                )));
+                continue;
+            }
+        }
         diagnostics.extend(
-            plan.validate_candidate_against_schema()
+            structural_diagnostics
                 .into_iter()
                 .map(psi_diagnostics::Diagnostic::error),
         );
@@ -2588,6 +2686,27 @@ pub(crate) fn selected_provider_plan_for_grant<'plans>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize provider fixture");
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("parse provider fixture");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve provider fixture");
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type provider fixture");
+        let plans = derive_satisfies_plans(&syntax, &typed, None);
+        let [plan] = plans.as_slice() else {
+            panic!(
+                "provider fixture must derive exactly one plan, got {}",
+                plans.len()
+            );
+        };
+        (typed, plan.clone())
+    }
 
     fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
         ProviderPlan {
@@ -4024,5 +4143,260 @@ mod tests {
                     .message
                     .contains("declared service ceiling [Readable]")
         }));
+    }
+
+    #[test]
+    fn provider_candidate_requires_exact_canonical_typed_schema() {
+        #[derive(Clone, Copy, Debug)]
+        enum Drift {
+            Method,
+            RequirementOwner,
+            RequirementIdentity,
+            ParameterShape,
+            EntryClaim,
+            ResultShape,
+            ResultClaim,
+            ServiceReach,
+            SynchronousInvocation,
+            Suspension,
+            Blocking,
+            Termination,
+            CallingPlan,
+        }
+
+        let source = r#"
+            boundary trait Readable {
+                machine read();
+            }
+
+            data Provider {}
+
+            machine Provider::read()
+            satisfies Readable::read {}
+        "#;
+        let (typed, plan) = derive_provider_fixture(source);
+        assert!(validate_provider_plan_candidates(&typed, std::slice::from_ref(&plan)).is_empty());
+
+        for drift in [
+            Drift::Method,
+            Drift::RequirementOwner,
+            Drift::RequirementIdentity,
+            Drift::ParameterShape,
+            Drift::EntryClaim,
+            Drift::ResultShape,
+            Drift::ResultClaim,
+            Drift::ServiceReach,
+            Drift::SynchronousInvocation,
+            Drift::Suspension,
+            Drift::Blocking,
+            Drift::Termination,
+            Drift::CallingPlan,
+        ] {
+            let mut drifted = plan.clone();
+            let method = &mut drifted.schema.methods[0];
+            match drift {
+                Drift::Method => {
+                    method.name = "other".to_owned();
+                    drifted.rows[0].method = method.name.clone();
+                }
+                Drift::RequirementOwner => method.requirement_owner = "Other".to_owned(),
+                Drift::RequirementIdentity => {
+                    method.requirement_identity = "Other::read()".to_owned();
+                    drifted.rows[0].requirement_identity = method.requirement_identity.clone();
+                }
+                Drift::ParameterShape => {
+                    method.parameter_count = 1;
+                    method.parameter_type_identities = vec!["i32".to_owned()];
+                }
+                Drift::EntryClaim => {
+                    method.parameter_count = 1;
+                    method.parameter_type_identities = vec!["i32 in Accepted".to_owned()];
+                    method.entry_claims = vec![omega_effects::provider_plan::ServiceEntryClaim {
+                        parameter_index: 0,
+                        domain: "Accepted".to_owned(),
+                        predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+                        effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+                        authority_flow:
+                            omega_effects::provider_plan::ServiceEntryAuthorityFlow::Accepts,
+                    }];
+                }
+                Drift::ResultShape => {
+                    method.has_result = true;
+                    method.result_type_identity = Some("i32".to_owned());
+                }
+                Drift::ResultClaim => {
+                    method.has_result = true;
+                    method.result_type_identity = Some("i32 in Returned".to_owned());
+                    method.result_claims = vec![omega_effects::provider_plan::ServiceResultClaim {
+                        domain: "Returned".to_owned(),
+                        effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+                    }];
+                }
+                Drift::ServiceReach => {
+                    method.service_reach.push("Writable".to_owned());
+                    method.service_reach.sort_unstable();
+                }
+                Drift::SynchronousInvocation => {
+                    method.synchronous_invocations.push("Writable".to_owned())
+                }
+                Drift::Suspension => method.may_suspend = true,
+                Drift::Blocking => method.may_block = true,
+                Drift::Termination => method.terminates_guarantee = true,
+                Drift::CallingPlan => method.calling_plan_fingerprint = Some(1),
+            }
+
+            let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("does not equal its exact canonical typed schema")),
+                "{drift:?} must fail canonical typed schema custody: {diagnostics:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn forged_service_ceiling_cannot_launder_checked_adapter_reach() {
+        let source = r#"
+            boundary trait Queryable {
+                machine query();
+            }
+
+            boundary trait Readable {
+                machine read(queryable: &mut Queryable);
+            }
+
+            data Provider {}
+
+            machine Provider::read(queryable: &mut Queryable)
+            satisfies Readable::read {
+                queryable.query();
+            }
+        "#;
+        let (typed, mut plan) = derive_provider_fixture(source);
+        plan.schema.methods[0]
+            .service_reach
+            .push("Queryable".to_owned());
+        plan.schema.methods[0].service_reach.sort_unstable();
+        plan.schema.methods[0].service_reach.dedup();
+
+        let diagnostics = validate_provider_plan_candidates(&typed, &[plan]);
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("does not equal its exact canonical typed schema")
+        }));
+        assert!(!diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("boundary service(s) [Queryable] outside")
+        }));
+    }
+
+    #[test]
+    fn canonical_schema_resolution_is_exact_and_unique() {
+        let source = r#"
+            boundary trait Readable {
+                machine read();
+            }
+
+            boundary trait Unrelated {
+                machine inspect();
+            }
+
+            data Provider {}
+
+            machine Provider::read()
+            satisfies Readable::read {}
+        "#;
+        let (typed, plan) = derive_provider_fixture(source);
+        assert_eq!(
+            exact_canonical_provider_schema(&typed, &plan).expect("exact schema"),
+            plan.schema,
+        );
+
+        for identity in ["Missing", "pkg::Readable"] {
+            let mut drifted = plan.clone();
+            drifted.schema.trait_name = identity.to_owned();
+            let diagnostic = exact_canonical_provider_schema(&typed, &drifted)
+                .expect_err("unknown and qualified-leaf impostor schemas must reject");
+            assert!(diagnostic.message.contains("resolves to 0 canonical typed"));
+        }
+
+        let mut duplicated = typed.clone();
+        let duplicate = duplicated
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Readable")
+            .expect("Readable trait")
+            .clone();
+        duplicated.push_trait_definition(duplicate);
+        let diagnostic = exact_canonical_provider_schema(&duplicated, &plan)
+            .expect_err("duplicate exact schema authority must reject");
+        assert!(
+            diagnostic
+                .message
+                .contains("resolves to 2 canonical typed boundary traits")
+        );
+    }
+
+    #[test]
+    fn canonical_schema_accepts_exact_inherited_requirement() {
+        let source = r#"
+            boundary trait Parent {
+                machine read();
+            }
+
+            boundary trait Child {
+                requires Parent;
+            }
+
+            data Provider {}
+
+            ProviderChild: Provider satisfies Child;
+
+            machine Provider::read()
+            satisfies Parent::read {}
+        "#;
+        let (typed, mut plan) = derive_provider_fixture(source);
+        let child = typed
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Child")
+            .expect("Child boundary schema");
+        plan.schema = ServiceSchema::from_typed(&typed, child).expect("typed child schema");
+
+        assert!(
+            validate_provider_plan_candidates(&typed, &[plan]).is_empty(),
+            "an exact child schema may retain its inherited parent requirement",
+        );
+    }
+
+    #[test]
+    fn canonical_schema_rejects_duplicate_exact_carrier_arguments() {
+        let source = r#"
+            boundary trait Readable {
+                machine read(&mut self);
+            }
+
+            data Provider {}
+
+            ProviderReadable: Provider satisfies Readable;
+
+            machine Provider::read(&mut self)
+            satisfies Readable::read {}
+        "#;
+        let (mut typed, plan) = derive_provider_fixture(source);
+        assert_eq!(typed.conformances().len(), 1);
+        let duplicate = typed.conformances()[0].clone();
+        typed.push_conformance(duplicate);
+
+        let diagnostic = exact_canonical_provider_schema(&typed, &plan)
+            .expect_err("duplicate carrier argument custody must reject");
+        assert!(
+            diagnostic
+                .message
+                .contains("resolves to 2 exact carrier argument rows")
+        );
     }
 }
