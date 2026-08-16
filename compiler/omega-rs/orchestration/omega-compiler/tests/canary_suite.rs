@@ -19624,7 +19624,8 @@ fn runtime_mixed_shape_exit_canary_runs() {
     // payload overlay after the common fields.
     let canary = pass_canary("data/runtime_mixed_shape_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mixed-shape-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("mixed shape canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45205,6 +45206,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/record_pattern_double_underscore_field",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
+    "data/runtime_mixed_shape_exit",
     "data/runtime_record_field_value_pattern_exit",
     "memory/repr_native_stable_layout",
     "host/runtime_console_byte_literal_exit",
