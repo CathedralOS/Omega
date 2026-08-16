@@ -43528,13 +43528,8 @@ fn float_to_int_trapping_canaries_abort() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-float-int-{leaf}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-            write_output: true,
-        })
-        .expect("Trapping float-to-int canary should compile");
+        compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("Trapping float-to-int canary should compile");
         let output = Command::new(build_dir.join(executable_name()))
             .output()
             .expect("Trapping float-to-int canary should start");
@@ -45245,6 +45240,8 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "float/f32_per_operation_rounding_exit",
     "float/anonymous_exact_rat_const_exit",
     "float/finite_core_domain_range_discharge",
+    "float/float_to_int_trapping_nan_traps",
+    "float/float_to_int_trapping_overflow_traps",
     "float/runtime_named_float_to_integer_trapping_nan_traps",
     "float/runtime_named_float_to_integer_trapping_overflow_traps",
     "float/runtime_std_is_finite_exit",
