@@ -182,6 +182,11 @@ or carrier-total divide/remainder prefix, every computed operation and every
 cast is still charged separately. Replaying the complete carrier intersection
 through the prefix's existing verifier-owned inverse algebra adds no executable
 operation or fuel charge.
+The converse finite-cast-chain rule has the same accounting: every cast and
+every affine, signed-product, shift, or divide/remainder suffix operation is
+retained and charged. Full carrier-intersection validation plus the selected
+post-cast inverse replay are verifier work only and add no executable operation
+or fuel charge.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no

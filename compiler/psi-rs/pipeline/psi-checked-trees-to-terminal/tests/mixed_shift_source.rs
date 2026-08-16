@@ -65,6 +65,10 @@ const SOURCE: &str = r#"
         computed_signed_product_cast_chain: i64,
         computed_shift_cast_chain: i64,
         computed_divide_cast_chain: u32,
+        cast_chain_affine_suffix: i64,
+        cast_chain_signed_product_suffix: i64,
+        cast_chain_shift_suffix: i64,
+        cast_chain_divide_suffix: u32,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -143,7 +147,18 @@ const SOURCE: &str = r#"
         computed_shift_cast_chain <= 4611686018427387903i64,
         0i64 <= computed_shift_cast_chain,
         computed_shift_cast_chain <= 2147483647i64,
-        computed_shift_cast_chain <= 255i64
+        computed_shift_cast_chain <= 255i64,
+        0i64 <= cast_chain_affine_suffix,
+        cast_chain_affine_suffix <= 2147483647i64,
+        cast_chain_affine_suffix <= 2147483646i64,
+        cast_chain_affine_suffix <= 1073741822i64,
+        0i64 <= cast_chain_signed_product_suffix,
+        cast_chain_signed_product_suffix <= 2147483647i64,
+        cast_chain_signed_product_suffix <= 1073741824i64,
+        0i64 <= cast_chain_shift_suffix,
+        cast_chain_shift_suffix <= 2147483647i64,
+        cast_chain_shift_suffix <= 1073741823i64,
+        cast_chain_divide_suffix <= 127u32
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -191,6 +206,10 @@ const SOURCE: &str = r#"
             && ((((((computed_signed_product_cast_chain * -2i64) as u64) as i32) as u8) < 255u8))
             && ((((((((computed_shift_cast_chain << 1u8) >> 1u16) as u64) as i32) as u8) < 255u8)))
             && ((((((computed_divide_cast_chain / 2u32) % 3u32) as i8) as u8) < 3u8))
+            && (((((cast_chain_affine_suffix as u64) as i32) + 1i32) * 2i32) < 2147483647i32)
+            && ((((cast_chain_signed_product_suffix as u64) as i32) * -2i32) < 2147483647i32)
+            && ((((cast_chain_shift_suffix as u64) as i32) << 1u8) < 2147483647i32)
+            && (((((cast_chain_divide_suffix as i8) as u8) / 2u8) % 3u8) < 3u8)
             && enabled
     }
 "#;
@@ -279,10 +298,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        40,
+        41,
     );
-    assert_eq!(shift_obligations.len(), 74);
-    assert_eq!(proof_obligations.len(), 174);
+    assert_eq!(shift_obligations.len(), 75);
+    assert_eq!(proof_obligations.len(), 188);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -1101,6 +1120,22 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
                 value: IntegerValue::Signed(-1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
             },
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
