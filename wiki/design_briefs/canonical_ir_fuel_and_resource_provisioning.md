@@ -192,6 +192,11 @@ prefix, every cast in an at-least-two partial-cast chain, and every operation in
 the nonempty computed suffix are each retained and charged separately. Full
 ordered carrier-intersection plus the selected target inverse and source
 inverse/hull replay remain verifier-only work and add no executable fuel.
+A computed-prefix/widen-chain/computed-suffix composition charges every source
+exact operation, every retained `IntegerWiden`, and every target exact operation
+separately. Validating ordered strict widening edges, intersecting the target
+preimage with the source carrier, and replaying the selected source algebra are
+verifier-only work and add no executable operation or fuel charge.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no
