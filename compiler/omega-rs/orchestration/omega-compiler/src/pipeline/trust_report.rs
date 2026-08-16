@@ -74,6 +74,24 @@ pub(super) fn write_trust_report(
     let typed = &checked.typed;
     let mut report = TrustReport::default();
     report.selected_provider_closure_fingerprint = selected_provider_plans.normalized_identity();
+    let mut non_provider_grants = Vec::new();
+    for grant in root_grants {
+        if crate::pipeline::provider_plans::selected_provider_plan_for_grant(
+            provider_plans,
+            selected_provider_plans,
+            grant,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?
+        .is_some()
+        {
+            continue;
+        }
+        non_provider_grants.push((
+            grant.as_str(),
+            crate::pipeline::trust_lockfile::resolve_non_provider_trust_grant(typed, grant)
+                .map_err(|diagnostic| vec![diagnostic])?,
+        ));
+    }
     let mut recognized_provider_grants = Vec::new();
     // PRV3: derived provider plans -- one row each, dev-active with the
     // standing warning until the final build grants the plan by name (or
@@ -243,17 +261,12 @@ pub(super) fn write_trust_report(
         if !domain.semantic_id.is_valid() {
             continue;
         }
-        // A root grant naming this domain (by full rendered name or leaf)
-        // flips its provenance and retires the standing warning (GR3).
-        let leaf = domain
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or(domain.name.as_str());
-        let granted = root_grants
-            .iter()
-            .any(|grant| grant == domain.name.as_str() || grant == leaf);
+        // The shared trust ledger resolves exact names first and permits a
+        // short leaf only when it identifies one global grant subject.
+        let granted = non_provider_grants.iter().any(|(_, subject)| {
+            *subject
+                == crate::pipeline::trust_lockfile::NonProviderTrustGrant::Domain(domain.symbol)
+        });
         report.rows.push(TrustReportRow {
             commitment: format!("domain introduction: {}", domain.name.as_str()),
             provenance: if granted {
@@ -290,15 +303,12 @@ pub(super) fn write_trust_report(
         }) {
             continue;
         }
-        let leaf = machine
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or(machine.name.as_str());
-        let granted = root_grants
-            .iter()
-            .any(|grant| grant == machine.name.as_str() || grant == leaf);
+        let granted = non_provider_grants.iter().any(|(_, subject)| {
+            *subject
+                == crate::pipeline::trust_lockfile::NonProviderTrustGrant::AcceptedMachine(
+                    machine.symbol,
+                )
+        });
         let contract = exact_machine_contract_plan(
             checked,
             machine.symbol,
@@ -351,17 +361,12 @@ pub(super) fn write_trust_report(
     // machine, or an already-reported selected provider plan surface as bare
     // accepted-fact rows (the report shows every grant, private or public).
     for grant in root_grants {
-        let names_domain = typed.domain_definitions().iter().any(|domain| {
-            grant == domain.name.as_str()
-                || Some(grant.as_str()) == domain.name.as_str().rsplit("::").next()
-        });
-        let names_accepted = typed.machines().iter().any(|machine| {
-            machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
-                && (grant == machine.name.as_str()
-                    || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
+        let names_non_provider_subject = non_provider_grants.iter().any(|(selector, subject)| {
+            *selector == grant.as_str()
+                && *subject != crate::pipeline::trust_lockfile::NonProviderTrustGrant::Unmatched
         });
         let names_selected_provider = recognized_provider_grants.contains(grant);
-        if !names_domain && !names_accepted && !names_selected_provider {
+        if !names_non_provider_subject && !names_selected_provider {
             report.rows.push(TrustReportRow {
                 commitment: format!("accepted fact: {grant}"),
                 provenance: "root grant (build.omg)".to_owned(),

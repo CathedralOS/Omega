@@ -34,6 +34,19 @@ enum PreparedTrustIdentity {
     AcceptedMachine(psi_symbols::SymbolHandle),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NonProviderTrustGrant {
+    Domain(psi_symbols::SymbolHandle),
+    AcceptedMachine(psi_symbols::SymbolHandle),
+    Unmatched,
+}
+
+struct NonProviderTrustGrantCandidate<'name> {
+    subject: NonProviderTrustGrant,
+    kind: &'static str,
+    name: &'name str,
+}
+
 fn fnv1a(text: &str) -> u64 {
     let mut hash: u64 = 0xcbf29ce484222325;
     for byte in text.as_bytes() {
@@ -43,38 +56,156 @@ fn fnv1a(text: &str) -> u64 {
     hash
 }
 
-fn domain_commitment_statement(typed: &TypedTrees, grant: &str) -> Option<(String, String)> {
-    for domain in typed.domain_definitions() {
-        if !domain.semantic_id.is_valid() {
-            continue;
-        }
-        let leaf = domain
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or(domain.name.as_str());
-        if grant == domain.name.as_str() || grant == leaf {
-            let mut statement = format!("domain {}", domain.name.as_str());
-            for fact in typed.proof_facts.span_or_empty(domain.facts) {
-                if let psi_typed_trees::domain::ProofFact::Expression(expression) = fact {
-                    statement.push_str("; ");
-                    statement.push_str(&typed.expression_table.display_name(*expression));
-                }
-            }
-            return Some((
-                format!("domain introduction: {}", domain.name.as_str()),
-                statement,
-            ));
-        }
+pub(super) fn resolve_non_provider_trust_grant(
+    typed: &TypedTrees,
+    grant: &str,
+) -> Result<NonProviderTrustGrant, Diagnostic> {
+    let candidates = typed
+        .domain_definitions()
+        .iter()
+        .filter(|domain| domain.semantic_id.is_valid())
+        .map(|domain| NonProviderTrustGrantCandidate {
+            subject: NonProviderTrustGrant::Domain(domain.symbol),
+            kind: "domain",
+            name: domain.name.as_str(),
+        })
+        .chain(
+            typed
+                .machines()
+                .iter()
+                .filter(|machine| grantable_accepted_machine(typed, machine))
+                .map(|machine| NonProviderTrustGrantCandidate {
+                    subject: NonProviderTrustGrant::AcceptedMachine(machine.symbol),
+                    kind: "accepted machine",
+                    name: machine.name.as_str(),
+                }),
+        )
+        .collect::<Vec<_>>();
+    let exact = candidates
+        .iter()
+        .filter(|candidate| candidate.name == grant)
+        .collect::<Vec<_>>();
+    match exact.as_slice() {
+        [candidate] => return validate_grant_subject(grant, candidate),
+        [] => {}
+        _ => return Err(ambiguous_grant(grant, &exact)),
     }
-    None
+    if grant.contains("::") {
+        return Ok(NonProviderTrustGrant::Unmatched);
+    }
+    let leaf = candidates
+        .iter()
+        .filter(|candidate| candidate.name.rsplit("::").next() == Some(grant))
+        .collect::<Vec<_>>();
+    match leaf.as_slice() {
+        [candidate] => validate_grant_subject(grant, candidate),
+        [] => Ok(NonProviderTrustGrant::Unmatched),
+        _ => Err(ambiguous_grant(grant, &leaf)),
+    }
 }
 
-fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
-    if let Some(domain) = domain_commitment_statement(typed, grant) {
-        return domain;
+fn grantable_accepted_machine(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> bool {
+    machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
+        && !typed.machine_specializations.iter().any(|specialization| {
+            specialization.accepted_template_commitment.is_some()
+                && specialization.instance == machine.symbol
+                && specialization.instance != specialization.template
+        })
+}
+
+fn validate_grant_subject(
+    grant: &str,
+    candidate: &NonProviderTrustGrantCandidate<'_>,
+) -> Result<NonProviderTrustGrant, Diagnostic> {
+    let symbol = match candidate.subject {
+        NonProviderTrustGrant::Domain(symbol) | NonProviderTrustGrant::AcceptedMachine(symbol) => {
+            symbol
+        }
+        NonProviderTrustGrant::Unmatched => unreachable!("candidates always name a subject"),
+    };
+    if !symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "root grant `{grant}` resolves to {} `{}` with no valid exact symbol",
+            candidate.kind, candidate.name,
+        )));
     }
+    Ok(candidate.subject)
+}
+
+fn ambiguous_grant(grant: &str, candidates: &[&NonProviderTrustGrantCandidate<'_>]) -> Diagnostic {
+    let mut names = candidates
+        .iter()
+        .map(|candidate| format!("{} `{}`", candidate.kind, candidate.name))
+        .collect::<Vec<_>>();
+    names.sort();
+    Diagnostic::error(format!(
+        "root grant `{grant}` is ambiguous across non-provider trust subjects: {}",
+        names.join(", "),
+    ))
+}
+
+fn domain_commitment_statement(
+    typed: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<(String, String), Diagnostic> {
+    let domains = typed
+        .domain_definitions()
+        .iter()
+        .filter(|domain| domain.semantic_id.is_valid() && domain.symbol == symbol)
+        .collect::<Vec<_>>();
+    let [domain] = domains.as_slice() else {
+        return Err(Diagnostic::error(match domains.len() {
+            0 => format!("granted domain symbol {symbol:?} has no exact typed definition"),
+            count => {
+                format!("granted domain symbol {symbol:?} has {count} exact typed definitions")
+            }
+        }));
+    };
+    let Some(facts) = typed.proof_facts.span(domain.facts) else {
+        return Err(Diagnostic::error(format!(
+            "granted domain `{}` has an invalid exact proof-fact span",
+            domain.name,
+        )));
+    };
+    let mut statement = format!("domain {}", domain.name.as_str());
+    for fact in facts {
+        if let psi_typed_trees::domain::ProofFact::Expression(expression) = fact {
+            statement.push_str("; ");
+            statement.push_str(&typed.expression_table.display_name(*expression));
+        }
+    }
+    Ok((
+        format!("domain introduction: {}", domain.name.as_str()),
+        statement,
+    ))
+}
+
+fn accepted_machine(
+    typed: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&psi_typed_trees::machine::Machine, Diagnostic> {
+    let machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| grantable_accepted_machine(typed, machine) && machine.symbol == symbol)
+        .collect::<Vec<_>>();
+    let [machine] = machines.as_slice() else {
+        return Err(Diagnostic::error(match machines.len() {
+            0 => {
+                format!("granted accepted-machine symbol {symbol:?} has no exact typed definition")
+            }
+            count => format!(
+                "granted accepted-machine symbol {symbol:?} has {count} exact typed definitions"
+            ),
+        }));
+    };
+    Ok(*machine)
+}
+
+fn commitment_statement(grant: &str) -> (String, String) {
     (format!("accepted fact: {grant}"), grant.to_owned())
 }
 
@@ -120,57 +251,44 @@ pub(super) fn prepare_trust_lockfile(
             }
             continue;
         }
-        // MP5: a generic accepted axiom is granted ONCE at its universal
-        // normalized template. Every concrete specialization references this
-        // receipt; none creates another grant row. The template identity
-        // includes its machine-parameter requirements, so changing a `where
-        // machine` contract drifts the existing receipt before any instance
-        // can reuse it.
-        let accepted_machine = typed.machines().iter().find(|machine| {
-            machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
-                && (grant == machine.name.as_str()
-                    || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
-        });
-        if let Some((machine, identity)) = accepted_machine.and_then(|machine| {
-            psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
-                typed,
-                machine.symbol,
-            )
-            .map(|identity| (machine, identity))
-        }) {
-            let commitment = format!("accepted fact: {}", machine.name.as_str());
-            if !rows.iter().any(|row| row.commitment == commitment) {
-                rows.push(PreparedTrustReceipt {
-                    commitment,
-                    identity: PreparedTrustIdentity::Ready(identity),
-                });
+        let (commitment, identity) = match resolve_non_provider_trust_grant(typed, grant)
+            .map_err(|diagnostic| vec![diagnostic])?
+        {
+            NonProviderTrustGrant::Domain(symbol) => {
+                let (commitment, statement) = domain_commitment_statement(typed, symbol)
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                (commitment, PreparedTrustIdentity::Ready(fnv1a(&statement)))
             }
-            continue;
-        }
-        if let Some((commitment, statement)) = domain_commitment_statement(typed, grant) {
-            if !rows.iter().any(|row| row.commitment == commitment) {
-                rows.push(PreparedTrustReceipt {
-                    commitment,
-                    identity: PreparedTrustIdentity::Ready(fnv1a(&statement)),
-                });
+            NonProviderTrustGrant::AcceptedMachine(symbol) => {
+                // MP5: a generic accepted axiom is granted ONCE at its universal
+                // normalized template. Every concrete specialization references this
+                // receipt; none creates another grant row. The template identity
+                // includes its machine-parameter requirements, so changing a `where
+                // machine` contract drifts the existing receipt before any instance
+                // can reuse it.
+                let machine =
+                    accepted_machine(typed, symbol).map_err(|diagnostic| vec![diagnostic])?;
+                let identity =
+                    psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
+                        typed,
+                        machine.symbol,
+                    )
+                    .map(PreparedTrustIdentity::Ready)
+                    .unwrap_or(PreparedTrustIdentity::AcceptedMachine(machine.symbol));
+                (
+                    format!("accepted fact: {}", machine.name.as_str()),
+                    identity,
+                )
             }
-            continue;
-        }
-        if let Some(machine) = accepted_machine {
-            let commitment = format!("accepted fact: {}", machine.name.as_str());
-            if !rows.iter().any(|row| row.commitment == commitment) {
-                rows.push(PreparedTrustReceipt {
-                    commitment,
-                    identity: PreparedTrustIdentity::AcceptedMachine(machine.symbol),
-                });
+            NonProviderTrustGrant::Unmatched => {
+                let (commitment, statement) = commitment_statement(grant);
+                (commitment, PreparedTrustIdentity::Ready(fnv1a(&statement)))
             }
-            continue;
-        }
-        let (commitment, statement) = commitment_statement(typed, grant);
+        };
         if !rows.iter().any(|row| row.commitment == commitment) {
             rows.push(PreparedTrustReceipt {
                 commitment,
-                identity: PreparedTrustIdentity::Ready(fnv1a(&statement)),
+                identity,
             });
         }
     }
@@ -379,10 +497,12 @@ mod tests {
 
     use psi_checked_trees::{CheckedTrees, CrashPlan, MachineContractPlan};
     use psi_symbols::SymbolHandle;
+    use psi_typed_trees::TypedTrees;
 
     use super::{
-        PreparedTrustIdentity, PreparedTrustLock, PreparedTrustReceipt, enforce_trust_lockfile,
-        parse_trust_lock, render_trust_lock, resolve_receipts, validate_complete_receipt_set,
+        NonProviderTrustGrant, PreparedTrustIdentity, PreparedTrustLock, PreparedTrustReceipt,
+        domain_commitment_statement, enforce_trust_lockfile, parse_trust_lock, render_trust_lock,
+        resolve_non_provider_trust_grant, resolve_receipts, validate_complete_receipt_set,
     };
 
     fn receipt(commitment: &str, identity: u64) -> PreparedTrustReceipt {
@@ -399,6 +519,153 @@ mod tests {
             crash: CrashPlan::default(),
             fingerprint,
         }
+    }
+
+    fn typed_subjects(
+        domains: &[(&str, u32, bool)],
+        accepted_machines: &[(&str, u32)],
+    ) -> TypedTrees {
+        let mut typed = TypedTrees::default();
+        for (name, symbol_index, retained_semantic_identity) in domains {
+            let semantic_id = if *retained_semantic_identity {
+                typed.semantic_domains.intern(*name)
+            } else {
+                psi_language_semantics::SemanticDomainId::NULL
+            };
+            typed.push_domain_definition(psi_typed_trees::domain::DomainDefinition {
+                symbol: SymbolHandle::from_arena_index(*symbol_index),
+                name: psi_typed_trees::name::Identifier::generated(*name),
+                semantic_id,
+                ..Default::default()
+            });
+        }
+        for (name, symbol_index) in accepted_machines {
+            typed.push_machine(psi_typed_trees::machine::Machine {
+                symbol: SymbolHandle::from_arena_index(*symbol_index),
+                name: psi_typed_trees::name::Identifier::generated(*name),
+                supply_mode: psi_language_semantics::MachineSupplyMode::Accepted,
+                ..Default::default()
+            });
+        }
+        typed
+    }
+
+    #[test]
+    fn non_provider_grants_require_one_exact_global_subject() {
+        enum Expected {
+            Subject(NonProviderTrustGrant),
+            Error(&'static str),
+        }
+        let cases = [
+            (
+                "exact qualified precedence",
+                typed_subjects(&[("u32::Meters", 1, true), ("i32::Meters", 2, true)], &[]),
+                "u32::Meters",
+                Expected::Subject(NonProviderTrustGrant::Domain(
+                    SymbolHandle::from_arena_index(1),
+                )),
+            ),
+            (
+                "unique short leaf",
+                typed_subjects(&[("u32::Meters", 1, true)], &[]),
+                "Meters",
+                Expected::Subject(NonProviderTrustGrant::Domain(
+                    SymbolHandle::from_arena_index(1),
+                )),
+            ),
+            (
+                "ambiguous domain leaf",
+                typed_subjects(&[("u32::Meters", 1, true), ("i32::Meters", 2, true)], &[]),
+                "Meters",
+                Expected::Error("ambiguous across non-provider trust subjects"),
+            ),
+            (
+                "ambiguous accepted-machine leaf",
+                typed_subjects(&[], &[("first::claim", 1), ("second::claim", 2)]),
+                "claim",
+                Expected::Error("ambiguous across non-provider trust subjects"),
+            ),
+            (
+                "unique accepted-machine leaf",
+                typed_subjects(&[], &[("proof::claim", 1)]),
+                "claim",
+                Expected::Subject(NonProviderTrustGrant::AcceptedMachine(
+                    SymbolHandle::from_arena_index(1),
+                )),
+            ),
+            (
+                "ambiguous cross-kind leaf",
+                typed_subjects(&[("u32::claim", 1, true)], &[("proof::claim", 2)]),
+                "claim",
+                Expected::Error("ambiguous across non-provider trust subjects"),
+            ),
+            (
+                "duplicate exact name",
+                typed_subjects(&[("u32::Meters", 1, true), ("u32::Meters", 2, true)], &[]),
+                "u32::Meters",
+                Expected::Error("ambiguous across non-provider trust subjects"),
+            ),
+            (
+                "invalid domain excluded",
+                typed_subjects(&[("u32::Ghost", 1, false)], &[]),
+                "Ghost",
+                Expected::Subject(NonProviderTrustGrant::Unmatched),
+            ),
+            (
+                "qualified nonmatch does not fall back",
+                typed_subjects(&[("u32::Meters", 1, true)], &[]),
+                "other::Meters",
+                Expected::Subject(NonProviderTrustGrant::Unmatched),
+            ),
+            (
+                "unmatched",
+                typed_subjects(&[], &[]),
+                "ExternalClaim",
+                Expected::Subject(NonProviderTrustGrant::Unmatched),
+            ),
+        ];
+
+        for (case, typed, grant, expected) in cases {
+            let actual = resolve_non_provider_trust_grant(&typed, grant);
+            match expected {
+                Expected::Subject(expected) => {
+                    assert_eq!(actual, Ok(expected), "case: {case}");
+                }
+                Expected::Error(expected) => {
+                    let diagnostic = actual.expect_err("ambiguous grant must reject");
+                    assert!(
+                        diagnostic.message.contains(expected),
+                        "case: {case}; diagnostic: {diagnostic:?}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn domain_commitment_rejects_an_invalid_exact_fact_span() {
+        let symbol = SymbolHandle::from_arena_index(1);
+        let mut typed = TypedTrees::default();
+        let semantic_id = typed.semantic_domains.intern("u32::Measured");
+        let mut facts = psi_arena::HandleSpan::empty();
+        typed.proof_facts.append_to_span(
+            &mut facts,
+            psi_typed_trees::domain::ProofFact::Expression(
+                psi_typed_trees::expression::ExpressionHandle::invalid(),
+            ),
+        );
+        typed.push_domain_definition(psi_typed_trees::domain::DomainDefinition {
+            symbol,
+            name: psi_typed_trees::name::Identifier::generated("u32::Measured"),
+            facts,
+            semantic_id,
+            ..Default::default()
+        });
+        typed.proof_facts.clear();
+
+        let diagnostic = domain_commitment_statement(&typed, symbol)
+            .expect_err("invalid exact fact span must fail closed");
+        assert!(diagnostic.message.contains("invalid exact proof-fact span"));
     }
 
     #[test]
