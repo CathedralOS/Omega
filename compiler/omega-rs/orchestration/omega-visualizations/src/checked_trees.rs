@@ -3268,12 +3268,165 @@ fn push_carry_policy_json(output: &mut String, policy: psi_language_semantics::C
 /// implementation evidence are siblings, never one flattened bag. Consumers
 /// pin `contract.fingerprint`; proof/debug tooling may inspect
 /// `implementation` without changing that identity.
+fn exact_manifest_machine_contract<'program>(
+    program: &'program CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> &'program psi_checked_trees::MachineContractPlan {
+    let mut matches = program
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine.symbol);
+    let plan = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact machine contract row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact machine contract rows",
+        machine.name
+    );
+    plan
+}
+
+fn exact_manifest_service_reach(
+    program: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> psi_language_semantics::ServiceReachPlan {
+    let mut matches = program
+        .facts
+        .service_reaches
+        .machines()
+        .iter()
+        .filter(|fact| fact.machine == machine.symbol);
+    let fact = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact service-reach row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact service-reach rows",
+        machine.name
+    );
+    psi_language_semantics::ServiceReachPlan {
+        interface: fact.interface,
+        checked_inferred: fact.inferred_transitive,
+    }
+}
+
+fn exact_manifest_synchronous_invocation<'program>(
+    program: &'program CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> &'program psi_language_semantics::SynchronousInvocationPlan {
+    let mut matches = program
+        .facts
+        .synchronous_invocations
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine.symbol);
+    let fact = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact synchronous-invocation row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact synchronous-invocation rows",
+        machine.name
+    );
+    &fact.plan
+}
+
+fn exact_manifest_suspension(
+    program: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> psi_language_semantics::SuspensionPlan {
+    let mut matches = program
+        .facts
+        .suspensions
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine.symbol);
+    let fact = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact suspension row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact suspension rows",
+        machine.name
+    );
+    fact.plan
+}
+
+fn exact_manifest_blocking(
+    program: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> psi_language_semantics::BlockingPlan {
+    let mut matches = program
+        .facts
+        .blocking
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine.symbol);
+    let fact = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact blocking row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact blocking rows",
+        machine.name
+    );
+    fact.plan
+}
+
+fn exact_manifest_termination<'program>(
+    program: &'program CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> &'program psi_language_semantics::MachineTerminationPlan {
+    let mut matches = program
+        .facts
+        .termination
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine.symbol);
+    let fact = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact termination row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact termination rows",
+        machine.name
+    );
+    &fact.plan
+}
+
 pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
     let mut json = String::from("{\n  \"machines\": [");
     for (index, machine) in program.machines().iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
+        let contract = exact_manifest_machine_contract(program, machine);
+        let service_reach = exact_manifest_service_reach(program, machine);
+        let synchronous_invocation = exact_manifest_synchronous_invocation(program, machine);
+        let suspension = exact_manifest_suspension(program, machine);
+        let blocking = exact_manifest_blocking(program, machine);
+        let termination = exact_manifest_termination(program, machine);
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, machine.name.as_str());
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -3288,336 +3441,257 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         );
 
         json.push_str(",\n      \"contract\": {");
-        if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
-            json.push_str("\n        \"fingerprint\": \"0x");
-            json.push_str(&format!("{:016x}", contract.fingerprint));
-            json.push_str("\",\n        \"supply\": ");
-            push_json_string(&mut json, supply_mode_name(machine.supply_mode));
-            json.push_str(",\n        \"service_reach\": ");
-            push_service_reach_plan_json(
-                &mut json,
-                program,
-                independent_machine_service_reach_plan(program, machine.symbol),
-            );
-            json.push_str(",\n        \"synchronous_invocation\": ");
-            let synchronous_invocation = program
-                .facts
-                .synchronous_invocations
-                .for_machine(machine.symbol)
-                .cloned()
-                .unwrap_or_default();
-            push_synchronous_invocation_plan_json(&mut json, &synchronous_invocation, false);
-            json.push_str(",\n        \"suspension\": ");
-            push_suspension_plan_json(
-                &mut json,
-                program
-                    .facts
-                    .suspensions
-                    .for_machine(machine.symbol)
-                    .unwrap_or_default(),
-            );
-            json.push_str(",\n        \"blocking\": ");
-            push_blocking_plan_json(
-                &mut json,
-                program
-                    .facts
-                    .blocking
-                    .for_machine(machine.symbol)
-                    .unwrap_or_default(),
-            );
-            json.push_str(",\n        \"crashes\": ");
-            push_crash_plan_json(&mut json, &contract.crash);
-            json.push_str(",\n        \"termination\": ");
-            let termination = program
-                .facts
-                .termination
-                .for_machine(machine.symbol)
-                .expect("every checked machine must publish termination facts");
-            push_termination_interface_json(&mut json, &termination.interface);
-            json.push_str("\n      }");
-        } else {
-            json.push_str("}");
-        }
+        json.push_str("\n        \"fingerprint\": \"0x");
+        json.push_str(&format!("{:016x}", contract.fingerprint));
+        json.push_str("\",\n        \"supply\": ");
+        push_json_string(&mut json, supply_mode_name(machine.supply_mode));
+        json.push_str(",\n        \"service_reach\": ");
+        push_service_reach_plan_json(&mut json, program, service_reach);
+        json.push_str(",\n        \"synchronous_invocation\": ");
+        push_synchronous_invocation_plan_json(&mut json, synchronous_invocation, false);
+        json.push_str(",\n        \"suspension\": ");
+        push_suspension_plan_json(&mut json, suspension);
+        json.push_str(",\n        \"blocking\": ");
+        push_blocking_plan_json(&mut json, blocking);
+        json.push_str(",\n        \"crashes\": ");
+        push_crash_plan_json(&mut json, &contract.crash);
+        json.push_str(",\n        \"termination\": ");
+        push_termination_interface_json(&mut json, &termination.interface);
+        json.push_str("\n      }");
 
         json.push_str(",\n      \"implementation\": {");
-        let mut has_implementation_field = false;
-        if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
-            json.push_str("\n        \"checked_may_suspend\": ");
-            json.push_str(
-                if program
-                    .facts
-                    .suspensions
-                    .for_machine(machine.symbol)
-                    .is_some_and(|plan| plan.checked_may_suspend)
-                {
-                    "true"
-                } else {
-                    "false"
-                },
-            );
-            json.push_str(",\n        \"checked_may_block\": ");
-            json.push_str(
-                if program
-                    .facts
-                    .blocking
-                    .for_machine(machine.symbol)
-                    .is_some_and(|plan| plan.checked_may_block)
-                {
-                    "true"
-                } else {
-                    "false"
-                },
-            );
-            json.push_str(",\n        \"checked_service_reach\": ");
-            push_service_row_json(
-                &mut json,
-                program,
-                independent_machine_service_reach_plan(program, machine.symbol).checked_inferred,
-            );
-            json.push_str(",\n        \"checked_synchronous_invocations\": ");
-            let checked_synchronous_invocations = program
-                .facts
-                .synchronous_invocations
-                .for_machine(machine.symbol)
-                .map(|plan| plan.checked_inferred.as_slice())
-                .unwrap_or_default();
-            push_string_array(&mut json, checked_synchronous_invocations);
-            let state_write_frames = program
-                .facts
-                .mutation
-                .for_machine(machine.symbol)
-                .map(|fact| fact.state_write_frames.as_slice())
-                .unwrap_or_default();
-            json.push_str(",\n        \"inferred_write_frames\": [");
-            for (frame_index, state_frame) in state_write_frames.iter().enumerate() {
-                if frame_index > 0 {
-                    json.push(',');
-                }
-                let state_name = mutation_frame_state_name(program, machine, state_frame.state);
-                json.push_str("\n          {\"state\": ");
-                push_json_string(&mut json, state_name);
-                json.push_str(", \"completeness\": ");
-                push_json_string(
-                    &mut json,
-                    match state_frame.frame.completeness() {
-                        psi_facts::WriteFrameCompleteness::Complete => "complete",
-                        psi_facts::WriteFrameCompleteness::Opaque => "opaque",
-                    },
-                );
-                json.push_str(", \"fingerprint\": \"0x");
-                json.push_str(&format!("{:016x}", state_frame.frame.fingerprint()));
-                json.push_str("\", \"paths\": [");
-                push_json_strings(&mut json, state_frame.frame.paths());
-                json.push_str("]}");
-            }
-            if !state_write_frames.is_empty() {
-                json.push('\n');
-                json.push_str("        ");
-            }
-            json.push(']');
-            json.push_str(",\n        \"checked_crash_sites\": [");
-            for (site_index, site) in contract.crash.checked_sites().iter().enumerate() {
-                if site_index > 0 {
-                    json.push(',');
-                }
-                let location = site.location();
-                let state_name = program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == location.state())
-                    .map(|state| state.name.as_str())
-                    .unwrap_or("<unknown>");
-                json.push_str("\n          {\"state\": ");
-                push_json_string(&mut json, state_name);
-                json.push_str(", \"statement_ordinal\": ");
-                json.push_str(&location.statement_ordinal().to_string());
-                json.push_str(", \"cause\": ");
-                push_json_string(
-                    &mut json,
-                    match site.cause() {
-                        psi_checked_trees::CrashCause::Trap => "Trap",
-                        psi_checked_trees::CrashCause::Abort => "Abort",
-                    },
-                );
-                json.push_str(", \"path_guard_conjuncts\": [");
-                for (guard_index, predicate) in site.path_guard_conjuncts().iter().enumerate() {
-                    if guard_index > 0 {
-                        json.push_str(", ");
-                    }
-                    let mut identity = String::from("0x");
-                    for byte in predicate.canonical_bytes() {
-                        identity.push_str(&format!("{byte:02x}"));
-                    }
-                    push_json_string(&mut json, &identity);
-                }
-                json.push(']');
-                json.push_str(", \"path_guard_consequences\": [");
-                for (guard_index, predicate) in site.path_guard_consequences().iter().enumerate() {
-                    if guard_index > 0 {
-                        json.push_str(", ");
-                    }
-                    let mut identity = String::from("0x");
-                    for byte in predicate.canonical_bytes() {
-                        identity.push_str(&format!("{byte:02x}"));
-                    }
-                    push_json_string(&mut json, &identity);
-                }
-                json.push(']');
-                json.push_str(", \"guard_covering_buckets\": [");
-                for (coverage_index, bucket) in site.guard_covering_buckets().iter().enumerate() {
-                    if coverage_index > 0 {
-                        json.push_str(", ");
-                    }
-                    json.push_str(&bucket.get().to_string());
-                }
-                json.push(']');
-                json.push_str(", \"covering_buckets\": [");
-                for (coverage_index, (bucket, _)) in
-                    contract.crash.covering_buckets_for_site(site).enumerate()
-                {
-                    if coverage_index > 0 {
-                        json.push_str(", ");
-                    }
-                    json.push_str(&bucket.get().to_string());
-                }
-                json.push(']');
-                json.push_str(", \"frontier_lower_bound\": [");
-                for (claim_index, claim) in site.frontier_lower_bound().iter().enumerate() {
-                    if claim_index > 0 {
-                        json.push_str(", ");
-                    }
-                    push_claim_identity_json(&mut json, program, *claim);
-                }
-                json.push(']');
-                json.push('}');
-            }
-            if !contract.crash.checked_sites().is_empty() {
-                json.push('\n');
-                json.push_str("        ");
-            }
-            json.push(']');
-            json.push_str(",\n        \"checked_crash_calls\": [");
-            for (call_index, call) in contract.crash.checked_calls().iter().enumerate() {
-                if call_index > 0 {
-                    json.push(',');
-                }
-                let location = call.location();
-                let state_name = program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == location.state())
-                    .map(|state| state.name.as_str())
-                    .unwrap_or("<unknown>");
-                let target_machine = program
-                    .machines()
-                    .iter()
-                    .find(|target| target.symbol == call.target_machine());
-                let target_machine_name = target_machine
-                    .map(|target| target.name.as_str())
-                    .unwrap_or_else(|| program.symbols.name(call.target_machine()));
-                let target_state_name = target_machine
-                    .and_then(|target| {
-                        program
-                            .machine_states(target)
-                            .iter()
-                            .find(|state| state.symbol == call.target_state())
-                    })
-                    .map(|state| state.name.as_str())
-                    .unwrap_or_else(|| program.symbols.name(call.target_state()));
-                json.push_str("\n          {\"state\": ");
-                push_json_string(&mut json, state_name);
-                json.push_str(", \"statement_ordinal\": ");
-                json.push_str(&location.statement_ordinal().to_string());
-                json.push_str(", \"call_ordinal\": ");
-                json.push_str(&location.call_ordinal().to_string());
-                json.push_str(", \"target_machine\": ");
-                push_json_string(&mut json, target_machine_name);
-                json.push_str(", \"target_callable_overload_identity\": ");
-                push_json_string(
-                    &mut json,
-                    &callable_overload_identity(
-                        program,
-                        call.target_machine(),
-                        call.target_state(),
-                    )
-                    .expect("checked crash call must name an exact callable target"),
-                );
-                json.push_str(", \"target_state\": ");
-                push_json_string(&mut json, target_state_name);
-                json.push_str(", \"target_contract_fingerprint\": \"0x");
-                json.push_str(&format!("{:016x}", call.target_contract_fingerprint()));
-                json.push_str("\", \"path_guard_conjuncts\": [");
-                for (guard_index, predicate) in call.path_guard_conjuncts().iter().enumerate() {
-                    if guard_index > 0 {
-                        json.push_str(", ");
-                    }
-                    push_crash_predicate_identity_json(&mut json, predicate);
-                }
-                json.push_str("], \"path_guard_consequences\": [");
-                for (guard_index, predicate) in call.path_guard_consequences().iter().enumerate() {
-                    if guard_index > 0 {
-                        json.push_str(", ");
-                    }
-                    push_crash_predicate_identity_json(&mut json, predicate);
-                }
-                json.push_str("], \"surviving_buckets\": [");
-                push_crash_buckets_json(&mut json, call.surviving_buckets());
-                json.push_str("]}");
-            }
-            if !contract.crash.checked_calls().is_empty() {
-                json.push('\n');
-                json.push_str("        ");
-            }
-            json.push(']');
-            has_implementation_field = true;
-        }
-        if program
+        json.push_str("\n        \"checked_may_suspend\": ");
+        json.push_str(if suspension.checked_may_suspend {
+            "true"
+        } else {
+            "false"
+        });
+        json.push_str(",\n        \"checked_may_block\": ");
+        json.push_str(if blocking.checked_may_block {
+            "true"
+        } else {
+            "false"
+        });
+        json.push_str(",\n        \"checked_service_reach\": ");
+        push_service_row_json(&mut json, program, service_reach.checked_inferred);
+        json.push_str(",\n        \"checked_synchronous_invocations\": ");
+        push_string_array(&mut json, &synchronous_invocation.checked_inferred);
+        let state_write_frames = program
             .facts
-            .contract_plans
+            .mutation
             .for_machine(machine.symbol)
-            .is_some()
-        {
-            if has_implementation_field {
+            .map(|fact| fact.state_write_frames.as_slice())
+            .unwrap_or_default();
+        json.push_str(",\n        \"inferred_write_frames\": [");
+        for (frame_index, state_frame) in state_write_frames.iter().enumerate() {
+            if frame_index > 0 {
                 json.push(',');
             }
-            let termination = program
-                .facts
-                .termination
-                .for_machine(machine.symbol)
-                .expect("every checked machine must publish termination facts");
-            json.push_str("\n        \"checked_termination\": ");
-            push_termination_json(&mut json, &termination.checked_summary);
-            json.push_str(",\n        \"resolved_ranking_view\": ");
+            let state_name = mutation_frame_state_name(program, machine, state_frame.state);
+            json.push_str("\n          {\"state\": ");
+            push_json_string(&mut json, state_name);
+            json.push_str(", \"completeness\": ");
             push_json_string(
                 &mut json,
-                termination
-                    .implementation_witness
-                    .as_ref()
-                    .map_or("", |witness| witness.view_path.as_str()),
+                match state_frame.frame.completeness() {
+                    psi_facts::WriteFrameCompleteness::Complete => "complete",
+                    psi_facts::WriteFrameCompleteness::Opaque => "opaque",
+                },
             );
-            if let Some(witness) = termination.implementation_witness.as_ref() {
-                json.push_str(",\n        \"ranking_witness\": {\n          \"subjects\": [");
-                push_json_strings(&mut json, &witness.subjects);
-                json.push_str("],\n          \"view\": ");
-                push_json_string(&mut json, &witness.view_path);
-                json.push_str(",\n          \"view_arguments\": [");
-                push_json_strings(&mut json, &witness.view_arguments);
-                json.push(']');
-                if let Some(range) = witness.rank_range.as_ref() {
-                    json.push_str(",\n          \"rank_range\": {\"floor\": ");
-                    push_json_string(&mut json, &range.floor);
-                    json.push_str(", \"ceiling\": ");
-                    push_json_string(&mut json, &range.ceiling);
-                    json.push_str(", \"ceiling_inclusive\": ");
-                    json.push_str(if range.ceiling_inclusive {
-                        "true"
-                    } else {
-                        "false"
-                    });
-                    json.push('}');
-                }
-                json.push_str("\n        }");
+            json.push_str(", \"fingerprint\": \"0x");
+            json.push_str(&format!("{:016x}", state_frame.frame.fingerprint()));
+            json.push_str("\", \"paths\": [");
+            push_json_strings(&mut json, state_frame.frame.paths());
+            json.push_str("]}");
+        }
+        if !state_write_frames.is_empty() {
+            json.push('\n');
+            json.push_str("        ");
+        }
+        json.push(']');
+        json.push_str(",\n        \"checked_crash_sites\": [");
+        for (site_index, site) in contract.crash.checked_sites().iter().enumerate() {
+            if site_index > 0 {
+                json.push(',');
             }
+            let location = site.location();
+            let state_name = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == location.state())
+                .map(|state| state.name.as_str())
+                .unwrap_or("<unknown>");
+            json.push_str("\n          {\"state\": ");
+            push_json_string(&mut json, state_name);
+            json.push_str(", \"statement_ordinal\": ");
+            json.push_str(&location.statement_ordinal().to_string());
+            json.push_str(", \"cause\": ");
+            push_json_string(
+                &mut json,
+                match site.cause() {
+                    psi_checked_trees::CrashCause::Trap => "Trap",
+                    psi_checked_trees::CrashCause::Abort => "Abort",
+                },
+            );
+            json.push_str(", \"path_guard_conjuncts\": [");
+            for (guard_index, predicate) in site.path_guard_conjuncts().iter().enumerate() {
+                if guard_index > 0 {
+                    json.push_str(", ");
+                }
+                let mut identity = String::from("0x");
+                for byte in predicate.canonical_bytes() {
+                    identity.push_str(&format!("{byte:02x}"));
+                }
+                push_json_string(&mut json, &identity);
+            }
+            json.push(']');
+            json.push_str(", \"path_guard_consequences\": [");
+            for (guard_index, predicate) in site.path_guard_consequences().iter().enumerate() {
+                if guard_index > 0 {
+                    json.push_str(", ");
+                }
+                let mut identity = String::from("0x");
+                for byte in predicate.canonical_bytes() {
+                    identity.push_str(&format!("{byte:02x}"));
+                }
+                push_json_string(&mut json, &identity);
+            }
+            json.push(']');
+            json.push_str(", \"guard_covering_buckets\": [");
+            for (coverage_index, bucket) in site.guard_covering_buckets().iter().enumerate() {
+                if coverage_index > 0 {
+                    json.push_str(", ");
+                }
+                json.push_str(&bucket.get().to_string());
+            }
+            json.push(']');
+            json.push_str(", \"covering_buckets\": [");
+            for (coverage_index, (bucket, _)) in
+                contract.crash.covering_buckets_for_site(site).enumerate()
+            {
+                if coverage_index > 0 {
+                    json.push_str(", ");
+                }
+                json.push_str(&bucket.get().to_string());
+            }
+            json.push(']');
+            json.push_str(", \"frontier_lower_bound\": [");
+            for (claim_index, claim) in site.frontier_lower_bound().iter().enumerate() {
+                if claim_index > 0 {
+                    json.push_str(", ");
+                }
+                push_claim_identity_json(&mut json, program, *claim);
+            }
+            json.push(']');
+            json.push('}');
+        }
+        if !contract.crash.checked_sites().is_empty() {
+            json.push('\n');
+            json.push_str("        ");
+        }
+        json.push(']');
+        json.push_str(",\n        \"checked_crash_calls\": [");
+        for (call_index, call) in contract.crash.checked_calls().iter().enumerate() {
+            if call_index > 0 {
+                json.push(',');
+            }
+            let location = call.location();
+            let state_name = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == location.state())
+                .map(|state| state.name.as_str())
+                .unwrap_or("<unknown>");
+            let target_machine = program
+                .machines()
+                .iter()
+                .find(|target| target.symbol == call.target_machine());
+            let target_machine_name = target_machine
+                .map(|target| target.name.as_str())
+                .unwrap_or_else(|| program.symbols.name(call.target_machine()));
+            let target_state_name = target_machine
+                .and_then(|target| {
+                    program
+                        .machine_states(target)
+                        .iter()
+                        .find(|state| state.symbol == call.target_state())
+                })
+                .map(|state| state.name.as_str())
+                .unwrap_or_else(|| program.symbols.name(call.target_state()));
+            json.push_str("\n          {\"state\": ");
+            push_json_string(&mut json, state_name);
+            json.push_str(", \"statement_ordinal\": ");
+            json.push_str(&location.statement_ordinal().to_string());
+            json.push_str(", \"call_ordinal\": ");
+            json.push_str(&location.call_ordinal().to_string());
+            json.push_str(", \"target_machine\": ");
+            push_json_string(&mut json, target_machine_name);
+            json.push_str(", \"target_callable_overload_identity\": ");
+            push_json_string(
+                &mut json,
+                &callable_overload_identity(program, call.target_machine(), call.target_state())
+                    .expect("checked crash call must name an exact callable target"),
+            );
+            json.push_str(", \"target_state\": ");
+            push_json_string(&mut json, target_state_name);
+            json.push_str(", \"target_contract_fingerprint\": \"0x");
+            json.push_str(&format!("{:016x}", call.target_contract_fingerprint()));
+            json.push_str("\", \"path_guard_conjuncts\": [");
+            for (guard_index, predicate) in call.path_guard_conjuncts().iter().enumerate() {
+                if guard_index > 0 {
+                    json.push_str(", ");
+                }
+                push_crash_predicate_identity_json(&mut json, predicate);
+            }
+            json.push_str("], \"path_guard_consequences\": [");
+            for (guard_index, predicate) in call.path_guard_consequences().iter().enumerate() {
+                if guard_index > 0 {
+                    json.push_str(", ");
+                }
+                push_crash_predicate_identity_json(&mut json, predicate);
+            }
+            json.push_str("], \"surviving_buckets\": [");
+            push_crash_buckets_json(&mut json, call.surviving_buckets());
+            json.push_str("]}");
+        }
+        if !contract.crash.checked_calls().is_empty() {
+            json.push('\n');
+            json.push_str("        ");
+        }
+        json.push(']');
+        json.push(',');
+        json.push_str("\n        \"checked_termination\": ");
+        push_termination_json(&mut json, &termination.checked_summary);
+        json.push_str(",\n        \"resolved_ranking_view\": ");
+        push_json_string(
+            &mut json,
+            termination
+                .implementation_witness
+                .as_ref()
+                .map_or("", |witness| witness.view_path.as_str()),
+        );
+        if let Some(witness) = termination.implementation_witness.as_ref() {
+            json.push_str(",\n        \"ranking_witness\": {\n          \"subjects\": [");
+            push_json_strings(&mut json, &witness.subjects);
+            json.push_str("],\n          \"view\": ");
+            push_json_string(&mut json, &witness.view_path);
+            json.push_str(",\n          \"view_arguments\": [");
+            push_json_strings(&mut json, &witness.view_arguments);
+            json.push(']');
+            if let Some(range) = witness.rank_range.as_ref() {
+                json.push_str(",\n          \"rank_range\": {\"floor\": ");
+                push_json_string(&mut json, &range.floor);
+                json.push_str(", \"ceiling\": ");
+                push_json_string(&mut json, &range.ceiling);
+                json.push_str(", \"ceiling_inclusive\": ");
+                json.push_str(if range.ceiling_inclusive {
+                    "true"
+                } else {
+                    "false"
+                });
+                json.push('}');
+            }
+            json.push_str("\n        }");
         }
         json.push_str("\n      }\n    }");
     }
@@ -3794,17 +3868,6 @@ fn push_service_reach_plan_json(
             json.push('}');
         }
     }
-}
-
-fn independent_machine_service_reach_plan(
-    program: &CheckedTrees,
-    machine: psi_symbols::SymbolHandle,
-) -> psi_language_semantics::ServiceReachPlan {
-    program
-        .facts
-        .service_reaches
-        .plan_for_machine(machine)
-        .unwrap_or_default()
 }
 
 fn push_synchronous_invocation_plan_json(
@@ -4791,6 +4854,25 @@ mod tests {
         checked_may_suspend: bool,
         checked_may_block: bool,
     ) {
+        let empty = psi_language_semantics::ServiceReachRowTable::EMPTY_ROW;
+        program.facts.service_reaches.machines.append_to_span(
+            &mut program.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                interface: psi_language_semantics::ServiceReachInterface::InternalInferred,
+                published_ceiling: empty,
+                inferred_direct: empty,
+                inferred_transitive: empty,
+                effective: empty,
+                states: Default::default(),
+            },
+        );
+        program.facts.synchronous_invocations.machines.push(
+            psi_checked_trees::MachineSynchronousInvocationFact {
+                machine,
+                plan: Default::default(),
+            },
+        );
         program
             .facts
             .suspensions
@@ -4831,6 +4913,210 @@ mod tests {
                 crash: Default::default(),
                 fingerprint: 0,
             });
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum ManifestExactAxis {
+        Contract,
+        ServiceReach,
+        SynchronousInvocation,
+        Suspension,
+        Blocking,
+        Termination,
+    }
+
+    impl ManifestExactAxis {
+        const ALL: [Self; 6] = [
+            Self::Contract,
+            Self::ServiceReach,
+            Self::SynchronousInvocation,
+            Self::Suspension,
+            Self::Blocking,
+            Self::Termination,
+        ];
+
+        fn label(self) -> &'static str {
+            match self {
+                Self::Contract => "machine contract",
+                Self::ServiceReach => "service-reach",
+                Self::SynchronousInvocation => "synchronous-invocation",
+                Self::Suspension => "suspension",
+                Self::Blocking => "blocking",
+                Self::Termination => "termination",
+            }
+        }
+    }
+
+    fn machine_contract_exact_rows_fixture() -> (CheckedTrees, SymbolHandle) {
+        let machine_symbol = SymbolHandle::from_arena_index(60);
+        let state_symbol = SymbolHandle::from_arena_index(61);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Exact::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
+        push_behavior_contract(&mut program, machine_symbol, true, false);
+        program
+            .facts
+            .contract_plans
+            .machines
+            .last_mut()
+            .expect("exact contract fixture")
+            .fingerprint = 0x1234;
+        (program, machine_symbol)
+    }
+
+    fn remove_manifest_exact_row(
+        program: &mut CheckedTrees,
+        machine: SymbolHandle,
+        axis: ManifestExactAxis,
+    ) {
+        match axis {
+            ManifestExactAxis::Contract => program
+                .facts
+                .contract_plans
+                .machines
+                .retain(|fact| fact.machine != machine),
+            ManifestExactAxis::ServiceReach => {
+                program
+                    .facts
+                    .service_reaches
+                    .machines
+                    .for_each_mut(|_, fact| {
+                        if fact.machine == machine {
+                            fact.machine = SymbolHandle::invalid();
+                        }
+                    });
+            }
+            ManifestExactAxis::SynchronousInvocation => program
+                .facts
+                .synchronous_invocations
+                .machines
+                .retain(|fact| fact.machine != machine),
+            ManifestExactAxis::Suspension => program
+                .facts
+                .suspensions
+                .machines
+                .retain(|fact| fact.machine != machine),
+            ManifestExactAxis::Blocking => program
+                .facts
+                .blocking
+                .machines
+                .retain(|fact| fact.machine != machine),
+            ManifestExactAxis::Termination => program
+                .facts
+                .termination
+                .machines
+                .retain(|fact| fact.machine != machine),
+        }
+    }
+
+    fn duplicate_manifest_exact_row(
+        program: &mut CheckedTrees,
+        source_machine: SymbolHandle,
+        duplicate_machine: SymbolHandle,
+        axis: ManifestExactAxis,
+    ) {
+        match axis {
+            ManifestExactAxis::Contract => {
+                let mut duplicate = program
+                    .facts
+                    .contract_plans
+                    .machines
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source contract row")
+                    .clone();
+                duplicate.machine = duplicate_machine;
+                program.facts.contract_plans.machines.push(duplicate);
+            }
+            ManifestExactAxis::ServiceReach => {
+                let mut duplicate = program
+                    .facts
+                    .service_reaches
+                    .machines()
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source service-reach row")
+                    .clone();
+                duplicate.machine = duplicate_machine;
+                program
+                    .facts
+                    .service_reaches
+                    .machines
+                    .append_to_span(&mut program.facts.service_reaches.root_machines, duplicate);
+            }
+            ManifestExactAxis::SynchronousInvocation => {
+                let mut duplicate = program
+                    .facts
+                    .synchronous_invocations
+                    .machines
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source synchronous-invocation row")
+                    .clone();
+                duplicate.machine = duplicate_machine;
+                program
+                    .facts
+                    .synchronous_invocations
+                    .machines
+                    .push(duplicate);
+            }
+            ManifestExactAxis::Suspension => {
+                let mut duplicate = *program
+                    .facts
+                    .suspensions
+                    .machines
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source suspension row");
+                duplicate.machine = duplicate_machine;
+                program.facts.suspensions.machines.push(duplicate);
+            }
+            ManifestExactAxis::Blocking => {
+                let mut duplicate = *program
+                    .facts
+                    .blocking
+                    .machines
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source blocking row");
+                duplicate.machine = duplicate_machine;
+                program.facts.blocking.machines.push(duplicate);
+            }
+            ManifestExactAxis::Termination => {
+                let mut duplicate = program
+                    .facts
+                    .termination
+                    .machines
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source termination row")
+                    .clone();
+                duplicate.machine = duplicate_machine;
+                program.facts.termination.machines.push(duplicate);
+            }
+        }
+    }
+
+    fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+        if let Some(message) = payload.downcast_ref::<String>() {
+            message.clone()
+        } else if let Some(message) = payload.downcast_ref::<&str>() {
+            (*message).to_owned()
+        } else {
+            "<non-string panic>".to_owned()
+        }
     }
 
     fn push_behavior_flow_state(
@@ -9309,9 +9595,138 @@ mod tests {
     }
 
     #[test]
+    fn machine_contract_manifest_exact_rows_preserve_axis_orthogonality() {
+        let (mut program, machine) = machine_contract_exact_rows_fixture();
+        let empty = psi_language_semantics::ServiceReachRowTable::EMPTY_ROW;
+        program
+            .facts
+            .service_reaches
+            .machines
+            .for_each_mut(|_, fact| {
+                if fact.machine == machine {
+                    fact.interface =
+                        psi_language_semantics::ServiceReachInterface::PublishedCeiling(empty);
+                }
+            });
+        program
+            .facts
+            .synchronous_invocations
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == machine)
+            .expect("exact synchronous-invocation row")
+            .plan = psi_language_semantics::SynchronousInvocationPlan {
+            interface: psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+            published: Vec::new(),
+            checked_inferred: vec!["service:Clock".to_owned()],
+        };
+        program
+            .facts
+            .suspensions
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == machine)
+            .expect("exact suspension row")
+            .plan = SuspensionPlan {
+            interface: SuspensionInterface::PublishedMaySuspend(false),
+            checked_may_suspend: true,
+        };
+        program
+            .facts
+            .blocking
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == machine)
+            .expect("exact blocking row")
+            .plan = BlockingPlan {
+            interface: BlockingInterface::PublishedMayBlock(true),
+            checked_may_block: false,
+        };
+
+        let json = machine_contract_manifest_json(&program);
+
+        assert!(json.contains("\"fingerprint\": \"0x0000000000001234\""));
+        assert!(json.contains(
+            "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": []}"
+        ));
+        assert!(json.contains(
+            "\"synchronous_invocation\": {\"interface\": \"published_ceiling\", \"targets\": []}"
+        ));
+        assert!(json.contains(
+            "\"suspension\": {\"interface\": \"published_ceiling\", \"may_suspend\": false}"
+        ));
+        assert!(
+            json.contains(
+                "\"blocking\": {\"interface\": \"published_ceiling\", \"may_block\": true}"
+            )
+        );
+        assert!(json.contains("\"checked_may_suspend\": true"));
+        assert!(json.contains("\"checked_may_block\": false"));
+        assert!(json.contains("\"checked_synchronous_invocations\": [\"service:Clock\"]"));
+    }
+
+    #[test]
+    fn machine_contract_manifest_exact_rows_reject_every_missing_axis() {
+        for axis in ManifestExactAxis::ALL {
+            let (mut program, machine) = machine_contract_exact_rows_fixture();
+            remove_manifest_exact_row(&mut program, machine, axis);
+
+            let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                machine_contract_manifest_json(&program)
+            }))
+            .expect_err("missing exact manifest row must fail closed");
+            let message = panic_message(panic);
+            assert!(
+                message.contains(&format!("missing its exact {} row", axis.label())),
+                "unexpected {axis:?} missing-row diagnostic: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn machine_contract_manifest_exact_rows_reject_every_duplicate_axis() {
+        for axis in ManifestExactAxis::ALL {
+            let (mut program, machine) = machine_contract_exact_rows_fixture();
+            duplicate_manifest_exact_row(&mut program, machine, machine, axis);
+
+            let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                machine_contract_manifest_json(&program)
+            }))
+            .expect_err("duplicate exact manifest row must fail closed");
+            let message = panic_message(panic);
+            assert!(
+                message.contains(&format!("duplicate exact {} rows", axis.label())),
+                "unexpected {axis:?} duplicate-row diagnostic: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn machine_contract_manifest_exact_rows_ignore_unrelated_duplicates() {
+        let (mut program, machine) = machine_contract_exact_rows_fixture();
+        let unrelated = SymbolHandle::from_arena_index(62);
+        for axis in ManifestExactAxis::ALL {
+            duplicate_manifest_exact_row(&mut program, machine, unrelated, axis);
+            duplicate_manifest_exact_row(&mut program, machine, unrelated, axis);
+        }
+
+        let json = machine_contract_manifest_json(&program);
+
+        assert!(json.contains("\"machine\": \"Exact::run\""));
+        assert!(json.contains("\"fingerprint\": \"0x0000000000001234\""));
+        assert_eq!(json.matches("\"machine\": \"Exact::run\"").count(), 1);
+    }
+
+    #[test]
     fn machine_contract_manifest_reads_independent_mutation_facts() {
         let (mut program, machine_symbol, state_symbol, _) = mutation_state_owner_fixture();
         push_behavior_contract(&mut program, machine_symbol, false, false);
+        push_behavior_contract(
+            &mut program,
+            SymbolHandle::from_arena_index(52),
+            false,
+            false,
+        );
 
         let without_mutation = machine_contract_manifest_json(&program);
         assert!(without_mutation.contains("\"inferred_write_frames\": []"));
@@ -9408,18 +9823,15 @@ mod tests {
                 psi_language_semantics::ServiceReachInterface::InternalInferred,
             ),
         ] {
-            program.facts.service_reaches.machines.append_to_span(
-                &mut program.facts.service_reaches.root_machines,
-                MachineServiceReachRows {
-                    machine,
-                    interface,
-                    published_ceiling: empty,
-                    inferred_direct: empty,
-                    inferred_transitive: empty,
-                    effective: empty,
-                    states: Default::default(),
-                },
-            );
+            program
+                .facts
+                .service_reaches
+                .machines
+                .for_each_mut(|_, fact| {
+                    if fact.machine == machine {
+                        fact.interface = interface;
+                    }
+                });
         }
 
         let json = machine_contract_manifest_json(&program);
