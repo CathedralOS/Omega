@@ -16954,12 +16954,18 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("adapter-dispatch canary should compile to checked trees");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "interpreter dispatches the adapter");
 
     let scratch =
         std::env::temp_dir().join(format!("omega-adapter-dispatch-{}", std::process::id()));
-    compile_hosted_main_preserving_build(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("adapter-dispatch canary should compile natively");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45200,6 +45206,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/runtime_trait_default_dispatch_exit",
     "traits/runtime_inherited_trait_default_exit",
     "traits/runtime_generic_trait_default_exit",
+    "providers/runtime_adapter_dispatch_exit",
     "providers/checked_boundary_operator_dispatch_exit",
     "providers/runtime_result_domain_requirement_overload_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
