@@ -110,7 +110,7 @@ pub(super) fn elaborate_task_activation_plans(
 
         let may_suspend = suspension.checked_may_suspend;
         let may_block = blocking.checked_may_block;
-        let crossings = activation_carry_crossings(program, target_machine.symbol);
+        let crossings = activation_carry_crossings(program, target_machine.symbol)?;
         let canonical_suspension_crossings = crossings
             .subtree
             .iter()
@@ -271,7 +271,7 @@ struct ActivationCarryCrossings<'program> {
 fn activation_carry_crossings(
     program: &CheckedTrees,
     root: psi_symbols::SymbolHandle,
-) -> ActivationCarryCrossings<'_> {
+) -> Result<ActivationCarryCrossings<'_>, Vec<Diagnostic>> {
     let subtree_machines = program.facts.carry.machine_subtree_symbols(root);
     let subtree = program
         .facts
@@ -280,12 +280,144 @@ fn activation_carry_crossings(
         .iter()
         .filter(|crossing| subtree_machines.contains(&crossing.machine))
         .collect::<Vec<_>>();
+    let mut coordinates = Vec::new();
+    for crossing in &subtree {
+        validate_activation_carry_crossing(program, crossing)?;
+        let coordinate = (
+            crossing.machine,
+            crossing.state,
+            crossing.statement_index,
+            crossing.call_ordinal,
+        );
+        if coordinates.contains(&coordinate) {
+            return Err(vec![Diagnostic::error(
+                "task activation carry crossings must retain one row per exact call coordinate",
+            )]);
+        }
+        coordinates.push(coordinate);
+    }
     let root = subtree
         .iter()
         .copied()
         .filter(|crossing| crossing.machine == root)
         .collect();
-    ActivationCarryCrossings { root, subtree }
+    Ok(ActivationCarryCrossings { root, subtree })
+}
+
+fn validate_activation_carry_crossing(
+    program: &CheckedTrees,
+    crossing: &psi_checked_trees::SuspensionCrossingCarryFact,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == crossing.machine);
+    let machine = machines.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing must name an exact typed machine",
+        )]
+    })?;
+    if machines.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing machine must resolve uniquely",
+        )]);
+    }
+    let mut states = program
+        .machine_states(machine)
+        .iter()
+        .filter(|state| state.symbol == crossing.state);
+    let state = states.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing state must belong to its exact typed machine",
+        )]
+    })?;
+    if states.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing state must resolve uniquely within its machine",
+        )]);
+    }
+    if program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(crossing.statement_index)
+        .is_none()
+    {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing statement must belong to its exact typed state",
+        )]);
+    }
+
+    let mut flow_states = program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, flow)| {
+            flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state
+        });
+    let flow_state = flow_states.next().map(|(_, flow)| flow).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing must name one exact checked flow state",
+        )]
+    })?;
+    if flow_states.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must name exactly one checked flow state",
+        )]);
+    }
+    let calls = program
+        .facts
+        .flow
+        .control
+        .calls
+        .span(flow_state.calls)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task activation carry crossing flow state must retain an exact valid call span",
+            )]
+        })?;
+    let mut calls = calls.iter().filter(|call| {
+        call.statement_index == crossing.statement_index
+            && call.call_ordinal == crossing.call_ordinal
+    });
+    let call = calls.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing must name one exact checked flow call",
+        )]
+    })?;
+    if calls.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must name exactly one checked flow call",
+        )]);
+    }
+    if call.target_symbol != crossing.target {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must retain its exact checked call target",
+        )]);
+    }
+    let mut targets = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter(|state| state.symbol == crossing.target)
+    });
+    targets.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing target must name an exact typed state",
+        )]
+    })?;
+    if targets.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing target must resolve to exactly one typed state",
+        )]);
+    }
+    if !call.suspension.direct_may_suspend && !call.suspension.transitive_may_suspend {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must retain a may-suspend checked call",
+        )]);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -525,11 +657,23 @@ fn canonical_suspension_crossing(
 ) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
     let mut hash = StableHash::new();
     hash.byte(0x73);
-    hash.string(symbol_identity(program, crossing.machine));
-    hash.string(symbol_identity(program, crossing.state));
+    hash.string(symbol_identity(program, crossing.machine).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing machine label must resolve exactly",
+        )]
+    })?);
+    hash.string(symbol_identity(program, crossing.state).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing state label must resolve exactly",
+        )]
+    })?);
     hash.usize(crossing.statement_index);
     hash.usize(crossing.call_ordinal);
-    hash.string(symbol_identity(program, crossing.target));
+    hash.string(symbol_identity(program, crossing.target).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing target label must resolve exactly",
+        )]
+    })?);
     hash.byte(u8::from(
         crossing.effective.suspension == CarrySuspension::Allowed,
     ));
@@ -576,20 +720,20 @@ fn canonical_suspension_crossing(
     })
 }
 
-fn symbol_identity(program: &CheckedTrees, symbol: psi_symbols::SymbolHandle) -> &str {
+fn symbol_identity(program: &CheckedTrees, symbol: psi_symbols::SymbolHandle) -> Option<&str> {
     for machine in program.machines() {
         if machine.symbol == symbol {
-            return machine.name.as_str();
+            return Some(machine.name.as_str());
         }
         if let Some(state) = program
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == symbol)
         {
-            return state.name.as_str();
+            return Some(state.name.as_str());
         }
     }
-    "<unknown>"
+    None
 }
 
 fn stack_representation_identity(target: NativeTarget) -> u64 {
@@ -736,13 +880,97 @@ mod tests {
         );
     }
 
-    #[test]
-    fn activation_crossings_include_contained_machine_crossings() {
+    fn activation_crossing_validation_fixture() -> (
+        CheckedTrees,
+        psi_symbols::SymbolHandle,
+        psi_symbols::SymbolHandle,
+        psi_symbols::SymbolHandle,
+    ) {
         let root = psi_symbols::SymbolHandle::from_arena_index(1);
-        let child = psi_symbols::SymbolHandle::from_arena_index(2);
-        let field = psi_symbols::SymbolHandle::from_arena_index(3);
-        let data = psi_symbols::SymbolHandle::from_arena_index(4);
+        let root_state = psi_symbols::SymbolHandle::from_arena_index(2);
+        let child = psi_symbols::SymbolHandle::from_arena_index(3);
+        let child_state = psi_symbols::SymbolHandle::from_arena_index(4);
+        let field = psi_symbols::SymbolHandle::from_arena_index(5);
+        let data = psi_symbols::SymbolHandle::from_arena_index(6);
         let mut program = CheckedTrees::default();
+
+        let mut root_machine = psi_checked_trees::machine::Machine {
+            symbol: root,
+            name: psi_checked_trees::name::Identifier::generated("Root::run"),
+            ..Default::default()
+        };
+        let mut root_state_definition = psi_checked_trees::state::State {
+            symbol: root_state,
+            name: psi_checked_trees::name::Identifier::generated("run"),
+            ..Default::default()
+        };
+        program.typed.statement_table.push_statement(
+            &mut root_state_definition.statement_nodes,
+            Default::default(),
+        );
+        program
+            .typed
+            .push_machine_state(&mut root_machine, root_state_definition);
+        program.typed.push_machine(root_machine);
+
+        let mut child_machine = psi_checked_trees::machine::Machine {
+            symbol: child,
+            name: psi_checked_trees::name::Identifier::generated("Child::run"),
+            ..Default::default()
+        };
+        let mut child_state_definition = psi_checked_trees::state::State {
+            symbol: child_state,
+            name: psi_checked_trees::name::Identifier::generated("run"),
+            ..Default::default()
+        };
+        program.typed.statement_table.push_statement(
+            &mut child_state_definition.statement_nodes,
+            Default::default(),
+        );
+        program
+            .typed
+            .push_machine_state(&mut child_machine, child_state_definition);
+        program.typed.push_machine(child_machine);
+
+        let mut calls = psi_arena::HandleSpan::empty();
+        program.facts.flow.control.calls.append_to_span(
+            &mut calls,
+            psi_checked_trees::FlowCallFact {
+                statement_index: 0,
+                call_ordinal: 0,
+                target_symbol: root_state,
+                suspension: psi_language_semantics::SuspensionSummary {
+                    direct_may_suspend: true,
+                    transitive_may_suspend: false,
+                },
+                ..Default::default()
+            },
+        );
+        program.facts.flow.control.calls.append_to_span(
+            &mut calls,
+            psi_checked_trees::FlowCallFact {
+                statement_index: 0,
+                call_ordinal: 1,
+                target_symbol: child_state,
+                suspension: psi_language_semantics::SuspensionSummary {
+                    direct_may_suspend: false,
+                    transitive_may_suspend: true,
+                },
+                ..Default::default()
+            },
+        );
+        program
+            .facts
+            .flow
+            .control
+            .states
+            .append(psi_checked_trees::FlowStateFact {
+                machine_symbol: child,
+                state_symbol: child_state,
+                calls,
+                ..Default::default()
+            });
+
         let targets = program
             .facts
             .carry
@@ -768,28 +996,57 @@ mod tests {
                 fields: psi_arena::HandleSpan::empty(),
             },
         );
-        let child_policy = CarryPolicy {
-            suspension: CarrySuspension::Allowed,
-            cpu: CarryCpu::Origin,
-            host_thread: CarryHostThread::Any,
-            address: psi_language_semantics::CarryAddress::Movable,
-        };
         program.facts.carry.suspension_crossings.push(
             psi_checked_trees::SuspensionCrossingCarryFact {
                 machine: child,
-                state: psi_symbols::SymbolHandle::invalid(),
+                state: child_state,
                 statement_index: 0,
                 call_ordinal: 0,
-                target: psi_symbols::SymbolHandle::invalid(),
-                effective: child_policy,
+                target: root_state,
+                effective: CarryPolicy {
+                    suspension: CarrySuspension::Allowed,
+                    cpu: CarryCpu::Origin,
+                    host_thread: CarryHostThread::Any,
+                    address: psi_language_semantics::CarryAddress::Movable,
+                },
                 live_values: Vec::new(),
             },
         );
+        program.facts.carry.suspension_crossings.push(
+            psi_checked_trees::SuspensionCrossingCarryFact {
+                machine: child,
+                state: child_state,
+                statement_index: 0,
+                call_ordinal: 1,
+                target: child_state,
+                effective: CarryPolicy::PERMISSIVE,
+                live_values: Vec::new(),
+            },
+        );
+        (program, root, root_state, child_state)
+    }
 
-        let crossings = activation_carry_crossings(&program, root);
+    fn crossing_error(program: &CheckedTrees, root: psi_symbols::SymbolHandle) -> String {
+        match activation_carry_crossings(program, root) {
+            Ok(_) => panic!("invalid crossing must fail closed"),
+            Err(diagnostics) => diagnostics
+                .first()
+                .expect("crossing diagnostic")
+                .message
+                .clone(),
+        }
+    }
+
+    #[test]
+    fn activation_crossings_include_contained_machine_crossings() {
+        let (program, root, _, _) = activation_crossing_validation_fixture();
+        let child_policy = program.facts.carry.suspension_crossings[0].effective;
+        let crossings = activation_carry_crossings(&program, root).expect("exact crossing custody");
 
         assert!(crossings.root.is_empty());
-        assert_eq!(crossings.subtree.len(), 1);
+        assert_eq!(crossings.subtree.len(), 2);
+        assert_eq!(crossings.subtree[0].call_ordinal, 0);
+        assert_eq!(crossings.subtree[1].call_ordinal, 1);
         assert!(
             crossings
                 .subtree
@@ -797,6 +1054,140 @@ mod tests {
                 .all(|crossing| crossing.effective.suspension == CarrySuspension::Allowed)
         );
         assert_eq!(crossings.subtree[0].effective, child_policy);
+    }
+
+    #[test]
+    fn activation_crossings_reject_missing_machine() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program.facts.carry.suspension_crossings[0].machine = psi_symbols::SymbolHandle::invalid();
+        program
+            .facts
+            .carry
+            .contained_targets
+            .for_each_mut(|_, target| target.machine = psi_symbols::SymbolHandle::invalid());
+        assert!(crossing_error(&program, root).contains("exact typed machine"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_cross_machine_state() {
+        let (mut program, root, root_state, _) = activation_crossing_validation_fixture();
+        program.facts.carry.suspension_crossings[0].state = root_state;
+        assert!(crossing_error(&program, root).contains("belong to its exact typed machine"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_out_of_range_statement() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program.facts.carry.suspension_crossings[0].statement_index = 1;
+        assert!(crossing_error(&program, root).contains("statement must belong"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_missing_flow_state() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program.facts.flow.control.states = Default::default();
+        assert!(crossing_error(&program, root).contains("one exact checked flow state"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_ambiguous_flow_state() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let duplicate = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .next()
+            .expect("flow state")
+            .1
+            .clone();
+        program.facts.flow.control.states.append(duplicate);
+        assert!(crossing_error(&program, root).contains("exactly one checked flow state"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_invalid_call_span() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program.facts.flow.control.states.for_each_mut(|_, state| {
+            state.calls = psi_arena::HandleSpan::from_parts(psi_arena::Handle::invalid(), 1);
+        });
+        assert!(crossing_error(&program, root).contains("exact valid call span"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_missing_call_coordinate() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program.facts.carry.suspension_crossings[0].call_ordinal = 2;
+        assert!(crossing_error(&program, root).contains("one exact checked flow call"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_ambiguous_call_coordinate() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let call = program
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .next()
+            .expect("flow call")
+            .1
+            .clone();
+        let calls = program
+            .facts
+            .flow
+            .control
+            .calls
+            .insert_many([call.clone(), call]);
+        program
+            .facts
+            .flow
+            .control
+            .states
+            .for_each_mut(|_, state| state.calls = calls);
+        assert!(crossing_error(&program, root).contains("exactly one checked flow call"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_target_drift() {
+        let (mut program, root, _, child_state) = activation_crossing_validation_fixture();
+        program.facts.carry.suspension_crossings[0].target = child_state;
+        assert!(crossing_error(&program, root).contains("exact checked call target"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_missing_typed_target() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program.facts.carry.suspension_crossings[0].target = psi_symbols::SymbolHandle::invalid();
+        program
+            .facts
+            .flow
+            .control
+            .calls
+            .for_each_mut(|_, call| call.target_symbol = psi_symbols::SymbolHandle::invalid());
+        assert!(crossing_error(&program, root).contains("target must name an exact typed state"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_non_suspending_call() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program
+            .facts
+            .flow
+            .control
+            .calls
+            .for_each_mut(|_, call| call.suspension = Default::default());
+        assert!(crossing_error(&program, root).contains("may-suspend checked call"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_duplicate_coordinate() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let duplicate = program.facts.carry.suspension_crossings[0].clone();
+        program.facts.carry.suspension_crossings.push(duplicate);
+        assert!(crossing_error(&program, root).contains("one row per exact call coordinate"));
     }
 
     #[test]
