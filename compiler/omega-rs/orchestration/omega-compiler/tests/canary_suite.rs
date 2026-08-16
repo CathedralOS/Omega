@@ -39957,6 +39957,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "ranges/sum_payload_direct_access_unproven",
     "ranges/sum_payload_non_case_guard_unproven",
     "ranges/sum_payload_arith_too_wide_unproven",
+    "collections/computed_index_unproven_rejected",
     "collections/declared_range_index_too_wide",
     "collections/u64_high_bit_index_rejected",
     "collections/wrapping_range_index_unproven",

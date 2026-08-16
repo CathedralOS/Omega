@@ -14,5 +14,5 @@ machine Main::main(&mut self) {
     self.arr = [1, 20, 30, 40, 50];
     self.k = self.arr[0];
     self.acc = self.acc + self.arr[self.k + 1];
-    self.console.exit_process(self.acc);
+    self.console.exit_process(self.acc as i32);
 }
