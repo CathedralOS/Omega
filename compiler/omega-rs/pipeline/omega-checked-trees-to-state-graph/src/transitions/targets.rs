@@ -20,6 +20,27 @@ pub(super) fn plan_transition_target(
         return Ok(PlannedTransitionTarget::Terminal);
     }
 
+    if let TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(target)
+    {
+        let members = program.statement_table.name_path_members(path.members);
+        if exact_self_sibling_transition(
+            source_key,
+            members,
+            path.head_symbol,
+            path.symbol,
+            source_machine,
+            program,
+        ) {
+            return Ok(PlannedTransitionTarget::Nested {
+                receiver_symbol: path.head_symbol,
+                state_symbol: path.symbol,
+                receiver: members[0].clone(),
+                state: members[1].clone(),
+            });
+        }
+    }
+
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Named {
             path, arguments: _, ..
@@ -236,6 +257,39 @@ fn is_local_transition_path(
     head_symbol: psi_symbols::SymbolHandle,
 ) -> bool {
     path.len() == 1 || path.len() == 2 && head_symbol == source_key.machine
+}
+
+fn exact_self_sibling_transition(
+    source_key: StateKey,
+    path: &[Identifier],
+    head_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    source_machine: &Machine,
+    program: &CheckedTrees,
+) -> bool {
+    // Symbol resolution stamps `self.sibling(..)` with the current machine as
+    // its head and the attached sibling's exact state as its final symbol.
+    // Only that unique foreign-final shape is nested; every invalid, missing,
+    // duplicate, or local coordinate stays on the exact local validator.
+    if path.len() != 2
+        || path[0].as_str() != "self"
+        || head_symbol != source_key.machine
+        || !target_symbol.is_valid()
+        || program
+            .machine_states(source_machine)
+            .iter()
+            .any(|state| state.symbol == target_symbol)
+    {
+        return false;
+    }
+
+    let mut foreign_states = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol != source_machine.symbol)
+        .flat_map(|machine| program.machine_states(machine))
+        .filter(|state| state.symbol == target_symbol);
+    foreign_states.next().is_some() && foreign_states.next().is_none()
 }
 
 fn display_transition_path(path: &[psi_checked_trees::name::Identifier]) -> String {
@@ -662,6 +716,32 @@ mod tests {
                 state_symbol,
                 ..
             } if receiver_symbol == fixture.foreign_machine
+                && state_symbol == fixture.foreign_state
+        ));
+    }
+
+    #[test]
+    fn self_head_with_exact_foreign_final_remains_an_opaque_nested_row() {
+        let mut fixture = target_fixture();
+        let target = named_target(
+            &mut fixture.program,
+            &["self", "next"],
+            fixture.source_key.machine,
+            fixture.foreign_state,
+        );
+        assert!(matches!(
+            plan_transition_target(
+                fixture.source_key,
+                &fixture.segments,
+                target,
+                &fixture.program,
+            )
+            .expect("self-qualified sibling transition stays nested"),
+            PlannedTransitionTarget::Nested {
+                receiver_symbol,
+                state_symbol,
+                ..
+            } if receiver_symbol == fixture.source_key.machine
                 && state_symbol == fixture.foreign_state
         ));
     }
