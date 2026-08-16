@@ -19693,7 +19693,8 @@ fn runtime_struct_literal_string_field_exit_canary_runs() {
         "omega-struct-literal-string-field-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct literal string field canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45210,6 +45211,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/runtime_case_reassignment_exit",
     "data/runtime_mixed_shape_exit",
     "data/runtime_record_field_value_pattern_exit",
+    "data/runtime_struct_literal_string_field_exit",
     "memory/repr_native_stable_layout",
     "host/runtime_console_byte_literal_exit",
     "host/runtime_tick_count_monotonic_exit",
