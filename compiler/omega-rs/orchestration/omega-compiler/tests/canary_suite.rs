@@ -17120,6 +17120,32 @@ fn provider_type_target_default_override_canary_selects_build_override() {
 }
 
 #[test]
+fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
+    let canary = pass_canary("providers/adapter_satisfies_compile");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("checked adapter provider should resolve the Echo slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let echo_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Echo")
+        .expect("Echo must retain its selected checked-adapter provider plan");
+    assert_eq!(echo_plan.provider_type, "EchoProvider");
+    assert!(echo_plan.covers_schema());
+    assert_eq!(echo_plan.rows.len(), 1);
+    assert!(matches!(
+        &echo_plan.rows[0].binding,
+        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
+            if machine == "EchoProvider::echo_adapter"
+    ));
+}
+
+#[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 standard self-forwarding adapter: the receiver forwards as argument
     // 0, and std Console::write reaches the write_byte leaf through that same
@@ -45266,6 +45292,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "providers/provider_type_slot_selected",
     "providers/provider_type_target_default",
     "providers/provider_type_target_default_override",
+    "providers/adapter_satisfies_compile",
     "providers/runtime_adapter_forwarding_exit",
     "providers/runtime_boundary_capability_state_forwarding_exit",
     "providers/checked_boundary_operator_dispatch_exit",
