@@ -697,7 +697,7 @@ fn selected_operator_provider_identity(
     Ok(Some(plan.identity_fingerprint()))
 }
 
-fn expected_float_intrinsic(
+pub(super) fn expected_float_intrinsic(
     typed: &TypedTrees,
     operator: &psi_typed_trees::operator::OperatorDefinition,
 ) -> Option<String> {
