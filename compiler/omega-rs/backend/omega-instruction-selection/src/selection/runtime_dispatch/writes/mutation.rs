@@ -670,7 +670,7 @@ fn runtime_table_call_occurrence_rank(
     .then_some(rank)
 }
 
-fn resolve_runtime_table_call_result_source_place(
+pub(super) fn resolve_runtime_table_call_result_source_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
