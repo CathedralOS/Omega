@@ -1510,6 +1510,44 @@ requires value <= 127u32
     (((((value as i8) as u8) / 2u8) % 3u8) < 3u8) && enabled
 }
 
+machine terminal_affine_partial_cast_chain_then_shift(value: i64, enabled: bool) -> bool
+requires value <= 9223372036854775806i64, -1i64 <= value,
+    value <= 2147483646i64, value <= 1073741822i64
+{
+    (((((value + 1i64) as u64) as i32) << 1u8) < 2147483647i32) && enabled
+}
+
+machine terminal_shift_partial_cast_chain_then_affine(value: i64, enabled: bool) -> bool
+requires 0i64 <= value, value <= 4294967295i64, value <= 4294967293i64
+{
+    (((((value >> 1u8) as u64) as i32) + 1i32) < 2147483647i32) && enabled
+}
+
+machine terminal_signed_product_partial_cast_chain_then_signed_product(
+    value: i64,
+    enabled: bool
+) -> bool
+requires -4611686018427387903i64 <= value, value <= 4611686018427387904i64,
+    -9223372036854775807i64 <= value, -1073741823i64 <= value,
+    -536870912i64 <= value, value <= 0i64
+{
+    (((((value * -2i64) as u64) as i32) * -2i32) < 2147483647i32) && enabled
+}
+
+machine terminal_divide_partial_cast_chain_then_affine(value: u32, enabled: bool) -> bool {
+    (((((value % 3u32) as u8) as i8) + 1i8) < 127i8) && enabled
+}
+
+machine terminal_affine_partial_cast_chain_then_divide_remainder(
+    value: i64,
+    enabled: bool
+) -> bool
+requires value <= 9223372036854775806i64, -1i64 <= value,
+    value <= 2147483646i64
+{
+    ((((((value + 1i64) as u64) as i32) / 2i32) % 3i32) < 3i32) && enabled
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {

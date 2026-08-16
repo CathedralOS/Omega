@@ -11151,6 +11151,11 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
                 .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+                        expression,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
@@ -11181,6 +11186,11 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
                 .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+                        expression,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
@@ -11210,6 +11220,11 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+                        expression,
+                    )
+                })
                 .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
@@ -11242,6 +11257,11 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_cast_shift_runtime_parameters(expression))
                 .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+                        expression,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_mixed_shift_runtime_parameters(expression))
@@ -11272,6 +11292,11 @@ fn shared_integer_runtime_parameters_with_shells(
                 })
                 .or_else(|| shared_exact_runtime_divisor_chain_runtime_parameters(expression))
                 .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+                        expression,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
                 .or_else(|| shared_exact_cast_then_divide_remainder_runtime_parameters(expression))
@@ -11298,6 +11323,11 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_divide_remainder_cross_cast_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_shift_cast_sandwich_runtime_parameters(expression))
                 .or_else(|| shared_exact_shift_cast_shift_runtime_parameters(expression))
+                .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+                        expression,
+                    )
+                })
                 .or_else(|| {
                     shared_exact_cast_chain_then_computed_suffix_runtime_parameters(expression)
                 })
@@ -11440,10 +11470,47 @@ fn partial_fixed_native_integer_cast(source: IntegerType, target: IntegerType) -
 fn shared_exact_cast_chain_then_computed_suffix_runtime_parameters(
     expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
-    shared_exact_cast_chain_then_affine_runtime_parameters(expression)
-        .or_else(|| shared_exact_cast_chain_then_signed_product_runtime_parameters(expression))
-        .or_else(|| shared_exact_cast_chain_then_shift_runtime_parameters(expression))
-        .or_else(|| shared_exact_cast_chain_then_divide_remainder_runtime_parameters(expression))
+    shared_exact_computed_suffix_runtime_parameters(
+        expression,
+        shared_exact_cast_chain_suffix_root_runtime_parameters,
+    )
+}
+
+fn shared_exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameters(
+    expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    shared_exact_computed_suffix_runtime_parameters(
+        expression,
+        shared_exact_computed_prefix_cast_chain_suffix_root_runtime_parameters,
+    )
+}
+
+type SharedExactComputedSuffixRootRuntimeParameters =
+    fn(IntegerType, &LoweredDirectExpression) -> Option<BTreeSet<SharedBooleanRuntimeInput>>;
+
+fn shared_exact_computed_suffix_runtime_parameters(
+    expression: &LoweredDirectExpression,
+    root_runtime_parameters: SharedExactComputedSuffixRootRuntimeParameters,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    shared_exact_cast_chain_then_affine_runtime_parameters(expression, root_runtime_parameters)
+        .or_else(|| {
+            shared_exact_cast_chain_then_signed_product_runtime_parameters(
+                expression,
+                root_runtime_parameters,
+            )
+        })
+        .or_else(|| {
+            shared_exact_cast_chain_then_shift_runtime_parameters(
+                expression,
+                root_runtime_parameters,
+            )
+        })
+        .or_else(|| {
+            shared_exact_cast_chain_then_divide_remainder_runtime_parameters(
+                expression,
+                root_runtime_parameters,
+            )
+        })
 }
 
 fn shared_exact_cast_chain_suffix_root_runtime_parameters(
@@ -11461,8 +11528,27 @@ fn shared_exact_cast_chain_suffix_root_runtime_parameters(
     shared_exact_cast_chain_runtime_parameters(ScalarType::Integer(target_type), operand)
 }
 
+fn shared_exact_computed_prefix_cast_chain_suffix_root_runtime_parameters(
+    target_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let LoweredDirectExpression::IntegerExactCast {
+        scalar_type: ScalarType::Integer(cast_target_type),
+        operand,
+    } = expression
+    else {
+        return None;
+    };
+    (*cast_target_type == target_type).then_some(())?;
+    shared_exact_computed_prefix_cast_chain_runtime_parameters(
+        ScalarType::Integer(target_type),
+        operand,
+    )
+}
+
 fn shared_exact_cast_chain_then_affine_runtime_parameters(
     mut expression: &LoweredDirectExpression,
+    root_runtime_parameters: SharedExactComputedSuffixRootRuntimeParameters,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     let mut chain_type = None;
     loop {
@@ -11502,7 +11588,7 @@ fn shared_exact_cast_chain_then_affine_runtime_parameters(
                 ..
             } => expression = nested,
             root => {
-                return shared_exact_cast_chain_suffix_root_runtime_parameters(*integer_type, root);
+                return root_runtime_parameters(*integer_type, root);
             }
         }
     }
@@ -11510,6 +11596,7 @@ fn shared_exact_cast_chain_then_affine_runtime_parameters(
 
 fn shared_exact_cast_chain_then_signed_product_runtime_parameters(
     mut expression: &LoweredDirectExpression,
+    root_runtime_parameters: SharedExactComputedSuffixRootRuntimeParameters,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     let mut chain_type = None;
     let mut product = Some((false, 1_u128));
@@ -11539,7 +11626,7 @@ fn shared_exact_cast_chain_then_signed_product_runtime_parameters(
                 ..
             } => expression = nested,
             root if product.is_some() && saw_negative => {
-                return shared_exact_cast_chain_suffix_root_runtime_parameters(*integer_type, root);
+                return root_runtime_parameters(*integer_type, root);
             }
             _ => return None,
         }
@@ -11548,6 +11635,7 @@ fn shared_exact_cast_chain_then_signed_product_runtime_parameters(
 
 fn shared_exact_cast_chain_then_shift_runtime_parameters(
     mut expression: &LoweredDirectExpression,
+    root_runtime_parameters: SharedExactComputedSuffixRootRuntimeParameters,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     let mut chain_type = None;
     loop {
@@ -11575,7 +11663,7 @@ fn shared_exact_cast_chain_then_shift_runtime_parameters(
                 ..
             } => expression = nested,
             root => {
-                return shared_exact_cast_chain_suffix_root_runtime_parameters(*integer_type, root);
+                return root_runtime_parameters(*integer_type, root);
             }
         }
     }
@@ -11583,6 +11671,7 @@ fn shared_exact_cast_chain_then_shift_runtime_parameters(
 
 fn shared_exact_cast_chain_then_divide_remainder_runtime_parameters(
     mut expression: &LoweredDirectExpression,
+    root_runtime_parameters: SharedExactComputedSuffixRootRuntimeParameters,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     let mut chain_type = None;
     loop {
@@ -11609,7 +11698,7 @@ fn shared_exact_cast_chain_then_divide_remainder_runtime_parameters(
                 ..
             } => expression = nested,
             root => {
-                return shared_exact_cast_chain_suffix_root_runtime_parameters(*integer_type, root);
+                return root_runtime_parameters(*integer_type, root);
             }
         }
     }
