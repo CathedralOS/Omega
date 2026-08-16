@@ -15817,7 +15817,8 @@ fn f32_deep_chain_binary_exit_canary_runs() {
         "omega-f32-deep-chain-binary-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("f32_deep_chain_binary canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45323,6 +45324,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
     "expressions/f32_field_binary_to_local_cast",
+    "expressions/f32_deep_chain_binary",
     "expressions/f32_to_f64_local_cast",
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
     "control_flow/entry_surface_receiver_paths",
