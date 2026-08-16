@@ -3415,6 +3415,44 @@ fn exact_manifest_termination<'program>(
     &fact.plan
 }
 
+fn exact_manifest_mutation<'program>(
+    program: &'program CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> &'program psi_checked_trees::MachineMutationFact {
+    let mut matches = program
+        .facts
+        .mutation
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine.symbol);
+    let fact = matches.next().unwrap_or_else(|| {
+        panic!(
+            "machine contract manifest `{}` is missing its exact mutation row",
+            machine.name
+        )
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest `{}` has duplicate exact mutation rows",
+        machine.name
+    );
+    let states = program.machine_states(machine);
+    assert_eq!(
+        fact.state_write_frames.len(),
+        states.len(),
+        "machine contract manifest `{}` mutation frames must cover its exact typed state table one-for-one",
+        machine.name
+    );
+    for (frame, state) in fact.state_write_frames.iter().zip(states) {
+        assert_eq!(
+            frame.state, state.symbol,
+            "machine contract manifest `{}` mutation frames must retain exact typed state-table carrier order",
+            machine.name
+        );
+    }
+    fact
+}
+
 struct ValidatedManifestSpecialization<'program> {
     specialization: &'program psi_typed_trees::typed_trees::MachineSpecialization,
     template: &'program Machine,
@@ -3571,6 +3609,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         let suspension = exact_manifest_suspension(program, machine);
         let blocking = exact_manifest_blocking(program, machine);
         let termination = exact_manifest_termination(program, machine);
+        let mutation = exact_manifest_mutation(program, machine);
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, machine.name.as_str());
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -3620,12 +3659,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         push_service_row_json(&mut json, program, service_reach.checked_inferred);
         json.push_str(",\n        \"checked_synchronous_invocations\": ");
         push_string_array(&mut json, &synchronous_invocation.checked_inferred);
-        let state_write_frames = program
-            .facts
-            .mutation
-            .for_machine(machine.symbol)
-            .map(|fact| fact.state_write_frames.as_slice())
-            .unwrap_or_default();
+        let state_write_frames = mutation.state_write_frames.as_slice();
         json.push_str(",\n        \"inferred_write_frames\": [");
         for (frame_index, state_frame) in state_write_frames.iter().enumerate() {
             if frame_index > 0 {
@@ -4912,7 +4946,7 @@ mod tests {
     use super::{
         carry_manifest_json, claim_outcome_manifest_json, exact_manifest_crash_call_source,
         exact_manifest_crash_source_state, machine_blocking_summary,
-        machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
+        machine_contract_manifest_json, machine_suspension_summary,
         push_termination_interface_json, qualification_evidence_manifest_json,
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, symbol_label, task_activation_manifest_json,
@@ -5025,6 +5059,26 @@ mod tests {
                 machine,
                 plan: Default::default(),
             });
+        let state_write_frames = program
+            .machines()
+            .iter()
+            .find(|definition| definition.symbol == machine)
+            .map(|definition| {
+                program
+                    .machine_states(definition)
+                    .iter()
+                    .map(|state| StateWriteFramePlan {
+                        state: state.symbol,
+                        frame: psi_facts::NormalizedWriteFrame::opaque(),
+                    })
+                    .collect()
+            });
+        if let Some(state_write_frames) = state_write_frames {
+            program.facts.mutation.machines.push(MachineMutationFact {
+                machine,
+                state_write_frames,
+            });
+        }
         program
             .facts
             .contract_plans
@@ -5045,16 +5099,18 @@ mod tests {
         Suspension,
         Blocking,
         Termination,
+        Mutation,
     }
 
     impl ManifestExactAxis {
-        const ALL: [Self; 6] = [
+        const ALL: [Self; 7] = [
             Self::Contract,
             Self::ServiceReach,
             Self::SynchronousInvocation,
             Self::Suspension,
             Self::Blocking,
             Self::Termination,
+            Self::Mutation,
         ];
 
         fn label(self) -> &'static str {
@@ -5065,6 +5121,7 @@ mod tests {
                 Self::Suspension => "suspension",
                 Self::Blocking => "blocking",
                 Self::Termination => "termination",
+                Self::Mutation => "mutation",
             }
         }
     }
@@ -5138,6 +5195,11 @@ mod tests {
             ManifestExactAxis::Termination => program
                 .facts
                 .termination
+                .machines
+                .retain(|fact| fact.machine != machine),
+            ManifestExactAxis::Mutation => program
+                .facts
+                .mutation
                 .machines
                 .retain(|fact| fact.machine != machine),
         }
@@ -5228,6 +5290,18 @@ mod tests {
                 duplicate.machine = duplicate_machine;
                 program.facts.termination.machines.push(duplicate);
             }
+            ManifestExactAxis::Mutation => {
+                let mut duplicate = program
+                    .facts
+                    .mutation
+                    .machines
+                    .iter()
+                    .find(|fact| fact.machine == source_machine)
+                    .expect("source mutation row")
+                    .clone();
+                duplicate.machine = duplicate_machine;
+                program.facts.mutation.machines.push(duplicate);
+            }
         }
     }
 
@@ -5280,6 +5354,16 @@ mod tests {
                     ..Default::default()
                 },
             );
+            if machine_symbol == owner {
+                program.typed.push_machine_state(
+                    &mut machine,
+                    State {
+                        symbol: SymbolHandle::from_arena_index(54),
+                        name: Identifier::generated("next"),
+                        ..Default::default()
+                    },
+                );
+            }
             program.typed.push_machine(machine);
         }
         (program, owner, owner_state, other_state)
@@ -9850,21 +9934,39 @@ mod tests {
             false,
         );
 
-        let without_mutation = machine_contract_manifest_json(&program);
-        assert!(without_mutation.contains("\"inferred_write_frames\": []"));
+        let baseline = machine_contract_manifest_json(&program);
+        assert!(baseline.contains(
+            "\"inferred_write_frames\": [\n          {\"state\": \"entry\", \"completeness\": \"opaque\""
+        ));
+        assert!(baseline.contains("{\"state\": \"next\", \"completeness\": \"opaque\""));
 
-        program.facts.mutation.machines.push(MachineMutationFact {
-            machine: machine_symbol,
-            state_write_frames: vec![StateWriteFramePlan {
-                state: state_symbol,
-                frame: psi_facts::NormalizedWriteFrame::complete(vec!["self.value".to_owned()]),
-            }],
-        });
+        let retained_frame = program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == machine_symbol)
+            .expect("exact mutation row")
+            .state_write_frames
+            .iter_mut()
+            .find(|frame| frame.state == state_symbol)
+            .expect("exact entry frame");
+        retained_frame.frame =
+            psi_facts::NormalizedWriteFrame::complete(vec!["self.value".to_owned()]);
+        let retained_fingerprint = retained_frame.frame.fingerprint();
         let with_mutation = machine_contract_manifest_json(&program);
+        let baseline_contract_start = baseline.find("\"contract\"").expect("baseline contract");
+        let baseline_implementation_start = baseline
+            .find("\"implementation\"")
+            .expect("baseline implementation");
         let contract_start = with_mutation.find("\"contract\"").expect("contract object");
         let implementation_start = with_mutation
             .find("\"implementation\"")
             .expect("implementation object");
+        assert_eq!(
+            &baseline[baseline_contract_start..baseline_implementation_start],
+            &with_mutation[contract_start..implementation_start]
+        );
         assert!(
             !with_mutation[contract_start..implementation_start].contains("inferred_write_frames")
         );
@@ -9872,32 +9974,141 @@ mod tests {
             "\"inferred_write_frames\": [\n          {\"state\": \"entry\", \"completeness\": \"complete\""
         ));
         assert!(with_mutation[implementation_start..].contains("\"paths\": [\"self.value\"]"));
+        assert!(with_mutation[implementation_start..].contains(&format!(
+            "\"fingerprint\": \"0x{retained_fingerprint:016x}\""
+        )));
     }
 
     #[test]
-    #[should_panic(expected = "write-frame state must belong to its exact fact machine")]
-    fn machine_contract_manifest_rejects_cross_machine_mutation_frame_state() {
-        let (program, owner, _, other_state) = mutation_state_owner_fixture();
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == owner)
-            .expect("owner machine");
+    #[should_panic(expected = "mutation frames must cover its exact typed state table one-for-one")]
+    fn machine_contract_manifest_mutation_frames_reject_missing_state() {
+        let (mut program, owner, _, _) = mutation_state_owner_fixture();
+        push_behavior_contract(&mut program, owner, false, false);
+        push_behavior_contract(
+            &mut program,
+            SymbolHandle::from_arena_index(52),
+            false,
+            false,
+        );
+        program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == owner)
+            .expect("exact mutation row")
+            .state_write_frames
+            .pop();
 
-        mutation_frame_state_name(&program, machine, other_state);
+        machine_contract_manifest_json(&program);
     }
 
     #[test]
-    #[should_panic(expected = "write-frame state must belong to its exact fact machine")]
-    fn machine_contract_manifest_rejects_missing_mutation_frame_state() {
-        let (program, owner, _, _) = mutation_state_owner_fixture();
-        let machine = program
-            .machines()
+    #[should_panic(expected = "mutation frames must cover its exact typed state table one-for-one")]
+    fn machine_contract_manifest_mutation_frames_reject_extra_state() {
+        let (mut program, owner, state, _) = mutation_state_owner_fixture();
+        push_behavior_contract(&mut program, owner, false, false);
+        push_behavior_contract(
+            &mut program,
+            SymbolHandle::from_arena_index(52),
+            false,
+            false,
+        );
+        let duplicate = program
+            .facts
+            .mutation
+            .machines
             .iter()
-            .find(|machine| machine.symbol == owner)
-            .expect("owner machine");
+            .find(|fact| fact.machine == owner)
+            .expect("exact mutation row")
+            .state_write_frames
+            .iter()
+            .find(|frame| frame.state == state)
+            .expect("entry frame")
+            .clone();
+        program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == owner)
+            .expect("exact mutation row")
+            .state_write_frames
+            .push(duplicate);
 
-        mutation_frame_state_name(&program, machine, SymbolHandle::from_arena_index(99));
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "mutation frames must retain exact typed state-table carrier order")]
+    fn machine_contract_manifest_mutation_frames_reject_duplicate_state() {
+        let (mut program, owner, state, _) = mutation_state_owner_fixture();
+        push_behavior_contract(&mut program, owner, false, false);
+        push_behavior_contract(
+            &mut program,
+            SymbolHandle::from_arena_index(52),
+            false,
+            false,
+        );
+        program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == owner)
+            .expect("exact mutation row")
+            .state_write_frames[1]
+            .state = state;
+
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "mutation frames must retain exact typed state-table carrier order")]
+    fn machine_contract_manifest_mutation_frames_reject_cross_machine_state() {
+        let (mut program, owner, _, other_state) = mutation_state_owner_fixture();
+        push_behavior_contract(&mut program, owner, false, false);
+        push_behavior_contract(
+            &mut program,
+            SymbolHandle::from_arena_index(52),
+            false,
+            false,
+        );
+        program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == owner)
+            .expect("exact mutation row")
+            .state_write_frames[0]
+            .state = other_state;
+
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "mutation frames must retain exact typed state-table carrier order")]
+    fn machine_contract_manifest_mutation_frames_reject_out_of_order_state() {
+        let (mut program, owner, _, _) = mutation_state_owner_fixture();
+        push_behavior_contract(&mut program, owner, false, false);
+        push_behavior_contract(
+            &mut program,
+            SymbolHandle::from_arena_index(52),
+            false,
+            false,
+        );
+        program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == owner)
+            .expect("exact mutation row")
+            .state_write_frames
+            .swap(0, 1);
+
+        machine_contract_manifest_json(&program);
     }
 
     #[test]
@@ -10432,6 +10643,13 @@ mod tests {
                     }),
                 },
             });
+        program.facts.mutation.machines.push(MachineMutationFact {
+            machine: symbol,
+            state_write_frames: vec![StateWriteFramePlan {
+                state: state_symbol,
+                frame: psi_facts::NormalizedWriteFrame::opaque(),
+            }],
+        });
         program
             .facts
             .contract_plans
@@ -10485,7 +10703,10 @@ mod tests {
         ));
         assert!(!contract.contains("inferred_write_frames"));
         assert!(!contract.contains("remaining"));
-        assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
+        assert!(json[implementation_start..].contains(
+            "\"inferred_write_frames\": [\n          {\"state\": \"entry\", \"completeness\": \"opaque\""
+        ));
+        assert!(json[implementation_start..].contains("\"paths\": []"));
         assert!(json[implementation_start..].contains(
             "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"path_guard_consequences\": [\"0x010401\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
