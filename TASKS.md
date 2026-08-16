@@ -537,9 +537,24 @@ Remaining:
   root. Distinct-root joins, one empty side, outer operations other than add or
   subtract, conversions, runtime siblings, locals, members, calls, effects,
   and stale or redirected definitions remain fenced.
+  A distinct-root signature-bounded affine fork/join separately admits the
+  same outer exact add or subtract when the two disjoint, nonempty, ordered
+  landed-literal affine branches end at different direct machine parameters
+  of one fixed-native carrier. For each root, the verifier selects only the
+  tightest landed unary lower and upper bounds appended by its signature,
+  intersects them with the carrier, and maps the resulting interval forward
+  through that branch's checked signed affine form. The join range is the
+  Minkowski sum or difference of the two independent branch ranges. Complete
+  containment in the join carrier yields the canonical conjunction of the
+  selected root bounds; a wholly disjoint range yields falsehood; partial
+  overlap admits no family. Relational cross-root premises, absent or
+  one-sided unary bounds, shared roots, overlapping or reordered branch walks,
+  computed roots, carrier drift, conversions, and unchecked arithmetic remain
+  fenced. Every operation in both branches and the join retains independent
+  evidence.
 
   Next engineering frontiers are other proof-bearing results feeding another
-  proof-bearing operation, distinct-root and other computed-sibling joins,
+  proof-bearing operation, wider multivariate and other computed-sibling joins,
   other computed exact-cast and wider exact-arithmetic
   premises, member/comparison mixtures, calls and effects, wider partial-value
   cleanup, nested ownership, returned transfer, loops, suspension, scoped

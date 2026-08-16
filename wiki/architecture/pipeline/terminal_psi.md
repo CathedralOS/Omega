@@ -780,9 +780,24 @@ or right-associated forms, runtime or computed branch siblings, conversions,
 outer operations other than add/subtract, locals, members, calls, effects,
 overlapping or reordered definitions, and stale or redirected evidence remain
 fenced. Existing direct, linear, cast, and conversion families keep priority.
+One distinct-root signature-bounded affine fork/join admits the same outer
+fixed-native exact add or subtract when its two nonempty landed-literal affine
+branches have disjoint source-ordered definition walks and terminate at two
+different direct machine-signature parameters of the same carrier. For each
+root, the verifier selects only the tightest landed unary lower and upper
+signature bounds, intersects them with the carrier, and maps the interval
+forward through the branch's checked signed affine form. It forms the outer
+range by Minkowski addition or subtraction. Complete containment in the join
+carrier emits the canonical conjunction of the selected bounds; a wholly
+disjoint range emits falsehood; partial overlap admits no family. Relational
+cross-root premises, missing or one-sided unary bounds, shared or computed
+roots, carrier drift, overlapping or reordered definitions, conversions, and
+checked interval failure remain fenced. Every operation in both branches and
+the join retains independent evidence, and existing narrower families retain
+priority.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands outside
-the same-root affine fork/join,
+the admitted affine fork/join families,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and

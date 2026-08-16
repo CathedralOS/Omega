@@ -21,6 +21,7 @@ use crate::flow::{
     exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test,
+    exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test,
     exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
@@ -4970,6 +4971,96 @@ fn affine_fork_join_classifier_requires_two_disjoint_branches_on_one_root() {
         exact_affine_fork_join_runtime_parameter_positions_for_test(&overflow, 2),
         None,
         "checked branch coefficient overflow admits no family",
+    );
+}
+
+#[test]
+fn distinct_root_affine_fork_join_classifier_requires_two_direct_roots() {
+    let literal = |value| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::I16,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let operation = |kind, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type: PrimitiveType::I16,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let parameter = |position| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type: PrimitiveType::I16,
+    };
+    let branch = |position, offset, factor| {
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                parameter(position),
+                literal(offset),
+            ),
+            literal(factor),
+        )
+    };
+    let joined = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        branch(0, 1, 2),
+        branch(1, -1, 3),
+    );
+    assert_eq!(
+        exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test(&joined, 2),
+        Some(vec![0, 1]),
+    );
+    let signed_subtract = operation(
+        CheckedIntegerBinaryKind::ExactSubtract,
+        branch(0, 3, -2),
+        branch(1, -4, -2),
+    );
+    assert_eq!(
+        exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test(
+            &signed_subtract,
+            2,
+        ),
+        Some(vec![0, 1]),
+    );
+    let same_root = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        branch(0, 1, 2),
+        branch(0, -1, 3),
+    );
+    assert_eq!(
+        exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test(&same_root, 2),
+        None,
+        "the correlated same-root family retains dispatch priority",
+    );
+    let empty_branch = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        branch(0, 1, 2),
+        parameter(1),
+    );
+    assert_eq!(
+        exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test(&empty_branch, 2,),
+        None,
+    );
+    let computed_sibling = operation(
+        CheckedIntegerBinaryKind::ExactAdd,
+        branch(0, 1, 2),
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            parameter(1),
+            parameter(0),
+        ),
+    );
+    assert_eq!(
+        exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test(
+            &computed_sibling,
+            2,
+        ),
+        None,
+        "every branch edge requires an independently landed literal sibling",
     );
 }
 
