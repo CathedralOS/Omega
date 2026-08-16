@@ -30,19 +30,17 @@ pub(super) fn elaborate_task_activation_plans(
     for selection in selections {
         let selected_runtime =
             selected_task_runtime_provider(program, selected_provider_plans, &selection)?;
-        let target_entry = selection.target_entry;
-        let Some((target_machine, entry)) = program.machines().iter().find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == target_entry)
-                .map(|state| (machine, state))
-        }) else {
-            return Err(vec![Diagnostic::error(format!(
-                "TaskRuntime start specialization selects unknown entry symbol {:?}",
-                target_entry
-            ))]);
-        };
+        let (target_machine, entry) = exact_task_activation_target(
+            program,
+            selection.target_machine,
+            selection.target_entry,
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "TaskRuntime start specialization has an invalid retained target coordinate: {}",
+                error.message()
+            ))]
+        })?;
         if !program.machine_type_parameters(target_machine).is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "task activation target `{}` is still generic after specialization",
@@ -560,9 +558,83 @@ fn validate_activation_carry_crossing(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct TaskStartSelection {
     requirement: psi_symbols::SymbolHandle,
+    target_machine: psi_symbols::SymbolHandle,
     target_entry: psi_symbols::SymbolHandle,
     fingerprint: u64,
     operation: TaskStartOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TaskActivationTargetError {
+    MissingEntry,
+    AmbiguousEntry,
+    AmbiguousMachine,
+    MachineMismatch,
+}
+
+impl TaskActivationTargetError {
+    fn message(self) -> &'static str {
+        match self {
+            Self::MissingEntry => "target entry must name one exact typed state",
+            Self::AmbiguousEntry => "target entry must resolve to exactly one typed state",
+            Self::AmbiguousMachine => "target owner must resolve to exactly one typed machine",
+            Self::MachineMismatch => "target entry must belong to its retained exact machine",
+        }
+    }
+}
+
+fn unique_task_activation_target(
+    program: &CheckedTrees,
+    target_entry: psi_symbols::SymbolHandle,
+) -> Result<
+    (
+        &psi_checked_trees::machine::Machine,
+        &psi_checked_trees::state::State,
+    ),
+    TaskActivationTargetError,
+> {
+    let mut matches = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter(move |state| state.symbol == target_entry)
+            .map(move |state| (machine, state))
+    });
+    let (machine, entry) = matches
+        .next()
+        .ok_or(TaskActivationTargetError::MissingEntry)?;
+    if matches.next().is_some() {
+        return Err(TaskActivationTargetError::AmbiguousEntry);
+    }
+    let mut owners = program
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine.symbol);
+    owners
+        .next()
+        .ok_or(TaskActivationTargetError::MissingEntry)?;
+    if owners.next().is_some() {
+        return Err(TaskActivationTargetError::AmbiguousMachine);
+    }
+    Ok((machine, entry))
+}
+
+fn exact_task_activation_target(
+    program: &CheckedTrees,
+    target_machine: psi_symbols::SymbolHandle,
+    target_entry: psi_symbols::SymbolHandle,
+) -> Result<
+    (
+        &psi_checked_trees::machine::Machine,
+        &psi_checked_trees::state::State,
+    ),
+    TaskActivationTargetError,
+> {
+    let (machine, entry) = unique_task_activation_target(program, target_entry)?;
+    if machine.symbol != target_machine {
+        return Err(TaskActivationTargetError::MachineMismatch);
+    }
+    Ok((machine, entry))
 }
 
 fn task_start_selections(
@@ -648,34 +720,40 @@ fn append_task_start_selection(
         )));
         return;
     };
-    let Some((target_machine, target_entry)) = program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target.symbol)
-            .map(|entry| (machine, entry))
-    }) else {
-        // A generic wrapper may forward its own machine parameter. Its cloned
-        // concrete specialization contributes the eventual activation row.
-        if target.symbol.is_valid()
-            && program
-                .machines()
-                .iter()
-                .flat_map(|machine| program.machine_type_parameters(machine))
-                .any(|parameter| parameter.symbol == target.symbol)
+    let (target_machine, target_entry) = match unique_task_activation_target(program, target.symbol)
+    {
+        Ok(target) => target,
+        Err(TaskActivationTargetError::MissingEntry)
+            if target.symbol.is_valid()
+                && program
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| program.machine_type_parameters(machine))
+                    .any(|parameter| parameter.symbol == target.symbol) =>
         {
+            // A generic wrapper may forward its own machine parameter. Its
+            // cloned concrete specialization contributes the eventual row.
             return;
         }
-        diagnostics.push(Diagnostic::error(format!(
-            "TaskRuntime requirement `{target_name}` selects an unresolved static target `{}`",
-            target
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
-        )));
-        return;
+        Err(TaskActivationTargetError::MissingEntry) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "TaskRuntime requirement `{target_name}` selects an unresolved static target `{}`",
+                target
+                    .path
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            )));
+            return;
+        }
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "TaskRuntime requirement `{target_name}` selects an invalid static target coordinate: {}",
+                error.message()
+            )));
+            return;
+        }
     };
     let mut hash = StableHash::new();
     hash.string("task-runtime-requirement-specialization-v1");
@@ -688,6 +766,7 @@ fn append_task_start_selection(
     hash.u64(entry_identity(program, target_machine, target_entry));
     let selection = TaskStartSelection {
         requirement,
+        target_machine: target_machine.symbol,
         target_entry: target_entry.symbol,
         fingerprint: hash.finish(),
         operation,
@@ -1014,6 +1093,156 @@ mod tests {
                 preserve_cpu: true,
                 preserve_host_thread: true,
             }
+        );
+    }
+
+    fn activation_target_fixture() -> (
+        CheckedTrees,
+        psi_symbols::SymbolHandle,
+        psi_symbols::SymbolHandle,
+        psi_symbols::SymbolHandle,
+        psi_symbols::SymbolHandle,
+    ) {
+        let first_machine = psi_symbols::SymbolHandle::from_arena_index(1);
+        let first_entry = psi_symbols::SymbolHandle::from_arena_index(2);
+        let second_machine = psi_symbols::SymbolHandle::from_arena_index(3);
+        let second_entry = psi_symbols::SymbolHandle::from_arena_index(4);
+        let mut program = CheckedTrees::default();
+
+        let mut first = psi_checked_trees::machine::Machine {
+            symbol: first_machine,
+            name: psi_checked_trees::name::Identifier::generated("First::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut first,
+            psi_checked_trees::state::State {
+                symbol: first_entry,
+                name: psi_checked_trees::name::Identifier::generated("run"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(first);
+
+        let mut second = psi_checked_trees::machine::Machine {
+            symbol: second_machine,
+            name: psi_checked_trees::name::Identifier::generated("Second::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut second,
+            psi_checked_trees::state::State {
+                symbol: second_entry,
+                name: psi_checked_trees::name::Identifier::generated("run"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(second);
+
+        (
+            program,
+            first_machine,
+            first_entry,
+            second_machine,
+            second_entry,
+        )
+    }
+
+    #[test]
+    fn activation_target_retains_exact_machine_and_entry() {
+        let (program, first_machine, first_entry, _, _) = activation_target_fixture();
+        let (machine, entry) = exact_task_activation_target(&program, first_machine, first_entry)
+            .expect("exact task target");
+
+        assert_eq!(machine.symbol, first_machine);
+        assert_eq!(entry.symbol, first_entry);
+    }
+
+    #[test]
+    fn activation_target_rejects_missing_entry() {
+        let (program, first_machine, _, _, _) = activation_target_fixture();
+        assert_eq!(
+            exact_task_activation_target(
+                &program,
+                first_machine,
+                psi_symbols::SymbolHandle::invalid(),
+            )
+            .expect_err("missing entry must fail closed"),
+            TaskActivationTargetError::MissingEntry
+        );
+    }
+
+    #[test]
+    fn activation_target_rejects_duplicate_entry_within_owner() {
+        let (_, first_machine, first_entry, _, _) = activation_target_fixture();
+        let mut program = CheckedTrees::default();
+        let mut machine = psi_checked_trees::machine::Machine {
+            symbol: first_machine,
+            name: psi_checked_trees::name::Identifier::generated("First::run"),
+            ..Default::default()
+        };
+        for name in ["run", "duplicate"] {
+            program.typed.push_machine_state(
+                &mut machine,
+                psi_checked_trees::state::State {
+                    symbol: first_entry,
+                    name: psi_checked_trees::name::Identifier::generated(name),
+                    ..Default::default()
+                },
+            );
+        }
+        program.typed.push_machine(machine);
+
+        assert_eq!(
+            exact_task_activation_target(&program, first_machine, first_entry)
+                .expect_err("duplicate entry must fail closed"),
+            TaskActivationTargetError::AmbiguousEntry
+        );
+    }
+
+    #[test]
+    fn activation_target_rejects_duplicate_entry_across_owners() {
+        let (mut program, first_machine, first_entry, second_machine, _) =
+            activation_target_fixture();
+        let second = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == second_machine)
+            .expect("second machine")
+            .clone();
+        program.typed.machine_states_mut(&second)[0].symbol = first_entry;
+
+        assert_eq!(
+            exact_task_activation_target(&program, first_machine, first_entry)
+                .expect_err("cross-owner duplicate entry must fail closed"),
+            TaskActivationTargetError::AmbiguousEntry
+        );
+    }
+
+    #[test]
+    fn activation_target_rejects_duplicate_owner_machine_identity() {
+        let (mut program, first_machine, first_entry, second_machine, _) =
+            activation_target_fixture();
+        program.typed.machines.for_each_mut(|_, machine| {
+            if machine.symbol == second_machine {
+                machine.symbol = first_machine;
+            }
+        });
+
+        assert_eq!(
+            exact_task_activation_target(&program, first_machine, first_entry)
+                .expect_err("duplicate owner machine identity must fail closed"),
+            TaskActivationTargetError::AmbiguousMachine
+        );
+    }
+
+    #[test]
+    fn activation_target_rejects_stored_machine_entry_drift() {
+        let (program, first_machine, _, _, second_entry) = activation_target_fixture();
+        assert_eq!(
+            exact_task_activation_target(&program, first_machine, second_entry)
+                .expect_err("stored machine/entry drift must fail closed"),
+            TaskActivationTargetError::MachineMismatch
         );
     }
 
