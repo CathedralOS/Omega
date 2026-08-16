@@ -15632,7 +15632,8 @@ fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
     let canary = pass_canary("expressions/arithmetic_domain_return_range_proven_exact_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-return-range-exact-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("return-range proven-exact canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45318,6 +45319,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "comptime/runtime_const_measured_recursion_exit",
     "build/runtime_depend_mapping_exit",
     "arithmetic/runtime_comparison_guard_signedness_exit",
+    "expressions/arithmetic_domain_return_range_proven_exact_exit",
     "expressions/arithmetic_domain_trapping_let_overflow",
     "arithmetic/constant_trapping_shift_value_overflow_traps",
     "expressions/f32_field_binary_to_local_cast",
