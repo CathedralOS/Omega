@@ -12890,6 +12890,61 @@ mod tests {
     }
 
     #[test]
+    fn exact_divide_remainder_cast_sandwich_keeps_each_obligation_independent() {
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 source");
+        let target_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 target");
+        let root_id = ValueId::new(1508).expect("sandwich root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(source_type));
+        let remainder = ScalarTerm::value(
+            ValueId::new(1509).expect("source remainder"),
+            ScalarType::Integer(source_type),
+        );
+        let cast = ScalarTerm::value(
+            ValueId::new(1510).expect("sandwich cast"),
+            ScalarType::Integer(target_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                remainder.clone(),
+                ScalarTerm::exact_integer_remainder(
+                    source_type,
+                    root,
+                    ScalarTerm::integer(source_type, IntegerValue::Unsigned(64)).expect("64u16"),
+                )
+                .expect("root % 64"),
+            ),
+            Proposition::Equal(
+                cast.clone(),
+                ScalarTerm::integer_exact_cast(source_type, target_type, remainder.clone())
+                    .expect("carrier-total u16 remainder to i8 cast"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_cast_obligation(
+                source_type,
+                target_type,
+                remainder,
+                &definitions[..1],
+                &BTreeSet::from([root_id]),
+            ),
+            Proposition::Truth,
+            "the cast replays only the complete source-chain hull",
+        );
+        let two = ScalarTerm::integer(target_type, IntegerValue::Signed(2)).expect("2i8");
+        let three = ScalarTerm::integer(target_type, IntegerValue::Signed(3)).expect("3i8");
+        assert_eq!(
+            exact_integer_divide_obligation(target_type, cast.clone(), two, &definitions,),
+            Proposition::Truth,
+            "the target divide uses only its independently safe divisor",
+        );
+        assert_eq!(
+            exact_integer_remainder_obligation(target_type, cast, three, &definitions),
+            Proposition::Truth,
+            "the target remainder uses only its independently safe divisor",
+        );
+    }
+
+    #[test]
     fn exact_divide_remainder_cross_chain_reconstructs_carrier_total_target_prefixes() {
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 carrier");
         let i8_count = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");

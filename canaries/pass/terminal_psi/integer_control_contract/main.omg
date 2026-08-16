@@ -1814,6 +1814,16 @@ machine terminal_exact_signed_divide_cast_shift(value: i16, enabled: bool) -> bo
     ((((((value / 512i16) as i8) >> 1u16) << 1i32) < 127i8) && enabled)
 }
 
+machine terminal_exact_divide_cast_divide(value: u16, enabled: bool) -> bool
+{
+    ((((((value % 64u16) as i8) / 2i8) % 3i8) < 3i8) && enabled)
+}
+
+machine terminal_exact_signed_divide_cast_remainder(value: i16, enabled: bool) -> bool
+{
+    ((((((value / 512i16) as i8) / 2i8) % 3i8) < 3i8) && enabled)
+}
+
 machine terminal_exact_affine_cast_divide(value: u16, enabled: bool) -> bool
 requires value <= 65534u16, value <= 32766u16, value <= 126u16
 {

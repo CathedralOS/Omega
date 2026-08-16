@@ -12,6 +12,7 @@ use crate::flow::{
     exact_cast_then_offset_runtime_parameter_positions_for_test,
     exact_cast_then_shift_left_runtime_parameter_positions_for_test,
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
+    exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test,
@@ -2584,6 +2585,85 @@ fn exact_divide_remainder_cross_cast_classifier_accepts_all_four_compositions() 
     );
     assert_eq!(
         exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test(&empty_source, 1),
+        None,
+    );
+}
+
+#[test]
+fn exact_divide_remainder_cast_sandwich_classifier_requires_both_safe_chains() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let parameter = || CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U16,
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let source = || {
+        binary(
+            CheckedIntegerBinaryKind::ExactRemainder,
+            PrimitiveType::U16,
+            binary(
+                CheckedIntegerBinaryKind::ExactDivide,
+                PrimitiveType::U16,
+                parameter(),
+                literal(2i64, psi_numerics::literals::LandedIntegerType::U16),
+            ),
+            literal(64i64, psi_numerics::literals::LandedIntegerType::U16),
+        )
+    };
+    let cast = |operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let sandwich = binary(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            PrimitiveType::U8,
+            cast(source()),
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test(&sandwich, 1),
+        Some(vec![0]),
+    );
+
+    let unsafe_target = binary(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::U8,
+        cast(source()),
+        literal(0i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test(
+            &unsafe_target,
+            1,
+        ),
+        None,
+    );
+    let empty_source = binary(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::U8,
+        cast(parameter()),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test(&empty_source, 1,),
         None,
     );
 }
