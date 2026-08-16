@@ -309,6 +309,79 @@ machine Main::exercise(&mut self) {
 }
 
 #[test]
+fn non_provider_grants_use_one_exact_subject_in_lock_and_report() {
+    let project =
+        std::env::temp_dir().join(format!("omega-trust-exact-grant-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"domain u32::Meters;
+domain i32::Meters;
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+    let build_with = |grant: &str| {
+        format!(
+            r#"data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+machine build(b: &mut Build) {{
+    b.accept_boundary<{grant}>();
+}}
+"#
+        )
+    };
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    };
+
+    std::fs::write(project.join("build.omg"), build_with("Meters")).expect("write ambiguous grant");
+    let diagnostics = compile(options()).expect_err("ambiguous short grant must reject");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("root grant `Meters` is ambiguous across non-provider trust subjects"),
+        "expected exact grant ambiguity diagnostic:\n{rendered}",
+    );
+    assert!(!project.join("omega.lock").exists());
+    assert!(!build_dir.join("trust_report.md").exists());
+
+    std::fs::write(project.join("build.omg"), build_with("u32::Meters"))
+        .expect("write exact grant");
+    compile(options()).expect("exact qualified grant should compile");
+
+    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
+    assert!(lock.contains("domain introduction: u32::Meters"));
+    assert!(!lock.contains("domain introduction: i32::Meters"));
+    let report =
+        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
+    let granted = report
+        .lines()
+        .find(|line| line.contains("domain introduction: u32::Meters"))
+        .expect("exact granted domain row");
+    let foreign = report
+        .lines()
+        .find(|line| line.contains("domain introduction: i32::Meters"))
+        .expect("same-leaf foreign domain row");
+    assert!(granted.contains("root grant (build.omg)"));
+    assert!(!granted.contains("STANDING WARNING"));
+    assert!(foreign.contains("own-package (dev-active)"));
+    assert!(foreign.contains("STANDING WARNING"));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn lockfile_written_and_drift_fails_until_reapproved() {
     // GR4: a granted project writes omega.lock beside build.omg (one
     // receipt row per grant, statement hash recorded automatically); a
