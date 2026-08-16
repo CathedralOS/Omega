@@ -295,7 +295,7 @@ fn activation_carry_crossings(
     program: &CheckedTrees,
     root: psi_symbols::SymbolHandle,
 ) -> Result<ActivationCarryCrossings<'_>, Vec<Diagnostic>> {
-    let subtree_machines = program.facts.carry.machine_subtree_symbols(root);
+    let subtree_machines = exact_activation_carry_subtree(program, root)?;
     let subtree = program
         .facts
         .carry
@@ -325,6 +325,120 @@ fn activation_carry_crossings(
         .filter(|crossing| crossing.machine == root)
         .collect();
     Ok(ActivationCarryCrossings { root, subtree })
+}
+
+fn exact_activation_carry_subtree(
+    program: &CheckedTrees,
+    root: psi_symbols::SymbolHandle,
+) -> Result<Vec<psi_symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let mut machines = vec![root];
+    let mut cursor = 0;
+    while cursor < machines.len() {
+        let machine_symbol = machines[cursor];
+        cursor += 1;
+
+        let mut typed_machines = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == machine_symbol);
+        typed_machines.next().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task activation carry topology must name an exact typed machine",
+            )]
+        })?;
+        if typed_machines.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "task activation carry topology machine must resolve uniquely",
+            )]);
+        }
+
+        let mut topologies = program
+            .facts
+            .carry
+            .machine_topologies
+            .iter()
+            .filter(|(_, topology)| topology.machine == machine_symbol);
+        let topology = topologies
+            .next()
+            .map(|(_, topology)| topology)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "task activation carry topology must retain one exact row per reached machine",
+                )]
+            })?;
+        if topologies.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "task activation carry topology must retain exactly one row per reached machine",
+            )]);
+        }
+        let fields = program
+            .facts
+            .carry
+            .contained_fields
+            .span(topology.fields)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "task activation carry topology must retain an exact valid field span",
+                )]
+            })?;
+        let mut field_symbols = Vec::new();
+        for field in fields {
+            if !field.field.is_valid() || !field.data.is_valid() || !field.type_reference.is_valid()
+            {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry topology fields must retain nonempty exact coordinates",
+                )]);
+            }
+            if field_symbols.contains(&field.field) {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry topology fields must be unique within their machine",
+                )]);
+            }
+            field_symbols.push(field.field);
+            let targets = program
+                .facts
+                .carry
+                .contained_targets
+                .span(field.targets)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "task activation carry topology field must retain an exact valid target span",
+                    )]
+                })?;
+            if targets.is_empty() {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry topology field must retain at least one exact target",
+                )]);
+            }
+            let mut field_targets = Vec::new();
+            for target in targets {
+                if field_targets.contains(&target.machine) {
+                    return Err(vec![Diagnostic::error(
+                        "task activation carry topology field targets must be unique",
+                    )]);
+                }
+                field_targets.push(target.machine);
+                let mut typed_targets = program
+                    .machines()
+                    .iter()
+                    .filter(|machine| machine.symbol == target.machine);
+                typed_targets.next().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "task activation carry topology target must name an exact typed machine",
+                    )]
+                })?;
+                if typed_targets.next().is_some() {
+                    return Err(vec![Diagnostic::error(
+                        "task activation carry topology target must resolve uniquely",
+                    )]);
+                }
+                if !machines.contains(&target.machine) {
+                    machines.push(target.machine);
+                }
+            }
+        }
+    }
+    Ok(machines)
 }
 
 fn validate_activation_carry_crossing(
@@ -916,6 +1030,12 @@ mod tests {
         let field = psi_symbols::SymbolHandle::from_arena_index(5);
         let data = psi_symbols::SymbolHandle::from_arena_index(6);
         let mut program = CheckedTrees::default();
+        let contained_type = program.typed.type_reference_table.insert(
+            psi_checked_trees::types::TypeReferenceNode::Named {
+                symbol: data,
+                name: psi_checked_trees::name::Identifier::generated("ChildData"),
+            },
+        );
 
         let mut root_machine = psi_checked_trees::machine::Machine {
             symbol: root,
@@ -1003,7 +1123,7 @@ mod tests {
             psi_checked_trees::ContainedMachineFieldFact {
                 field,
                 data,
-                type_reference: psi_checked_trees::types::TypeReferenceHandle::invalid(),
+                type_reference: contained_type,
                 targets,
             },
         ]);
@@ -1079,16 +1199,248 @@ mod tests {
         assert_eq!(crossings.subtree[0].effective, child_policy);
     }
 
+    fn topology_error(program: &CheckedTrees, root: psi_symbols::SymbolHandle) -> String {
+        match exact_activation_carry_subtree(program, root) {
+            Ok(_) => panic!("invalid topology must fail closed"),
+            Err(diagnostics) => diagnostics
+                .first()
+                .expect("topology diagnostic")
+                .message
+                .clone(),
+        }
+    }
+
     #[test]
-    fn activation_crossings_reject_missing_machine() {
+    fn activation_topology_preserves_target_order_and_allows_cycles() {
         let (mut program, root, _, _) = activation_crossing_validation_fixture();
-        program.facts.carry.suspension_crossings[0].machine = psi_symbols::SymbolHandle::invalid();
+        let child = program.facts.carry.suspension_crossings[0].machine;
+        let sibling = psi_symbols::SymbolHandle::from_arena_index(20);
+        program
+            .typed
+            .push_machine(psi_checked_trees::machine::Machine {
+                symbol: sibling,
+                name: psi_checked_trees::name::Identifier::generated("Sibling::run"),
+                ..Default::default()
+            });
+        program.facts.carry.machine_topologies.insert(
+            psi_checked_trees::MachineCarryTopologyFact {
+                machine: sibling,
+                fields: psi_arena::HandleSpan::empty(),
+            },
+        );
+        let existing_target = program
+            .facts
+            .carry
+            .contained_targets
+            .iter()
+            .next()
+            .expect("child target")
+            .1
+            .clone();
+        let ordered_targets = program.facts.carry.contained_targets.insert_many([
+            existing_target,
+            psi_checked_trees::ContainedMachineTargetFact { machine: sibling },
+        ]);
+        program
+            .facts
+            .carry
+            .contained_fields
+            .for_each_mut(|_, field| field.targets = ordered_targets);
+
+        let type_reference = program
+            .facts
+            .carry
+            .contained_fields
+            .iter()
+            .next()
+            .expect("contained field")
+            .1
+            .type_reference;
+        let cycle_targets = program
+            .facts
+            .carry
+            .contained_targets
+            .insert_many([psi_checked_trees::ContainedMachineTargetFact { machine: root }]);
+        let child_fields = program.facts.carry.contained_fields.insert_many([
+            psi_checked_trees::ContainedMachineFieldFact {
+                field: psi_symbols::SymbolHandle::from_arena_index(21),
+                data: psi_symbols::SymbolHandle::from_arena_index(22),
+                type_reference,
+                targets: cycle_targets,
+            },
+        ]);
+        program
+            .facts
+            .carry
+            .machine_topologies
+            .for_each_mut(|_, topology| {
+                if topology.machine == child {
+                    topology.fields = child_fields;
+                }
+            });
+
+        assert_eq!(
+            exact_activation_carry_subtree(&program, root).expect("exact ordered cyclic topology"),
+            vec![root, child, sibling],
+        );
+    }
+
+    #[test]
+    fn activation_topology_rejects_missing_reached_row() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let child = program.facts.carry.suspension_crossings[0].machine;
+        program
+            .facts
+            .carry
+            .machine_topologies
+            .for_each_mut(|_, topology| {
+                if topology.machine == child {
+                    topology.machine = psi_symbols::SymbolHandle::invalid();
+                }
+            });
+        assert!(topology_error(&program, root).contains("one exact row per reached machine"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_duplicate_reached_row() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let duplicate = program
+            .facts
+            .carry
+            .machine_topologies
+            .iter()
+            .find(|(_, topology)| topology.machine == root)
+            .expect("root topology")
+            .1
+            .clone();
+        program.facts.carry.machine_topologies.append(duplicate);
+        assert!(topology_error(&program, root).contains("exactly one row per reached machine"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_invalid_field_span() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program
+            .facts
+            .carry
+            .machine_topologies
+            .for_each_mut(|_, topology| {
+                if topology.machine == root {
+                    topology.fields =
+                        psi_arena::HandleSpan::from_parts(psi_arena::Handle::invalid(), 1);
+                }
+            });
+        assert!(topology_error(&program, root).contains("exact valid field span"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_empty_field_coordinate() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program
+            .facts
+            .carry
+            .contained_fields
+            .for_each_mut(|_, field| field.field = psi_symbols::SymbolHandle::invalid());
+        assert!(topology_error(&program, root).contains("nonempty exact coordinates"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_duplicate_field_coordinate() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let field = program
+            .facts
+            .carry
+            .contained_fields
+            .iter()
+            .next()
+            .expect("contained field")
+            .1
+            .clone();
+        let fields = program
+            .facts
+            .carry
+            .contained_fields
+            .insert_many([field.clone(), field]);
+        program
+            .facts
+            .carry
+            .machine_topologies
+            .for_each_mut(|_, topology| {
+                if topology.machine == root {
+                    topology.fields = fields;
+                }
+            });
+        assert!(topology_error(&program, root).contains("unique within their machine"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_invalid_target_span() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program
+            .facts
+            .carry
+            .contained_fields
+            .for_each_mut(|_, field| {
+                field.targets = psi_arena::HandleSpan::from_parts(psi_arena::Handle::invalid(), 1);
+            });
+        assert!(topology_error(&program, root).contains("exact valid target span"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_empty_target_span() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        program
+            .facts
+            .carry
+            .contained_fields
+            .for_each_mut(|_, field| field.targets = psi_arena::HandleSpan::empty());
+        assert!(topology_error(&program, root).contains("at least one exact target"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_duplicate_target() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
+        let target = program
+            .facts
+            .carry
+            .contained_targets
+            .iter()
+            .next()
+            .expect("contained target")
+            .1
+            .clone();
+        let targets = program
+            .facts
+            .carry
+            .contained_targets
+            .insert_many([target, target]);
+        program
+            .facts
+            .carry
+            .contained_fields
+            .for_each_mut(|_, field| field.targets = targets);
+        assert!(topology_error(&program, root).contains("field targets must be unique"));
+    }
+
+    #[test]
+    fn activation_topology_rejects_missing_typed_target() {
+        let (mut program, root, _, _) = activation_crossing_validation_fixture();
         program
             .facts
             .carry
             .contained_targets
             .for_each_mut(|_, target| target.machine = psi_symbols::SymbolHandle::invalid());
-        assert!(crossing_error(&program, root).contains("exact typed machine"));
+        assert!(topology_error(&program, root).contains("target must name an exact typed machine"));
+    }
+
+    #[test]
+    fn activation_crossings_reject_missing_machine() {
+        let (program, _, _, _) = activation_crossing_validation_fixture();
+        let mut crossing = program.facts.carry.suspension_crossings[0].clone();
+        crossing.machine = psi_symbols::SymbolHandle::invalid();
+        let diagnostics = validate_activation_carry_crossing(&program, &crossing)
+            .expect_err("missing crossing machine must fail closed");
+        assert!(diagnostics[0].message.contains("exact typed machine"));
     }
 
     #[test]
