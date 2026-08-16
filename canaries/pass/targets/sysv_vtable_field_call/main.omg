@@ -59,6 +59,7 @@ data Main {
 }
 boundary machine Main::main(&self) -> i32
 reaches FieldDispatch
+invokes FieldDispatch;
 {
     self.dispatch.invoke(self.receiver, 7);
     self.output = self.dispatch.transform(self.receiver, self.input);
