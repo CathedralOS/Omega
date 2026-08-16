@@ -172,6 +172,8 @@ pub fn qualification_evidence_manifest_json(
         push_json_string(&mut json, fact.evidence.origin.as_str());
         json.push_str(",\n      \"program_point\": ");
         push_json_string(&mut json, program_point_name(fact.point));
+        json.push_str(",\n      \"program_point_identity\": ");
+        push_json_string(&mut json, &exact_program_point_label(program, fact.point));
         json.push_str(",\n      \"source\": ");
         if fact.evidence.source_symbol.is_valid() {
             push_json_string(
@@ -4142,6 +4144,8 @@ mod tests {
         assert!(json.contains("\"domain\": \"#5\""));
         assert!(json.contains("\"origin\": \"admitted_receipt\""));
         assert!(json.contains("\"program_point\": \"call_ensures\""));
+        assert!(json.contains("\"program_point_identity\": \"#81:call-ensures-2-1\""));
+        assert!(json.contains("\"program_point_identity\": \"global\""));
         assert!(json.contains("\"source\": \"#70\""));
         assert!(json.contains("\"requirement\": \"#71\""));
         assert!(
