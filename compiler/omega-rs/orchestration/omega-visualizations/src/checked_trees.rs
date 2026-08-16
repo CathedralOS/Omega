@@ -3460,6 +3460,175 @@ struct ValidatedManifestSpecialization<'program> {
     instance_contract_fingerprint: u64,
 }
 
+struct ValidatedManifestCrashTarget {
+    owner_label: String,
+    state_label: String,
+    overload_identity: String,
+    is_requirement: bool,
+}
+
+struct ValidatedManifestCrashCapsule<'program> {
+    capsule: &'program psi_checked_trees::CrashContractCapsule,
+    target: ValidatedManifestCrashTarget,
+}
+
+fn exact_manifest_crash_target(
+    program: &CheckedTrees,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+    source_kind: &str,
+) -> ValidatedManifestCrashTarget {
+    let local_owners = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == target_machine)
+        .collect::<Vec<_>>();
+    assert!(
+        local_owners.len() <= 1,
+        "{source_kind} has duplicate exact local target-machine owners"
+    );
+    let trait_owners = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == target_machine)
+        .collect::<Vec<_>>();
+    assert!(
+        trait_owners.len() <= 1,
+        "{source_kind} has duplicate exact trait target owners"
+    );
+
+    let mut candidates = Vec::new();
+    if let Some(machine) = local_owners.first().copied() {
+        let states = program
+            .machine_states(machine)
+            .iter()
+            .filter(|state| state.symbol == target_state)
+            .collect::<Vec<_>>();
+        assert!(
+            states.len() <= 1,
+            "{source_kind} has duplicate exact local target states"
+        );
+        if let Some(state) = states.first().copied() {
+            let overload_identity = program
+                .normalized_machine_overload_identity(machine)
+                .unwrap_or_else(|| {
+                    panic!("{source_kind} local target must retain an exact overload identity")
+                })
+                .identity();
+            candidates.push(ValidatedManifestCrashTarget {
+                owner_label: machine.name.as_str().to_owned(),
+                state_label: state.name.as_str().to_owned(),
+                overload_identity,
+                is_requirement: false,
+            });
+        }
+    }
+
+    let mut generic_targets = Vec::new();
+    if target_machine == target_state {
+        for declaring_machine in program.machines() {
+            for parameter in program.machine_type_parameters(declaring_machine) {
+                let psi_typed_trees::data::TypeParameterKind::Machine { contract } =
+                    &parameter.kind
+                else {
+                    continue;
+                };
+                if parameter.symbol != target_state && contract.symbol != target_state {
+                    continue;
+                }
+                let label = if parameter.symbol == target_state {
+                    parameter.name.as_str()
+                } else {
+                    contract.name.as_str()
+                };
+                generic_targets.push(ValidatedManifestCrashTarget {
+                    owner_label: label.to_owned(),
+                    state_label: label.to_owned(),
+                    overload_identity: program
+                        .normalized_machine_parameter_overload_identity(declaring_machine, contract)
+                        .identity(),
+                    is_requirement: true,
+                });
+            }
+        }
+    }
+    assert!(
+        generic_targets.len() <= 1,
+        "{source_kind} has duplicate exact generic requirement targets"
+    );
+    let owner_category_count = usize::from(!local_owners.is_empty())
+        + usize::from(!generic_targets.is_empty())
+        + usize::from(!trait_owners.is_empty());
+    assert!(
+        owner_category_count <= 1,
+        "{source_kind} target owner must resolve to one retained callable category"
+    );
+    candidates.extend(generic_targets);
+
+    if let Some(definition) = trait_owners.first().copied() {
+        let signatures = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.symbol == target_state)
+            .collect::<Vec<_>>();
+        assert!(
+            signatures.len() <= 1,
+            "{source_kind} has duplicate exact trait target signatures"
+        );
+        if let Some(signature) = signatures.first().copied() {
+            candidates.push(ValidatedManifestCrashTarget {
+                owner_label: definition.name.as_str().to_owned(),
+                state_label: signature.name.as_str().to_owned(),
+                overload_identity: program
+                    .normalized_trait_requirement_overload_identity(definition, signature)
+                    .identity(),
+                is_requirement: true,
+            });
+        }
+    }
+
+    let mut candidates = candidates.into_iter();
+    let target = candidates.next().unwrap_or_else(|| {
+        panic!("{source_kind} must name one exact retained callable target coordinate")
+    });
+    assert!(
+        candidates.next().is_none(),
+        "{source_kind} must name exactly one retained callable target category"
+    );
+    target
+}
+
+fn validated_manifest_crash_capsules(
+    program: &CheckedTrees,
+) -> Vec<ValidatedManifestCrashCapsule<'_>> {
+    let mut coordinates = Vec::new();
+    program
+        .facts
+        .contract_plans
+        .crash_capsules
+        .iter()
+        .map(|capsule| {
+            let coordinate = (capsule.target_machine(), capsule.target_state());
+            assert!(
+                !coordinates.contains(&coordinate),
+                "machine contract manifest crash capsules have duplicate exact target coordinates"
+            );
+            coordinates.push(coordinate);
+            let target = exact_manifest_crash_target(
+                program,
+                capsule.target_machine(),
+                capsule.target_state(),
+                "crash contract capsule",
+            );
+            assert!(
+                target.is_requirement,
+                "crash contract capsule target must be an exact requirement owner/signature pair"
+            );
+            ValidatedManifestCrashCapsule { capsule, target }
+        })
+        .collect()
+}
+
 fn exact_manifest_specialization_machine<'program>(
     program: &'program CheckedTrees,
     symbol: SymbolHandle,
@@ -3598,6 +3767,7 @@ fn exact_manifest_crash_call_source<'program>(
 
 pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
     let specializations = validated_manifest_specializations(program);
+    let crash_capsules = validated_manifest_crash_capsules(program);
     let mut json = String::from("{\n  \"machines\": [");
     for (index, machine) in program.machines().iter().enumerate() {
         if index > 0 {
@@ -3780,22 +3950,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             let state_name = exact_manifest_crash_call_source(program, machine, call)
                 .name
                 .as_str();
-            let target_machine = program
-                .machines()
-                .iter()
-                .find(|target| target.symbol == call.target_machine());
-            let target_machine_name = target_machine
-                .map(|target| target.name.as_str())
-                .unwrap_or_else(|| program.symbols.name(call.target_machine()));
-            let target_state_name = target_machine
-                .and_then(|target| {
-                    program
-                        .machine_states(target)
-                        .iter()
-                        .find(|state| state.symbol == call.target_state())
-                })
-                .map(|state| state.name.as_str())
-                .unwrap_or_else(|| program.symbols.name(call.target_state()));
+            let target = exact_manifest_crash_target(
+                program,
+                call.target_machine(),
+                call.target_state(),
+                "checked crash call",
+            );
             json.push_str("\n          {\"state\": ");
             push_json_string(&mut json, state_name);
             json.push_str(", \"statement_ordinal\": ");
@@ -3803,15 +3963,11 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push_str(", \"call_ordinal\": ");
             json.push_str(&location.call_ordinal().to_string());
             json.push_str(", \"target_machine\": ");
-            push_json_string(&mut json, target_machine_name);
+            push_json_string(&mut json, &target.owner_label);
             json.push_str(", \"target_callable_overload_identity\": ");
-            push_json_string(
-                &mut json,
-                &callable_overload_identity(program, call.target_machine(), call.target_state())
-                    .expect("checked crash call must name an exact callable target"),
-            );
+            push_json_string(&mut json, &target.overload_identity);
             json.push_str(", \"target_state\": ");
-            push_json_string(&mut json, target_state_name);
+            push_json_string(&mut json, &target.state_label);
             json.push_str(", \"target_contract_fingerprint\": \"0x");
             json.push_str(&format!("{:016x}", call.target_contract_fingerprint()));
             json.push_str("\", \"path_guard_conjuncts\": [");
@@ -3874,33 +4030,24 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         json.push_str("\n      }\n    }");
     }
     json.push_str("\n  ],\n  \"crash_contract_capsules\": [");
-    for (index, capsule) in program
-        .facts
-        .contract_plans
-        .crash_capsules
-        .iter()
-        .enumerate()
-    {
+    for (index, row) in crash_capsules.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
+        let capsule = row.capsule;
         json.push_str("\n    {\"target_machine\": ");
-        push_json_string(&mut json, program.symbols.name(capsule.target_machine()));
+        push_json_string(&mut json, &row.target.owner_label);
         json.push_str(", \"target_callable_overload_identity\": ");
-        push_json_string(
-            &mut json,
-            &callable_overload_identity(program, capsule.target_machine(), capsule.target_state())
-                .expect("crash contract capsule must name an exact callable target"),
-        );
+        push_json_string(&mut json, &row.target.overload_identity);
         json.push_str(", \"target_state\": ");
-        push_json_string(&mut json, program.symbols.name(capsule.target_state()));
+        push_json_string(&mut json, &row.target.state_label);
         json.push_str(", \"target_contract_fingerprint\": \"0x");
         json.push_str(&format!("{:016x}", capsule.target_contract_fingerprint()));
         json.push_str("\", \"published_buckets\": [");
         push_crash_buckets_json(&mut json, capsule.published_buckets());
         json.push_str("]}");
     }
-    if !program.facts.contract_plans.crash_capsules.is_empty() {
+    if !crash_capsules.is_empty() {
         json.push('\n');
         json.push_str("  ");
     }
@@ -4945,7 +5092,7 @@ fn push_json_string(output: &mut String, value: &str) {
 mod tests {
     use super::{
         carry_manifest_json, claim_outcome_manifest_json, exact_manifest_crash_call_source,
-        exact_manifest_crash_source_state, machine_blocking_summary,
+        exact_manifest_crash_source_state, exact_manifest_crash_target, machine_blocking_summary,
         machine_contract_manifest_json, machine_suspension_summary,
         push_termination_interface_json, qualification_evidence_manifest_json,
         qualification_requirement_identity, qualification_subject,
@@ -4956,6 +5103,7 @@ mod tests {
         validate_qualification_program_point, validate_qualification_receipt,
         validate_qualification_source, validate_vacuous_qualification_use,
         validated_content_projection_plans, validated_machine_semantic_domain_commitments,
+        validated_manifest_crash_capsules,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -10246,6 +10394,320 @@ mod tests {
             1,
             Vec::new(),
         )
+    }
+
+    fn crash_target_coordinate_fixture() -> (
+        CheckedTrees,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+    ) {
+        let local_machine = SymbolHandle::from_arena_index(100);
+        let local_state = SymbolHandle::from_arena_index(101);
+        let generic_parameter = SymbolHandle::from_arena_index(103);
+        let generic_contract = SymbolHandle::from_arena_index(104);
+        let trait_owner = SymbolHandle::from_arena_index(105);
+        let trait_signature = SymbolHandle::from_arena_index(106);
+        let mut program = CheckedTrees::default();
+
+        let mut local = Machine {
+            symbol: local_machine,
+            name: Identifier::generated("Local::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut local,
+            State {
+                symbol: local_state,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(local);
+
+        let mut generic_owner = Machine {
+            symbol: SymbolHandle::from_arena_index(102),
+            name: Identifier::generated("Generic::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_type_parameter(
+            &mut generic_owner,
+            TypeParameter {
+                symbol: generic_parameter,
+                name: Identifier::generated("Worker"),
+                kind: TypeParameterKind::Machine {
+                    contract: StateSignature {
+                        symbol: generic_contract,
+                        name: Identifier::generated("invoke"),
+                        ..Default::default()
+                    },
+                },
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(generic_owner);
+
+        let mut definition = TraitDefinition {
+            symbol: trait_owner,
+            name: Identifier::generated("Boundary"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut definition,
+            StateSignature {
+                symbol: trait_signature,
+                name: Identifier::generated("invoke"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(definition);
+
+        (
+            program,
+            local_machine,
+            local_state,
+            generic_parameter,
+            trait_owner,
+            trait_signature,
+        )
+    }
+
+    #[test]
+    fn machine_contract_manifest_crash_target_coordinates_accept_exact_categories() {
+        let (program, local_machine, local_state, generic_parameter, trait_owner, trait_signature) =
+            crash_target_coordinate_fixture();
+
+        let local =
+            exact_manifest_crash_target(&program, local_machine, local_state, "checked crash call");
+        let generic = exact_manifest_crash_target(
+            &program,
+            generic_parameter,
+            generic_parameter,
+            "checked crash call",
+        );
+        let trait_target = exact_manifest_crash_target(
+            &program,
+            trait_owner,
+            trait_signature,
+            "checked crash call",
+        );
+
+        assert_eq!(local.owner_label, "Local::run");
+        assert_eq!(local.state_label, "entry");
+        assert!(!local.is_requirement);
+        assert_eq!(generic.owner_label, "Worker");
+        assert_eq!(generic.state_label, "Worker");
+        assert!(generic.is_requirement);
+        assert_eq!(trait_target.owner_label, "Boundary");
+        assert_eq!(trait_target.state_label, "invoke");
+        assert!(trait_target.is_requirement);
+        assert!(local.overload_identity.starts_with("named-callable("));
+        assert!(generic.overload_identity.starts_with("named-callable("));
+        assert!(
+            trait_target
+                .overload_identity
+                .starts_with("named-callable(")
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name one exact retained callable target coordinate")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_missing_target() {
+        let (program, local_machine, _, _, _, _) = crash_target_coordinate_fixture();
+        exact_manifest_crash_target(
+            &program,
+            local_machine,
+            SymbolHandle::invalid(),
+            "checked crash call",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name one exact retained callable target coordinate")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_cross_machine_state() {
+        let (mut program, local_machine, _, _, _, _) = crash_target_coordinate_fixture();
+        let other_state = SymbolHandle::from_arena_index(108);
+        let mut other = Machine {
+            symbol: SymbolHandle::from_arena_index(107),
+            name: Identifier::generated("Other::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut other,
+            State {
+                symbol: other_state,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(other);
+        exact_manifest_crash_target(&program, local_machine, other_state, "checked crash call");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact local target-machine owners")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_duplicate_local_owner() {
+        let (mut program, local_machine, local_state, _, _, _) = crash_target_coordinate_fixture();
+        let duplicate = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == local_machine)
+            .expect("local machine")
+            .clone();
+        program.typed.push_machine(duplicate);
+        exact_manifest_crash_target(&program, local_machine, local_state, "checked crash call");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact local target states")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_duplicate_local_state() {
+        let machine_symbol = SymbolHandle::from_arena_index(110);
+        let state_symbol = SymbolHandle::from_arena_index(111);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Duplicate::run"),
+            ..Default::default()
+        };
+        for name in ["first", "second"] {
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    name: Identifier::generated(name),
+                    ..Default::default()
+                },
+            );
+        }
+        program.typed.push_machine(machine);
+        exact_manifest_crash_target(&program, machine_symbol, state_symbol, "checked crash call");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact generic requirement targets")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_ambiguous_generic() {
+        let target = SymbolHandle::from_arena_index(113);
+        let mut program = CheckedTrees::default();
+        for (owner, name) in [(114, "First"), (115, "Second")] {
+            let mut machine = Machine {
+                symbol: SymbolHandle::from_arena_index(owner),
+                name: Identifier::generated(name),
+                ..Default::default()
+            };
+            program.typed.push_machine_type_parameter(
+                &mut machine,
+                TypeParameter {
+                    symbol: target,
+                    name: Identifier::generated("Worker"),
+                    kind: TypeParameterKind::Machine {
+                        contract: StateSignature {
+                            symbol: target,
+                            name: Identifier::generated("invoke"),
+                            ..Default::default()
+                        },
+                    },
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+        }
+        exact_manifest_crash_target(&program, target, target, "checked crash call");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact trait target owners")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_ambiguous_trait() {
+        let (mut program, _, _, _, trait_owner, trait_signature) =
+            crash_target_coordinate_fixture();
+        let duplicate = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == trait_owner)
+            .expect("trait owner")
+            .clone();
+        program.typed.push_trait_definition(duplicate);
+        exact_manifest_crash_target(&program, trait_owner, trait_signature, "checked crash call");
+    }
+
+    #[test]
+    #[should_panic(expected = "target owner must resolve to one retained callable category")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_category_collision() {
+        let (mut program, local_machine, local_state, _, _, _) = crash_target_coordinate_fixture();
+        let mut definition = TraitDefinition {
+            symbol: local_machine,
+            name: Identifier::generated("CollidingBoundary"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut definition,
+            StateSignature {
+                symbol: local_state,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(definition);
+        exact_manifest_crash_target(&program, local_machine, local_state, "checked crash call");
+    }
+
+    #[test]
+    #[should_panic(expected = "must be an exact requirement owner/signature pair")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_local_capsule() {
+        let (mut program, local_machine, local_state, _, _, _) = crash_target_coordinate_fixture();
+        program.facts.contract_plans.crash_capsules.push(
+            psi_checked_trees::CrashContractCapsule::new(
+                local_machine,
+                local_state,
+                0x1111,
+                Vec::new(),
+            ),
+        );
+        validated_manifest_crash_capsules(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact target coordinates")]
+    fn machine_contract_manifest_crash_target_coordinates_reject_duplicate_capsule() {
+        let (mut program, _, _, _, trait_owner, trait_signature) =
+            crash_target_coordinate_fixture();
+        for fingerprint in [0x1111, 0x2222] {
+            program.facts.contract_plans.crash_capsules.push(
+                psi_checked_trees::CrashContractCapsule::new(
+                    trait_owner,
+                    trait_signature,
+                    fingerprint,
+                    Vec::new(),
+                ),
+            );
+        }
+        validated_manifest_crash_capsules(&program);
+    }
+
+    #[test]
+    fn machine_contract_manifest_crash_target_coordinates_preserve_capsule_payload() {
+        let (mut program, _, _, _, trait_owner, trait_signature) =
+            crash_target_coordinate_fixture();
+        let bucket = psi_checked_trees::CrashRouteBucket::unconditional(
+            psi_checked_trees::CrashCause::Abort,
+        );
+        program.facts.contract_plans.crash_capsules.push(
+            psi_checked_trees::CrashContractCapsule::new(
+                trait_owner,
+                trait_signature,
+                0x1234,
+                vec![bucket.clone()],
+            ),
+        );
+
+        let validated = validated_manifest_crash_capsules(&program);
+
+        assert_eq!(validated.len(), 1);
+        assert_eq!(validated[0].capsule.target_contract_fingerprint(), 0x1234);
+        assert_eq!(validated[0].capsule.published_buckets(), [bucket]);
+        assert_eq!(validated[0].target.owner_label, "Boundary");
+        assert_eq!(validated[0].target.state_label, "invoke");
     }
 
     #[test]
