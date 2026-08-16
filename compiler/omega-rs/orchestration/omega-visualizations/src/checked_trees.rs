@@ -1129,6 +1129,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             "content partition composition must retain its exact source-plan coordinates",
         );
         validate_content_partition_input_custody(program, row);
+        validate_content_partition_substitution_replay(row);
         let key = (
             row.machine_symbol,
             row.state_symbol,
@@ -1947,6 +1948,123 @@ fn validate_content_partition_input_custody(
             "content partition composition input binding must match one live retained permission event",
         );
     }
+}
+
+fn validate_content_partition_substitution_replay(
+    row: &psi_checked_trees::ContentPartitionCompositionFact,
+) {
+    use psi_language_semantics::content::{ContentConservationEquation, ContentConservationTerm};
+
+    fn contains_separate(term: &ContentConservationTerm) -> bool {
+        match term {
+            ContentConservationTerm::Projection { .. } => false,
+            ContentConservationTerm::Separate(_) => true,
+        }
+    }
+
+    fn collect_subjects<'term>(
+        term: &'term ContentConservationTerm,
+        subjects: &mut Vec<&'term psi_language_semantics::content::ContentStructuralPlace>,
+    ) {
+        match term {
+            ContentConservationTerm::Projection { subject, .. } => subjects.push(subject),
+            ContentConservationTerm::Separate(terms) => {
+                for term in terms {
+                    collect_subjects(term, subjects);
+                }
+            }
+        }
+    }
+
+    fn replay(
+        term: &ContentConservationTerm,
+        substitutions: &[psi_checked_trees::ContentPartitionPlaceSubstitution],
+    ) -> ContentConservationTerm {
+        match term {
+            ContentConservationTerm::Projection {
+                domain,
+                semantic_domain,
+                projection_machine,
+                projection_fingerprint,
+                subject,
+            } => {
+                let target = substitutions
+                    .iter()
+                    .find(|substitution| substitution.source == *subject)
+                    .expect(
+                        "content partition substitution replay must cover every source subject",
+                    );
+                ContentConservationTerm::Projection {
+                    domain: *domain,
+                    semantic_domain: *semantic_domain,
+                    projection_machine: *projection_machine,
+                    projection_fingerprint: *projection_fingerprint,
+                    subject: target.target.clone(),
+                }
+            }
+            ContentConservationTerm::Separate(terms) => ContentConservationTerm::Separate(
+                terms
+                    .iter()
+                    .map(|term| replay(term, substitutions))
+                    .collect(),
+            ),
+        }
+    }
+
+    assert!(
+        contains_separate(row.source_plan.equation.left())
+            || contains_separate(row.source_plan.equation.right()),
+        "content partition composition source equation must retain an authored partition",
+    );
+    assert!(
+        !row.substitutions.is_empty(),
+        "content partition composition must retain a nonempty exact substitution map",
+    );
+    for (index, substitution) in row.substitutions.iter().enumerate() {
+        assert!(
+            row.substitutions[..index]
+                .iter()
+                .all(|previous| previous.source != substitution.source),
+            "content partition composition substitution sources must be unique",
+        );
+        assert!(
+            row.substitutions[..index]
+                .iter()
+                .all(|previous| previous.target != substitution.target),
+            "content partition composition substitution targets must be unique",
+        );
+    }
+    let mut subjects = Vec::new();
+    collect_subjects(row.source_plan.equation.left(), &mut subjects);
+    collect_subjects(row.source_plan.equation.right(), &mut subjects);
+    for substitution in &row.substitutions {
+        assert!(
+            subjects.contains(&&substitution.source),
+            "content partition composition substitution source must occur in the source equation",
+        );
+    }
+    for subject in subjects {
+        assert_eq!(
+            row.substitutions
+                .iter()
+                .filter(|substitution| substitution.source == *subject)
+                .count(),
+            1,
+            "content partition composition must cover every source subject exactly once",
+        );
+    }
+    let replayed = ContentConservationEquation::new(
+        replay(row.source_plan.equation.left(), &row.substitutions),
+        replay(row.source_plan.equation.right(), &row.substitutions),
+    );
+    assert_eq!(
+        row.source_plan.algebra, row.plan.algebra,
+        "content partition composition replay must preserve the exact source algebra",
+    );
+    assert_eq!(
+        replayed, row.plan.equation,
+        "content partition composition derived equation must equal exact substitution replay",
+    );
 }
 
 fn push_content_algebra_json(
@@ -4401,10 +4519,10 @@ mod tests {
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, symbol_label, task_activation_manifest_json,
         validate_content_conservation_plan, validate_content_identity_reshuffle,
-        validate_content_partition_input_custody, validate_qualification_program_point,
-        validate_qualification_receipt, validate_qualification_source,
-        validate_vacuous_qualification_use, validated_content_projection_plans,
-        validated_machine_semantic_domain_commitments,
+        validate_content_partition_input_custody, validate_content_partition_substitution_replay,
+        validate_qualification_program_point, validate_qualification_receipt,
+        validate_qualification_source, validate_vacuous_qualification_use,
+        validated_content_projection_plans, validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -5507,6 +5625,41 @@ mod tests {
             _ => None,
         })
         .expect("fixture entry projection subject");
+        let source_left = reshuffle.plan.equation.left().clone();
+        let source_right = reshuffle.plan.equation.right().clone();
+        let source_equation = ContentConservationEquation::new(
+            ContentConservationTerm::Separate(vec![source_left.clone(), source_right.clone()]),
+            ContentConservationTerm::Separate(vec![source_left, source_right]),
+        );
+        let source_plan = ContentConservationPlan {
+            owner_kind: reshuffle.plan.owner_kind,
+            owner: reshuffle.plan.owner,
+            callable: reshuffle.plan.callable,
+            algebra: reshuffle.plan.algebra.clone(),
+            fingerprint: conservation_fingerprint(&reshuffle.plan.algebra, &source_equation),
+            equation: source_equation,
+        };
+        let mut substitution_subjects = Vec::new();
+        for term in [source_plan.equation.left(), source_plan.equation.right()] {
+            let ContentConservationTerm::Separate(children) = term else {
+                unreachable!("fixture source equation is separated")
+            };
+            for child in children {
+                let ContentConservationTerm::Projection { subject, .. } = child else {
+                    unreachable!("fixture separated children are projections")
+                };
+                if !substitution_subjects.contains(subject) {
+                    substitution_subjects.push(subject.clone());
+                }
+            }
+        }
+        let substitutions = substitution_subjects
+            .into_iter()
+            .map(|subject| ContentPartitionPlaceSubstitution {
+                source: subject.clone(),
+                target: subject,
+            })
+            .collect();
         let calls = program.facts.flow.control.calls.insert_many([FlowCallFact {
             statement_index: 4,
             call_ordinal: 2,
@@ -5527,10 +5680,10 @@ mod tests {
             .push(ContentPartitionCompositionFact {
                 machine_symbol: reshuffle.machine_symbol,
                 state_symbol: reshuffle.state_symbol,
-                source_callable: reshuffle.plan.callable,
-                source_fingerprint: reshuffle.plan.fingerprint,
+                source_callable: source_plan.callable,
+                source_fingerprint: source_plan.fingerprint,
                 source_derivation_depth: 0,
-                source_plan: reshuffle.plan.clone(),
+                source_plan: source_plan.clone(),
                 statement_index: 4,
                 call_ordinal: 2,
                 input_claim_identities: vec![reshuffle.claim_identity],
@@ -5539,8 +5692,8 @@ mod tests {
                     entry_place,
                 }],
                 result_rewrites: Vec::new(),
-                substitutions: Vec::new(),
-                plan: reshuffle.plan,
+                substitutions,
+                plan: source_plan,
             });
         program
     }
@@ -5827,6 +5980,147 @@ mod tests {
             .partition_compositions
             .push(duplicate);
         claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    fn content_partition_substitution_manifest_accepts_exact_closed_replay() {
+        let program = content_partition_input_validation_fixture();
+        let json = claim_outcome_manifest_json(&program);
+
+        assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
+        assert!(json.contains("\"kind\": \"separate\""));
+    }
+
+    #[test]
+    #[should_panic(expected = "source equation must retain an authored partition")]
+    fn content_partition_substitution_manifest_rejects_nonpartition_source() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        let ContentConservationTerm::Separate(left) = row.source_plan.equation.left() else {
+            unreachable!("fixture left is separated")
+        };
+        let left = left.clone();
+        row.source_plan.equation =
+            ContentConservationEquation::new(left[0].clone(), left[1].clone());
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain a nonempty exact substitution map")]
+    fn content_partition_substitution_manifest_rejects_empty_map() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.substitutions.clear();
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "substitution sources must be unique")]
+    fn content_partition_substitution_manifest_rejects_duplicate_source() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.substitutions.push(row.substitutions[0].clone());
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "substitution targets must be unique")]
+    fn content_partition_substitution_manifest_rejects_duplicate_target() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.substitutions[1].target = row.substitutions[0].target.clone();
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "substitution source must occur in the source equation")]
+    fn content_partition_substitution_manifest_rejects_extra_source() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.substitutions.push(ContentPartitionPlaceSubstitution {
+            source: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: ContentPlaceRoot::Result,
+                segments: vec![
+                    psi_language_semantics::content::ContentPlaceSegment::FixedIndex(98),
+                ],
+            },
+            target: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: ContentPlaceRoot::Result,
+                segments: vec![
+                    psi_language_semantics::content::ContentPlaceSegment::FixedIndex(99),
+                ],
+            },
+        });
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "must cover every source subject exactly once")]
+    fn content_partition_substitution_manifest_rejects_missing_subject() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.substitutions.pop();
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "derived equation must equal exact substitution replay")]
+    fn content_partition_substitution_manifest_rejects_target_drift() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.substitutions[0]
+            .target
+            .segments
+            .push(psi_language_semantics::content::ContentPlaceSegment::FixedIndex(9));
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "derived equation must equal exact substitution replay")]
+    fn content_partition_substitution_manifest_rejects_projection_tuple_drift() {
+        fn drift_first_projection(term: &ContentConservationTerm) -> ContentConservationTerm {
+            match term {
+                ContentConservationTerm::Projection {
+                    domain,
+                    semantic_domain,
+                    projection_machine,
+                    projection_fingerprint,
+                    subject,
+                } => ContentConservationTerm::Projection {
+                    domain: SymbolHandle::from_arena_index(domain.arena_index() + 1000),
+                    semantic_domain: *semantic_domain,
+                    projection_machine: *projection_machine,
+                    projection_fingerprint: *projection_fingerprint,
+                    subject: subject.clone(),
+                },
+                ContentConservationTerm::Separate(terms) => {
+                    let mut terms = terms.clone();
+                    terms[0] = drift_first_projection(&terms[0]);
+                    ContentConservationTerm::Separate(terms)
+                }
+            }
+        }
+
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.plan.equation = ContentConservationEquation::new(
+            drift_first_projection(row.plan.equation.left()),
+            row.plan.equation.right().clone(),
+        );
+        validate_content_partition_substitution_replay(row);
+    }
+
+    #[test]
+    #[should_panic(expected = "replay must preserve the exact source algebra")]
+    fn content_partition_substitution_manifest_rejects_algebra_drift() {
+        let mut program = content_partition_input_validation_fixture();
+        let row = &mut program.facts.qualifications.content.partition_compositions[0];
+        row.plan.algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(OtherUnit))".to_owned(),
+        };
+        validate_content_partition_substitution_replay(row);
     }
 
     fn content_projection_validation_fixture() -> CheckedTrees {
@@ -6547,7 +6841,7 @@ mod tests {
             target: substitutions[1].target.clone(),
         };
         let partition_entry_place = input_subject.clone();
-        let equation = ContentConservationEquation::new(input, output);
+        let equation = ContentConservationEquation::new(input.clone(), output.clone());
         let fingerprint = conservation_fingerprint(&algebra, &equation);
         let plan = ContentConservationPlan {
             owner_kind: ContentConservationOwnerKind::Machine,
@@ -6556,6 +6850,18 @@ mod tests {
             algebra,
             equation,
             fingerprint,
+        };
+        let partition_equation = ContentConservationEquation::new(
+            ContentConservationTerm::Separate(vec![input.clone(), output.clone()]),
+            ContentConservationTerm::Separate(vec![input, output]),
+        );
+        let partition_plan = ContentConservationPlan {
+            owner_kind: ContentConservationOwnerKind::Machine,
+            owner: machine_symbol,
+            callable: state_symbol,
+            algebra: plan.algebra.clone(),
+            fingerprint: conservation_fingerprint(&plan.algebra, &partition_equation),
+            equation: partition_equation,
         };
         program
             .facts
@@ -6598,9 +6904,9 @@ mod tests {
                 machine_symbol,
                 state_symbol,
                 source_callable: state_symbol,
-                source_fingerprint: plan.fingerprint,
+                source_fingerprint: partition_plan.fingerprint,
                 source_derivation_depth: 0,
-                source_plan: plan.clone(),
+                source_plan: partition_plan.clone(),
                 statement_index: 4,
                 call_ordinal: 2,
                 input_claim_identities: vec![input_identity],
@@ -6610,7 +6916,7 @@ mod tests {
                 }],
                 result_rewrites: vec![result_rewrite],
                 substitutions,
-                plan,
+                plan: partition_plan,
             });
 
         let json = claim_outcome_manifest_json(&program);
