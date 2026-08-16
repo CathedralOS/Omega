@@ -5,6 +5,7 @@ use crate::flow::{
     exact_affine_chain_runtime_parameter_positions_for_test,
     exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test,
     exact_arithmetic_then_shift_runtime_parameter_positions_for_test,
+    exact_cast_chain_runtime_parameter_positions_for_test,
     exact_cast_then_affine_runtime_parameter_positions_for_test,
     exact_cast_then_divide_remainder_runtime_parameter_positions_for_test,
     exact_cast_then_mixed_shift_runtime_parameter_positions_for_test,
@@ -1760,6 +1761,74 @@ fn signed_multiply_classifiers_accept_checked_negative_products_in_all_three_pla
         ),
         Some(vec![0]),
         "an earlier executed zero resets a reversed-walk product overflow",
+    );
+}
+
+#[test]
+fn exact_cast_chain_classifier_accepts_only_ordered_partial_native_casts() {
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let cast = |target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let chain = cast(
+        PrimitiveType::I32,
+        cast(PrimitiveType::U64, parameter(PrimitiveType::I64)),
+    );
+    assert_eq!(
+        exact_cast_chain_runtime_parameter_positions_for_test(PrimitiveType::U8, &chain, 1),
+        Some(vec![0]),
+        "heterogeneous cross-sign partial casts retain the direct root",
+    );
+    assert_eq!(
+        exact_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U64,
+            &parameter(PrimitiveType::I64),
+            1,
+        ),
+        None,
+        "the first direct cast stays on its existing path",
+    );
+
+    let widening_inner = cast(PrimitiveType::I16, parameter(PrimitiveType::U8));
+    assert_eq!(
+        exact_cast_chain_runtime_parameter_positions_for_test(
+            PrimitiveType::U8,
+            &widening_inner,
+            1,
+        ),
+        None,
+        "a widening edge is not reclassified as an exact-cast chain",
+    );
+    let intervening = CheckedScalarExpression::IntegerBinary {
+        kind: CheckedIntegerBinaryKind::ExactAdd,
+        primitive_type: PrimitiveType::I32,
+        left: Box::new(chain),
+        right: Box::new(parameter(PrimitiveType::I32)),
+    };
+    assert_eq!(
+        exact_cast_chain_runtime_parameter_positions_for_test(PrimitiveType::U8, &intervening, 1,),
+        None,
+        "intervening arithmetic remains outside the cast-only chain",
+    );
+    let local_root = cast(
+        PrimitiveType::I32,
+        cast(
+            PrimitiveType::U64,
+            CheckedScalarExpression::Local {
+                position: 0,
+                primitive_type: PrimitiveType::I64,
+            },
+        ),
+    );
+    assert_eq!(
+        exact_cast_chain_runtime_parameter_positions_for_test(PrimitiveType::U8, &local_root, 1,),
+        None,
+        "local roots remain fenced",
     );
 }
 

@@ -894,6 +894,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             signed_multiply_cast: i16,
             signed_cast_multiply: u16,
             signed_minimum_factor: i64,
+            exact_cast_chain: i64,
             enabled: bool
         ) -> bool
         requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -953,7 +954,10 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             -63i16 <= signed_multiply_cast, signed_multiply_cast <= 64i16,
             0i16 <= signed_multiply_cast, signed_multiply_cast <= 0i16,
             signed_cast_multiply <= 127u16, signed_cast_multiply <= 64u16,
-            0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64
+            0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64,
+            0i64 <= exact_cast_chain,
+            exact_cast_chain <= 2147483647i64,
+            exact_cast_chain <= 255i64
         {
             ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
                 && (((value >> 1i8) << 4u16) < 255u8))
@@ -996,6 +1000,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 && ((((signed_multiply_cast * -512i16) as i8) < 127i8))
                 && (((((signed_cast_multiply as i8) * -2i8) * 0i8) <= 0i8))
                 && (((signed_minimum_factor * -9223372036854775808i64) * 1i64) <= 0i64)
+                && (((((exact_cast_chain as u64) as i32) as u8) < 255u8))
                 && enabled
         }
     "#;
@@ -1040,7 +1045,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
             .iter()
             .filter(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
             .count(),
-        22,
+        25,
     );
     assert_eq!(
         operations
@@ -1130,7 +1135,7 @@ fn arbitrary_exact_mixed_shift_chains_emit_on_every_native_target() {
                 TerminalAbstractOperation::IntegerExactCast { .. }
             ))
             .count(),
-        22,
+        25,
     );
     assert_eq!(
         abstract_plan

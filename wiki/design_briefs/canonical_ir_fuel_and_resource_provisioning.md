@@ -173,6 +173,10 @@ The signed-product widening uses identical accounting for its direct,
 pre-cast, and post-cast homogeneous chains: every multiply and cast remains
 charged separately, while checked sign/magnitude accumulation and reversed
 negative-product interval replay add no executable work.
+A finite partial exact-cast chain likewise charges every retained cast and its
+ordinary value leaves. Ordered carrier-intersection replay is verifier work and
+adds no executable operation or fuel charge; every cast obligation remains
+independent.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no

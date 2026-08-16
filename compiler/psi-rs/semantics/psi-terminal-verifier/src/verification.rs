@@ -1445,6 +1445,15 @@ fn exact_integer_cast_obligation(
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Proposition {
+    if let Some(obligation) = exact_integer_cast_chain_obligation(
+        source_type,
+        target_type,
+        operand.clone(),
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     if let Some(obligation) = exact_integer_divide_remainder_chain_cast_obligation(
         source_type,
         target_type,
@@ -1596,6 +1605,91 @@ fn exact_integer_cast_obligation(
         1 => bounds.pop().expect("one exact-cast bound exists"),
         _ => Proposition::Conjunction(bounds),
     }
+}
+
+fn exact_integer_cast_chain_obligation(
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    mut operand: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if !partial_fixed_native_integer_cast(source_type, target_type) {
+        return None;
+    }
+    let source_interval = fixed_integer_type_interval(source_type)?;
+    let target_interval = fixed_integer_type_interval(target_type)?;
+    let mut interval = (
+        source_interval.0.max(target_interval.0),
+        source_interval.1.min(target_interval.1),
+    );
+    let mut expected_target = source_type;
+    let mut prior_axiom_count = semantic_axioms.len();
+    let mut followed_nested_cast = false;
+    for _ in 0..prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &operand => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let ScalarTerm::IntegerExactCast {
+            source_type: nested_source,
+            target_type: nested_target,
+            operand: nested_operand,
+        } = definition
+        else {
+            return None;
+        };
+        if *nested_target != expected_target
+            || !partial_fixed_native_integer_cast(*nested_source, *nested_target)
+        {
+            return None;
+        }
+        let nested_interval = fixed_integer_type_interval(*nested_source)?;
+        interval.0 = interval.0.max(nested_interval.0);
+        interval.1 = interval.1.min(nested_interval.1);
+        operand = (**nested_operand).clone();
+        expected_target = *nested_source;
+        prior_axiom_count = definition_index;
+        followed_nested_cast = true;
+    }
+    if !followed_nested_cast
+        || !matches!(
+            &operand,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == expected_target && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    if interval.0 > interval.1 {
+        return Some(Proposition::Falsehood);
+    }
+    Some(exact_integer_source_interval_obligation(
+        expected_target,
+        operand,
+        interval.0,
+        interval.1,
+    ))
+}
+
+fn partial_fixed_native_integer_cast(
+    source: psi_core::IntegerType,
+    target: psi_core::IntegerType,
+) -> bool {
+    fixed_integer_type_interval(source).is_some()
+        && fixed_integer_type_interval(target).is_some()
+        && source != target
+        && source.can_exact_cast_to(target)
+        && !source.can_widen_to(target)
 }
 
 fn exact_integer_mixed_shift_chain_cast_obligation(
@@ -11630,6 +11724,98 @@ mod tests {
                 64,
             )),
             "post-cast negative multiplication intersects its reversed preimage with the source",
+        );
+    }
+
+    #[test]
+    fn exact_cast_chain_intersects_every_carrier_without_importing_prefix_proofs() {
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root_id = ValueId::new(1701).expect("cast-chain root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(i64_type));
+        let first = ScalarTerm::value(
+            ValueId::new(1702).expect("first cast"),
+            ScalarType::Integer(u64_type),
+        );
+        let second = ScalarTerm::value(
+            ValueId::new(1703).expect("second cast"),
+            ScalarType::Integer(i32_type),
+        );
+        let first_definition = Proposition::Equal(
+            first.clone(),
+            ScalarTerm::integer_exact_cast(i64_type, u64_type, root.clone()).expect("i64 to u64"),
+        );
+        let second_definition = Proposition::Equal(
+            second.clone(),
+            ScalarTerm::integer_exact_cast(u64_type, i32_type, first.clone()).expect("u64 to i32"),
+        );
+        let definitions = vec![first_definition.clone(), second_definition.clone()];
+        let parameters = BTreeSet::from([root_id]);
+
+        assert_eq!(
+            exact_integer_cast_chain_obligation(
+                u64_type,
+                i32_type,
+                first.clone(),
+                std::slice::from_ref(&first_definition),
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i64_type,
+                root.clone(),
+                0,
+                i32::MAX.into(),
+            )),
+            "the second cast independently reconstructs the first two carrier intersections",
+        );
+        assert_eq!(
+            exact_integer_cast_chain_obligation(
+                i32_type,
+                u8_type,
+                second.clone(),
+                &definitions,
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i64_type,
+                root.clone(),
+                0,
+                u8::MAX.into(),
+            )),
+            "the third cast independently intersects every prior carrier",
+        );
+
+        let reordered = vec![second_definition, first_definition];
+        assert_eq!(
+            exact_integer_cast_chain_obligation(i32_type, u8_type, second, &reordered, &parameters,),
+            None,
+            "definition order is proof structure",
+        );
+        let widened = ScalarTerm::value(
+            ValueId::new(1704).expect("widened cast"),
+            ScalarType::Integer(i32_type),
+        );
+        let widening_definition = Proposition::Equal(
+            widened.clone(),
+            ScalarTerm::integer_exact_cast(
+                u8_type,
+                i32_type,
+                ScalarTerm::value(root_id, ScalarType::Integer(u8_type)),
+            )
+            .expect("core term permits fixed exact casts"),
+        );
+        assert_eq!(
+            exact_integer_cast_chain_obligation(
+                i32_type,
+                u8_type,
+                widened,
+                &[widening_definition],
+                &BTreeSet::from([root_id]),
+            ),
+            None,
+            "a nested widening-shaped cast is not admitted",
         );
     }
 

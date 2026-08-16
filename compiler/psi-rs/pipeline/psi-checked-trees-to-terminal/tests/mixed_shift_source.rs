@@ -60,6 +60,7 @@ const SOURCE: &str = r#"
         signed_multiply_cast: i16,
         signed_cast_multiply: u16,
         signed_minimum_factor: i64,
+        exact_cast_chain: i64,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -119,7 +120,10 @@ const SOURCE: &str = r#"
         -63i16 <= signed_multiply_cast, signed_multiply_cast <= 64i16,
         0i16 <= signed_multiply_cast, signed_multiply_cast <= 0i16,
         signed_cast_multiply <= 127u16, signed_cast_multiply <= 64u16,
-        0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64
+        0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64,
+        0i64 <= exact_cast_chain,
+        exact_cast_chain <= 2147483647i64,
+        exact_cast_chain <= 255i64
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -162,6 +166,7 @@ const SOURCE: &str = r#"
             && ((((signed_multiply_cast * -512i16) as i8) < 127i8))
             && (((((signed_cast_multiply as i8) * -2i8) * 0i8) <= 0i8))
             && (((signed_minimum_factor * -9223372036854775808i64) * 1i64) <= 0i64)
+            && (((((exact_cast_chain as u64) as i32) as u8) < 255u8))
             && enabled
     }
 "#;
@@ -200,6 +205,8 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let divide_affine_direct_parameter = entry.parameters[26].id;
     let affine_divide_direct_parameter = entry.parameters[28].id;
     let divide_cast_divide_parameter = entry.parameters[30].id;
+    let signed_minimum_parameter = entry.parameters[35].id;
+    let exact_cast_chain_parameter = entry.parameters[36].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -250,7 +257,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         39,
     );
     assert_eq!(shift_obligations.len(), 72);
-    assert_eq!(proof_obligations.len(), 153);
+    assert_eq!(proof_obligations.len(), 156);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -829,6 +836,34 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let mut redirected_cast_chain = decode_module(&semantics).expect("decode mixed-shift module");
+    let first_chain_cast = redirected_cast_chain
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerExactCast { operand, .. }
+                    if operand == exact_cast_chain_parameter
+            )
+        })
+        .expect("cast chain retains its direct-root first cast");
+    let OperationKind::IntegerExactCast { operand, .. } = &mut first_chain_cast.kind else {
+        unreachable!("selected one exact-cast operation")
+    };
+    *operand = signed_minimum_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_cast_chain,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -974,6 +1009,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
                 value: IntegerValue::Signed(0),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
             },
             TerminalScalarValue::Boolean(enabled),
         ]
