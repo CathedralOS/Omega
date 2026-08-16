@@ -16,6 +16,7 @@ use crate::flow::{
     exact_cast_then_shift_right_runtime_parameter_positions_for_test,
     exact_cast_then_signed_multiply_runtime_parameter_positions_for_test,
     exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test,
+    exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
     exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test,
@@ -2151,6 +2152,137 @@ fn cast_chain_then_computed_suffix_classifier_reuses_only_existing_post_cast_fam
         ),
         None,
         "cross-family suffixes remain fenced",
+    );
+}
+
+#[test]
+fn computed_prefix_cast_chain_computed_suffix_classifier_covers_the_four_by_four_matrix() {
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cast = |target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let signed_cast_chain = |source| cast(PrimitiveType::I32, cast(PrimitiveType::U64, source));
+    let small_signed_cast_chain = |source| cast(PrimitiveType::I8, cast(PrimitiveType::U8, source));
+    let sources = vec![
+        (
+            PrimitiveType::I32,
+            signed_cast_chain(binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I64,
+                parameter(PrimitiveType::I64),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I64),
+            )),
+        ),
+        (
+            PrimitiveType::I32,
+            signed_cast_chain(binary(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                PrimitiveType::I64,
+                parameter(PrimitiveType::I64),
+                literal(-2i64, psi_numerics::literals::LandedIntegerType::I64),
+            )),
+        ),
+        (
+            PrimitiveType::I32,
+            signed_cast_chain(binary(
+                CheckedIntegerBinaryKind::ExactShiftRight,
+                PrimitiveType::I64,
+                parameter(PrimitiveType::I64),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            )),
+        ),
+        (
+            PrimitiveType::I8,
+            small_signed_cast_chain(binary(
+                CheckedIntegerBinaryKind::ExactRemainder,
+                PrimitiveType::U32,
+                parameter(PrimitiveType::U32),
+                literal(3i64, psi_numerics::literals::LandedIntegerType::U32),
+            )),
+        ),
+    ];
+    for (target_type, source) in sources {
+        let landed_type = match target_type {
+            PrimitiveType::I32 => psi_numerics::literals::LandedIntegerType::I32,
+            PrimitiveType::I8 => psi_numerics::literals::LandedIntegerType::I8,
+            _ => unreachable!("fixture uses signed target carriers"),
+        };
+        let count_type = psi_numerics::literals::LandedIntegerType::U8;
+        let targets = [
+            binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                target_type,
+                source.clone(),
+                literal(1i64, landed_type),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                target_type,
+                source.clone(),
+                literal(-2i64, landed_type),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactShiftLeft,
+                target_type,
+                source.clone(),
+                literal(1i64, count_type),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactDivide,
+                target_type,
+                source,
+                literal(2i64, landed_type),
+            ),
+        ];
+        for target in targets {
+            assert_eq!(
+                exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+                    &target, 1,
+                ),
+                Some(vec![0]),
+            );
+        }
+    }
+
+    let one_cast = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I32,
+        cast(
+            PrimitiveType::I32,
+            binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I64,
+                parameter(PrimitiveType::I64),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I64),
+            ),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &one_cast, 1,
+        ),
+        None,
+        "one cast remains on its established sandwich paths",
     );
 }
 

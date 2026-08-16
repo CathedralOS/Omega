@@ -187,6 +187,11 @@ every affine, signed-product, shift, or divide/remainder suffix operation is
 retained and charged. Full carrier-intersection validation plus the selected
 post-cast inverse replay are verifier work only and add no executable operation
 or fuel charge.
+Composing both sides does not change that accounting: a nonempty computed
+prefix, every cast in an at-least-two partial-cast chain, and every operation in
+the nonempty computed suffix are each retained and charged separately. Full
+ordered carrier-intersection plus the selected target inverse and source
+inverse/hull replay remain verifier-only work and add no executable fuel.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no

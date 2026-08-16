@@ -69,6 +69,11 @@ const SOURCE: &str = r#"
         cast_chain_signed_product_suffix: i64,
         cast_chain_shift_suffix: i64,
         cast_chain_divide_suffix: u32,
+        affine_cast_chain_shift_suffix: i64,
+        shift_cast_chain_affine_suffix: i64,
+        signed_product_cast_chain_signed_product_suffix: i64,
+        divide_cast_chain_affine_suffix: u32,
+        affine_cast_chain_divide_suffix: i64,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -158,7 +163,23 @@ const SOURCE: &str = r#"
         0i64 <= cast_chain_shift_suffix,
         cast_chain_shift_suffix <= 2147483647i64,
         cast_chain_shift_suffix <= 1073741823i64,
-        cast_chain_divide_suffix <= 127u32
+        cast_chain_divide_suffix <= 127u32,
+        affine_cast_chain_shift_suffix <= 9223372036854775806i64,
+        -1i64 <= affine_cast_chain_shift_suffix,
+        affine_cast_chain_shift_suffix <= 2147483646i64,
+        affine_cast_chain_shift_suffix <= 1073741822i64,
+        0i64 <= shift_cast_chain_affine_suffix,
+        shift_cast_chain_affine_suffix <= 4294967295i64,
+        shift_cast_chain_affine_suffix <= 4294967293i64,
+        -4611686018427387903i64 <= signed_product_cast_chain_signed_product_suffix,
+        signed_product_cast_chain_signed_product_suffix <= 4611686018427387904i64,
+        -9223372036854775807i64 <= signed_product_cast_chain_signed_product_suffix,
+        -1073741823i64 <= signed_product_cast_chain_signed_product_suffix,
+        -536870912i64 <= signed_product_cast_chain_signed_product_suffix,
+        signed_product_cast_chain_signed_product_suffix <= 0i64,
+        affine_cast_chain_divide_suffix <= 9223372036854775806i64,
+        -1i64 <= affine_cast_chain_divide_suffix,
+        affine_cast_chain_divide_suffix <= 2147483646i64
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -210,6 +231,11 @@ const SOURCE: &str = r#"
             && ((((cast_chain_signed_product_suffix as u64) as i32) * -2i32) < 2147483647i32)
             && ((((cast_chain_shift_suffix as u64) as i32) << 1u8) < 2147483647i32)
             && (((((cast_chain_divide_suffix as i8) as u8) / 2u8) % 3u8) < 3u8)
+            && (((((affine_cast_chain_shift_suffix + 1i64) as u64) as i32) << 1u8) < 2147483647i32)
+            && (((((shift_cast_chain_affine_suffix >> 1u8) as u64) as i32) + 1i32) < 2147483647i32)
+            && (((((signed_product_cast_chain_signed_product_suffix * -2i64) as u64) as i32) * -2i32) < 2147483647i32)
+            && (((((divide_cast_chain_affine_suffix % 3u32) as u8) as i8) + 1i8) < 127i8)
+            && ((((((affine_cast_chain_divide_suffix + 1i64) as u64) as i32) / 2i32) % 3i32) < 3i32)
             && enabled
     }
 "#;
@@ -288,7 +314,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        34,
+        35,
     );
     assert_eq!(
         operations
@@ -298,10 +324,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        41,
+        42,
     );
-    assert_eq!(shift_obligations.len(), 75);
-    assert_eq!(proof_obligations.len(), 188);
+    assert_eq!(shift_obligations.len(), 77);
+    assert_eq!(proof_obligations.len(), 209);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -1144,6 +1170,26 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 value"),
                 value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(2),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(-1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
             },
             TerminalScalarValue::Boolean(enabled),
         ]

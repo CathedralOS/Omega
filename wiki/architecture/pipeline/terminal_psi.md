@@ -555,6 +555,18 @@ and then applies only that suffix family's existing inverse transfer. Every
 cast and suffix operation keeps distinct evidence. Empty mathematical
 preimages become canonical falsehood; malformed definitions, runtime literals,
 or checked interval failure admit no family.
+The two one-sided rules compose when both sides are nonempty: an admitted
+affine, homogeneous signed-product, exact-shift, or carrier-total landed-
+divisor prefix may feed at least two contiguous partial fixed-native exact
+casts and then an admitted affine, homogeneous signed-product, exact-shift, or
+landed-safe-literal divide/remainder suffix. Every source operation, cast, and
+target operation retains independent evidence. For each current obligation the
+verifier walks ordered shrinking definitions, intersects the complete cast
+carrier chain, applies the target family's existing inverse transfer, then the
+source family's existing inverse transfer or complete-hull rule. Mathematical
+emptiness is canonical falsehood; malformed shapes and checked replay failure
+admit no family. Empty-sided, one-cast, direct, and narrower sandwich shapes
+remain on their existing dispatch paths.
 The unified sandwich permits nonempty finite exact-shift chains on both sides
 of one validator-legal partial fixed-native cast. Counts remain independently
 landed, heterogeneous, legal fixed-native literals, and either side may be

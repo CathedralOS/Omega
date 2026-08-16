@@ -458,6 +458,16 @@ Remaining:
   family's existing inverse algebra for the current suffix prefix. Every cast
   and suffix operation remains independently evidenced; mathematical empty
   preimages are falsehood and checked replay failure admits no family.
+  The two directions compose into one unified nonempty computed-prefix,
+  at-least-two-partial-cast, nonempty computed-suffix sandwich across the same
+  affine, homogeneous signed-product, exact-shift, and carrier-total landed-
+  divisor families. Each source prefix, each shrinking cast prefix, and each
+  target prefix is reconstructed independently from ordered canonical
+  definitions. The verifier intersects every cast carrier, applies only the
+  selected target inverse and source inverse/hull algebra, and never imports
+  another operation's evidence. Zero coefficients remain local to the current
+  target obligation; a mathematical empty interval is falsehood, while
+  malformed shape or checked transfer failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic
