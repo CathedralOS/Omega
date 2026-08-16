@@ -124,37 +124,70 @@ fn entry_capability_manifest(
         };
     };
 
-    let service_reach = program
-        .facts
-        .service_reaches
-        .for_machine(machine_symbol)
-        .map(|reach| reach.inferred_transitive)
-        .map(|row| {
-            let reaches = &program.facts.service_reaches;
-            reaches
-                .rows
-                .services(row)
-                .iter()
-                .filter_map(|service| reaches.services.definition(*service))
-                .map(|definition| definition.name.clone())
-                .collect()
+    let reaches = &program.facts.service_reaches;
+    let mut matching_reaches = reaches
+        .machines()
+        .iter()
+        .filter(|reach| reach.machine == machine_symbol);
+    let reach = matching_reaches.next().unwrap_or_else(|| {
+        panic!("capability manifest invariant: selected entry has no service-reach row")
+    });
+    assert!(
+        matching_reaches.next().is_none(),
+        "capability manifest invariant: selected entry has duplicate service-reach rows"
+    );
+    let service_ids = reaches.rows.services(reach.inferred_transitive);
+    assert!(
+        !service_ids.is_empty()
+            || reach.inferred_transitive == psi_language_semantics::ServiceReachRowTable::EMPTY_ROW,
+        "capability manifest invariant: selected entry has a noncanonical inferred service-reach row"
+    );
+    let service_reach = service_ids
+        .iter()
+        .map(|service| {
+            reaches.services.definition(*service).unwrap_or_else(|| {
+                panic!(
+                    "capability manifest invariant: selected entry service-reach row contains an unregistered service"
+                )
+            })
         })
-        .unwrap_or_default();
+        .map(|definition| definition.name.clone())
+        .collect();
+
+    let mut matching_suspensions = program
+        .facts
+        .suspensions
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine_symbol);
+    let suspension = matching_suspensions.next().unwrap_or_else(|| {
+        panic!("capability manifest invariant: selected entry has no suspension row")
+    });
+    assert!(
+        matching_suspensions.next().is_none(),
+        "capability manifest invariant: selected entry has duplicate suspension rows"
+    );
+
+    let mut matching_blocking = program
+        .facts
+        .blocking
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine_symbol);
+    let blocking = matching_blocking.next().unwrap_or_else(|| {
+        panic!("capability manifest invariant: selected entry has no blocking row")
+    });
+    assert!(
+        matching_blocking.next().is_none(),
+        "capability manifest invariant: selected entry has duplicate blocking rows"
+    );
 
     EntryCapabilityManifest {
         entry_machine: machine_name,
         entry_state: state_name,
         service_reach,
-        may_suspend: program
-            .facts
-            .suspensions
-            .for_machine(machine_symbol)
-            .is_some_and(|plan| plan.checked_may_suspend),
-        may_block: program
-            .facts
-            .blocking
-            .for_machine(machine_symbol)
-            .is_some_and(|plan| plan.checked_may_block),
+        may_suspend: suspension.plan.checked_may_suspend,
+        may_block: blocking.plan.checked_may_block,
         capability_flow_counts: capability_flow_counts(program),
     }
 }
@@ -191,13 +224,79 @@ mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
     use psi_checked_trees::{CheckedTrees, MachineContractPlan, MachineServiceReachRows};
     use psi_language_semantics::{
-        BlockingInterface, BlockingPlan, ServiceReachInterface, SuspensionInterface,
-        SuspensionPlan, TerminationGuarantee,
+        BlockingInterface, BlockingPlan, ServiceReachId, ServiceReachInterface, ServiceReachRowId,
+        ServiceReachRowTable, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::state::State;
+
+    fn minimal_manifest_program() -> (CheckedTrees, SymbolHandle) {
+        let machine_symbol = SymbolHandle::from_arena_index(30);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Application::launch"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: SymbolHandle::from_arena_index(31),
+                name: Identifier::generated("main"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
+        program.facts.service_reaches.machines.append_to_span(
+            &mut program.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine: machine_symbol,
+                inferred_transitive: ServiceReachRowTable::EMPTY_ROW,
+                ..Default::default()
+            },
+        );
+        program
+            .facts
+            .suspensions
+            .machines
+            .push(psi_checked_trees::MachineSuspensionFact {
+                machine: machine_symbol,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::InternalInferred,
+                    checked_may_suspend: false,
+                },
+            });
+        program
+            .facts
+            .blocking
+            .machines
+            .push(psi_checked_trees::MachineBlockingFact {
+                machine: machine_symbol,
+                plan: BlockingPlan {
+                    interface: BlockingInterface::InternalInferred,
+                    checked_may_block: false,
+                },
+            });
+        (program, machine_symbol)
+    }
+
+    fn manifest_panic(program: &CheckedTrees) -> String {
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            capability_manifest_json(program, Some("Application::launch"))
+        }))
+        .expect_err("invalid manifest facts must fail closed");
+        panic
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| {
+                panic
+                    .downcast_ref::<&str>()
+                    .map(|message| (*message).to_owned())
+            })
+            .expect("invariant panic has a string diagnostic")
+    }
 
     #[test]
     fn executable_manifest_uses_normalized_split_behavior_axes() {
@@ -319,5 +418,107 @@ mod tests {
         assert!(missing.contains("\"entry_machine\": \"<missing>\""));
         assert!(missing.contains("\"entry_state\": \"<missing>\""));
         assert!(!missing.contains("\"entry_machine\": \"Main::main\""));
+    }
+
+    #[test]
+    fn executable_manifest_preserves_explicit_empty_and_negative_axes() {
+        let (program, _) = minimal_manifest_program();
+        let json = capability_manifest_json(&program, Some("Application::launch"));
+
+        assert!(json.contains("\"service_reach\": []"));
+        assert!(json.contains("\"may_suspend\": false"));
+        assert!(json.contains("\"may_block\": false"));
+    }
+
+    #[test]
+    fn executable_manifest_rejects_missing_and_duplicate_service_reach() {
+        let (mut missing, _) = minimal_manifest_program();
+        missing.facts.service_reaches = Default::default();
+        assert!(manifest_panic(&missing).contains("no service-reach row"));
+
+        let (mut duplicate, machine) = minimal_manifest_program();
+        duplicate.facts.service_reaches.machines.append_to_span(
+            &mut duplicate.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                inferred_transitive: ServiceReachRowTable::EMPTY_ROW,
+                ..Default::default()
+            },
+        );
+        assert!(manifest_panic(&duplicate).contains("duplicate service-reach rows"));
+    }
+
+    #[test]
+    fn executable_manifest_rejects_missing_and_duplicate_suspension() {
+        let (mut missing, _) = minimal_manifest_program();
+        missing.facts.suspensions.machines.clear();
+        assert!(manifest_panic(&missing).contains("no suspension row"));
+
+        let (mut duplicate, machine) = minimal_manifest_program();
+        duplicate
+            .facts
+            .suspensions
+            .machines
+            .push(psi_checked_trees::MachineSuspensionFact {
+                machine,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::PublishedMaySuspend(true),
+                    checked_may_suspend: true,
+                },
+            });
+        assert!(manifest_panic(&duplicate).contains("duplicate suspension rows"));
+    }
+
+    #[test]
+    fn executable_manifest_rejects_missing_and_duplicate_blocking() {
+        let (mut missing, _) = minimal_manifest_program();
+        missing.facts.blocking.machines.clear();
+        assert!(manifest_panic(&missing).contains("no blocking row"));
+
+        let (mut duplicate, machine) = minimal_manifest_program();
+        duplicate
+            .facts
+            .blocking
+            .machines
+            .push(psi_checked_trees::MachineBlockingFact {
+                machine,
+                plan: BlockingPlan {
+                    interface: BlockingInterface::PublishedMayBlock(true),
+                    checked_may_block: true,
+                },
+            });
+        assert!(manifest_panic(&duplicate).contains("duplicate blocking rows"));
+    }
+
+    #[test]
+    fn executable_manifest_rejects_noncanonical_and_unregistered_service_rows() {
+        let (mut noncanonical, machine) = minimal_manifest_program();
+        noncanonical.facts.service_reaches = Default::default();
+        noncanonical.facts.service_reaches.machines.append_to_span(
+            &mut noncanonical.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                inferred_transitive: ServiceReachRowId(99),
+                ..Default::default()
+            },
+        );
+        assert!(manifest_panic(&noncanonical).contains("noncanonical inferred service-reach row"));
+
+        let (mut unregistered, machine) = minimal_manifest_program();
+        unregistered.facts.service_reaches = Default::default();
+        let row = unregistered
+            .facts
+            .service_reaches
+            .rows
+            .intern(vec![ServiceReachId(99)]);
+        unregistered.facts.service_reaches.machines.append_to_span(
+            &mut unregistered.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                inferred_transitive: row,
+                ..Default::default()
+            },
+        );
+        assert!(manifest_panic(&unregistered).contains("unregistered service"));
     }
 }
