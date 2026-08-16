@@ -552,6 +552,19 @@ Remaining:
   computed roots, carrier drift, conversions, and unchecked arithmetic remain
   fenced. Every operation in both branches and the join retains independent
   evidence.
+  A distinct-root signature-bounded signed affine product join now admits one
+  outer exact multiply whose two disjoint, nonempty, ordered landed-literal
+  affine branches end at different direct signed fixed-native parameters. The
+  verifier requires and selects the tightest landed unary lower and upper
+  signature bounds for both roots, maps each interval forward through its
+  checked signed affine form, and takes the exact hull of all four rectangle
+  corner products. Complete carrier containment yields the canonical
+  four-bound conjunction; a wholly disjoint hull yields falsehood; partial
+  overlap or checked corner overflow admits no family. Every branch operation
+  and the outer multiply retains separate evidence. Same-root quadratic
+  correlation, relational premises, one-sided bounds, unsigned carriers,
+  overlapping walks, computed roots, conversions, and stale definitions remain
+  fenced.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, wider multivariate and other computed-sibling joins,

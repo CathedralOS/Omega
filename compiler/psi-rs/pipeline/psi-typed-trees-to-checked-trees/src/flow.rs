@@ -70,6 +70,8 @@ pub(crate) use terminal_unit::exact_computed_prefix_widen_chain_then_computed_su
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_distinct_root_affine_product_join_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test;
