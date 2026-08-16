@@ -1582,6 +1582,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_affine_runtime_inputs(expression, scalar_parameter_count)
                 })
                 .or_else(|| {
@@ -1653,6 +1659,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_affine_runtime_inputs(expression, scalar_parameter_count)
                 })
                 .or_else(|| {
@@ -1719,6 +1731,12 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_affine_cast_affine_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
+                    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
                         expression,
                         scalar_parameter_count,
                     )
@@ -1809,6 +1827,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     shared_exact_shift_cast_shift_runtime_inputs(expression, scalar_parameter_count)
                 })
                 .or_else(|| {
+                    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_mixed_shift_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1888,6 +1912,12 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
                 .or_else(|| {
+                    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_cast_then_divide_remainder_runtime_inputs(
                         expression,
                         scalar_parameter_count,
@@ -1956,6 +1986,12 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_shift_cast_shift_runtime_inputs(expression, scalar_parameter_count)
+                })
+                .or_else(|| {
+                    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
+                        expression,
+                        scalar_parameter_count,
+                    )
                 })
                 .or_else(|| {
                     shared_exact_cast_then_mixed_shift_runtime_inputs(
@@ -2150,6 +2186,228 @@ fn partial_fixed_native_primitive_cast(source: PrimitiveType, target: PrimitiveT
     };
     source != target
         && !(target_interval.0 <= source_interval.0 && source_interval.1 <= target_interval.1)
+}
+
+fn shared_exact_cast_chain_then_computed_suffix_runtime_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    shared_exact_cast_chain_then_affine_runtime_inputs(expression, scalar_parameter_count)
+        .or_else(|| {
+            shared_exact_cast_chain_then_signed_product_runtime_inputs(
+                expression,
+                scalar_parameter_count,
+            )
+        })
+        .or_else(|| {
+            shared_exact_cast_chain_then_shift_runtime_inputs(expression, scalar_parameter_count)
+        })
+        .or_else(|| {
+            shared_exact_cast_chain_then_divide_remainder_runtime_inputs(
+                expression,
+                scalar_parameter_count,
+            )
+        })
+}
+
+fn shared_exact_cast_chain_suffix_root_runtime_inputs(
+    target_type: PrimitiveType,
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let CheckedScalarExpression::IntegerExactCast {
+        primitive_type: cast_target_type,
+        operand,
+        ..
+    } = expression
+    else {
+        return None;
+    };
+    (*cast_target_type == target_type).then_some(())?;
+    shared_exact_cast_chain_runtime_inputs(target_type, operand, scalar_parameter_count)
+}
+
+fn shared_exact_cast_chain_then_affine_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                kind @ (CheckedIntegerBinaryKind::ExactAdd
+                | CheckedIntegerBinaryKind::ExactSubtract
+                | CheckedIntegerBinaryKind::ExactMultiply),
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || match kind {
+                CheckedIntegerBinaryKind::ExactAdd | CheckedIntegerBinaryKind::ExactSubtract => {
+                    !exact_offset_landed_literal(*primitive_type, right)
+                }
+                CheckedIntegerBinaryKind::ExactMultiply => {
+                    !nonnegative_exact_multiply_literal(*primitive_type, right)
+                }
+                _ => unreachable!("matched one exact affine operation"),
+            }
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactAdd
+                    | CheckedIntegerBinaryKind::ExactSubtract
+                    | CheckedIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            root => {
+                return shared_exact_cast_chain_suffix_root_runtime_inputs(
+                    *primitive_type,
+                    root,
+                    scalar_parameter_count,
+                );
+            }
+        }
+    }
+}
+
+fn shared_exact_cast_chain_then_signed_product_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut product = Some((false, 1_u128));
+    let mut saw_negative = false;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactMultiply,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let factor = signed_exact_multiply_literal_value(*primitive_type, right)?;
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type) {
+            return None;
+        }
+        product = checked_signed_product(product, factor);
+        saw_negative |= factor < 0;
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            root if product.is_some() && saw_negative => {
+                return shared_exact_cast_chain_suffix_root_runtime_inputs(
+                    *primitive_type,
+                    root,
+                    scalar_parameter_count,
+                );
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_cast_chain_then_shift_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind:
+                CheckedIntegerBinaryKind::ExactShiftLeft | CheckedIntegerBinaryKind::ExactShiftRight,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || landed_exact_shift_literal_count(*primitive_type, right).is_none()
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactShiftLeft | CheckedIntegerBinaryKind::ExactShiftRight,
+                ..
+            } => expression = nested,
+            root => {
+                return shared_exact_cast_chain_suffix_root_runtime_inputs(
+                    *primitive_type,
+                    root,
+                    scalar_parameter_count,
+                );
+            }
+        }
+    }
+}
+
+fn shared_exact_cast_chain_then_divide_remainder_runtime_inputs(
+    mut expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    loop {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+            primitive_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        if chain_type.is_some_and(|chain_type| chain_type != *primitive_type)
+            || !safe_exact_divide_remainder_literal(*primitive_type, right)
+        {
+            return None;
+        }
+        chain_type = Some(*primitive_type);
+        match left.as_ref() {
+            nested @ CheckedScalarExpression::IntegerBinary {
+                kind:
+                    CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder,
+                ..
+            } => expression = nested,
+            root => {
+                return shared_exact_cast_chain_suffix_root_runtime_inputs(
+                    *primitive_type,
+                    root,
+                    scalar_parameter_count,
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> Option<Vec<usize>> {
+    shared_exact_cast_chain_then_computed_suffix_runtime_inputs(expression, scalar_parameter_count)?
+        .into_iter()
+        .map(|input| match input {
+            SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
+            _ => None,
+        })
+        .collect()
 }
 
 fn shared_exact_computed_prefix_cast_chain_runtime_inputs(

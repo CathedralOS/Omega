@@ -450,6 +450,14 @@ Remaining:
   cast obligation remains independently evidenced. Empty affine/product/shift
   preimages are falsehood, checked replay failure admits no family, and the
   divide/remainder hull remains admissible only by complete containment.
+  Conversely, a finite chain of at least two partial exact casts may feed one
+  nonempty already-admitted target-carrier affine, homogeneous signed-product,
+  exact-shift, or landed-safe-literal divide/remainder suffix. The verifier
+  first validates and intersects the complete ordered cast chain without
+  importing any cast evidence, then reuses only the selected post-cast
+  family's existing inverse algebra for the current suffix prefix. Every cast
+  and suffix operation remains independently evidenced; mathematical empty
+  preimages are falsehood and checked replay failure admits no family.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

@@ -545,6 +545,16 @@ source-root bounds. The direct cast proof, every left-prefix proof, and every
 right count proof remain independently mandatory. Mathematical emptiness is
 canonical falsehood; checked transfer failure admits no family. Homogeneous
 post-cast shift chains stay on their narrower existing paths.
+A finite ordered chain of at least two validator-legal partial fixed-native
+exact casts may likewise root one nonempty computed suffix in the final target
+carrier. The classifier admits only the existing affine, homogeneous signed-
+product, exact-shift, or landed-safe-literal divide/remainder suffix shapes.
+For each proof-bearing suffix prefix, the verifier validates the full shrinking
+cast-definition walk, intersects every carrier without importing cast evidence,
+and then applies only that suffix family's existing inverse transfer. Every
+cast and suffix operation keeps distinct evidence. Empty mathematical
+preimages become canonical falsehood; malformed definitions, runtime literals,
+or checked interval failure admit no family.
 The unified sandwich permits nonempty finite exact-shift chains on both sides
 of one validator-legal partial fixed-native cast. Counts remain independently
 landed, heterogeneous, legal fixed-native literals, and either side may be

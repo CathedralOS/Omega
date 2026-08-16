@@ -6,6 +6,7 @@ use crate::flow::{
     exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test,
     exact_arithmetic_then_shift_runtime_parameter_positions_for_test,
     exact_cast_chain_runtime_parameter_positions_for_test,
+    exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_cast_then_affine_runtime_parameter_positions_for_test,
     exact_cast_then_divide_remainder_runtime_parameter_positions_for_test,
     exact_cast_then_mixed_shift_runtime_parameter_positions_for_test,
@@ -1979,6 +1980,177 @@ fn computed_prefix_cast_chain_classifier_reuses_only_existing_pre_cast_families(
         ),
         None,
         "local roots remain fenced",
+    );
+}
+
+#[test]
+fn cast_chain_then_computed_suffix_classifier_reuses_only_existing_post_cast_families() {
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let local = |primitive_type| CheckedScalarExpression::Local {
+        position: 0,
+        primitive_type,
+    };
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cast = |target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let signed_chain = || {
+        cast(
+            PrimitiveType::I32,
+            cast(PrimitiveType::U64, parameter(PrimitiveType::I64)),
+        )
+    };
+
+    let affine = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I32,
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I32,
+            signed_chain(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+        ),
+        literal(2i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(&affine, 1),
+        Some(vec![0]),
+    );
+
+    let signed_product = binary(
+        CheckedIntegerBinaryKind::ExactMultiply,
+        PrimitiveType::I32,
+        signed_chain(),
+        literal(-2i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &signed_product,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    let shifts = binary(
+        CheckedIntegerBinaryKind::ExactShiftRight,
+        PrimitiveType::I32,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftLeft,
+            PrimitiveType::I32,
+            signed_chain(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U16),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(&shifts, 1),
+        Some(vec![0]),
+    );
+
+    let unsigned_chain = cast(
+        PrimitiveType::U8,
+        cast(PrimitiveType::I8, parameter(PrimitiveType::U32)),
+    );
+    let divide_remainder = binary(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        PrimitiveType::U8,
+        binary(
+            CheckedIntegerBinaryKind::ExactDivide,
+            PrimitiveType::U8,
+            unsigned_chain,
+            literal(2i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(3i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &divide_remainder,
+            1,
+        ),
+        Some(vec![0]),
+    );
+
+    let one_cast = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I32,
+        cast(PrimitiveType::I32, parameter(PrimitiveType::I64)),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(&one_cast, 1),
+        None,
+        "one cast remains on its established post-cast path",
+    );
+
+    let widening_edge = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I32,
+        cast(
+            PrimitiveType::I32,
+            cast(PrimitiveType::I16, parameter(PrimitiveType::I8)),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &widening_edge,
+            1,
+        ),
+        None,
+        "every cast-chain edge remains partial",
+    );
+
+    let local_root = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I32,
+        cast(
+            PrimitiveType::I32,
+            cast(PrimitiveType::U64, local(PrimitiveType::I64)),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(&local_root, 1),
+        None,
+        "local roots remain fenced",
+    );
+
+    let cross_family = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::I32,
+        binary(
+            CheckedIntegerBinaryKind::ExactShiftRight,
+            PrimitiveType::I32,
+            signed_chain(),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::I32),
+    );
+    assert_eq!(
+        exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &cross_family,
+            1,
+        ),
+        None,
+        "cross-family suffixes remain fenced",
     );
 }
 

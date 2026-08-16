@@ -38,6 +38,8 @@ pub(crate) use terminal_unit::exact_arithmetic_then_shift_runtime_parameter_posi
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_affine_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_divide_remainder_runtime_parameter_positions_for_test;
