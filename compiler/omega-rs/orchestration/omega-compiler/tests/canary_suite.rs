@@ -17051,6 +17051,11 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("selected-provider adapter canary should compile to checked trees");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
@@ -17062,7 +17067,8 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
         "omega-selected-provider-adapter-{}",
         std::process::id()
     ));
-    compile_hosted_main_preserving_build(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("selected-provider adapter canary should compile natively");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -45207,6 +45213,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/runtime_inherited_trait_default_exit",
     "traits/runtime_generic_trait_default_exit",
     "providers/runtime_adapter_dispatch_exit",
+    "providers/provider_type_slot_selected",
     "providers/checked_boundary_operator_dispatch_exit",
     "providers/runtime_result_domain_requirement_overload_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
@@ -45813,40 +45820,6 @@ fn compile_hosted_main(
         hosted_main_program_entry_build(target),
     )
     .expect("write exact hosted ProgramEntry binding");
-    production_compile(CompileOptions {
-        root_path: source.join("main.omg"),
-        build_dir: Some(scratch.join("out")),
-        target_name: Some(target.into()),
-        write_output: true,
-    })
-}
-
-fn compile_hosted_main_preserving_build(
-    canary: &Path,
-    scratch: &Path,
-    target: &str,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let _ = fs::remove_dir_all(scratch);
-    let source = scratch.join("source");
-    copy_dir_recursive(canary, &source).expect("copy hosted canary source tree");
-
-    let build_path = source.join("build.omg");
-    let mut build = fs::read_to_string(&build_path).expect("read fixture build machine");
-    assert!(
-        !build.contains("b.roots.bind("),
-        "fixture build must not already bind a ProgramEntry root"
-    );
-    let build_close = build
-        .rfind('}')
-        .expect("fixture build machine should have a closing brace");
-    let root_owner = hosted_program_entry_owner(target);
-    build.insert_str(
-        build_close,
-        &format!("    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n"),
-    );
-    fs::write(build_path, format!("target {target} {{\n}}\n\n{build}"))
-        .expect("add exact hosted ProgramEntry binding to fixture build");
-
     production_compile(CompileOptions {
         root_path: source.join("main.omg"),
         build_dir: Some(scratch.join("out")),
