@@ -3415,7 +3415,61 @@ fn exact_manifest_termination<'program>(
     &fact.plan
 }
 
+struct ValidatedManifestSpecialization<'program> {
+    specialization: &'program psi_typed_trees::typed_trees::MachineSpecialization,
+    template: &'program Machine,
+    instance: &'program Machine,
+    instance_contract_fingerprint: u64,
+}
+
+fn exact_manifest_specialization_machine<'program>(
+    program: &'program CheckedTrees,
+    symbol: SymbolHandle,
+    role: &str,
+) -> &'program Machine {
+    let mut matches = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == symbol);
+    let machine = matches.next().unwrap_or_else(|| {
+        panic!("machine contract manifest specialization is missing its exact typed {role} machine")
+    });
+    assert!(
+        matches.next().is_none(),
+        "machine contract manifest specialization has duplicate exact typed {role} machines"
+    );
+    machine
+}
+
+fn validated_manifest_specializations(
+    program: &CheckedTrees,
+) -> Vec<ValidatedManifestSpecialization<'_>> {
+    let mut instance_symbols = Vec::new();
+    let mut validated = Vec::with_capacity(program.machine_specializations.len());
+    for specialization in &program.machine_specializations {
+        assert!(
+            !instance_symbols.contains(&specialization.instance),
+            "machine contract manifest specializations have duplicate exact instance rows"
+        );
+        instance_symbols.push(specialization.instance);
+        let template =
+            exact_manifest_specialization_machine(program, specialization.template, "template");
+        let instance =
+            exact_manifest_specialization_machine(program, specialization.instance, "instance");
+        validated.push(ValidatedManifestSpecialization {
+            specialization,
+            template,
+            instance,
+            instance_contract_fingerprint: specialization_instance_contract_fingerprint(
+                program, instance,
+            ),
+        });
+    }
+    validated
+}
+
 pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
+    let specializations = validated_manifest_specializations(program);
     let mut json = String::from("{\n  \"machines\": [");
     for (index, machine) in program.machines().iter().enumerate() {
         if index > 0 {
@@ -3727,32 +3781,19 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         json.push_str("  ");
     }
     json.push_str("],\n  \"specializations\": [");
-    for (index, specialization) in program.machine_specializations.iter().enumerate() {
+    for (index, row) in specializations.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
-        let template = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == specialization.template)
-            .map(|machine| machine.name.as_str())
-            .unwrap_or("<unknown>");
-        let instance = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == specialization.instance)
-            .map(|machine| machine.name.as_str())
-            .unwrap_or("<unknown>");
-        let instance_contract_fingerprint =
-            specialization_instance_contract_fingerprint(program, specialization.instance);
+        let specialization = row.specialization;
         json.push_str("\n    {\n      \"template\": ");
-        push_json_string(&mut json, template);
+        push_json_string(&mut json, row.template.name.as_str());
         json.push_str(",\n      \"instance\": ");
-        push_json_string(&mut json, instance);
+        push_json_string(&mut json, row.instance.name.as_str());
         json.push_str(",\n      \"instance_fingerprint\": \"0x");
         json.push_str(&format!("{:016x}", specialization.fingerprint));
         json.push_str("\",\n      \"instance_contract_fingerprint\": \"0x");
-        json.push_str(&format!("{instance_contract_fingerprint:016x}"));
+        json.push_str(&format!("{:016x}", row.instance_contract_fingerprint));
         json.push_str("\",\n      \"template_contract_fingerprint\": \"0x");
         json.push_str(&format!(
             "{:016x}",
@@ -3813,18 +3854,8 @@ fn mutation_frame_state_name<'program>(
         .expect("checked mutation write-frame state must belong to its exact fact machine")
 }
 
-fn specialization_instance_contract_fingerprint(
-    program: &CheckedTrees,
-    instance: SymbolHandle,
-) -> u64 {
-    program
-        .facts
-        .contract_plans
-        .for_machine(instance)
-        .unwrap_or_else(|| {
-            panic!("checked specialization instance must have an exact machine contract plan")
-        })
-        .fingerprint
+fn specialization_instance_contract_fingerprint(program: &CheckedTrees, instance: &Machine) -> u64 {
+    exact_manifest_machine_contract(program, instance).fingerprint
 }
 
 fn supply_mode_name(mode: psi_language_semantics::MachineSupplyMode) -> &'static str {
@@ -10136,6 +10167,171 @@ mod tests {
         );
     }
 
+    fn specialization_coordinate_fixture() -> CheckedTrees {
+        let template_symbol = SymbolHandle::from_arena_index(70);
+        let clone_symbol = SymbolHandle::from_arena_index(71);
+        let mut program = CheckedTrees::default();
+        for (machine_symbol, state_symbol, name, fingerprint) in [
+            (
+                template_symbol,
+                SymbolHandle::from_arena_index(72),
+                "Template::run",
+                0x1111,
+            ),
+            (
+                clone_symbol,
+                SymbolHandle::from_arena_index(73),
+                "Template::run#clone",
+                0x2222,
+            ),
+        ] {
+            let mut machine = Machine {
+                symbol: machine_symbol,
+                name: Identifier::generated(name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    name: Identifier::generated("entry"),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+            push_behavior_contract(&mut program, machine_symbol, false, false);
+            program
+                .facts
+                .contract_plans
+                .machines
+                .last_mut()
+                .expect("specialization coordinate contract")
+                .fingerprint = fingerprint;
+        }
+        program.typed.machine_specializations = vec![
+            MachineSpecialization {
+                template: template_symbol,
+                instance: template_symbol,
+                type_arguments: vec!["ReadableReuse".to_owned()],
+                type_argument_identities: vec!["type(reuse)".to_owned()],
+                fingerprint: 0xaaaa,
+                ..Default::default()
+            },
+            MachineSpecialization {
+                template: template_symbol,
+                instance: clone_symbol,
+                type_arguments: vec!["ReadableClone".to_owned()],
+                type_argument_identities: vec!["type(clone)".to_owned()],
+                fingerprint: 0xbbbb,
+                ..Default::default()
+            },
+        ];
+        program
+    }
+
+    #[test]
+    fn machine_contract_manifest_specialization_coordinates_accept_reuse_and_clone_in_order() {
+        let program = specialization_coordinate_fixture();
+
+        let json = machine_contract_manifest_json(&program);
+        let reuse = json
+            .find("\"instance\": \"Template::run\"")
+            .expect("reused template specialization");
+        let cloned = json
+            .find("\"instance\": \"Template::run#clone\"")
+            .expect("cloned specialization");
+
+        assert!(reuse < cloned);
+        assert!(json[reuse..cloned].contains("\"instance_fingerprint\": \"0x000000000000aaaa\""));
+        assert!(
+            json[reuse..cloned]
+                .contains("\"instance_contract_fingerprint\": \"0x0000000000001111\"")
+        );
+        assert!(json[cloned..].contains("\"instance_fingerprint\": \"0x000000000000bbbb\""));
+        assert!(
+            json[cloned..].contains("\"instance_contract_fingerprint\": \"0x0000000000002222\"")
+        );
+    }
+
+    #[test]
+    fn machine_contract_manifest_specialization_coordinates_keep_rows_orthogonal() {
+        let mut program = specialization_coordinate_fixture();
+        let baseline = machine_contract_manifest_json(&program);
+        program.typed.machine_specializations[1].type_arguments = vec!["ChangedDisplay".to_owned()];
+        program.typed.machine_specializations[1].type_argument_identities =
+            vec!["type(changed)".to_owned()];
+        let changed = machine_contract_manifest_json(&program);
+        let specialization_start = baseline.find("\"specializations\"").expect("section");
+        let baseline_clone = baseline
+            .find("\"instance\": \"Template::run#clone\"")
+            .expect("baseline clone");
+        let changed_clone = changed
+            .find("\"instance\": \"Template::run#clone\"")
+            .expect("changed clone");
+
+        assert_eq!(
+            &baseline[specialization_start..baseline_clone],
+            &changed[specialization_start..changed_clone]
+        );
+        assert!(changed[changed_clone..].contains("\"type_arguments\": [\"ChangedDisplay\"]"));
+        assert!(
+            changed[changed_clone..].contains("\"type_argument_identities\": [\"type(changed)\"]")
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "missing its exact typed template machine")]
+    fn machine_contract_manifest_specialization_coordinates_reject_missing_template() {
+        let mut program = specialization_coordinate_fixture();
+        program.typed.machine_specializations[0].template = SymbolHandle::invalid();
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact typed template machines")]
+    fn machine_contract_manifest_specialization_coordinates_reject_duplicate_template() {
+        let mut program = specialization_coordinate_fixture();
+        let duplicate = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == program.machine_specializations[0].template)
+            .expect("template machine")
+            .clone();
+        program.typed.push_machine(duplicate);
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "missing its exact typed instance machine")]
+    fn machine_contract_manifest_specialization_coordinates_reject_missing_instance() {
+        let mut program = specialization_coordinate_fixture();
+        program.typed.machine_specializations[1].instance = SymbolHandle::invalid();
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact typed instance machines")]
+    fn machine_contract_manifest_specialization_coordinates_reject_duplicate_instance() {
+        let mut program = specialization_coordinate_fixture();
+        let duplicate = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == program.machine_specializations[1].instance)
+            .expect("instance machine")
+            .clone();
+        program.typed.push_machine(duplicate);
+        machine_contract_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate exact instance rows")]
+    fn machine_contract_manifest_specialization_coordinates_reject_duplicate_instance_row() {
+        let mut program = specialization_coordinate_fixture();
+        let duplicate = program.machine_specializations[0].clone();
+        program.typed.machine_specializations.push(duplicate);
+        machine_contract_manifest_json(&program);
+    }
+
     #[test]
     fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
         let symbol = SymbolHandle::from_arena_index(3);
@@ -10202,11 +10398,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "must have an exact machine contract plan")]
+    #[should_panic(expected = "missing its exact machine contract row")]
     fn specialization_manifest_fails_closed_without_exact_instance_contract() {
-        specialization_instance_contract_fingerprint(
-            &CheckedTrees::default(),
-            SymbolHandle::from_arena_index(1),
-        );
+        let instance = Machine {
+            symbol: SymbolHandle::from_arena_index(1),
+            name: Identifier::generated("Missing::instance"),
+            ..Default::default()
+        };
+        specialization_instance_contract_fingerprint(&CheckedTrees::default(), &instance);
     }
 }
