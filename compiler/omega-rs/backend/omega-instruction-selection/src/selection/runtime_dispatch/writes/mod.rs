@@ -394,22 +394,83 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                     collection: target,
                     index: element_index,
                 }));
-            let element_emitted = select_runtime_storage_resolved_mutation_write_in_mutable_table(
-                input,
-                dispatch_index,
-                operation_source_key,
-                target_source_key,
-                value_source_key,
-                statement_index,
-                expressions,
-                element_target,
-                element,
-                aliases,
-                resolved_segment_expressions,
-                static_values,
-                runtime_value_operands,
-                selected_instructions,
-            );
+            // A state call nested in an array literal has already run and
+            // materialized its exact occurrence-ranked result slot before the
+            // LocalStorage operation reaches this decomposition. Copy that
+            // result into the element's resolved destination. Treating the
+            // Call as an ordinary scalar element cannot recover its storage
+            // place and silently leaves the element at ZII (notably
+            // `[convert(0)]` under an expected result-domain-qualified array).
+            // Builtin calls remain expression operators and take the ordinary
+            // element lowering below.
+            let call_result_copy = match expressions.expression(element) {
+                ExpressionNode::Call(call)
+                    if mutation::builtin_runtime_call_operator_in_table(input, call).is_none() =>
+                {
+                    mutation::resolve_runtime_table_call_result_source_place(
+                        input,
+                        dispatch_index,
+                        value_source_key,
+                        statement_index,
+                        expressions,
+                        value,
+                        element,
+                        call,
+                        None,
+                    )
+                    .and_then(|source| {
+                        let target = resolve_runtime_storage_place_in_table(
+                            input,
+                            dispatch_index,
+                            target_source_key,
+                            expressions,
+                            element_target,
+                        )?;
+                        (source.byte_count == target.byte_count && target.byte_count > 0).then(
+                            || {
+                                crate::selection::runtime_dispatch::copy_places_direct(
+                                    source.region,
+                                    source.byte_offset,
+                                    target.region,
+                                    target.byte_offset,
+                                    target.byte_count,
+                                )
+                            },
+                        )
+                    })
+                }
+                _ => None,
+            };
+            let element_emitted = if let Some(kind) = call_result_copy {
+                invalidate_runtime_static_value_in_table(
+                    static_values,
+                    expressions,
+                    element_target,
+                );
+                selected_instructions.push(SelectedInstruction {
+                    kind,
+                    source_key: operation_source_key,
+                    source_statement: statement_index,
+                });
+                true
+            } else {
+                select_runtime_storage_resolved_mutation_write_in_mutable_table(
+                    input,
+                    dispatch_index,
+                    operation_source_key,
+                    target_source_key,
+                    value_source_key,
+                    statement_index,
+                    expressions,
+                    element_target,
+                    element,
+                    aliases,
+                    resolved_segment_expressions,
+                    static_values,
+                    runtime_value_operands,
+                    selected_instructions,
+                )
+            };
             any_element_failed |= !element_emitted;
             emitted |= element_emitted;
         }
