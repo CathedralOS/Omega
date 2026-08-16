@@ -299,17 +299,13 @@ pub(super) fn write_trust_report(
         let granted = root_grants
             .iter()
             .any(|grant| grant == machine.name.as_str() || grant == leaf);
-        let machine_contract_fingerprint = checked
-            .facts
-            .contract_plans
-            .for_machine(machine.symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "accepted machine `{}` has no exact checked contract plan",
-                    machine.name.as_str()
-                ))]
-            })?
-            .fingerprint;
+        let contract = exact_machine_contract_plan(
+            checked,
+            machine.symbol,
+            &format!("accepted machine `{}`", machine.name.as_str()),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_contract_fingerprint = contract.fingerprint;
         let machine_template_fingerprint = generic_accepted_template_fingerprints
             .for_machine(machine.symbol, machine.name.as_str())
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -331,9 +327,8 @@ pub(super) fn write_trust_report(
         let machine_terminates_guarantee =
             accepted_machine_terminates_guarantee(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
-        let machine_crash_routes =
-            accepted_machine_crash_routes(checked, machine.symbol, machine.name.as_str())
-                .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_crash_routes = accepted_machine_crash_routes(contract, machine.name.as_str())
+            .map_err(|diagnostic| vec![diagnostic])?;
         report.rows.push(TrustReportRow {
             commitment: format!("accepted fact: {}", machine.name.as_str()),
             provenance: if granted {
@@ -422,16 +417,34 @@ fn accepted_instance_contract_fingerprint(
     instance: psi_symbols::SymbolHandle,
     template_commitment: &str,
 ) -> Result<u64, Diagnostic> {
-    checked
+    exact_machine_contract_plan(
+        checked,
+        instance,
+        &format!("accepted generic instance of `{template_commitment}`"),
+    )
+    .map(|plan| plan.fingerprint)
+}
+
+fn exact_machine_contract_plan<'checked>(
+    checked: &'checked psi_checked_trees::CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    subject: &str,
+) -> Result<&'checked psi_checked_trees::MachineContractPlan, Diagnostic> {
+    let mut matches = checked
         .facts
         .contract_plans
-        .for_machine(instance)
-        .map(|plan| plan.fingerprint)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "accepted generic instance of `{template_commitment}` has no exact checked contract plan"
-            ))
-        })
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine);
+    let plan = matches.next().ok_or_else(|| {
+        Diagnostic::error(format!("{subject} has no exact checked contract plan"))
+    })?;
+    if matches.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "{subject} has duplicate exact checked contract plans"
+        )));
+    }
+    Ok(plan)
 }
 
 fn accepted_machine_service_reach(
@@ -439,15 +452,22 @@ fn accepted_machine_service_reach(
     machine: psi_symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<Vec<String>, Diagnostic> {
-    let machine_reach = checked
+    let mut matches = checked
         .facts
         .service_reaches
-        .for_machine(machine)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "accepted machine `{machine_name}` has no exact checked service-reach facts"
-            ))
-        })?;
+        .machines()
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let machine_reach = matches.next().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has no exact checked service-reach facts"
+        ))
+    })?;
+    if matches.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has duplicate exact checked service-reach facts"
+        )));
+    }
     let psi_language_semantics::ServiceReachInterface::PublishedCeiling(reach_row) =
         machine_reach.interface
     else {
@@ -455,11 +475,13 @@ fn accepted_machine_service_reach(
             "accepted machine `{machine_name}` has no published service-reach ceiling"
         )));
     };
-    checked
-        .facts
-        .service_reaches
-        .rows
-        .services(reach_row)
+    let services = checked.facts.service_reaches.rows.services(reach_row);
+    if services.is_empty() && reach_row != psi_language_semantics::ServiceReachRowTable::EMPTY_ROW {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` references an unknown service-reach row identity"
+        )));
+    }
+    services
         .iter()
         .map(|service| {
             checked
@@ -482,15 +504,25 @@ fn accepted_machine_synchronous_invocations(
     machine: psi_symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<Vec<String>, Diagnostic> {
-    let plan = checked
+    let mut matches = checked
         .facts
         .synchronous_invocations
-        .for_machine(machine)
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let plan = &matches
+        .next()
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "accepted machine `{machine_name}` has no exact checked synchronous-invocation facts"
             ))
-        })?;
+        })?
+        .plan;
+    if matches.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has duplicate exact checked synchronous-invocation facts"
+        )));
+    }
     if plan.interface != psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling {
         return Err(Diagnostic::error(format!(
             "accepted machine `{machine_name}` has no published synchronous-invocation ceiling"
@@ -504,15 +536,25 @@ fn accepted_machine_may_suspend(
     machine: psi_symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<bool, Diagnostic> {
-    let plan = checked
+    let mut matches = checked
         .facts
         .suspensions
-        .for_machine(machine)
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let plan = matches
+        .next()
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "accepted machine `{machine_name}` has no exact checked suspension facts"
             ))
-        })?;
+        })?
+        .plan;
+    if matches.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has duplicate exact checked suspension facts"
+        )));
+    }
     let psi_language_semantics::SuspensionInterface::PublishedMaySuspend(may_suspend) =
         plan.interface
     else {
@@ -528,11 +570,25 @@ fn accepted_machine_may_block(
     machine: psi_symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<bool, Diagnostic> {
-    let plan = checked.facts.blocking.for_machine(machine).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "accepted machine `{machine_name}` has no exact checked blocking facts"
-        ))
-    })?;
+    let mut matches = checked
+        .facts
+        .blocking
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let plan = matches
+        .next()
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "accepted machine `{machine_name}` has no exact checked blocking facts"
+            ))
+        })?
+        .plan;
+    if matches.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has duplicate exact checked blocking facts"
+        )));
+    }
     let psi_language_semantics::BlockingInterface::PublishedMayBlock(may_block) = plan.interface
     else {
         return Err(Diagnostic::error(format!(
@@ -547,15 +603,25 @@ fn accepted_machine_terminates_guarantee(
     machine: psi_symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<bool, Diagnostic> {
-    let plan = checked
+    let mut matches = checked
         .facts
         .termination
-        .for_machine(machine)
+        .machines
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let plan = &matches
+        .next()
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "accepted machine `{machine_name}` has no exact checked termination facts"
             ))
-        })?;
+        })?
+        .plan;
+    if matches.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "accepted machine `{machine_name}` has duplicate exact checked termination facts"
+        )));
+    }
     match &plan.interface {
         psi_language_semantics::TerminationInterface::InternalDerived => Err(Diagnostic::error(
             format!("accepted machine `{machine_name}` has no published termination interface"),
@@ -575,19 +641,9 @@ fn accepted_machine_terminates_guarantee(
 }
 
 fn accepted_machine_crash_routes(
-    checked: &psi_checked_trees::CheckedTrees,
-    machine: psi_symbols::SymbolHandle,
+    plan: &psi_checked_trees::MachineContractPlan,
     machine_name: &str,
 ) -> Result<Vec<TrustCrashRouteBucket>, Diagnostic> {
-    let plan = checked
-        .facts
-        .contract_plans
-        .for_machine(machine)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "accepted machine `{machine_name}` has no exact checked crash plan"
-            ))
-        })?;
     if plan.crash.interface() != psi_checked_trees::CrashInterface::PublishedCeiling {
         return Err(Diagnostic::error(format!(
             "accepted machine `{machine_name}` has no published crash ceiling"
@@ -670,9 +726,9 @@ mod tests {
     };
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, MachineTerminationPlan, ProgressProfileId, RankingWitness,
-        ServiceReachInterface, ServiceReachRowTable, ServiceReachTable, SuspensionInterface,
-        SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
-        TerminationGuarantee, TerminationInterface,
+        ServiceReachInterface, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,
+        SuspensionInterface, SuspensionPlan, SynchronousInvocationInterface,
+        SynchronousInvocationPlan, TerminationGuarantee, TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
 
@@ -681,6 +737,7 @@ mod tests {
         accepted_instance_contract_fingerprint, accepted_machine_crash_routes,
         accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
         accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
+        exact_machine_contract_plan,
     };
 
     #[test]
@@ -743,6 +800,16 @@ mod tests {
             accepted_instance_contract_fingerprint(&checked, machine, "admitted"),
             Ok(0x1234_5678_9abc_def0)
         );
+
+        let duplicate = checked.facts.contract_plans.machines[0].clone();
+        checked.facts.contract_plans.machines.push(duplicate);
+        let duplicate = accepted_instance_contract_fingerprint(&checked, machine, "admitted")
+            .expect_err("duplicate checked instance plans must fail closed");
+        assert!(
+            duplicate
+                .message
+                .contains("duplicate exact checked contract plans")
+        );
     }
 
     fn checked_with_reach(
@@ -781,6 +848,334 @@ mod tests {
             crash_capsules: Vec::new(),
         };
         checked
+    }
+
+    #[derive(Clone, Copy)]
+    enum AcceptedTrustAxis {
+        Contract,
+        ServiceReach,
+        SynchronousInvocation,
+        Suspension,
+        Blocking,
+        Termination,
+    }
+
+    impl AcceptedTrustAxis {
+        const ALL: [Self; 6] = [
+            Self::Contract,
+            Self::ServiceReach,
+            Self::SynchronousInvocation,
+            Self::Suspension,
+            Self::Blocking,
+            Self::Termination,
+        ];
+
+        fn label(self) -> &'static str {
+            match self {
+                Self::Contract => "contract",
+                Self::ServiceReach => "service reach",
+                Self::SynchronousInvocation => "synchronous invocation",
+                Self::Suspension => "suspension",
+                Self::Blocking => "blocking",
+                Self::Termination => "termination",
+            }
+        }
+    }
+
+    fn accepted_exact_rows_fixture(machine: SymbolHandle) -> CheckedTrees {
+        let mut checked = CheckedTrees::default();
+        checked
+            .facts
+            .contract_plans
+            .machines
+            .push(MachineContractPlan {
+                machine,
+                closed_scalar_values: Default::default(),
+                crash: CrashPlan::published_ceiling(Vec::new()),
+                fingerprint: 0x1234,
+            });
+        let empty_reach = checked.facts.service_reaches.rows.intern(Vec::new());
+        checked.facts.service_reaches.machines.append_to_span(
+            &mut checked.facts.service_reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                interface: ServiceReachInterface::PublishedCeiling(empty_reach),
+                ..Default::default()
+            },
+        );
+        checked
+            .facts
+            .synchronous_invocations
+            .machines
+            .push(MachineSynchronousInvocationFact {
+                machine,
+                plan: SynchronousInvocationPlan {
+                    interface: SynchronousInvocationInterface::PublishedCeiling,
+                    published: Vec::new(),
+                    checked_inferred: vec!["service:Private".to_owned()],
+                },
+            });
+        checked
+            .facts
+            .suspensions
+            .machines
+            .push(MachineSuspensionFact {
+                machine,
+                plan: SuspensionPlan {
+                    interface: SuspensionInterface::PublishedMaySuspend(false),
+                    checked_may_suspend: true,
+                },
+            });
+        checked.facts.blocking.machines.push(MachineBlockingFact {
+            machine,
+            plan: BlockingPlan {
+                interface: BlockingInterface::PublishedMayBlock(false),
+                checked_may_block: true,
+            },
+        });
+        checked
+            .facts
+            .termination
+            .machines
+            .push(MachineTerminationFact {
+                machine,
+                plan: MachineTerminationPlan {
+                    interface: TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
+                    checked_summary: TerminationGuarantee::Terminates {
+                        premises: Vec::new(),
+                    },
+                    implementation_witness: Some(RankingWitness {
+                        view_path: "Private::Witness".to_owned(),
+                        ..Default::default()
+                    }),
+                },
+            });
+        checked
+    }
+
+    fn validate_accepted_axis(
+        checked: &CheckedTrees,
+        machine: SymbolHandle,
+        axis: AcceptedTrustAxis,
+    ) -> Result<(), String> {
+        let result = match axis {
+            AcceptedTrustAxis::Contract => {
+                exact_machine_contract_plan(checked, machine, "accepted machine `accepted`")
+                    .map(|_| ())
+            }
+            AcceptedTrustAxis::ServiceReach => {
+                accepted_machine_service_reach(checked, machine, "accepted").map(|_| ())
+            }
+            AcceptedTrustAxis::SynchronousInvocation => {
+                accepted_machine_synchronous_invocations(checked, machine, "accepted").map(|_| ())
+            }
+            AcceptedTrustAxis::Suspension => {
+                accepted_machine_may_suspend(checked, machine, "accepted").map(|_| ())
+            }
+            AcceptedTrustAxis::Blocking => {
+                accepted_machine_may_block(checked, machine, "accepted").map(|_| ())
+            }
+            AcceptedTrustAxis::Termination => {
+                accepted_machine_terminates_guarantee(checked, machine, "accepted").map(|_| ())
+            }
+        };
+        result.map_err(|diagnostic| diagnostic.message)
+    }
+
+    fn remove_accepted_axis(
+        checked: &mut CheckedTrees,
+        machine: SymbolHandle,
+        axis: AcceptedTrustAxis,
+    ) {
+        match axis {
+            AcceptedTrustAxis::Contract => checked
+                .facts
+                .contract_plans
+                .machines
+                .retain(|row| row.machine != machine),
+            AcceptedTrustAxis::ServiceReach => {
+                checked
+                    .facts
+                    .service_reaches
+                    .machines
+                    .for_each_mut(|_, row| {
+                        if row.machine == machine {
+                            row.machine = SymbolHandle::invalid();
+                        }
+                    });
+            }
+            AcceptedTrustAxis::SynchronousInvocation => checked
+                .facts
+                .synchronous_invocations
+                .machines
+                .retain(|row| row.machine != machine),
+            AcceptedTrustAxis::Suspension => checked
+                .facts
+                .suspensions
+                .machines
+                .retain(|row| row.machine != machine),
+            AcceptedTrustAxis::Blocking => checked
+                .facts
+                .blocking
+                .machines
+                .retain(|row| row.machine != machine),
+            AcceptedTrustAxis::Termination => checked
+                .facts
+                .termination
+                .machines
+                .retain(|row| row.machine != machine),
+        }
+    }
+
+    fn append_accepted_axis_copy(
+        checked: &mut CheckedTrees,
+        source: SymbolHandle,
+        owner: SymbolHandle,
+        axis: AcceptedTrustAxis,
+    ) {
+        match axis {
+            AcceptedTrustAxis::Contract => {
+                let mut row = checked
+                    .facts
+                    .contract_plans
+                    .machines
+                    .iter()
+                    .find(|row| row.machine == source)
+                    .expect("source contract row")
+                    .clone();
+                row.machine = owner;
+                checked.facts.contract_plans.machines.push(row);
+            }
+            AcceptedTrustAxis::ServiceReach => {
+                let mut row = checked
+                    .facts
+                    .service_reaches
+                    .machines()
+                    .iter()
+                    .find(|row| row.machine == source)
+                    .expect("source service-reach row")
+                    .clone();
+                row.machine = owner;
+                checked
+                    .facts
+                    .service_reaches
+                    .machines
+                    .append_to_span(&mut checked.facts.service_reaches.root_machines, row);
+            }
+            AcceptedTrustAxis::SynchronousInvocation => {
+                let mut row = checked
+                    .facts
+                    .synchronous_invocations
+                    .machines
+                    .iter()
+                    .find(|row| row.machine == source)
+                    .expect("source synchronous-invocation row")
+                    .clone();
+                row.machine = owner;
+                checked.facts.synchronous_invocations.machines.push(row);
+            }
+            AcceptedTrustAxis::Suspension => {
+                let mut row = *checked
+                    .facts
+                    .suspensions
+                    .machines
+                    .iter()
+                    .find(|row| row.machine == source)
+                    .expect("source suspension row");
+                row.machine = owner;
+                checked.facts.suspensions.machines.push(row);
+            }
+            AcceptedTrustAxis::Blocking => {
+                let mut row = *checked
+                    .facts
+                    .blocking
+                    .machines
+                    .iter()
+                    .find(|row| row.machine == source)
+                    .expect("source blocking row");
+                row.machine = owner;
+                checked.facts.blocking.machines.push(row);
+            }
+            AcceptedTrustAxis::Termination => {
+                let mut row = checked
+                    .facts
+                    .termination
+                    .machines
+                    .iter()
+                    .find(|row| row.machine == source)
+                    .expect("source termination row")
+                    .clone();
+                row.machine = owner;
+                checked.facts.termination.machines.push(row);
+            }
+        }
+    }
+
+    #[test]
+    fn accepted_trust_axes_require_one_exact_row_without_global_poisoning() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let unrelated = SymbolHandle::from_arena_index(2);
+        for axis in AcceptedTrustAxis::ALL {
+            let mut missing = accepted_exact_rows_fixture(machine);
+            remove_accepted_axis(&mut missing, machine, axis);
+            let error = validate_accepted_axis(&missing, machine, axis)
+                .expect_err("missing exact row must fail closed");
+            assert!(
+                error.contains("no exact checked"),
+                "{} missing diagnostic: {error}",
+                axis.label()
+            );
+
+            let mut duplicate = accepted_exact_rows_fixture(machine);
+            append_accepted_axis_copy(&mut duplicate, machine, machine, axis);
+            let error = validate_accepted_axis(&duplicate, machine, axis)
+                .expect_err("duplicate exact row must fail closed");
+            assert!(
+                error.contains("duplicate exact checked"),
+                "{} duplicate diagnostic: {error}",
+                axis.label()
+            );
+
+            let mut unrelated_duplicates = accepted_exact_rows_fixture(machine);
+            append_accepted_axis_copy(&mut unrelated_duplicates, machine, unrelated, axis);
+            append_accepted_axis_copy(&mut unrelated_duplicates, machine, unrelated, axis);
+            validate_accepted_axis(&unrelated_duplicates, machine, axis).unwrap_or_else(|error| {
+                panic!("{} unrelated rows must be ignored: {error}", axis.label())
+            });
+        }
+    }
+
+    #[test]
+    fn accepted_trust_axes_preserve_explicit_public_negatives() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let checked = accepted_exact_rows_fixture(machine);
+        assert_eq!(
+            accepted_machine_service_reach(&checked, machine, "accepted"),
+            Ok(Vec::new())
+        );
+        assert_eq!(
+            accepted_machine_synchronous_invocations(&checked, machine, "accepted"),
+            Ok(Vec::new())
+        );
+        assert_eq!(
+            accepted_machine_may_suspend(&checked, machine, "accepted"),
+            Ok(false)
+        );
+        assert_eq!(
+            accepted_machine_may_block(&checked, machine, "accepted"),
+            Ok(false)
+        );
+        assert_eq!(
+            accepted_machine_terminates_guarantee(&checked, machine, "accepted"),
+            Ok(false)
+        );
+        let contract =
+            exact_machine_contract_plan(&checked, machine, "accepted machine `accepted`")
+                .expect("one exact contract");
+        assert_eq!(
+            accepted_machine_crash_routes(contract, "accepted"),
+            Ok(Vec::new())
+        );
     }
 
     #[test]
@@ -837,6 +1232,17 @@ mod tests {
             .expect_err("unregistered service rejects")
             .to_string();
         assert!(unknown.contains("references an unknown service-reach identity"));
+
+        let invalid_row = checked_with_reach(
+            machine,
+            ServiceReachInterface::PublishedCeiling(ServiceReachRowId(99)),
+            ServiceReachTable::default(),
+            ServiceReachRowTable::default(),
+        );
+        let invalid_row = accepted_machine_service_reach(&invalid_row, machine, "invalid-row")
+            .expect_err("unknown row identity rejects")
+            .to_string();
+        assert!(invalid_row.contains("references an unknown service-reach row identity"));
     }
 
     #[test]
@@ -1068,9 +1474,12 @@ mod tests {
         .expect("nonempty guarded bucket");
         let abort = CrashRouteBucket::unconditional(CrashCause::Abort);
         let checked = checked_with_crash(machine, CrashPlan::published_ceiling(vec![abort, trap]));
+        let contract =
+            exact_machine_contract_plan(&checked, machine, "accepted machine `accepted`")
+                .expect("one exact contract");
 
         assert_eq!(
-            accepted_machine_crash_routes(&checked, machine, "accepted"),
+            accepted_machine_crash_routes(contract, "accepted"),
             Ok(vec![
                 TrustCrashRouteBucket {
                     cause: TrustCrashCause::Trap,
@@ -1087,13 +1496,20 @@ mod tests {
     #[test]
     fn accepted_crash_routes_fail_closed_on_missing_and_internal_plans() {
         let machine = SymbolHandle::from_arena_index(1);
-        let missing = accepted_machine_crash_routes(&CheckedTrees::default(), machine, "missing")
-            .expect_err("missing plan rejects")
-            .to_string();
-        assert!(missing.contains("has no exact checked crash plan"));
+        let missing = exact_machine_contract_plan(
+            &CheckedTrees::default(),
+            machine,
+            "accepted machine `missing`",
+        )
+        .expect_err("missing plan rejects")
+        .to_string();
+        assert!(missing.contains("has no exact checked contract plan"));
 
         let internal = checked_with_crash(machine, CrashPlan::default());
-        let internal = accepted_machine_crash_routes(&internal, machine, "internal")
+        let contract =
+            exact_machine_contract_plan(&internal, machine, "accepted machine `internal`")
+                .expect("one exact contract");
+        let internal = accepted_machine_crash_routes(contract, "internal")
             .expect_err("private inference rejects")
             .to_string();
         assert!(internal.contains("has no published crash ceiling"));
