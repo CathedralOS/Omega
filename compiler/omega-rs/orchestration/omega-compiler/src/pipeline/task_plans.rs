@@ -116,17 +116,11 @@ pub(super) fn elaborate_task_activation_plans(
             .iter()
             .map(|crossing| canonical_suspension_crossing(program, crossing))
             .collect::<Result<Vec<_>, _>>()?;
-        let activation_wide_carry = program
-            .facts
-            .carry
-            .activation_carry_for_machine(target_machine.symbol)
-            .filter(|fact| fact.analysis_complete)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "task activation target `{}` has incomplete activation-wide CPU/thread carry analysis",
-                    target_machine.name
-                ))]
-            })?;
+        let activation_wide_carry = exact_activation_wide_carry(
+            program,
+            target_machine.symbol,
+            target_machine.name.as_str(),
+        )?;
         let carry_obligations = carry_obligations(activation_wide_carry.effective);
         let (stack_bytes, stack_alignment) =
             fixed_stack_layout(program, target, &layouts, target_machine, &crossings.root)?;
@@ -266,6 +260,35 @@ fn selected_task_runtime_provider(
 struct ActivationCarryCrossings<'program> {
     root: Vec<&'program psi_checked_trees::SuspensionCrossingCarryFact>,
     subtree: Vec<&'program psi_checked_trees::SuspensionCrossingCarryFact>,
+}
+
+fn exact_activation_wide_carry<'program>(
+    program: &'program CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<&'program psi_checked_trees::MachineActivationCarryFact, Vec<Diagnostic>> {
+    let mut matches = program
+        .facts
+        .carry
+        .activation_wide_carry
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let fact = matches.next().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has no exact activation-wide CPU/thread carry envelope"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has duplicate exact activation-wide CPU/thread carry envelopes"
+        ))]);
+    }
+    if !fact.analysis_complete {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has incomplete activation-wide CPU/thread carry analysis"
+        ))]);
+    }
+    Ok(fact)
 }
 
 fn activation_carry_crossings(
@@ -1289,6 +1312,7 @@ mod tests {
             .iter()
             .find(|activation| activation.operation == TaskStartOperation::Start)
             .expect("start activation plan");
+        let target_machine_symbol = activation.target_machine;
         assert!(
             activations
                 .iter()
@@ -1384,6 +1408,153 @@ mod tests {
         assert_eq!(
             diagnostics[0].message,
             "task activation target `Worker::run` has no checked blocking plan"
+        );
+
+        let unrelated_machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol != target_machine_symbol)
+            .expect("unrelated checked machine")
+            .symbol;
+
+        let mut missing_carry = checked.clone();
+        missing_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .retain(|fact| fact.machine != target_machine_symbol);
+        let diagnostics =
+            elaborate_task_activation_plans(&missing_carry, &selected, NativeTarget::macos_arm64())
+                .expect_err("missing exact target carry envelope must fail closed");
+        assert_eq!(
+            diagnostics[0].message,
+            "task activation target `Worker::run` has no exact activation-wide CPU/thread carry envelope"
+        );
+
+        let mut duplicate_carry = checked.clone();
+        let duplicate = duplicate_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .iter()
+            .find(|fact| fact.machine == target_machine_symbol)
+            .expect("target carry envelope")
+            .clone();
+        duplicate_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .push(duplicate);
+        let diagnostics = elaborate_task_activation_plans(
+            &duplicate_carry,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("duplicate exact target carry envelope must fail closed");
+        assert_eq!(
+            diagnostics[0].message,
+            "task activation target `Worker::run` has duplicate exact activation-wide CPU/thread carry envelopes"
+        );
+
+        let mut incomplete_carry = checked.clone();
+        incomplete_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .iter_mut()
+            .find(|fact| fact.machine == target_machine_symbol)
+            .expect("target carry envelope")
+            .analysis_complete = false;
+        let diagnostics = elaborate_task_activation_plans(
+            &incomplete_carry,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("incomplete exact target carry envelope must fail closed");
+        assert_eq!(
+            diagnostics[0].message,
+            "task activation target `Worker::run` has incomplete activation-wide CPU/thread carry analysis"
+        );
+
+        let mut authoritative_carry = checked.clone();
+        let target_carry = authoritative_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .iter_mut()
+            .find(|fact| fact.machine == target_machine_symbol)
+            .expect("target carry envelope");
+        target_carry.effective.cpu = CarryCpu::Origin;
+        target_carry.effective.host_thread = CarryHostThread::Origin;
+        let authoritative = elaborate_task_activation_plans(
+            &authoritative_carry,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect("exact checked target envelope remains the sole carry authority");
+        let authoritative_plan = authoritative
+            .as_slice()
+            .iter()
+            .find(|activation| activation.operation == TaskStartOperation::Start)
+            .expect("authoritative start activation")
+            .plan
+            .candidate();
+        assert_eq!(
+            authoritative_plan.carry_obligations,
+            ActivationCarryObligations {
+                preserve_cpu: true,
+                preserve_host_thread: true,
+            }
+        );
+        assert_eq!(authoritative_plan.stack_plan, plan.stack_plan);
+        assert_eq!(
+            authoritative_plan.canonical_suspension_crossings,
+            plan.canonical_suspension_crossings,
+        );
+
+        let mut unrelated_carry = checked.clone();
+        let mut unrelated = unrelated_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .iter()
+            .find(|fact| fact.machine == target_machine_symbol)
+            .expect("target carry envelope")
+            .clone();
+        unrelated.machine = unrelated_machine;
+        unrelated_carry
+            .facts
+            .carry
+            .activation_wide_carry
+            .push(unrelated);
+        assert_eq!(
+            elaborate_task_activation_plans(
+                &unrelated_carry,
+                &selected,
+                NativeTarget::macos_arm64(),
+            )
+            .expect("unrelated carry envelope must not perturb exact target selection"),
+            task_activations,
+        );
+
+        let mut unrelated_only = checked.clone();
+        unrelated_only
+            .facts
+            .carry
+            .activation_wide_carry
+            .iter_mut()
+            .find(|fact| fact.machine == target_machine_symbol)
+            .expect("target carry envelope")
+            .machine = unrelated_machine;
+        let diagnostics = elaborate_task_activation_plans(
+            &unrelated_only,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("unrelated carry envelope must not satisfy exact target selection");
+        assert_eq!(
+            diagnostics[0].message,
+            "task activation target `Worker::run` has no exact activation-wide CPU/thread carry envelope"
         );
     }
 }
