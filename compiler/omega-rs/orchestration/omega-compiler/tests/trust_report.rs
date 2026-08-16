@@ -379,6 +379,165 @@ machine Main::exercise(&mut self) {{
 }
 
 #[test]
+fn trust_lock_requires_reapproval_for_added_removed_and_empty_claim_sets() {
+    let project = std::env::temp_dir().join(format!("omega-trust-lock-set-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"domain u32::Alpha;
+domain u32::Beta;
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+    let build_with = |grants: &[&str]| {
+        let grants = grants
+            .iter()
+            .map(|grant| format!("    b.accept_boundary<{grant}>();"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            r#"data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+machine build(b: &mut Build) {{
+{grants}
+}}
+"#
+        )
+    };
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    };
+    let lock_path = project.join("omega.lock");
+
+    std::fs::write(project.join("build.omg"), build_with(&["Alpha"])).expect("write first grant");
+    compile(options()).expect("first approval writes one receipt");
+    let one_receipt = std::fs::read_to_string(&lock_path).expect("read first receipt");
+
+    std::fs::write(project.join("build.omg"), build_with(&["Beta", "Alpha"])).expect("add grant");
+    let added = format!(
+        "{:?}",
+        compile(options()).expect_err("adding a grant requires reapproval")
+    );
+    assert!(added.contains("added: domain introduction: u32::Beta"));
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read preserved one-row lock"),
+        one_receipt
+    );
+
+    std::fs::remove_file(&lock_path).expect("delete lock to approve added grant");
+    compile(options()).expect("deleted lock reapproves complete two-row set");
+    let two_receipts = std::fs::read_to_string(&lock_path).expect("read two receipts");
+    let rows = two_receipts.lines().collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].ends_with("domain introduction: u32::Alpha"));
+    assert!(rows[1].ends_with("domain introduction: u32::Beta"));
+
+    std::fs::write(project.join("build.omg"), build_with(&["Beta"])).expect("remove first grant");
+    let removed = format!(
+        "{:?}",
+        compile(options()).expect_err("removing a grant requires reapproval")
+    );
+    assert!(removed.contains("removed: domain introduction: u32::Alpha"));
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read preserved two-row lock"),
+        two_receipts
+    );
+
+    std::fs::remove_file(&lock_path).expect("delete lock to approve removed grant");
+    compile(options()).expect("deleted lock reapproves one-row set");
+    let beta_receipt = std::fs::read_to_string(&lock_path).expect("read beta receipt");
+    std::fs::write(project.join("build.omg"), build_with(&[])).expect("remove final grant");
+    let empty = format!(
+        "{:?}",
+        compile(options()).expect_err("removing the final grant requires reapproval")
+    );
+    assert!(empty.contains("removed: domain introduction: u32::Beta"));
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read preserved final receipt"),
+        beta_receipt
+    );
+
+    std::fs::remove_file(&lock_path).expect("delete lock to approve empty set");
+    compile(options()).expect("empty set with no lock needs no receipt file");
+    assert!(!lock_path.exists());
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn trust_lock_rejects_corrupt_and_duplicate_rows_without_repair() {
+    let project =
+        std::env::temp_dir().join(format!("omega-trust-lock-corrupt-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+machine build(b: &mut Build) { b.accept_boundary<Alpha>(); }
+"#,
+    )
+    .expect("write build.omg");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"domain u32::Alpha;
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    };
+    let lock_path = project.join("omega.lock");
+    compile(options()).expect("write canonical lock");
+    let canonical = std::fs::read_to_string(&lock_path).expect("read canonical lock");
+
+    let malformed = "not a v1 trust receipt\n";
+    std::fs::write(&lock_path, malformed).expect("write malformed lock");
+    let error = format!(
+        "{:?}",
+        compile(options()).expect_err("malformed lock must reject")
+    );
+    assert!(error.contains("malformed v1 receipt row"));
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read preserved malformed lock"),
+        malformed
+    );
+
+    let duplicate = format!("{canonical}{canonical}");
+    std::fs::write(&lock_path, &duplicate).expect("write duplicate lock row");
+    let error = format!(
+        "{:?}",
+        compile(options()).expect_err("duplicate lock commitment must reject")
+    );
+    assert!(error.contains("duplicate commitment"));
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read preserved duplicate lock"),
+        duplicate
+    );
+
+    std::fs::write(&lock_path, canonical.as_bytes()).expect("restore canonical lock");
+    compile(options()).expect("unchanged canonical receipt remains accepted");
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read canonical lock after rebuild"),
+        canonical
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn granted_axiom_receipt_drifts_on_claim_edit() {
     // GR6d lockfile polish: a granted axiom's receipt hashes its rendered
     // ensures -- editing the CLAIM under the grant is drift.
