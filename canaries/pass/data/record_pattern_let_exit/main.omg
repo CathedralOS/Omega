@@ -3,7 +3,7 @@
 // __destructure#* marker (exhaustiveness carrier) + per-bound-field
 // Unit-sentinel lets whose types flow through hoist inference. Ranged
 // fields keep the decision-17 exact-arithmetic obligation dischargeable.
-// Run-verified natively: 30 + 40 = 70.
+// The runtime self-check accepts only 30 + 40 = 70.
 use omega::language::std::console;
 data Point {
     x: i32 [0..=100];
