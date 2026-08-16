@@ -17146,6 +17146,33 @@ fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
 }
 
 #[test]
+fn external_leaf_via_canary_selects_exact_free_import_plan() {
+    let canary = pass_canary("providers/external_leaf_via_compile");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("free external leaf should resolve the Shutdown slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let shutdown_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Shutdown")
+        .expect("Shutdown must retain its selected free external-leaf plan");
+    assert_eq!(shutdown_plan.provider_type, "");
+    assert!(shutdown_plan.covers_schema());
+    assert_eq!(shutdown_plan.rows.len(), 1);
+    assert_eq!(shutdown_plan.rows[0].method, "halt");
+    assert!(matches!(
+        &shutdown_plan.rows[0].binding,
+        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+            if library == "kernel32.dll" && symbol == "ExitProcess"
+    ));
+}
+
+#[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 standard self-forwarding adapter: the receiver forwards as argument
     // 0, and std Console::write reaches the write_byte leaf through that same
@@ -45293,6 +45320,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "providers/provider_type_target_default",
     "providers/provider_type_target_default_override",
     "providers/adapter_satisfies_compile",
+    "providers/external_leaf_via_compile",
     "providers/runtime_adapter_forwarding_exit",
     "providers/runtime_boundary_capability_state_forwarding_exit",
     "providers/checked_boundary_operator_dispatch_exit",
