@@ -595,11 +595,43 @@ fn validate_vacuous_qualification_use<'program>(
         .iter()
         .find(|machine| machine.symbol == use_fact.machine)
         .expect("vacuous qualification use must name an exact owning machine");
-    program
+    let state = program
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == use_fact.state)
         .expect("vacuous qualification use state must belong to its exact owning machine");
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(
+            usize::try_from(use_fact.statement_index)
+                .expect("vacuous qualification statement index must fit the host"),
+        )
+        .expect("vacuous qualification use statement index must be within its exact state");
+    assert!(
+        use_fact.expression.is_valid()
+            && program
+                .expression_table
+                .expression_entries()
+                .any(|(handle, _)| handle == use_fact.expression),
+        "vacuous qualification use must name a valid retained expression",
+    );
+    assert!(
+        matches!(
+            program.expression_table.expression(use_fact.expression),
+            psi_typed_trees::expression::ExpressionNode::Cast(_)
+        ),
+        "vacuous qualification use must name its exact retained cast",
+    );
+    assert!(
+        qualification_statement_contains_expression(
+            program,
+            statement,
+            use_fact.expression,
+            &mut Vec::new(),
+        ),
+        "vacuous qualification use cast must belong to its exact statement",
+    );
     program
         .domain_definitions()
         .iter()
@@ -609,6 +641,113 @@ fn validate_vacuous_qualification_use<'program>(
         .semantic_domains
         .name(use_fact.semantic_domain)
         .expect("vacuous qualification use must name a registered semantic-domain instance")
+}
+
+fn qualification_statement_contains_expression(
+    program: &CheckedTrees,
+    statement: &psi_typed_trees::statement::StatementNode,
+    target: psi_typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    let mut contains =
+        |expression| qualification_expression_contains(program, expression, target, visited);
+    match statement {
+        StatementNode::AssemblyFact(_) => false,
+        StatementNode::Assignment(assignment) => {
+            contains(assignment.target) || contains(assignment.value)
+        }
+        StatementNode::Call(call) => program
+            .statement_table
+            .expression_handles(call.arguments)
+            .iter()
+            .copied()
+            .any(contains),
+        StatementNode::Expression(expression) => contains(*expression),
+        StatementNode::LocalData(local) => contains(local.initial_value),
+        StatementNode::Transition(transition) => {
+            if matches!(transition.guard, TransitionGuardNode::When(guard) if contains(guard)) {
+                return true;
+            }
+            [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|target| target.is_valid())
+                .any(|transition_target| {
+                    match program.statement_table.transition_target(transition_target) {
+                        TransitionTargetNode::Named { arguments, .. } => program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .copied()
+                            .any(&mut contains),
+                        TransitionTargetNode::Value(expression) => contains(*expression),
+                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+                    }
+                })
+        }
+    }
+}
+
+fn qualification_expression_contains(
+    program: &CheckedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    target: psi_typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    if expression == target {
+        return true;
+    }
+    if !expression.is_valid() || visited.contains(&expression) {
+        return false;
+    }
+    let Some((_, expression_node)) = program
+        .expression_table
+        .expression_entries()
+        .find(|(handle, _)| *handle == expression)
+    else {
+        return false;
+    };
+    visited.push(expression);
+    let mut contains = |child| qualification_expression_contains(program, child, target, visited);
+    match expression_node {
+        ExpressionNode::ArrayLiteral(items) => program
+            .expression_table
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(contains),
+        ExpressionNode::Binary(binary) => contains(binary.left) || contains(binary.right),
+        ExpressionNode::Call(call) => {
+            contains(call.receiver)
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(&mut contains)
+        }
+        ExpressionNode::Cast(cast) => contains(cast.value),
+        ExpressionNode::Indexed(indexed) => contains(indexed.collection) || contains(indexed.index),
+        ExpressionNode::Member(member) => contains(member.receiver),
+        ExpressionNode::Mutable(inner) => contains(*inner),
+        ExpressionNode::Range(range) => contains(range.start) || contains(range.end),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| contains(field.value)),
+        ExpressionNode::Unary(unary) => contains(unary.operand),
+        ExpressionNode::Atomic(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
 }
 
 /// Render the authored owner of an exact inherited requirement. The selected
@@ -3484,10 +3623,12 @@ mod tests {
     };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::domain::DomainDefinition;
+    use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::signature::StateSignature;
     use psi_typed_trees::state::State;
+    use psi_typed_trees::statement::StatementNode;
     use psi_typed_trees::trait_definition::TraitDefinition;
     use psi_typed_trees::typed_trees::MachineSpecialization;
 
@@ -3595,12 +3736,45 @@ mod tests {
         SymbolHandle,
         SymbolHandle,
         SemanticDomainId,
+        ExpressionHandle,
+        ExpressionHandle,
     ) {
         let machine_symbol = SymbolHandle::from_arena_index(60);
         let state_symbol = SymbolHandle::from_arena_index(61);
         let other_state_symbol = SymbolHandle::from_arena_index(63);
         let domain_symbol = SymbolHandle::from_arena_index(64);
         let mut program = CheckedTrees::default();
+        let semantic_domain = program.typed.semantic_domains.intern("i64::Distance<1000>");
+        let declaration_domain = program.typed.semantic_domains.intern("i64::Distance");
+        program.typed.push_domain_definition(DomainDefinition {
+            symbol: domain_symbol,
+            name: Identifier::generated("i64::Distance"),
+            semantic_id: declaration_domain,
+            ..Default::default()
+        });
+        let cast_value = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let cast_expression =
+            program
+                .typed
+                .expression_table
+                .insert(ExpressionNode::Cast(TableCastExpression {
+                    value: cast_value,
+                    target_type: Default::default(),
+                    target_label: Default::default(),
+                    domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+                    semantic_domain: Default::default(),
+                    semantic_domain_arguments: Default::default(),
+                    semantic_domain_symbol: domain_symbol,
+                    semantic_domain_id: semantic_domain,
+                    form: Default::default(),
+                }));
+        let statement_expression = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Mutable(cast_expression));
         for (machine, state, machine_name, state_name) in [
             (machine_symbol, state_symbol, "Main::main", "main"),
             (
@@ -3615,24 +3789,28 @@ mod tests {
                 name: Identifier::generated(machine_name),
                 ..Default::default()
             };
-            program.typed.push_machine_state(
-                &mut definition,
-                State {
-                    symbol: state,
-                    name: Identifier::generated(state_name),
-                    ..Default::default()
-                },
-            );
+            let mut state_definition = State {
+                symbol: state,
+                name: Identifier::generated(state_name),
+                ..Default::default()
+            };
+            if machine == machine_symbol {
+                for _ in 0..3 {
+                    program
+                        .typed
+                        .statement_table
+                        .push_statement(&mut state_definition.statement_nodes, Default::default());
+                }
+                program.typed.statement_table.push_statement(
+                    &mut state_definition.statement_nodes,
+                    StatementNode::Expression(statement_expression),
+                );
+            }
+            program
+                .typed
+                .push_machine_state(&mut definition, state_definition);
             program.typed.push_machine(definition);
         }
-        let semantic_domain = program.typed.semantic_domains.intern("i64::Distance<1000>");
-        let declaration_domain = program.typed.semantic_domains.intern("i64::Distance");
-        program.typed.push_domain_definition(DomainDefinition {
-            symbol: domain_symbol,
-            name: Identifier::generated("i64::Distance"),
-            semantic_id: declaration_domain,
-            ..Default::default()
-        });
         (
             program,
             machine_symbol,
@@ -3640,6 +3818,8 @@ mod tests {
             other_state_symbol,
             domain_symbol,
             semantic_domain,
+            cast_expression,
+            statement_expression,
         )
     }
 
@@ -4826,8 +5006,16 @@ mod tests {
 
     #[test]
     fn qualification_manifest_retains_vacuous_use_owner_overload_identity() {
-        let (mut program, machine_symbol, state_symbol, _, domain_symbol, semantic_domain) =
-            vacuous_qualification_fixture();
+        let (
+            mut program,
+            machine_symbol,
+            state_symbol,
+            _,
+            domain_symbol,
+            semantic_domain,
+            cast_expression,
+            _,
+        ) = vacuous_qualification_fixture();
         assert_ne!(
             program
                 .domain_definitions()
@@ -4846,7 +5034,7 @@ mod tests {
                 machine: machine_symbol,
                 state: state_symbol,
                 statement_index: 3,
-                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                expression: cast_expression,
                 domain: domain_symbol,
                 semantic_domain,
             });
@@ -4864,9 +5052,81 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "statement index must be within its exact state")]
+    fn qualification_manifest_rejects_out_of_range_vacuous_statement() {
+        let (program, machine, state, _, domain, semantic_domain, cast_expression, _) =
+            vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state,
+                statement_index: 4,
+                expression: cast_expression,
+                domain,
+                semantic_domain,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name a valid retained expression")]
+    fn qualification_manifest_rejects_invalid_vacuous_expression() {
+        let (program, machine, state, _, domain, semantic_domain, _, _) =
+            vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state,
+                statement_index: 3,
+                expression: ExpressionHandle::invalid(),
+                domain,
+                semantic_domain,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must name its exact retained cast")]
+    fn qualification_manifest_rejects_reachable_non_cast_vacuous_expression() {
+        let (program, machine, state, _, domain, semantic_domain, _, statement_expression) =
+            vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state,
+                statement_index: 3,
+                expression: statement_expression,
+                domain,
+                semantic_domain,
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "cast must belong to its exact statement")]
+    fn qualification_manifest_rejects_cross_statement_vacuous_cast() {
+        let (program, machine, state, _, domain, semantic_domain, cast_expression, _) =
+            vacuous_qualification_fixture();
+        validate_vacuous_qualification_use(
+            &program,
+            &VacuousQualificationUse {
+                machine,
+                state,
+                statement_index: 2,
+                expression: cast_expression,
+                domain,
+                semantic_domain,
+            },
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "state must belong to its exact owning machine")]
     fn qualification_manifest_rejects_cross_machine_vacuous_state() {
-        let (program, machine, _, other_state, domain, semantic_domain) =
+        let (program, machine, _, other_state, domain, semantic_domain, cast_expression, _) =
             vacuous_qualification_fixture();
         validate_vacuous_qualification_use(
             &program,
@@ -4874,7 +5134,7 @@ mod tests {
                 machine,
                 state: other_state,
                 statement_index: 0,
-                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                expression: cast_expression,
                 domain,
                 semantic_domain,
             },
@@ -4884,14 +5144,15 @@ mod tests {
     #[test]
     #[should_panic(expected = "must name an exact declared domain")]
     fn qualification_manifest_rejects_missing_vacuous_domain() {
-        let (program, machine, state, _, _, semantic_domain) = vacuous_qualification_fixture();
+        let (program, machine, state, _, _, semantic_domain, cast_expression, _) =
+            vacuous_qualification_fixture();
         validate_vacuous_qualification_use(
             &program,
             &VacuousQualificationUse {
                 machine,
                 state,
-                statement_index: 0,
-                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                statement_index: 3,
+                expression: cast_expression,
                 domain: SymbolHandle::from_arena_index(99),
                 semantic_domain,
             },
@@ -4901,14 +5162,15 @@ mod tests {
     #[test]
     #[should_panic(expected = "must name a registered semantic-domain instance")]
     fn qualification_manifest_rejects_unknown_vacuous_semantic_domain() {
-        let (program, machine, state, _, domain, _) = vacuous_qualification_fixture();
+        let (program, machine, state, _, domain, _, cast_expression, _) =
+            vacuous_qualification_fixture();
         validate_vacuous_qualification_use(
             &program,
             &VacuousQualificationUse {
                 machine,
                 state,
-                statement_index: 0,
-                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                statement_index: 3,
+                expression: cast_expression,
                 domain,
                 semantic_domain: SemanticDomainId(99),
             },

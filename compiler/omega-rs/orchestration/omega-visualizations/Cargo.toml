@@ -29,3 +29,6 @@ psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-seman
 psi-symbol-resolved-trees = { path = "../../../psi-rs/representations/psi-symbol-resolved-trees" }
 psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
+
+[dev-dependencies]
+psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
