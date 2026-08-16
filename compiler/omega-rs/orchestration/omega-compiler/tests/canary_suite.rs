@@ -18529,7 +18529,8 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
         "omega-string-concat-two-fields-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("two-carrier text concat canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -45213,6 +45214,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_chained_string_append_exit",
+    "text/runtime_string_concat_two_fields_exit",
     "text/runtime_string_append_in_place_exit",
     "text/runtime_local_struct_string_field_concat_exit",
     "text/runtime_string_stored_suffix_exit",
