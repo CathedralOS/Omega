@@ -1663,6 +1663,63 @@ pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type:
     }
 }
 
+fn checked_adapter_has_exact_conformance(
+    typed: &TypedTrees,
+    adapter: &psi_typed_trees::machine::Machine,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+    row: &omega_effects::provider_plan::ProviderPlanRow,
+) -> bool {
+    let operator = typed.operators().iter().find(|operator| {
+        operator.is_boundary
+            && psi_typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
+                == plan.schema.trait_name
+    });
+    if let Some(operator) = operator {
+        let identity =
+            psi_typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+        let [namespace, requirement] = typed.operator_path_members(operator.name) else {
+            return false;
+        };
+        return row.method == "realize"
+            && row.requirement_identity == identity
+            && typed
+                .machine_trait_conformances(adapter)
+                .iter()
+                .any(|conformance| {
+                    conformance.via.is_none()
+                        && conformance.name.as_str() == namespace.as_str()
+                        && conformance.requirement.as_ref().map(|name| name.as_str())
+                            == Some(requirement.as_str())
+                        && psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                            typed,
+                            adapter,
+                            namespace.as_str(),
+                            requirement.as_str(),
+                        )
+                        .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                });
+    }
+
+    typed
+        .machine_trait_conformances(adapter)
+        .iter()
+        .filter(|conformance| conformance.via.is_none())
+        .filter_map(|conformance| {
+            let requirement = conformance.requirement.as_ref()?;
+            let definition = typed
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == conformance.symbol)?;
+            Some(satisfied_requirement_identity(
+                typed,
+                adapter.name.as_str(),
+                definition.name.as_str(),
+                requirement.as_str(),
+            ))
+        })
+        .any(|identity| identity == row.requirement_identity)
+}
+
 /// Validate every derived candidate before coverage and selection. A partial
 /// candidate may wait for more conformances, but duplicate/stray rows and
 /// malformed binding shapes are invalid in their own right. For checked
@@ -1722,24 +1779,8 @@ pub(crate) fn validate_provider_plan_candidates(
                 )));
                 continue;
             }
-            let has_exact_conformance = typed
-                .machine_trait_conformances(adapter)
-                .iter()
-                .filter(|conformance| conformance.via.is_none())
-                .filter_map(|conformance| {
-                    let requirement = conformance.requirement.as_ref()?;
-                    let definition = typed
-                        .traits()
-                        .iter()
-                        .find(|definition| definition.symbol == conformance.symbol)?;
-                    Some(satisfied_requirement_identity(
-                        typed,
-                        adapter.name.as_str(),
-                        definition.name.as_str(),
-                        requirement.as_str(),
-                    ))
-                })
-                .any(|identity| identity == row.requirement_identity);
+            let has_exact_conformance =
+                checked_adapter_has_exact_conformance(typed, adapter, plan, row);
             if !has_exact_conformance {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "checked adapter `{machine}` for `{}::{}` has no exact checked satisfies edge for requirement identity `{}`",
@@ -3078,6 +3119,83 @@ mod tests {
                     .message
                     .contains("has no exact checked satisfies edge for requirement identity"))
         );
+    }
+
+    #[test]
+    fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
+        let source = r#"
+            data CheckedMath {}
+            boundary operator CheckedMath::offset_zero(value: i32) -> i32;
+
+            data OtherMath {}
+            boundary operator OtherMath::offset_zero(value: i32) -> i32;
+
+            data CheckedMathProvider {}
+            machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+            satisfies CheckedMath::offset_zero
+            {
+                transition { _ -> (input) }
+            }
+            machine CheckedMathProvider::decoy_impl(input: i32) -> i32
+            satisfies OtherMath::offset_zero
+            {
+                transition { _ -> (input) }
+            }
+            machine CheckedMathProvider::wrong_signature(input: u64) -> u64
+            satisfies CheckedMath::offset_zero
+            {
+                transition { _ -> (input) }
+            }
+        "#;
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize checked operator adapter fixture");
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("parse checked operator adapter fixture");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve checked operator adapter fixture");
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type checked operator adapter fixture");
+        let operator = typed
+            .operators()
+            .iter()
+            .find(|operator| {
+                typed
+                    .operator_path_members(operator.name)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["CheckedMath", "offset_zero"])
+            })
+            .expect("CheckedMath::offset_zero operator");
+        let identity =
+            psi_typed_trees::operator::boundary_operator_requirement_identity(&typed, operator);
+        let plan = derive_satisfies_plans(&syntax, &typed, None)
+            .into_iter()
+            .find(|plan| plan.schema.trait_name == identity)
+            .expect("CheckedMath::offset_zero provider plan");
+        assert!(
+            validate_provider_plan_candidates(&typed, std::slice::from_ref(&plan)).is_empty(),
+            "the exact checked operator conformance remains valid"
+        );
+
+        for unrelated in [
+            "CheckedMathProvider::decoy_impl",
+            "CheckedMathProvider::wrong_signature",
+        ] {
+            let mut invalid = plan.clone();
+            invalid.rows[0].binding = ProviderBinding::CheckedAdapter {
+                machine: unrelated.to_owned(),
+            };
+            assert!(
+                validate_provider_plan_candidates(&typed, &[invalid])
+                    .iter()
+                    .any(|diagnostic| diagnostic
+                        .message
+                        .contains("has no exact checked satisfies edge for requirement identity")),
+                "operator adapter `{unrelated}` must not satisfy the exact operator row"
+            );
+        }
     }
 
     #[test]
