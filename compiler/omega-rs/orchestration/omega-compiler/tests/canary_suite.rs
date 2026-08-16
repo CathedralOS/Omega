@@ -45206,6 +45206,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/match_exhaustive_by_cases",
     "data/record_pattern_bind_all_exit",
     "data/record_pattern_double_underscore_field",
+    "data/record_pattern_let_exit",
     "data/runtime_array_literal_string_field_exit",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
