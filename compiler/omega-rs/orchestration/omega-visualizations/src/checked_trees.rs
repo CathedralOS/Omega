@@ -345,6 +345,38 @@ pub fn qualification_evidence_manifest_json(
         json.push_str("\n    }");
     }
 
+    json.push_str("\n  ],\n  \"machine_semantic_domain_commitments\": [");
+    for (index, (machine, domains)) in validated_machine_semantic_domain_commitments(program)
+        .iter()
+        .enumerate()
+    {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"machine\": ");
+        push_json_string(
+            &mut json,
+            &qualification_symbol_label(program, machine.symbol),
+        );
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, machine.symbol)
+                .expect("semantic-domain commitment must name an exact owning machine"),
+        );
+        json.push_str(",\n      \"semantic_domains\": [");
+        for (domain_index, (domain, name)) in domains.iter().enumerate() {
+            if domain_index > 0 {
+                json.push_str(", ");
+            }
+            json.push_str("{\"semantic_domain_id\": ");
+            json.push_str(&domain.0.to_string());
+            json.push_str(", \"semantic_domain\": ");
+            push_json_string(&mut json, name);
+            json.push('}');
+        }
+        json.push_str("]\n    }");
+    }
     json.push_str("\n  ],\n  \"vacuous_qualification_uses\": [");
     for (index, use_fact) in program.facts.qualifications.vacuous_uses.iter().enumerate() {
         if index > 0 {
@@ -383,6 +415,55 @@ pub fn qualification_evidence_manifest_json(
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn validated_machine_semantic_domain_commitments(
+    program: &CheckedTrees,
+) -> Vec<(
+    &psi_typed_trees::machine::Machine,
+    Vec<(psi_language_semantics::SemanticDomainId, &str)>,
+)> {
+    let mut seen_machines = Vec::new();
+    program
+        .facts
+        .qualifications
+        .machines
+        .iter()
+        .map(|fact| {
+            assert!(
+                !seen_machines.contains(&fact.machine),
+                "semantic-domain commitments must have one row per exact machine",
+            );
+            seen_machines.push(fact.machine);
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == fact.machine)
+                .expect("semantic-domain commitment must name an exact owning machine");
+            assert!(
+                !fact.body_committed.is_empty(),
+                "semantic-domain commitment row must retain at least one domain",
+            );
+            assert!(
+                fact.body_committed
+                    .windows(2)
+                    .all(|domains| domains[0].0 < domains[1].0),
+                "semantic-domain commitments must be strictly increasing",
+            );
+            let domains = fact
+                .body_committed
+                .iter()
+                .map(|domain| {
+                    let name = program
+                        .semantic_domains
+                        .name(*domain)
+                        .expect("semantic-domain commitment must name a registered domain");
+                    (*domain, name)
+                })
+                .collect();
+            (machine, domains)
+        })
+        .collect()
 }
 
 fn validate_qualification_receipt(
@@ -3373,15 +3454,15 @@ mod tests {
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
         validate_qualification_program_point, validate_qualification_receipt,
-        validate_vacuous_qualification_use,
+        validate_vacuous_qualification_use, validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowCallFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowStateFact, MachineActivationCarryFact,
-        MachineContractPlan, MachineMutationFact, MachineServiceReachRows, StateWriteFramePlan,
-        SuspensionCrossingCarryFact, VacuousQualificationUse,
+        MachineContractPlan, MachineMutationFact, MachineQualifications, MachineServiceReachRows,
+        StateWriteFramePlan, SuspensionCrossingCarryFact, VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, Place, PlaceRoot, ProgramPoint,
@@ -4033,6 +4114,199 @@ mod tests {
                 "\"callable_overload_identity\": \"named-callable(path(Region::partition)"
             )
         );
+    }
+
+    fn semantic_domain_commitment_fixture() -> (
+        CheckedTrees,
+        SymbolHandle,
+        SymbolHandle,
+        SemanticDomainId,
+        SemanticDomainId,
+    ) {
+        let first_machine = SymbolHandle::from_arena_index(80);
+        let second_machine = SymbolHandle::from_arena_index(81);
+        let mut program = CheckedTrees::default();
+        for (symbol, state_symbol, name) in [
+            (
+                first_machine,
+                SymbolHandle::from_arena_index(82),
+                "DistanceWorker::run",
+            ),
+            (
+                second_machine,
+                SymbolHandle::from_arena_index(83),
+                "AuditWorker::run",
+            ),
+        ] {
+            let mut machine = Machine {
+                symbol,
+                name: Identifier::generated(name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    name: Identifier::generated("entry"),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+        }
+        let distance = program.typed.semantic_domains.intern("i64::Distance<1000>");
+        let wrapping = program.typed.semantic_domains.intern("i64::Wrapping");
+        (program, first_machine, second_machine, distance, wrapping)
+    }
+
+    #[test]
+    fn qualification_manifest_publishes_ordered_exact_machine_domain_commitments() {
+        let (mut program, first_machine, second_machine, distance, wrapping) =
+            semantic_domain_commitment_fixture();
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine: first_machine,
+                body_committed: vec![distance, wrapping],
+            });
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine: second_machine,
+                body_committed: vec![distance],
+            });
+
+        let json = qualification_evidence_manifest_json(
+            &program,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        );
+
+        let commitments = json
+            .split_once("\"machine_semantic_domain_commitments\": [")
+            .expect("qualification artifact publishes implementation commitments")
+            .1
+            .split_once("\"vacuous_qualification_uses\": [")
+            .expect("commitments remain independent from vacuous evidence")
+            .0;
+        assert!(commitments.contains("\"machine\": \"#80\""));
+        assert!(commitments.contains("\"machine\": \"#81\""));
+        assert!(commitments.contains("\"machine_overload_identity\":"));
+        assert_eq!(
+            commitments
+                .matches(&format!("\"semantic_domain_id\": {}", distance.0))
+                .count(),
+            2,
+            "the same normalized domain may be committed independently by two machines"
+        );
+        let first_distance = commitments
+            .find(&format!("\"semantic_domain_id\": {}", distance.0))
+            .expect("first ordered domain");
+        let first_wrapping = commitments
+            .find(&format!("\"semantic_domain_id\": {}", wrapping.0))
+            .expect("second ordered domain");
+        assert!(first_distance < first_wrapping);
+        assert!(commitments.contains("\"semantic_domain\": \"i64::Distance<1000>\""));
+        assert!(commitments.contains("\"semantic_domain\": \"i64::Wrapping\""));
+    }
+
+    #[test]
+    #[should_panic(expected = "must name an exact owning machine")]
+    fn qualification_manifest_rejects_missing_commitment_machine() {
+        let (mut program, _, _, distance, _) = semantic_domain_commitment_fixture();
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine: SymbolHandle::from_arena_index(99),
+                body_committed: vec![distance],
+            });
+        validated_machine_semantic_domain_commitments(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "one row per exact machine")]
+    fn qualification_manifest_rejects_duplicate_commitment_machine() {
+        let (mut program, machine, _, distance, wrapping) = semantic_domain_commitment_fixture();
+        for domain in [distance, wrapping] {
+            program
+                .facts
+                .qualifications
+                .machines
+                .push(MachineQualifications {
+                    machine,
+                    body_committed: vec![domain],
+                });
+        }
+        validated_machine_semantic_domain_commitments(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain at least one domain")]
+    fn qualification_manifest_rejects_empty_commitment_domains() {
+        let (mut program, machine, _, _, _) = semantic_domain_commitment_fixture();
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine,
+                body_committed: Vec::new(),
+            });
+        validated_machine_semantic_domain_commitments(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be strictly increasing")]
+    fn qualification_manifest_rejects_duplicate_commitment_domains() {
+        let (mut program, machine, _, distance, _) = semantic_domain_commitment_fixture();
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine,
+                body_committed: vec![distance, distance],
+            });
+        validated_machine_semantic_domain_commitments(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be strictly increasing")]
+    fn qualification_manifest_rejects_out_of_order_commitment_domains() {
+        let (mut program, machine, _, distance, wrapping) = semantic_domain_commitment_fixture();
+        let (higher, lower) = if distance.0 > wrapping.0 {
+            (distance, wrapping)
+        } else {
+            (wrapping, distance)
+        };
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine,
+                body_committed: vec![higher, lower],
+            });
+        validated_machine_semantic_domain_commitments(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name a registered domain")]
+    fn qualification_manifest_rejects_unknown_commitment_domain() {
+        let (mut program, machine, _, _, _) = semantic_domain_commitment_fixture();
+        program
+            .facts
+            .qualifications
+            .machines
+            .push(MachineQualifications {
+                machine,
+                body_committed: vec![SemanticDomainId(u32::MAX)],
+            });
+        validated_machine_semantic_domain_commitments(&program);
     }
 
     #[test]
