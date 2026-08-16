@@ -1577,6 +1577,38 @@ requires value <= 126i8
     ((((((value + 1i8) as i16) as i32) / 2i32) % 3i32) < 3i32) && enabled
 }
 
+machine terminal_affine_widen_cast_then_shift(value: i8, enabled: bool) -> bool
+requires -1i8 <= value, value <= 126i8
+{
+    (((((value + 1i8) as i16) as u8) << 1u8) < 255u8) && enabled
+}
+
+machine terminal_shift_cast_widen_then_affine(value: u16, enabled: bool) -> bool {
+    (((((value >> 1u8) as i16) as i32) + 1i32) < 2147483647i32) && enabled
+}
+
+machine terminal_signed_product_widen_cast_then_signed_product(
+    value: i8,
+    enabled: bool
+) -> bool
+requires -63i8 <= value, value <= 64i8, -32i8 <= value, value <= 31i8
+{
+    (((((value * -2i8) as i16) as i8) * -2i8) < 127i8) && enabled
+}
+
+machine terminal_remainder_cast_widen_then_affine(value: u16, enabled: bool) -> bool {
+    (((((value % 3u16) as i16) as i32) + 1i32) < 2147483647i32) && enabled
+}
+
+machine terminal_affine_widen_cast_widen_then_divide_remainder(
+    value: i8,
+    enabled: bool
+) -> bool
+requires -1i8 <= value, value <= 126i8
+{
+    ((((((((value + 1i8) as i16) as u8) as i16) as u8) / 2u8) % 3u8) < 3u8) && enabled
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {

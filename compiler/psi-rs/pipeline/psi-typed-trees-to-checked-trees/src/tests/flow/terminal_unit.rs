@@ -17,6 +17,7 @@ use crate::flow::{
     exact_cast_then_signed_multiply_runtime_parameter_positions_for_test,
     exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test,
     exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test,
+    exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test,
     exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test,
     exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test,
@@ -2419,6 +2420,190 @@ fn computed_prefix_widen_chain_computed_suffix_classifier_covers_the_four_by_fou
         None,
         "signed-to-unsigned conversion is not a valid widening edge",
     );
+}
+
+#[test]
+fn computed_prefix_mixed_conversion_chain_computed_suffix_classifier_covers_the_four_by_four_matrix()
+ {
+    let parameter = |primitive_type| CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let binary = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let widen = |target_type, operand| CheckedScalarExpression::IntegerWiden {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+    };
+    let cast = |target_type, operand| CheckedScalarExpression::IntegerExactCast {
+        primitive_type: target_type,
+        operand: Box::new(operand),
+        range: psi_checked_trees::CheckedIntegerRange::default(),
+    };
+    let widen_then_cast = |source| cast(PrimitiveType::I16, widen(PrimitiveType::I32, source));
+    let cast_then_widen = |source| widen(PrimitiveType::I32, cast(PrimitiveType::I16, source));
+    let sources = vec![
+        (
+            PrimitiveType::I16,
+            psi_numerics::literals::LandedIntegerType::I16,
+            widen_then_cast(binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I16,
+                parameter(PrimitiveType::I16),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+            )),
+        ),
+        (
+            PrimitiveType::I16,
+            psi_numerics::literals::LandedIntegerType::I16,
+            widen_then_cast(binary(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                PrimitiveType::I16,
+                parameter(PrimitiveType::I16),
+                literal(-2i64, psi_numerics::literals::LandedIntegerType::I16),
+            )),
+        ),
+        (
+            PrimitiveType::I16,
+            psi_numerics::literals::LandedIntegerType::I16,
+            widen_then_cast(binary(
+                CheckedIntegerBinaryKind::ExactShiftRight,
+                PrimitiveType::I16,
+                parameter(PrimitiveType::I16),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            )),
+        ),
+        (
+            PrimitiveType::I32,
+            psi_numerics::literals::LandedIntegerType::I32,
+            cast_then_widen(binary(
+                CheckedIntegerBinaryKind::ExactRemainder,
+                PrimitiveType::U16,
+                parameter(PrimitiveType::U16),
+                literal(3i64, psi_numerics::literals::LandedIntegerType::U16),
+            )),
+        ),
+    ];
+    for (target_type, landed_type, source) in sources {
+        let targets = [
+            binary(
+                CheckedIntegerBinaryKind::ExactAdd,
+                target_type,
+                source.clone(),
+                literal(1i64, landed_type),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                target_type,
+                source.clone(),
+                literal(-2i64, landed_type),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactShiftLeft,
+                target_type,
+                source.clone(),
+                literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+            ),
+            binary(
+                CheckedIntegerBinaryKind::ExactDivide,
+                target_type,
+                source,
+                literal(2i64, landed_type),
+            ),
+        ];
+        for target in targets {
+            assert_eq!(
+                exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+                    &target, 1,
+                ),
+                Some(vec![0]),
+            );
+        }
+    }
+
+    let alternating = binary(
+        CheckedIntegerBinaryKind::ExactAdd,
+        PrimitiveType::U8,
+        cast(
+            PrimitiveType::U8,
+            widen(
+                PrimitiveType::I16,
+                cast(
+                    PrimitiveType::U8,
+                    widen(
+                        PrimitiveType::I16,
+                        binary(
+                            CheckedIntegerBinaryKind::ExactAdd,
+                            PrimitiveType::I8,
+                            parameter(PrimitiveType::I8),
+                            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        literal(1i64, psi_numerics::literals::LandedIntegerType::U8),
+    );
+    assert_eq!(
+        exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+            &alternating,
+            1,
+        ),
+        Some(vec![0]),
+        "alternating strict-widen and partial-cast edges remain one ordered spine",
+    );
+
+    for homogeneous in [
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I16,
+            widen(
+                PrimitiveType::I16,
+                binary(
+                    CheckedIntegerBinaryKind::ExactAdd,
+                    PrimitiveType::I8,
+                    parameter(PrimitiveType::I8),
+                    literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+                ),
+            ),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+        ),
+        binary(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I8,
+            cast(
+                PrimitiveType::I8,
+                binary(
+                    CheckedIntegerBinaryKind::ExactAdd,
+                    PrimitiveType::I16,
+                    parameter(PrimitiveType::I16),
+                    literal(1i64, psi_numerics::literals::LandedIntegerType::I16),
+                ),
+            ),
+            literal(1i64, psi_numerics::literals::LandedIntegerType::I8),
+        ),
+    ] {
+        assert_eq!(
+            exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test(
+                &homogeneous,
+                1,
+            ),
+            None,
+            "pure conversion spines retain their narrower dispatch paths",
+        );
+    }
 }
 
 #[test]

@@ -1586,6 +1586,15 @@ fn exact_integer_cast_obligation(
     if roundtrip {
         return Proposition::Truth;
     }
+    if let Some(obligation) = exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation(
+        source_type,
+        target_type,
+        operand.clone(),
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return obligation;
+    }
     let mut bounds = Vec::with_capacity(2);
     let source_minimum = source_type.minimum_value();
     let target_minimum = target_type.minimum_value();
@@ -2020,6 +2029,174 @@ fn exact_integer_computed_prefix_widen_chain_interval_obligation(
     )
 }
 
+fn exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation(
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    mut operand: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if !partial_fixed_native_integer_cast(source_type, target_type) {
+        return None;
+    }
+    let source_interval = fixed_integer_type_interval(source_type)?;
+    let target_interval = fixed_integer_type_interval(target_type)?;
+    let mut interval = (
+        source_interval.0.max(target_interval.0),
+        source_interval.1.min(target_interval.1),
+    );
+    let mut expected_target = source_type;
+    let mut prior_axiom_count = semantic_axioms.len();
+    let mut saw_widen = false;
+    for _ in 0..=prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &operand => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (nested_source, nested_operand) = match definition {
+            ScalarTerm::IntegerWiden {
+                source_type: nested_source,
+                target_type: nested_target,
+                operand: nested_operand,
+            } if *nested_target == expected_target
+                && nested_source.can_widen_to(*nested_target) =>
+            {
+                saw_widen = true;
+                (*nested_source, nested_operand)
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type: nested_source,
+                target_type: nested_target,
+                operand: nested_operand,
+            } if *nested_target == expected_target
+                && partial_fixed_native_integer_cast(*nested_source, *nested_target) =>
+            {
+                (*nested_source, nested_operand)
+            }
+            ScalarTerm::IntegerWiden { .. } | ScalarTerm::IntegerExactCast { .. } => return None,
+            _ => break,
+        };
+        let nested_interval = fixed_integer_type_interval(nested_source)?;
+        interval.0 = interval.0.max(nested_interval.0);
+        interval.1 = interval.1.min(nested_interval.1);
+        operand = (**nested_operand).clone();
+        expected_target = nested_source;
+        prior_axiom_count = definition_index;
+    }
+    if !saw_widen {
+        return None;
+    }
+    let definition =
+        semantic_axioms[..prior_axiom_count]
+            .iter()
+            .rev()
+            .find_map(|axiom| match axiom {
+                Proposition::Equal(left, right) if left == &operand => Some(right),
+                _ => None,
+            })?;
+    if matches!(
+        definition,
+        ScalarTerm::ExactIntegerDivide { .. } | ScalarTerm::ExactIntegerRemainder { .. }
+    ) {
+        let hull = exact_integer_divide_remainder_chain_hull(
+            expected_target,
+            operand,
+            semantic_axioms,
+            prior_axiom_count,
+            machine_parameter_values,
+        )?;
+        return (hull.0 >= interval.0 && hull.1 <= interval.1).then_some(Proposition::Truth);
+    }
+    exact_integer_computed_prefix_interval_obligation(
+        expected_target,
+        operand,
+        interval,
+        semantic_axioms,
+        prior_axiom_count,
+        machine_parameter_values,
+    )
+}
+
+fn exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation(
+    target_type: psi_core::IntegerType,
+    mut value: ScalarTerm,
+    requested_interval: (i128, i128),
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    let mut interval = fixed_integer_type_interval(target_type)?;
+    let mut expected_target = target_type;
+    let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
+    let mut saw_widen = false;
+    let mut saw_cast = false;
+    for _ in 0..=prior_axiom_count {
+        let Some((definition_index, definition)) = semantic_axioms[..prior_axiom_count]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(left, right) if left == &value => Some((index, right)),
+                _ => None,
+            })
+        else {
+            break;
+        };
+        let (source_type, operand) = match definition {
+            ScalarTerm::IntegerWiden {
+                source_type,
+                target_type: conversion_target,
+                operand,
+            } if *conversion_target == expected_target
+                && source_type.can_widen_to(*conversion_target) =>
+            {
+                saw_widen = true;
+                (*source_type, operand)
+            }
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: conversion_target,
+                operand,
+            } if *conversion_target == expected_target
+                && partial_fixed_native_integer_cast(*source_type, *conversion_target) =>
+            {
+                saw_cast = true;
+                (*source_type, operand)
+            }
+            ScalarTerm::IntegerWiden { .. } | ScalarTerm::IntegerExactCast { .. } => return None,
+            _ => break,
+        };
+        let source_interval = fixed_integer_type_interval(source_type)?;
+        interval.0 = interval.0.max(source_interval.0);
+        interval.1 = interval.1.min(source_interval.1);
+        value = (**operand).clone();
+        expected_target = source_type;
+        prior_axiom_count = definition_index;
+    }
+    if !saw_widen || !saw_cast {
+        return None;
+    }
+    let interval = (
+        requested_interval.0.max(interval.0),
+        requested_interval.1.min(interval.1),
+    );
+    exact_integer_computed_prefix_interval_obligation(
+        expected_target,
+        value,
+        interval,
+        semantic_axioms,
+        prior_axiom_count,
+        machine_parameter_values,
+    )
+}
+
 fn exact_integer_computed_prefix_conversion_interval_obligation(
     target_type: psi_core::IntegerType,
     value: ScalarTerm,
@@ -2038,6 +2215,16 @@ fn exact_integer_computed_prefix_conversion_interval_obligation(
     )
     .or_else(|| {
         exact_integer_computed_prefix_widen_chain_interval_obligation(
+            target_type,
+            value.clone(),
+            requested_interval,
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    })
+    .or_else(|| {
+        exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation(
             target_type,
             value,
             requested_interval,
@@ -13889,6 +14076,301 @@ mod tests {
             ),
             None,
             "reordered widening definitions remain fail-closed",
+        );
+    }
+
+    #[test]
+    fn computed_prefix_mixed_conversion_chain_computed_suffix_replays_every_edge_independently() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let root_id = ValueId::new(2141).expect("mixed conversion root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(i16_type));
+        let source = ScalarTerm::value(
+            ValueId::new(2142).expect("source affine"),
+            ScalarType::Integer(i16_type),
+        );
+        let widened = ScalarTerm::value(
+            ValueId::new(2143).expect("widened"),
+            ScalarType::Integer(i32_type),
+        );
+        let narrowed = ScalarTerm::value(
+            ValueId::new(2144).expect("narrowed"),
+            ScalarType::Integer(i16_type),
+        );
+        let definitions = vec![
+            Proposition::Equal(
+                source.clone(),
+                ScalarTerm::exact_integer_add(
+                    i16_type,
+                    root.clone(),
+                    ScalarTerm::integer(i16_type, IntegerValue::Signed(1)).expect("1i16"),
+                )
+                .expect("root + 1"),
+            ),
+            Proposition::Equal(
+                widened.clone(),
+                ScalarTerm::integer_widen(i16_type, i32_type, source).expect("i16 to i32"),
+            ),
+            Proposition::Equal(
+                narrowed.clone(),
+                ScalarTerm::integer_exact_cast(i32_type, i16_type, widened.clone())
+                    .expect("i32 to i16"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        assert_eq!(
+            exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation(
+                i32_type,
+                i16_type,
+                widened,
+                &definitions[..2],
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i16_type,
+                root.clone(),
+                i16::MIN.into(),
+                (i16::MAX - 1).into(),
+            )),
+            "the partial cast replays the prior widen and source affine independently",
+        );
+        assert_eq!(
+            exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation(
+                i16_type,
+                narrowed.clone(),
+                (0, 100),
+                &definitions,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(exact_integer_source_interval_obligation(
+                i16_type,
+                root.clone(),
+                -1,
+                99,
+            )),
+        );
+        assert!(
+            exact_integer_cast_chain_then_affine_suffix_obligation(
+                i16_type,
+                narrowed.clone(),
+                IntegerValue::Signed(1),
+                ExactIntegerAffineOperation::Add,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "target affine algebra composes with the heterogeneous conversion spine",
+        );
+        assert!(
+            exact_integer_cast_chain_then_signed_product_suffix_obligation(
+                i16_type,
+                narrowed.clone(),
+                IntegerValue::Signed(-2),
+                &definitions,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "target signed-product algebra composes with the heterogeneous conversion spine",
+        );
+        assert!(
+            exact_integer_cast_chain_then_shift_suffix_obligation(
+                i16_type,
+                narrowed,
+                1,
+                &definitions,
+                definitions.len(),
+                &parameters,
+            )
+            .is_some(),
+            "target shift algebra composes with the heterogeneous conversion spine",
+        );
+
+        let alternating_root_id = ValueId::new(2151).expect("alternating root");
+        let alternating_root = ScalarTerm::value(alternating_root_id, ScalarType::Integer(i8_type));
+        let alternating_source = ScalarTerm::value(
+            ValueId::new(2152).expect("alternating source"),
+            ScalarType::Integer(i8_type),
+        );
+        let alternating_first = ScalarTerm::value(
+            ValueId::new(2153).expect("alternating first widen"),
+            ScalarType::Integer(i16_type),
+        );
+        let alternating_second = ScalarTerm::value(
+            ValueId::new(2154).expect("alternating cast"),
+            ScalarType::Integer(u8_type),
+        );
+        let alternating_third = ScalarTerm::value(
+            ValueId::new(2155).expect("alternating second widen"),
+            ScalarType::Integer(i16_type),
+        );
+        let alternating_fourth = ScalarTerm::value(
+            ValueId::new(2156).expect("alternating second cast"),
+            ScalarType::Integer(u8_type),
+        );
+        let alternating_definitions = vec![
+            Proposition::Equal(
+                alternating_source.clone(),
+                ScalarTerm::exact_integer_add(
+                    i8_type,
+                    alternating_root,
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("1i8"),
+                )
+                .expect("root + 1"),
+            ),
+            Proposition::Equal(
+                alternating_first.clone(),
+                ScalarTerm::integer_widen(i8_type, i16_type, alternating_source)
+                    .expect("i8 to i16"),
+            ),
+            Proposition::Equal(
+                alternating_second.clone(),
+                ScalarTerm::integer_exact_cast(i16_type, u8_type, alternating_first)
+                    .expect("i16 to u8"),
+            ),
+            Proposition::Equal(
+                alternating_third.clone(),
+                ScalarTerm::integer_widen(u8_type, i16_type, alternating_second)
+                    .expect("u8 to i16"),
+            ),
+            Proposition::Equal(
+                alternating_fourth.clone(),
+                ScalarTerm::integer_exact_cast(i16_type, u8_type, alternating_third.clone())
+                    .expect("i16 to u8"),
+            ),
+        ];
+        assert!(
+            exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation(
+                i16_type,
+                u8_type,
+                alternating_third,
+                &alternating_definitions[..4],
+                &BTreeSet::from([alternating_root_id]),
+            )
+            .is_some(),
+            "each later cast replays every preceding alternating edge independently",
+        );
+        assert!(
+            exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation(
+                u8_type,
+                alternating_fourth.clone(),
+                (0, 100),
+                &alternating_definitions,
+                alternating_definitions.len(),
+                &BTreeSet::from([alternating_root_id]),
+            )
+            .is_some(),
+            "an alternating widen-cast-widen word replays as one ordered spine",
+        );
+
+        let divide_root_id = ValueId::new(2161).expect("divide root");
+        let divide_root = ScalarTerm::value(divide_root_id, ScalarType::Integer(u16_type));
+        let remainder = ScalarTerm::value(
+            ValueId::new(2162).expect("remainder"),
+            ScalarType::Integer(u16_type),
+        );
+        let remainder_cast = ScalarTerm::value(
+            ValueId::new(2163).expect("remainder cast"),
+            ScalarType::Integer(i16_type),
+        );
+        let remainder_widened = ScalarTerm::value(
+            ValueId::new(2164).expect("remainder widened"),
+            ScalarType::Integer(i32_type),
+        );
+        let divide_definitions = vec![
+            Proposition::Equal(
+                remainder.clone(),
+                ScalarTerm::exact_integer_remainder(
+                    u16_type,
+                    divide_root,
+                    ScalarTerm::integer(u16_type, IntegerValue::Unsigned(3)).expect("3u16"),
+                )
+                .expect("root % 3"),
+            ),
+            Proposition::Equal(
+                remainder_cast.clone(),
+                ScalarTerm::integer_exact_cast(u16_type, i16_type, remainder).expect("u16 to i16"),
+            ),
+            Proposition::Equal(
+                remainder_widened.clone(),
+                ScalarTerm::integer_widen(i16_type, i32_type, remainder_cast).expect("i16 to i32"),
+            ),
+        ];
+        let divide_parameters = BTreeSet::from([divide_root_id]);
+        for (requested, expected) in [
+            ((0, 2), Some(Proposition::Truth)),
+            ((3, 4), Some(Proposition::Falsehood)),
+            ((0, 1), None),
+        ] {
+            assert_eq!(
+                exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation(
+                    i32_type,
+                    remainder_widened.clone(),
+                    requested,
+                    &divide_definitions,
+                    divide_definitions.len(),
+                    &divide_parameters,
+                ),
+                expected,
+            );
+        }
+
+        let wide_divide_root_id = ValueId::new(2171).expect("wide divide root");
+        let wide_divide_root =
+            ScalarTerm::value(wide_divide_root_id, ScalarType::Integer(i16_type));
+        let wide_divide = ScalarTerm::value(
+            ValueId::new(2172).expect("wide divide"),
+            ScalarType::Integer(i16_type),
+        );
+        let wide_divide_widened = ScalarTerm::value(
+            ValueId::new(2173).expect("wide divide widened"),
+            ScalarType::Integer(i32_type),
+        );
+        let wide_divide_definitions = vec![
+            Proposition::Equal(
+                wide_divide.clone(),
+                ScalarTerm::exact_integer_divide(
+                    i16_type,
+                    wide_divide_root,
+                    ScalarTerm::integer(i16_type, IntegerValue::Signed(2)).expect("2i16"),
+                )
+                .expect("root / 2"),
+            ),
+            Proposition::Equal(
+                wide_divide_widened.clone(),
+                ScalarTerm::integer_widen(i16_type, i32_type, wide_divide).expect("i16 to i32"),
+            ),
+        ];
+        assert_eq!(
+            exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation(
+                i32_type,
+                i8_type,
+                wide_divide_widened,
+                &wide_divide_definitions,
+                &BTreeSet::from([wide_divide_root_id]),
+            ),
+            None,
+            "a partial D hull never becomes cast authority or falsehood",
+        );
+
+        let mut stale = alternating_definitions;
+        stale.swap(1, 2);
+        assert_eq!(
+            exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation(
+                u8_type,
+                alternating_fourth,
+                (0, 100),
+                &stale,
+                stale.len(),
+                &BTreeSet::from([alternating_root_id]),
+            ),
+            None,
+            "reordered conversion definitions remain fail-closed",
         );
     }
 
