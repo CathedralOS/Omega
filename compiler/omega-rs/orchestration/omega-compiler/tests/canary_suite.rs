@@ -19481,7 +19481,8 @@ fn case_membership_value_exit_canary_runs() {
         "omega-case-membership-value-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case membership value canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
