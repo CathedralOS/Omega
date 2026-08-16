@@ -1020,6 +1020,14 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         if index > 0 {
             json.push(',');
         }
+        validate_content_conservation_plan(program, &content_projections, &row.plan);
+        assert!(
+            row.plan.owner_kind
+                == psi_language_semantics::content::ContentConservationOwnerKind::Machine
+                && row.machine_symbol == row.plan.owner
+                && row.state_symbol == row.plan.callable,
+            "content identity reshuffle must retain its exact plan owner and callable",
+        );
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -1080,6 +1088,20 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         if index > 0 {
             json.push(',');
         }
+        validate_content_conservation_plan(program, &content_projections, &row.source_plan);
+        validate_content_conservation_plan(program, &content_projections, &row.plan);
+        assert!(
+            row.plan.owner_kind
+                == psi_language_semantics::content::ContentConservationOwnerKind::Machine
+                && row.machine_symbol == row.plan.owner
+                && row.state_symbol == row.plan.callable,
+            "content partition composition must retain its exact derived-plan owner and callable",
+        );
+        assert!(
+            row.source_callable == row.source_plan.callable
+                && row.source_fingerprint == row.source_plan.fingerprint,
+            "content partition composition must retain its exact source-plan coordinates",
+        );
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
         json.push_str(",\n      \"machine_overload_identity\": ");
@@ -1175,10 +1197,23 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         .collect::<Vec<_>>();
     conservation.sort_by_key(|plan| (symbol_label(program, plan.callable), plan.fingerprint));
     json.push_str("\n  ],\n  \"content_conservation\": [");
+    let mut authored_keys = Vec::new();
     for (index, plan) in conservation.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
+        validate_content_conservation_plan(program, &content_projections, plan);
+        let key = (
+            plan.owner_kind,
+            plan.owner,
+            plan.callable,
+            plan.algebra.clone(),
+        );
+        assert!(
+            !authored_keys.contains(&key),
+            "content conservation plans must retain one authored row per exact owner, callable, and algebra",
+        );
+        authored_keys.push(key);
         json.push_str("\n    {\n      \"owner_kind\": ");
         push_json_string(
             &mut json,
@@ -1289,6 +1324,113 @@ fn validated_content_projection_plans(
             plan
         })
         .collect()
+}
+
+fn validate_content_conservation_plan(
+    program: &CheckedTrees,
+    projection_plans: &[&psi_language_semantics::content::ContentProjectionPlan],
+    plan: &psi_language_semantics::content::ContentConservationPlan,
+) {
+    use psi_language_semantics::content::{ContentConservationOwnerKind, conservation_fingerprint};
+
+    match plan.owner_kind {
+        ContentConservationOwnerKind::Machine => {
+            let mut owners = program
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == plan.owner);
+            let owner = owners
+                .next()
+                .expect("content conservation machine owner must name an exact typed machine");
+            assert!(
+                owners.next().is_none(),
+                "content conservation machine owner must resolve to exactly one typed machine",
+            );
+            let mut callables = program
+                .machine_states(owner)
+                .iter()
+                .filter(|state| state.symbol == plan.callable);
+            callables.next().expect(
+                "content conservation machine callable must be a state owned by its exact machine",
+            );
+            assert!(
+                callables.next().is_none(),
+                "content conservation machine callable must resolve to exactly one owned state",
+            );
+        }
+        ContentConservationOwnerKind::TraitRequirement => {
+            let mut owners = program
+                .traits()
+                .iter()
+                .filter(|definition| definition.symbol == plan.owner);
+            let owner = owners.next().expect(
+                "content conservation trait owner must name an exact typed trait definition",
+            );
+            assert!(
+                owners.next().is_none(),
+                "content conservation trait owner must resolve to exactly one trait definition",
+            );
+            let mut callables = program
+                .trait_machine_signatures(owner)
+                .iter()
+                .filter(|signature| signature.symbol == plan.callable);
+            callables.next().expect(
+                "content conservation trait callable must be a requirement owned by its exact trait",
+            );
+            assert!(
+                callables.next().is_none(),
+                "content conservation trait callable must resolve to exactly one owned requirement",
+            );
+        }
+    }
+    assert_eq!(
+        plan.fingerprint,
+        conservation_fingerprint(&plan.algebra, &plan.equation),
+        "content conservation plan must retain its exact normalized fingerprint",
+    );
+    validate_content_conservation_term(projection_plans, &plan.algebra, plan.equation.left());
+    validate_content_conservation_term(projection_plans, &plan.algebra, plan.equation.right());
+}
+
+fn validate_content_conservation_term(
+    projection_plans: &[&psi_language_semantics::content::ContentProjectionPlan],
+    algebra: &psi_language_semantics::content::ContentAlgebraIdentity,
+    term: &psi_language_semantics::content::ContentConservationTerm,
+) {
+    use psi_language_semantics::content::ContentConservationTerm;
+
+    match term {
+        ContentConservationTerm::Projection {
+            domain,
+            semantic_domain,
+            projection_machine,
+            projection_fingerprint,
+            ..
+        } => {
+            let mut matches = projection_plans.iter().filter(|plan| {
+                plan.domain == *domain
+                    && plan.semantic_domain == *semantic_domain
+                    && plan.machine == *projection_machine
+                    && plan.fingerprint == *projection_fingerprint
+            });
+            let projection = matches.next().expect(
+                "content conservation projection term must join one exact retained projection plan",
+            );
+            assert!(
+                matches.next().is_none(),
+                "content conservation projection term must join exactly one retained projection plan",
+            );
+            assert_eq!(
+                &projection.algebra, algebra,
+                "content conservation projection term must retain the plan's exact algebra",
+            );
+        }
+        ContentConservationTerm::Separate(terms) => {
+            for term in terms {
+                validate_content_conservation_term(projection_plans, algebra, term);
+            }
+        }
+    }
 }
 
 fn push_content_algebra_json(
@@ -3742,9 +3884,10 @@ mod tests {
         push_termination_interface_json, qualification_evidence_manifest_json,
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
-        validate_qualification_program_point, validate_qualification_receipt,
-        validate_qualification_source, validate_vacuous_qualification_use,
-        validated_content_projection_plans, validated_machine_semantic_domain_commitments,
+        validate_content_conservation_plan, validate_qualification_program_point,
+        validate_qualification_receipt, validate_qualification_source,
+        validate_vacuous_qualification_use, validated_content_projection_plans,
+        validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -4131,11 +4274,20 @@ mod tests {
             semantic_id: semantic_domain,
             ..Default::default()
         });
-        program.typed.push_machine(Machine {
+        let mut projection_machine = Machine {
             symbol: machine_symbol,
             name: Identifier::generated("Resource::content"),
             ..Default::default()
-        });
+        };
+        program.typed.push_machine_state(
+            &mut projection_machine,
+            State {
+                symbol: SymbolHandle::from_arena_index(99),
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(projection_machine);
         let algebra = ContentAlgebraIdentity::CountedQuantity {
             unit: "named(name(Unit))".to_owned(),
         };
@@ -4161,6 +4313,297 @@ mod tests {
                 fingerprint,
             });
         program
+    }
+
+    fn content_conservation_plan(
+        projection: &ContentProjectionPlan,
+        owner_kind: ContentConservationOwnerKind,
+        owner: SymbolHandle,
+        callable: SymbolHandle,
+    ) -> ContentConservationPlan {
+        let left = ContentConservationTerm::Projection {
+            domain: projection.domain,
+            semantic_domain: projection.semantic_domain,
+            projection_machine: projection.machine,
+            projection_fingerprint: projection.fingerprint,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: ContentPlaceRoot::Parameter {
+                    position: 0,
+                    symbol: SymbolHandle::invalid(),
+                    name: "resource".to_owned(),
+                    is_self: false,
+                },
+                segments: Vec::new(),
+            },
+        };
+        let right = ContentConservationTerm::Projection {
+            domain: projection.domain,
+            semantic_domain: projection.semantic_domain,
+            projection_machine: projection.machine,
+            projection_fingerprint: projection.fingerprint,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: ContentPlaceRoot::Result,
+                segments: Vec::new(),
+            },
+        };
+        let algebra = projection.algebra.clone();
+        let equation = ContentConservationEquation::new(left, right);
+        let fingerprint = conservation_fingerprint(&algebra, &equation);
+        ContentConservationPlan {
+            owner_kind,
+            owner,
+            callable,
+            algebra,
+            equation,
+            fingerprint,
+        }
+    }
+
+    fn content_conservation_validation_fixture() -> (
+        CheckedTrees,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+    ) {
+        let machine_symbol = SymbolHandle::from_arena_index(93);
+        let state_symbol = SymbolHandle::from_arena_index(94);
+        let other_machine_symbol = SymbolHandle::from_arena_index(95);
+        let other_state_symbol = SymbolHandle::from_arena_index(96);
+        let trait_symbol = SymbolHandle::from_arena_index(97);
+        let requirement_symbol = SymbolHandle::from_arena_index(98);
+        let mut program = content_projection_validation_fixture();
+        for (machine, state, machine_name, state_name) in [
+            (
+                machine_symbol,
+                state_symbol,
+                "Resource::transfer",
+                "transfer",
+            ),
+            (
+                other_machine_symbol,
+                other_state_symbol,
+                "OtherResource::transfer",
+                "transfer",
+            ),
+        ] {
+            let mut definition = Machine {
+                symbol: machine,
+                name: Identifier::generated(machine_name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut definition,
+                State {
+                    symbol: state,
+                    name: Identifier::generated(state_name),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(definition);
+        }
+        let mut trait_definition = TraitDefinition {
+            symbol: trait_symbol,
+            name: Identifier::generated("ResourceContract"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut trait_definition,
+            StateSignature {
+                symbol: requirement_symbol,
+                name: Identifier::generated("transfer"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(trait_definition);
+        let projection = program.facts.qualifications.content.plans[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .extend([
+                content_conservation_plan(
+                    &projection,
+                    ContentConservationOwnerKind::Machine,
+                    machine_symbol,
+                    state_symbol,
+                ),
+                content_conservation_plan(
+                    &projection,
+                    ContentConservationOwnerKind::TraitRequirement,
+                    trait_symbol,
+                    requirement_symbol,
+                ),
+            ]);
+        (
+            program,
+            machine_symbol,
+            state_symbol,
+            other_machine_symbol,
+            other_state_symbol,
+        )
+    }
+
+    fn push_content_partition_row(
+        program: &mut CheckedTrees,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        source_plan: ContentConservationPlan,
+        plan: ContentConservationPlan,
+    ) {
+        program
+            .facts
+            .qualifications
+            .content
+            .partition_compositions
+            .push(ContentPartitionCompositionFact {
+                machine_symbol,
+                state_symbol,
+                source_callable: source_plan.callable,
+                source_fingerprint: source_plan.fingerprint,
+                source_derivation_depth: 0,
+                source_plan,
+                statement_index: 0,
+                call_ordinal: 0,
+                input_claim_identities: Vec::new(),
+                input_claim_bindings: Vec::new(),
+                result_rewrites: Vec::new(),
+                substitutions: Vec::new(),
+                plan,
+            });
+    }
+
+    #[test]
+    fn content_conservation_manifest_accepts_exact_machine_and_trait_custody() {
+        let (program, ..) = content_conservation_validation_fixture();
+        let projections = validated_content_projection_plans(&program);
+
+        for plan in &program.facts.qualifications.content.conservation_plans {
+            validate_content_conservation_plan(&program, &projections, plan);
+        }
+        let json = claim_outcome_manifest_json(&program);
+        assert_eq!(json.matches("\"owner_kind\": \"machine\"").count(), 1);
+        assert_eq!(
+            json.matches("\"owner_kind\": \"trait_requirement\"")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "trait owner must name an exact typed trait definition")]
+    fn content_conservation_manifest_rejects_wrong_owner_kind() {
+        let (mut program, ..) = content_conservation_validation_fixture();
+        program.facts.qualifications.content.conservation_plans[0].owner_kind =
+            ContentConservationOwnerKind::TraitRequirement;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "machine callable must be a state owned by its exact machine")]
+    fn content_conservation_manifest_rejects_cross_owner_callable() {
+        let (mut program, _, _, _, other_state) = content_conservation_validation_fixture();
+        program.facts.qualifications.content.conservation_plans[0].callable = other_state;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact normalized fingerprint")]
+    fn content_conservation_manifest_rejects_fingerprint_drift() {
+        let (mut program, ..) = content_conservation_validation_fixture();
+        program.facts.qualifications.content.conservation_plans[0].fingerprint ^= 1;
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must join one exact retained projection plan")]
+    fn content_conservation_manifest_rejects_projection_tuple_drift() {
+        let (mut program, ..) = content_conservation_validation_fixture();
+        let plan = &mut program.facts.qualifications.content.conservation_plans[0];
+        let mut left = plan.equation.left().clone();
+        let ContentConservationTerm::Projection {
+            projection_fingerprint,
+            ..
+        } = &mut left
+        else {
+            unreachable!("fixture term is a projection")
+        };
+        *projection_fingerprint ^= 1;
+        plan.equation = ContentConservationEquation::new(left, plan.equation.right().clone());
+        plan.fingerprint = conservation_fingerprint(&plan.algebra, &plan.equation);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "projection term must retain the plan's exact algebra")]
+    fn content_conservation_manifest_rejects_projection_algebra_drift() {
+        let (mut program, ..) = content_conservation_validation_fixture();
+        let plan = &mut program.facts.qualifications.content.conservation_plans[0];
+        plan.algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(UnrelatedUnit))".to_owned(),
+        };
+        plan.fingerprint = conservation_fingerprint(&plan.algebra, &plan.equation);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "must retain one authored row per exact owner, callable, and algebra"
+    )]
+    fn content_conservation_manifest_rejects_duplicate_authored_key() {
+        let (mut program, ..) = content_conservation_validation_fixture();
+        let duplicate = program.facts.qualifications.content.conservation_plans[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .push(duplicate);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "identity reshuffle must retain its exact plan owner and callable")]
+    fn content_conservation_manifest_rejects_reshuffle_outer_coordinate_drift() {
+        let (mut program, _, state, other_machine, _) = content_conservation_validation_fixture();
+        let plan = program.facts.qualifications.content.conservation_plans[0].clone();
+        program
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .push(ContentIdentityReshuffleFact {
+                machine_symbol: other_machine,
+                state_symbol: state,
+                claim_identity: Default::default(),
+                input_parameter_symbol: SymbolHandle::invalid(),
+                input_segments: Default::default(),
+                output_segments: Default::default(),
+                plan,
+            });
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact derived-plan owner and callable")]
+    fn content_conservation_manifest_rejects_partition_outer_coordinate_drift() {
+        let (mut program, _, state, other_machine, _) = content_conservation_validation_fixture();
+        let plan = program.facts.qualifications.content.conservation_plans[0].clone();
+        push_content_partition_row(&mut program, other_machine, state, plan.clone(), plan);
+        claim_outcome_manifest_json(&program);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact source-plan coordinates")]
+    fn content_conservation_manifest_rejects_partition_source_coordinate_drift() {
+        let (mut program, machine, state, ..) = content_conservation_validation_fixture();
+        let plan = program.facts.qualifications.content.conservation_plans[0].clone();
+        push_content_partition_row(&mut program, machine, state, plan.clone(), plan);
+        program.facts.qualifications.content.partition_compositions[0].source_fingerprint ^= 1;
+        claim_outcome_manifest_json(&program);
     }
 
     #[test]
