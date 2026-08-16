@@ -17103,6 +17103,33 @@ fn provider_type_target_default_canary_selects_target_default() {
 }
 
 #[test]
+fn component_owner_provider_override_canary_selects_complete_pick_plan() {
+    let canary = pass_canary("providers/component_owner_provider_override_compile");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("component-owned build override should resolve the Pick slot");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let pick_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Pick")
+        .expect("Pick must retain its selected component-owned provider plan");
+    assert_eq!(pick_plan.provider_type, "SecondProvider");
+    assert!(pick_plan.covers_schema());
+    assert_eq!(pick_plan.rows.len(), 1);
+    assert_eq!(pick_plan.rows[0].method, "choose");
+    assert!(matches!(
+        &pick_plan.rows[0].binding,
+        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
+            if machine == "SecondProvider::choose"
+    ));
+}
+
+#[test]
 fn provider_type_target_default_override_canary_selects_build_override() {
     let canary = pass_canary("providers/provider_type_target_default_override");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -45461,6 +45488,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/runtime_generic_trait_default_exit",
     "providers/runtime_adapter_dispatch_exit",
     "providers/provider_type_slot_selected",
+    "providers/component_owner_provider_override_compile",
     "providers/provider_type_target_default",
     "providers/provider_type_target_default_override",
     "providers/adapter_satisfies_compile",
