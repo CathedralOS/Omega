@@ -50,6 +50,8 @@ pub(crate) use terminal_unit::exact_cast_then_shift_left_runtime_parameter_posit
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_cast_then_shift_right_runtime_parameter_positions_for_test;
 #[cfg(test)]
+pub(crate) use terminal_unit::exact_cast_then_signed_multiply_runtime_parameter_positions_for_test;
+#[cfg(test)]
 pub(crate) use terminal_unit::exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test;
@@ -79,6 +81,10 @@ pub(crate) use terminal_unit::exact_shift_left_chain_runtime_parameter_positions
 pub(crate) use terminal_unit::exact_shift_right_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::exact_shift_then_arithmetic_runtime_parameter_positions_for_test;
+#[cfg(test)]
+pub(crate) use terminal_unit::exact_signed_multiply_chain_cast_runtime_parameter_positions_for_test;
+#[cfg(test)]
+pub(crate) use terminal_unit::exact_signed_multiply_chain_runtime_parameter_positions_for_test;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};

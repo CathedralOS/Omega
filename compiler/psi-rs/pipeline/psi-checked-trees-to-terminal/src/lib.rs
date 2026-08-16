@@ -11206,7 +11206,9 @@ fn shared_integer_runtime_parameters_with_shells(
                 .or_else(|| shared_exact_affine_cast_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_affine_runtime_parameters(expression))
                 .or_else(|| shared_exact_cast_then_multiply_runtime_parameters(expression))
+                .or_else(|| shared_exact_cast_then_signed_multiply_runtime_parameters(expression))
                 .or_else(|| shared_exact_multiply_chain_runtime_parameters(expression))
+                .or_else(|| shared_exact_signed_multiply_chain_runtime_parameters(expression))
                 .or_else(|| shared_exact_affine_chain_runtime_parameters(expression))
         }
         LoweredDirectExpression::IntegerBinary {
@@ -11325,6 +11327,12 @@ fn shared_integer_runtime_parameters_with_shells(
                 })
                 .or_else(|| {
                     shared_exact_multiply_chain_cast_runtime_parameters(*scalar_type, operand)
+                })
+                .or_else(|| {
+                    shared_exact_signed_multiply_chain_cast_runtime_parameters(
+                        *scalar_type,
+                        operand,
+                    )
                 })
                 .or_else(|| {
                     shared_exact_offset_chain_cast_runtime_parameters(*scalar_type, operand)
@@ -11580,6 +11588,56 @@ fn shared_exact_multiply_chain_cast_runtime_parameters(
                 position,
                 scalar_type: ScalarType::Integer(root_type),
             } if *root_type == *integer_type => {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_exact_signed_multiply_chain_cast_runtime_parameters(
+    target_type: ScalarType,
+    mut operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_type else {
+        return None;
+    };
+    if !native_fixed_integer_type(target_type) {
+        return None;
+    }
+    let mut chain_type = None;
+    let mut product = Some((false, 1_u128));
+    let mut saw_negative = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = operand
+        else {
+            return None;
+        };
+        let factor = signed_exact_multiply_landed_value(*integer_type, right)?;
+        if !native_fixed_integer_type(*integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+        {
+            return None;
+        }
+        product = checked_lowered_signed_product(product, factor);
+        saw_negative |= factor < 0;
+        chain_type = Some(*integer_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => operand = nested,
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if product.is_some() && saw_negative && *root_type == *integer_type => {
                 return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
                     *position,
                 )]));
@@ -12280,6 +12338,57 @@ fn shared_exact_multiply_chain_runtime_parameters(
     }
 }
 
+fn shared_exact_signed_multiply_chain_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut product = Some((false, 1_u128));
+    let mut saw_nested_multiply = false;
+    let mut saw_negative = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type: ScalarType::Integer(integer_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let factor = signed_exact_multiply_landed_value(*integer_type, right)?;
+        if !native_fixed_integer_type(*integer_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *integer_type)
+        {
+            return None;
+        }
+        product = checked_lowered_signed_product(product, factor);
+        saw_negative |= factor < 0;
+        chain_type = Some(*integer_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => {
+                saw_nested_multiply = true;
+                expression = nested;
+            }
+            LoweredDirectExpression::Parameter {
+                position,
+                scalar_type: ScalarType::Integer(root_type),
+            } if product.is_some()
+                && saw_nested_multiply
+                && saw_negative
+                && *root_type == *integer_type =>
+            {
+                return Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
+                    *position,
+                )]));
+            }
+            _ => return None,
+        }
+    }
+}
+
 fn shared_exact_cast_then_multiply_runtime_parameters(
     mut expression: &LoweredDirectExpression,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
@@ -12324,6 +12433,89 @@ fn shared_exact_cast_then_multiply_runtime_parameters(
             _ => return None,
         }
     }
+}
+
+fn shared_exact_cast_then_signed_multiply_runtime_parameters(
+    mut expression: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let mut chain_type = None;
+    let mut product = Some((false, 1_u128));
+    let mut saw_negative = false;
+    loop {
+        let LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type: ScalarType::Integer(target_type),
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let factor = signed_exact_multiply_landed_value(*target_type, right)?;
+        if !native_fixed_integer_type(*target_type)
+            || chain_type.is_some_and(|chain_type| chain_type != *target_type)
+        {
+            return None;
+        }
+        product = checked_lowered_signed_product(product, factor);
+        saw_negative |= factor < 0;
+        chain_type = Some(*target_type);
+        match left.as_ref() {
+            nested @ LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactMultiply,
+                ..
+            } => expression = nested,
+            LoweredDirectExpression::IntegerExactCast {
+                scalar_type: ScalarType::Integer(cast_target_type),
+                operand,
+            } if product.is_some() && saw_negative && *cast_target_type == *target_type => {
+                let LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type: ScalarType::Integer(source_type),
+                } = operand.as_ref()
+                else {
+                    return None;
+                };
+                return native_fixed_integer_type(*source_type).then(|| {
+                    BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(*position)])
+                });
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn signed_exact_multiply_landed_value(
+    integer_type: IntegerType,
+    expression: &LoweredDirectExpression,
+) -> Option<i128> {
+    let LoweredDirectExpression::IntegerLiteral { value, scalar_type } = expression else {
+        return None;
+    };
+    if integer_type.sign() != IntegerSign::Signed
+        || *scalar_type != ScalarType::Integer(integer_type)
+    {
+        return None;
+    }
+    let IntegerValue::Signed(value) = value else {
+        return None;
+    };
+    Some(*value)
+}
+
+fn checked_lowered_signed_product(
+    product: Option<(bool, u128)>,
+    factor: i128,
+) -> Option<(bool, u128)> {
+    let magnitude = factor.unsigned_abs();
+    if magnitude == 0 {
+        return Some((false, 0));
+    }
+    let product = product?;
+    if product.1 == 0 {
+        return Some((false, 0));
+    }
+    Some((product.0 ^ (factor < 0), product.1.checked_mul(magnitude)?))
 }
 
 fn nonnegative_exact_multiply_landed_literal(

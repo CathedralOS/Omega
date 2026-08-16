@@ -1432,6 +1432,24 @@ requires value <= 255u16, value <= 127u16, value <= 42u16
     staged
 }
 
+machine terminal_exact_cast_then_signed_multiply_chain(value: u16, enabled: bool) -> bool
+requires value <= 127u16, value <= 64u16
+{
+    (((((value as i8) * -2i8) * 0i8) <= 0i8) && enabled)
+}
+
+machine terminal_signed_multiply_chain(value: i8, enabled: bool) -> bool
+requires -63i8 <= value, value <= 64i8, -21i8 <= value, value <= 21i8
+{
+    ((((value * -2i8) * 3i8) < 127i8) && enabled)
+}
+
+machine terminal_signed_minimum_multiply_chain(value: i64, enabled: bool) -> bool
+requires 0i64 <= value, value <= 1i64
+{
+    (((value * -9223372036854775808i64) * 1i64) <= 0i64) && enabled
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
@@ -1482,6 +1500,12 @@ requires value <= 127u8, value <= 42u8, value <= 21u8
     let staged: bool = (((((value * 2u8) * 3u8) as i8) < 127i8)
         && ((((value * 2u8) * 0u8) as i8) < 127i8)) && enabled;
     staged
+}
+
+machine terminal_signed_multiply_chain_then_exact_cast(value: i16, enabled: bool) -> bool
+requires -63i16 <= value, value <= 64i16, 0i16 <= value, value <= 0i16
+{
+    ((((value * -512i16) as i8) < 127i8) && enabled)
 }
 
 machine terminal_literal_shift_left_chain_then_exact_cast(value: u16, enabled: bool) -> bool

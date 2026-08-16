@@ -56,6 +56,10 @@ const SOURCE: &str = r#"
         shift_remainder_direct: u8,
         divide_cast_divide: u16,
         signed_divide_cast_remainder: i16,
+        signed_multiply_chain: i8,
+        signed_multiply_cast: i16,
+        signed_cast_multiply: u16,
+        signed_minimum_factor: i64,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -109,7 +113,13 @@ const SOURCE: &str = r#"
         shift_cast_remainder <= 127u16,
         affine_divide_direct <= 254u8,
         affine_divide_direct <= 126u8,
-        shift_remainder_direct <= 127u8
+        shift_remainder_direct <= 127u8,
+        -63i8 <= signed_multiply_chain, signed_multiply_chain <= 64i8,
+        -21i8 <= signed_multiply_chain, signed_multiply_chain <= 21i8,
+        -63i16 <= signed_multiply_cast, signed_multiply_cast <= 64i16,
+        0i16 <= signed_multiply_cast, signed_multiply_cast <= 0i16,
+        signed_cast_multiply <= 127u16, signed_cast_multiply <= 64u16,
+        0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -148,6 +158,10 @@ const SOURCE: &str = r#"
             && (((((shift_remainder_direct >> 1i8) << 2u16) / 2u8) % 3u8) < 3u8)
             && (((((divide_cast_divide % 64u16) as i8) / 2i8) % 3i8) < 3i8)
             && (((((signed_divide_cast_remainder / 512i16) as i8) / 2i8) % 3i8) < 3i8)
+            && ((((signed_multiply_chain * -2i8) * 3i8) < 127i8))
+            && ((((signed_multiply_cast * -512i16) as i8) < 127i8))
+            && (((((signed_cast_multiply as i8) * -2i8) * 0i8) <= 0i8))
+            && (((signed_minimum_factor * -9223372036854775808i64) * 1i64) <= 0i64)
             && enabled
     }
 "#;
@@ -236,7 +250,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         39,
     );
     assert_eq!(shift_obligations.len(), 72);
-    assert_eq!(proof_obligations.len(), 144);
+    assert_eq!(proof_obligations.len(), 153);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -783,6 +797,38 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 type");
+    let mut stale_signed_factor = decode_module(&semantics).expect("decode mixed-shift module");
+    let signed_factor = stale_signed_factor
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Signed(-512),
+                }
+            ) && operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.scalar_type == ScalarType::Integer(i16_type))
+        })
+        .expect("signed pre-cast chain retains its landed negative factor");
+    signed_factor.kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Signed(-511),
+    };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &stale_signed_factor,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -912,6 +958,22 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
                 value: IntegerValue::Signed(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16 value"),
+                value: IntegerValue::Signed(0),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 value"),
+                value: IntegerValue::Unsigned(4),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(0),
             },
             TerminalScalarValue::Boolean(enabled),
         ]
