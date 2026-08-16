@@ -704,6 +704,24 @@ falsehood; malformed, reordered, cyclic, mistyped, widening, same-type, local-
 rooted, intervening-operation, missing-evidence, or redirected-evidence shapes
 remain fail-closed. The direct one-cast and widen-then-narrow paths are
 unchanged.
+The finite cast core may instead follow one nonempty computed prefix from an
+already-admitted pre-cast family: same-carrier landed-literal affine arithmetic,
+the homogeneous signed-product path, a homogeneous or mixed exact-shift chain,
+or a carrier-total landed-literal exact-divide/remainder chain. At least two
+partial fixed-native casts remain required for this wider family. For each
+cast prefix the verifier walks ordered shrinking cast definitions, intersects
+every carrier reached so far, then applies only the selected source family's
+existing inverse algebra to the direct machine-parameter root. A zero affine
+coefficient or product decides only the current cast; negative products reverse
+the complete carrier intersection; shifts replay every ordered inverse step;
+and divide/remainder is admitted only when its complete verifier-owned hull is
+contained. Every source operation and cast retains distinct evidence.
+Mathematical empty affine/product/shift preimages are falsehood, while checked
+composition or interval failure admits no family. Empty prefixes, fewer than
+two casts, post-cast operations, cross-family prefixes, invalid cast edges,
+runtime siblings, nonparameter roots, malformed definitions, and stale or
+redirected evidence remain fenced. Direct, one-cast, sandwich, and cast-only
+paths are unchanged.
 One
 separate computed-cast exception accepts a direct
 fixed-integer parameter

@@ -11309,6 +11309,12 @@ fn shared_integer_runtime_parameters_with_shells(
             shared_roundtrip_exact_cast_runtime_parameters(*scalar_type, operand)
                 .or_else(|| shared_exact_cast_chain_runtime_parameters(*scalar_type, operand))
                 .or_else(|| {
+                    shared_exact_computed_prefix_cast_chain_runtime_parameters(
+                        *scalar_type,
+                        operand,
+                    )
+                })
+                .or_else(|| {
                     shared_exact_divide_remainder_chain_cast_runtime_parameters(
                         *scalar_type,
                         operand,
@@ -11411,6 +11417,50 @@ fn partial_fixed_native_integer_cast(source: IntegerType, target: IntegerType) -
         && source != target
         && source.can_exact_cast_to(target)
         && !source.can_widen_to(target)
+}
+
+fn shared_exact_computed_prefix_cast_chain_runtime_parameters(
+    target_scalar_type: ScalarType,
+    mut operand: &LoweredDirectExpression,
+) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
+    let ScalarType::Integer(target_type) = target_scalar_type else {
+        return None;
+    };
+    fixed_native_integer_interval(target_type)?;
+    let mut expected_target = target_type;
+    let mut followed_nested_cast = false;
+    while let LoweredDirectExpression::IntegerExactCast {
+        scalar_type: ScalarType::Integer(cast_target),
+        operand: cast_operand,
+    } = operand
+    {
+        if !partial_fixed_native_integer_cast(*cast_target, expected_target) {
+            return None;
+        }
+        expected_target = *cast_target;
+        operand = cast_operand;
+        followed_nested_cast = true;
+    }
+    followed_nested_cast.then_some(())?;
+    let ScalarType::Integer(source_type) = operand.scalar_type() else {
+        return None;
+    };
+    partial_fixed_native_integer_cast(source_type, expected_target).then_some(())?;
+    let expected_target = ScalarType::Integer(expected_target);
+    shared_exact_divide_remainder_chain_cast_runtime_parameters(expected_target, operand)
+        .or_else(|| {
+            shared_exact_mixed_shift_chain_cast_runtime_parameters(expected_target, operand)
+        })
+        .or_else(|| {
+            shared_exact_shift_right_chain_cast_runtime_parameters(expected_target, operand)
+        })
+        .or_else(|| shared_exact_shift_left_chain_cast_runtime_parameters(expected_target, operand))
+        .or_else(|| shared_exact_affine_chain_cast_runtime_parameters(expected_target, operand))
+        .or_else(|| shared_exact_multiply_chain_cast_runtime_parameters(expected_target, operand))
+        .or_else(|| {
+            shared_exact_signed_multiply_chain_cast_runtime_parameters(expected_target, operand)
+        })
+        .or_else(|| shared_exact_offset_chain_cast_runtime_parameters(expected_target, operand))
 }
 
 #[derive(Clone, Copy)]

@@ -441,6 +441,15 @@ Remaining:
   own mandatory evidence. A mathematical empty intersection is falsehood,
   while malformed definitions or carrier reconstruction failure admit no
   family.
+  The same finite cast core may now follow one nonempty already-admitted
+  computed prefix: landed-literal affine arithmetic (including the homogeneous
+  signed-product path), an exact-shift chain, or a carrier-total exact-
+  divide/remainder chain. For every cast prefix, the verifier intersects every
+  carrier reached so far and reuses only that computed family's verifier-owned
+  inverse algebra to reconstruct the direct root. Every computed-prefix and
+  cast obligation remains independently evidenced. Empty affine/product/shift
+  preimages are falsehood, checked replay failure admits no family, and the
+  divide/remainder hull remains admissible only by complete containment.
 
   Next engineering frontiers are other proof-bearing results feeding another
   proof-bearing operation, other computed exact-cast and wider exact-arithmetic

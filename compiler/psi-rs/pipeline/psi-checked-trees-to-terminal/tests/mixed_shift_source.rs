@@ -61,6 +61,10 @@ const SOURCE: &str = r#"
         signed_cast_multiply: u16,
         signed_minimum_factor: i64,
         exact_cast_chain: i64,
+        computed_affine_cast_chain: i64,
+        computed_signed_product_cast_chain: i64,
+        computed_shift_cast_chain: i64,
+        computed_divide_cast_chain: u32,
         enabled: bool
     ) -> bool
     requires value <= 127u8, value <= 63u8, value <= 31u8,
@@ -123,7 +127,23 @@ const SOURCE: &str = r#"
         0i64 <= signed_minimum_factor, signed_minimum_factor <= 1i64,
         0i64 <= exact_cast_chain,
         exact_cast_chain <= 2147483647i64,
-        exact_cast_chain <= 255i64
+        exact_cast_chain <= 255i64,
+        -4611686018427387904i64 <= computed_affine_cast_chain,
+        computed_affine_cast_chain <= 4611686018427387903i64,
+        0i64 <= computed_affine_cast_chain,
+        computed_affine_cast_chain <= 1073741823i64,
+        computed_affine_cast_chain <= 127i64,
+        -4611686018427387903i64 <= computed_signed_product_cast_chain,
+        computed_signed_product_cast_chain <= 4611686018427387904i64,
+        -1073741823i64 <= computed_signed_product_cast_chain,
+        -127i64 <= computed_signed_product_cast_chain,
+        -9223372036854775807i64 <= computed_signed_product_cast_chain,
+        computed_signed_product_cast_chain <= 0i64,
+        -4611686018427387904i64 <= computed_shift_cast_chain,
+        computed_shift_cast_chain <= 4611686018427387903i64,
+        0i64 <= computed_shift_cast_chain,
+        computed_shift_cast_chain <= 2147483647i64,
+        computed_shift_cast_chain <= 255i64
     {
         ((((((value >> 1i8) >> 2u16) << 1i32) << 1u64) < 255u8)
             && (((value >> 1i8) << 4u16) < 255u8))
@@ -167,6 +187,10 @@ const SOURCE: &str = r#"
             && (((((signed_cast_multiply as i8) * -2i8) * 0i8) <= 0i8))
             && (((signed_minimum_factor * -9223372036854775808i64) * 1i64) <= 0i64)
             && (((((exact_cast_chain as u64) as i32) as u8) < 255u8))
+            && (((((((computed_affine_cast_chain * 2i64) + 1i64) as u64) as i32) as u8) < 255u8))
+            && ((((((computed_signed_product_cast_chain * -2i64) as u64) as i32) as u8) < 255u8))
+            && ((((((((computed_shift_cast_chain << 1u8) >> 1u16) as u64) as i32) as u8) < 255u8)))
+            && ((((((computed_divide_cast_chain / 2u32) % 3u32) as i8) as u8) < 3u8))
             && enabled
     }
 "#;
@@ -207,6 +231,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let divide_cast_divide_parameter = entry.parameters[30].id;
     let signed_minimum_parameter = entry.parameters[35].id;
     let exact_cast_chain_parameter = entry.parameters[36].id;
+    let computed_affine_cast_chain_parameter = entry.parameters[37].id;
     let operations = lowered
         .semantic_module
         .machines
@@ -244,7 +269,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftRight { .. }
             ))
             .count(),
-        33,
+        34,
     );
     assert_eq!(
         operations
@@ -254,10 +279,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
                 OperationKind::ExactIntegerShiftLeft { .. }
             ))
             .count(),
-        39,
+        40,
     );
-    assert_eq!(shift_obligations.len(), 72);
-    assert_eq!(proof_obligations.len(), 156);
+    assert_eq!(shift_obligations.len(), 74);
+    assert_eq!(proof_obligations.len(), 174);
     for (index, obligation) in proof_obligations.iter().enumerate() {
         assert!(!proof_obligations[index + 1..].contains(obligation));
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
@@ -864,6 +889,61 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             if proof_obligations.contains(&obligation)
     ));
 
+    let mut redirected_computed_cast_chain =
+        decode_module(&semantics).expect("decode mixed-shift module");
+    let computed_product = redirected_computed_cast_chain
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerMultiply { left, .. }
+                if left == computed_affine_cast_chain_parameter =>
+            {
+                operation.result.scalar().map(|result| result.id)
+            }
+            _ => None,
+        })
+        .expect("computed-prefix cast chain retains its rooted multiply");
+    let computed_affine = redirected_computed_cast_chain
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { left, .. } if left == computed_product => {
+                operation.result.scalar().map(|result| result.id)
+            }
+            _ => None,
+        })
+        .expect("computed-prefix cast chain retains its affine result");
+    let computed_first_cast = redirected_computed_cast_chain
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerExactCast { operand, .. }
+                    if operand == computed_affine
+            )
+        })
+        .expect("computed-prefix cast chain retains its first cast definition");
+    let OperationKind::IntegerExactCast { operand, .. } = &mut computed_first_cast.kind else {
+        unreachable!("selected computed-prefix exact cast")
+    };
+    *operand = signed_minimum_parameter;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &redirected_computed_cast_chain,
+            &decode_proof_bundle(&proof).expect("decode unchanged mixed-shift proof"),
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+            if proof_obligations.contains(&obligation)
+    ));
+
     let scalar_arguments = |enabled| {
         vec![
             TerminalScalarValue::Integer {
@@ -1013,6 +1093,22 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
                 value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(-1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64 value"),
+                value: IntegerValue::Signed(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 value"),
+                value: IntegerValue::Unsigned(4),
             },
             TerminalScalarValue::Boolean(enabled),
         ]

@@ -177,6 +177,11 @@ A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains
 independent.
+When that finite cast chain follows an admitted affine, signed-product, shift,
+or carrier-total divide/remainder prefix, every computed operation and every
+cast is still charged separately. Replaying the complete carrier intersection
+through the prefix's existing verifier-owned inverse algebra adds no executable
+operation or fuel charge.
 Likewise, a finite retained exact-left-shift literal chain followed by one
 partial fixed-native exact cast charges every shift operation and the cast;
 the verifier's cumulative-count inverse-interval reconstruction adds no
