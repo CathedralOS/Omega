@@ -164,6 +164,7 @@ pub fn qualification_evidence_manifest_json(
             fact.evidence.origin,
             fact.evidence.receipt_identity,
         );
+        validate_qualification_source(program, &fact.evidence);
         json.push_str("\n    {\n      \"subject\": ");
         push_json_string(&mut json, &qualification_subject(program, fact));
         json.push_str(",\n      \"domain\": ");
@@ -483,6 +484,83 @@ fn validate_qualification_receipt(
                 "qualification evidence receipt must name an exact retained selected provider plan",
             );
     }
+}
+
+fn validate_qualification_source(
+    program: &CheckedTrees,
+    evidence: &psi_facts::QualificationEvidence,
+) {
+    use psi_language_semantics::QualificationEvidenceOrigin;
+    use psi_typed_trees::data::TypeParameterKind;
+
+    if evidence.origin == QualificationEvidenceOrigin::AdmittedReceipt {
+        qualification_requirement_identity(program, evidence);
+        return;
+    }
+
+    assert!(
+        !evidence.requirement_symbol.is_valid(),
+        "non-admitted qualification evidence must not name a boundary requirement",
+    );
+    assert_eq!(
+        evidence.receipt_identity, 0,
+        "non-admitted qualification evidence must not retain an admitted receipt",
+    );
+    assert!(
+        evidence.source_symbol.is_valid(),
+        "non-admitted qualification evidence must retain a nonempty exact source symbol",
+    );
+
+    let source = evidence.source_symbol;
+    let machine_matches = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == source)
+        .count();
+    let state_matches = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .filter(|state| state.symbol == source)
+        .count();
+    let root_operator_matches = program
+        .operators()
+        .iter()
+        .filter(|operator| operator.symbol == source)
+        .count();
+    let domain_operator_matches = program
+        .domain_definitions()
+        .iter()
+        .flat_map(|domain| program.domain_operators(domain))
+        .filter(|operator| operator.symbol == source)
+        .count();
+    let trait_matches = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == source)
+        .count();
+    let generic_signature_matches = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_type_parameters(machine))
+        .filter(|parameter| {
+            matches!(
+                &parameter.kind,
+                TypeParameterKind::Machine { contract }
+                    if parameter.symbol == source || contract.symbol == source
+            )
+        })
+        .count();
+    let matches = machine_matches
+        + state_matches
+        + root_operator_matches
+        + domain_operator_matches
+        + trait_matches
+        + generic_signature_matches;
+    assert_eq!(
+        matches, 1,
+        "non-admitted qualification evidence source must resolve to exactly one retained typed semantic declaration",
+    );
 }
 
 fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts::ProgramPoint) {
@@ -3593,7 +3671,8 @@ mod tests {
         qualification_requirement_identity, qualification_subject,
         specialization_instance_contract_fingerprint, task_activation_manifest_json,
         validate_qualification_program_point, validate_qualification_receipt,
-        validate_vacuous_qualification_use, validated_machine_semantic_domain_commitments,
+        validate_qualification_source, validate_vacuous_qualification_use,
+        validated_machine_semantic_domain_commitments,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3622,10 +3701,12 @@ mod tests {
         TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
+    use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
     use psi_typed_trees::domain::DomainDefinition;
     use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::operator::OperatorDefinition;
     use psi_typed_trees::signature::StateSignature;
     use psi_typed_trees::state::State;
     use psi_typed_trees::statement::StatementNode;
@@ -4830,6 +4911,167 @@ mod tests {
                 statement_index: 0,
                 call_ordinal: 2,
             },
+        );
+    }
+
+    #[test]
+    fn qualification_manifest_accepts_exact_independent_semantic_sources() {
+        let machine_symbol = SymbolHandle::from_arena_index(80);
+        let state_symbol = SymbolHandle::from_arena_index(81);
+        let root_operator_symbol = SymbolHandle::from_arena_index(82);
+        let domain_symbol = SymbolHandle::from_arena_index(83);
+        let domain_operator_symbol = SymbolHandle::from_arena_index(84);
+        let trait_symbol = SymbolHandle::from_arena_index(85);
+        let parameter_symbol = SymbolHandle::from_arena_index(86);
+        let parameter_signature_symbol = SymbolHandle::from_arena_index(87);
+        let mut program = CheckedTrees::default();
+
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Worker::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("run"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine_type_parameter(
+            &mut machine,
+            TypeParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated("Dependency"),
+                kind: TypeParameterKind::Machine {
+                    contract: StateSignature {
+                        symbol: parameter_signature_symbol,
+                        name: Identifier::generated("invoke"),
+                        ..Default::default()
+                    },
+                },
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
+        program.typed.push_operator(OperatorDefinition {
+            symbol: root_operator_symbol,
+            ..Default::default()
+        });
+        let mut domain = DomainDefinition {
+            symbol: domain_symbol,
+            name: Identifier::generated("Validated"),
+            ..Default::default()
+        };
+        program.typed.push_domain_operator(
+            &mut domain,
+            OperatorDefinition {
+                symbol: domain_operator_symbol,
+                ..Default::default()
+            },
+        );
+        program.typed.push_domain_definition(domain);
+        program.typed.push_trait_definition(TraitDefinition {
+            symbol: trait_symbol,
+            name: Identifier::generated("Transform"),
+            ..Default::default()
+        });
+
+        for (source_symbol, origin) in [
+            (
+                machine_symbol,
+                QualificationEvidenceOrigin::CheckedValidation,
+            ),
+            (state_symbol, QualificationEvidenceOrigin::Prover),
+            (
+                root_operator_symbol,
+                QualificationEvidenceOrigin::CheckedTransformation,
+            ),
+            (
+                domain_operator_symbol,
+                QualificationEvidenceOrigin::Propagated,
+            ),
+            (
+                trait_symbol,
+                QualificationEvidenceOrigin::AuthorizedRouteEstablishment,
+            ),
+            (
+                parameter_symbol,
+                QualificationEvidenceOrigin::VacuousQualification,
+            ),
+            (
+                parameter_signature_symbol,
+                QualificationEvidenceOrigin::Prover,
+            ),
+        ] {
+            validate_qualification_source(
+                &program,
+                &QualificationEvidence::from_origin(origin, source_symbol),
+            );
+        }
+    }
+
+    #[test]
+    fn qualification_manifest_keeps_admitted_source_on_requirement_pair_rule() {
+        let mut program = CheckedTrees::default();
+        let (requirement_owner, requirement) =
+            push_qualification_requirement(&mut program, true, 70, 71, "StorageBase");
+
+        validate_qualification_source(
+            &program,
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                source_symbol: requirement_owner,
+                requirement_symbol: requirement,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain a nonempty exact source symbol")]
+    fn qualification_manifest_rejects_empty_non_admitted_source() {
+        validate_qualification_source(
+            &CheckedTrees::default(),
+            &QualificationEvidence {
+                origin: QualificationEvidenceOrigin::Prover,
+                ..Default::default()
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must resolve to exactly one retained typed semantic declaration")]
+    fn qualification_manifest_rejects_absent_non_admitted_source() {
+        validate_qualification_source(
+            &CheckedTrees::default(),
+            &QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::Prover,
+                SymbolHandle::from_arena_index(80),
+            ),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must resolve to exactly one retained typed semantic declaration")]
+    fn qualification_manifest_rejects_ambiguous_non_admitted_source() {
+        let source = SymbolHandle::from_arena_index(80);
+        let mut program = CheckedTrees::default();
+        program.typed.push_machine(Machine {
+            symbol: source,
+            name: Identifier::generated("Worker::run"),
+            ..Default::default()
+        });
+        program.typed.push_trait_definition(TraitDefinition {
+            symbol: source,
+            name: Identifier::generated("Worker"),
+            ..Default::default()
+        });
+
+        validate_qualification_source(
+            &program,
+            &QualificationEvidence::from_origin(QualificationEvidenceOrigin::Prover, source),
         );
     }
 
