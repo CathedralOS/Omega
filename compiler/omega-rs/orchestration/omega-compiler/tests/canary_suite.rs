@@ -22248,13 +22248,8 @@ fn runtime_trapping_guard_overflow_traps_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_trapping_guard_overflow_traps");
     let build_dir = std::env::temp_dir().join(format!("omega-trapguard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("trapping guard-overflow canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("trapping guard-overflow canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("trapping guard-overflow canary should spawn");
