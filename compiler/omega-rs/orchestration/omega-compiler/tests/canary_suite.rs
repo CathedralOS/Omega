@@ -26855,20 +26855,14 @@ fn runtime_transition_subject_call_single_evaluation_exit_canary_runs() {
 #[test]
 fn runtime_nonplace_record_pattern_single_evaluation_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_nonplace_record_pattern_single_evaluation_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-nonplace-record-pattern-single-evaluation-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed record-pattern subject canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("computed record-pattern subject canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45201,6 +45195,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_negated_boolean_place_guard_exit",
     "control_flow/runtime_negated_comparison_guard_exit",
+    "control_flow/runtime_nonplace_record_pattern_single_evaluation_exit",
     "control_flow/record_pattern_arm_rename_guard_exit",
     "control_flow/state_transition_chain",
     "data/case_payload_native_construction",
