@@ -3468,6 +3468,96 @@ fn validated_manifest_specializations(
     validated
 }
 
+fn exact_manifest_crash_source_state<'program>(
+    program: &'program CheckedTrees,
+    machine: &Machine,
+    state_symbol: SymbolHandle,
+    statement_ordinal: u32,
+    source_kind: &str,
+) -> &'program State {
+    let mut states = program
+        .machine_states(machine)
+        .iter()
+        .filter(|state| state.symbol == state_symbol);
+    let state = states.next().unwrap_or_else(|| {
+        panic!("checked crash {source_kind} source state must belong to its exact contract machine")
+    });
+    assert!(
+        states.next().is_none(),
+        "checked crash {source_kind} source state must resolve uniquely within its exact contract machine"
+    );
+    let statement_index = usize::try_from(statement_ordinal)
+        .expect("checked crash source statement ordinal exceeds retained index range");
+    assert!(
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index)
+            .is_some(),
+        "checked crash {source_kind} statement must belong to its exact typed state"
+    );
+    state
+}
+
+fn exact_manifest_crash_call_source<'program>(
+    program: &'program CheckedTrees,
+    machine: &Machine,
+    call: &psi_checked_trees::CheckedCrashCallSite,
+) -> &'program State {
+    let location = call.location();
+    let state = exact_manifest_crash_source_state(
+        program,
+        machine,
+        location.state(),
+        location.statement_ordinal(),
+        "call",
+    );
+    let mut flow_states = program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, flow)| {
+            flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
+        });
+    let flow_state = flow_states
+        .next()
+        .map(|(_, flow)| flow)
+        .unwrap_or_else(|| panic!("checked crash call must name one exact checked flow state"));
+    assert!(
+        flow_states.next().is_none(),
+        "checked crash call must name exactly one checked flow state"
+    );
+    let calls = program
+        .facts
+        .flow
+        .control
+        .calls
+        .span(flow_state.calls)
+        .expect("checked crash call flow state must retain an exact valid call span");
+    let statement_index = usize::try_from(location.statement_ordinal())
+        .expect("checked crash call statement ordinal exceeds retained index range");
+    let call_ordinal = usize::try_from(location.call_ordinal())
+        .expect("checked crash call ordinal exceeds retained index range");
+    let mut flow_calls = calls.iter().filter(|flow_call| {
+        flow_call.statement_index == statement_index && flow_call.call_ordinal == call_ordinal
+    });
+    let flow_call = flow_calls
+        .next()
+        .unwrap_or_else(|| panic!("checked crash call must name one exact checked flow call"));
+    assert!(
+        flow_calls.next().is_none(),
+        "checked crash call must name exactly one checked flow call"
+    );
+    assert_eq!(
+        flow_call.target_symbol,
+        call.target_state(),
+        "checked crash call must retain its exact checked flow target"
+    );
+    state
+}
+
 pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
     let specializations = validated_manifest_specializations(program);
     let mut json = String::from("{\n  \"machines\": [");
@@ -3569,12 +3659,15 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push(',');
             }
             let location = site.location();
-            let state_name = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == location.state())
-                .map(|state| state.name.as_str())
-                .unwrap_or("<unknown>");
+            let state_name = exact_manifest_crash_source_state(
+                program,
+                machine,
+                location.state(),
+                location.statement_ordinal(),
+                "site",
+            )
+            .name
+            .as_str();
             json.push_str("\n          {\"state\": ");
             push_json_string(&mut json, state_name);
             json.push_str(", \"statement_ordinal\": ");
@@ -3650,12 +3743,9 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push(',');
             }
             let location = call.location();
-            let state_name = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == location.state())
-                .map(|state| state.name.as_str())
-                .unwrap_or("<unknown>");
+            let state_name = exact_manifest_crash_call_source(program, machine, call)
+                .name
+                .as_str();
             let target_machine = program
                 .machines()
                 .iter()
@@ -4820,7 +4910,8 @@ fn push_json_string(output: &mut String, value: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        carry_manifest_json, claim_outcome_manifest_json, machine_blocking_summary,
+        carry_manifest_json, claim_outcome_manifest_json, exact_manifest_crash_call_source,
+        exact_manifest_crash_source_state, machine_blocking_summary,
         machine_contract_manifest_json, machine_suspension_summary, mutation_frame_state_name,
         push_termination_interface_json, qualification_evidence_manifest_json,
         qualification_requirement_identity, qualification_subject,
@@ -9881,6 +9972,263 @@ mod tests {
         );
     }
 
+    fn crash_source_coordinate_fixture() -> (CheckedTrees, SymbolHandle, SymbolHandle, SymbolHandle)
+    {
+        let machine_symbol = SymbolHandle::from_arena_index(90);
+        let state_symbol = SymbolHandle::from_arena_index(91);
+        let other_state_symbol = SymbolHandle::from_arena_index(93);
+        let mut program = CheckedTrees::default();
+        for (machine, state, machine_name) in [
+            (machine_symbol, state_symbol, "Crash::run"),
+            (
+                SymbolHandle::from_arena_index(92),
+                other_state_symbol,
+                "Other::run",
+            ),
+        ] {
+            let mut definition = Machine {
+                symbol: machine,
+                name: Identifier::generated(machine_name),
+                ..Default::default()
+            };
+            let mut state_definition = State {
+                symbol: state,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            };
+            for _ in 0..3 {
+                program
+                    .typed
+                    .statement_table
+                    .push_statement(&mut state_definition.statement_nodes, Default::default());
+            }
+            program
+                .typed
+                .push_machine_state(&mut definition, state_definition);
+            program.typed.push_machine(definition);
+        }
+        let calls = program.facts.flow.control.calls.insert_many([FlowCallFact {
+            statement_index: 2,
+            call_ordinal: 1,
+            target_symbol: state_symbol,
+            ..Default::default()
+        }]);
+        program.facts.flow.control.states.insert(FlowStateFact {
+            machine_symbol,
+            state_symbol,
+            calls,
+            ..Default::default()
+        });
+        (program, machine_symbol, state_symbol, other_state_symbol)
+    }
+
+    fn crash_source_coordinate_call(
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        call_ordinal: u32,
+        target: SymbolHandle,
+    ) -> psi_checked_trees::CheckedCrashCallSite {
+        psi_checked_trees::CheckedCrashCallSite::new(
+            psi_checked_trees::CrashCallSiteLocation::new(state, statement_ordinal, call_ordinal),
+            target,
+            target,
+            1,
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn machine_contract_manifest_crash_source_coordinates_accept_exact_site_and_call() {
+        let (program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let site = exact_manifest_crash_source_state(&program, machine, state_symbol, 1, "site");
+        let call = crash_source_coordinate_call(state_symbol, 2, 1, state_symbol);
+        let call_state = exact_manifest_crash_call_source(&program, machine, &call);
+
+        assert_eq!(site.name.as_str(), "entry");
+        assert_eq!(call_state.symbol, site.symbol);
+        assert_eq!(call.location().statement_ordinal(), 2);
+        assert_eq!(call.location().call_ordinal(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "source state must belong to its exact contract machine")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_cross_machine_site_state() {
+        let (program, machine_symbol, _, other_state) = crash_source_coordinate_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        exact_manifest_crash_source_state(&program, machine, other_state, 1, "site");
+    }
+
+    #[test]
+    #[should_panic(expected = "source state must belong to its exact contract machine")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_missing_site_state() {
+        let (program, machine_symbol, _, _) = crash_source_coordinate_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        exact_manifest_crash_source_state(&program, machine, SymbolHandle::invalid(), 1, "site");
+    }
+
+    #[test]
+    #[should_panic(expected = "site statement must belong to its exact typed state")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_out_of_range_site() {
+        let (program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        exact_manifest_crash_source_state(&program, machine, state_symbol, 3, "site");
+    }
+
+    #[test]
+    #[should_panic(expected = "call statement must belong to its exact typed state")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_out_of_range_call() {
+        let (program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 3, 1, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name one exact checked flow state")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_missing_flow_state() {
+        let (mut program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        program
+            .facts
+            .flow
+            .control
+            .states
+            .for_each_mut(|_, flow| flow.machine_symbol = SymbolHandle::invalid());
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 2, 1, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name exactly one checked flow state")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_duplicate_flow_state() {
+        let (mut program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        let duplicate = program
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .next()
+            .map(|(_, flow)| flow.clone())
+            .expect("flow state");
+        program.facts.flow.control.states.insert(duplicate);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 2, 1, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain an exact valid call span")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_invalid_call_span() {
+        let (mut program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        program.facts.flow.control.states.for_each_mut(|_, flow| {
+            flow.calls =
+                psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(999), 1);
+        });
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 2, 1, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name one exact checked flow call")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_missing_flow_call() {
+        let (program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 2, 0, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
+    #[test]
+    #[should_panic(expected = "must name exactly one checked flow call")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_duplicate_flow_call() {
+        let (mut program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        let duplicate = program
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .next()
+            .map(|(_, call)| call.clone())
+            .expect("flow call");
+        let calls = program
+            .facts
+            .flow
+            .control
+            .calls
+            .insert_many([duplicate.clone(), duplicate]);
+        program
+            .facts
+            .flow
+            .control
+            .states
+            .for_each_mut(|_, flow| flow.calls = calls);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 2, 1, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
+    #[test]
+    #[should_panic(expected = "must retain its exact checked flow target")]
+    fn machine_contract_manifest_crash_source_coordinates_reject_target_drift() {
+        let (mut program, machine_symbol, state_symbol, _) = crash_source_coordinate_fixture();
+        program
+            .facts
+            .flow
+            .control
+            .calls
+            .for_each_mut(|_, flow| flow.target_symbol = SymbolHandle::invalid());
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("crash source machine");
+        let call = crash_source_coordinate_call(state_symbol, 2, 1, state_symbol);
+        exact_manifest_crash_call_source(&program, machine, &call);
+    }
+
     #[test]
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         let symbol = SymbolHandle::from_arena_index(2);
@@ -9968,14 +10316,18 @@ mod tests {
             },
             ..Default::default()
         };
-        program.typed.push_machine_state(
-            &mut machine,
-            State {
-                symbol: state_symbol,
-                name: Identifier::generated("entry"),
-                ..Default::default()
-            },
-        );
+        let mut state = State {
+            symbol: state_symbol,
+            name: Identifier::generated("entry"),
+            ..Default::default()
+        };
+        for _ in 0..9 {
+            program
+                .typed
+                .statement_table
+                .push_statement(&mut state.statement_nodes, Default::default());
+        }
+        program.typed.push_machine_state(&mut machine, state);
         program.typed.push_machine(machine);
         let mut capsule_trait = TraitDefinition {
             symbol: capsule_machine_symbol,
@@ -9991,6 +10343,26 @@ mod tests {
             },
         );
         program.typed.push_trait_definition(capsule_trait);
+        let calls = program.facts.flow.control.calls.insert_many([
+            FlowCallFact {
+                statement_index: 7,
+                call_ordinal: 2,
+                target_symbol: state_symbol,
+                ..Default::default()
+            },
+            FlowCallFact {
+                statement_index: 8,
+                call_ordinal: 0,
+                target_symbol: capsule_state_symbol,
+                ..Default::default()
+            },
+        ]);
+        program.facts.flow.control.states.insert(FlowStateFact {
+            machine_symbol: symbol,
+            state_symbol,
+            calls,
+            ..Default::default()
+        });
         program.facts.service_reaches.machines.append_to_span(
             &mut program.facts.service_reaches.root_machines,
             MachineServiceReachRows {
