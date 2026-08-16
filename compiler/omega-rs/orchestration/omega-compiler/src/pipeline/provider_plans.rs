@@ -1720,6 +1720,296 @@ fn checked_adapter_has_exact_conformance(
         .any(|identity| identity == row.requirement_identity)
 }
 
+fn exact_schema_method_for_row<'plan>(
+    plan: &'plan ProviderPlan,
+    row: &ProviderPlanRow,
+) -> Result<&'plan omega_effects::provider_plan::ServiceMethod, psi_diagnostics::Diagnostic> {
+    if row.requirement_identity.is_empty() {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` has no exact synchronous-invocation overload identity",
+            plan.name, row.method,
+        )));
+    }
+    let methods = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|method| plan.schema.row_binds_method(row, method))
+        .collect::<Vec<_>>();
+    let [method] = methods.as_slice() else {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` / `{}` binds {} exact synchronous-invocation schema methods",
+            plan.name,
+            row.method,
+            row.requirement_identity,
+            methods.len(),
+        )));
+    };
+    Ok(*method)
+}
+
+fn exact_row_for_schema_method<'plan>(
+    plan: &'plan ProviderPlan,
+    method: &omega_effects::provider_plan::ServiceMethod,
+) -> Result<&'plan ProviderPlanRow, psi_diagnostics::Diagnostic> {
+    if method.requirement_identity.is_empty() {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` schema method `{}` has no exact synchronous-invocation overload identity",
+            plan.name, method.name,
+        )));
+    }
+    let method_count = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|candidate| candidate.requirement_identity == method.requirement_identity)
+        .count();
+    if method_count != 1 {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` contains {method_count} schema methods for exact synchronous-invocation overload `{}`",
+            plan.name, method.requirement_identity,
+        )));
+    }
+    let rows = plan
+        .rows
+        .iter()
+        .filter(|row| plan.schema.row_binds_method(row, method))
+        .collect::<Vec<_>>();
+    let [row] = rows.as_slice() else {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` schema method `{}` / `{}` binds {} exact synchronous-invocation rows",
+            plan.name,
+            method.name,
+            method.requirement_identity,
+            rows.len(),
+        )));
+    };
+    Ok(*row)
+}
+
+fn exact_checked_adapter<'typed>(
+    typed: &'typed TypedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    machine: &str,
+) -> Result<&'typed psi_typed_trees::machine::Machine, psi_diagnostics::Diagnostic> {
+    if machine.is_empty() {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter for ProviderPlan `{}` row `{}` has no complete machine identity",
+            plan.name, row.requirement_identity,
+        )));
+    }
+    let matches = typed
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.name.as_str() == machine)
+        .collect::<Vec<_>>();
+    let adapter = match matches.as_slice() {
+        [adapter] => *adapter,
+        [] => {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "checked adapter `{machine}` for `{}::{}` is absent from typed machines",
+                plan.schema.trait_name, row.method,
+            )));
+        }
+        _ => {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "checked adapter `{machine}` for ProviderPlan `{}` row `{}` resolves to {} exact typed machines",
+                plan.name,
+                row.requirement_identity,
+                matches.len(),
+            )));
+        }
+    };
+    if !adapter.symbol.is_valid() {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine}` for ProviderPlan `{}` has no exact typed machine symbol",
+            plan.name,
+        )));
+    }
+    Ok(adapter)
+}
+
+fn exact_invocation_service_name(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    target: psi_effects::InvocationTarget,
+) -> Result<String, psi_diagnostics::Diagnostic> {
+    let symbol = match target {
+        psi_effects::InvocationTarget::Parameter(index) => {
+            let Some(entry) = typed.machine_states(machine).first() else {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` has no entry state for synchronous-invocation parameter {index}",
+                    machine.name,
+                )));
+            };
+            let Ok(parameter_index) = usize::try_from(index) else {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` synchronous-invocation parameter index {index} is outside the target index range",
+                    machine.name,
+                )));
+            };
+            let Some(parameter) = typed
+                .state_parameters(entry)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .nth(parameter_index)
+            else {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` has no exact non-self synchronous-invocation parameter {index}",
+                    machine.name,
+                )));
+            };
+            if !parameter.type_reference.is_valid() {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` synchronous-invocation parameter {index} has no exact type reference",
+                    machine.name,
+                )));
+            }
+            typed
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+                .type_symbol(&typed.type_reference_table)
+        }
+        psi_effects::InvocationTarget::Service(symbol) => symbol,
+    };
+    if !symbol.is_valid() {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter `{}` has an invalid exact synchronous-invocation service symbol",
+            machine.name,
+        )));
+    }
+    let matches = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary && definition.symbol == symbol)
+        .collect::<Vec<_>>();
+    let [definition] = matches.as_slice() else {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter `{}` synchronous-invocation symbol {:?} resolves to {} exact boundary traits",
+            machine.name,
+            symbol,
+            matches.len(),
+        )));
+    };
+    Ok(definition.name.as_str().to_owned())
+}
+
+fn exact_checked_adapter_invocations(
+    typed: &TypedTrees,
+    inferred: &psi_effects::InvocationInferencePlan,
+    plan: &ProviderPlan,
+    method: &omega_effects::provider_plan::ServiceMethod,
+    row: &ProviderPlanRow,
+    machine: &str,
+) -> Result<Vec<String>, psi_diagnostics::Diagnostic> {
+    let adapter = exact_checked_adapter(typed, plan, row, machine)?;
+    let summaries = inferred
+        .machines
+        .iter()
+        .filter(|summary| summary.machine == adapter.symbol)
+        .collect::<Vec<_>>();
+    let [summary] = summaries.as_slice() else {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine}` resolves to {} exact synchronous-invocation inference summaries",
+            summaries.len(),
+        )));
+    };
+    let boundaries = typed
+        .traits()
+        .iter()
+        .filter(|definition| {
+            definition.is_boundary && definition.name.as_str() == method.requirement_owner
+        })
+        .collect::<Vec<_>>();
+    let boundary = match boundaries.as_slice() {
+        [boundary] => Some(*boundary),
+        [] => {
+            let operators = typed
+                .operators()
+                .iter()
+                .filter(|operator| {
+                    operator.is_boundary
+                        && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                            typed, operator,
+                        ) == method.requirement_owner
+                })
+                .count();
+            if operators == 1 {
+                None
+            } else {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "ProviderPlan `{}` requirement owner `{}` resolves to neither one exact boundary trait nor one exact boundary operator for synchronous invocation",
+                    plan.name, method.requirement_owner,
+                )));
+            }
+        }
+        _ => {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` requirement owner `{}` resolves to {} exact boundary traits for self-forwarded synchronous invocation",
+                plan.name,
+                method.requirement_owner,
+                boundaries.len(),
+            )));
+        }
+    };
+
+    let mut names = Vec::new();
+    for target in &summary.inferred_transitive {
+        let target_name = exact_invocation_service_name(typed, adapter, *target)?;
+        let self_forwarded = *target == psi_effects::InvocationTarget::Parameter(0)
+            && boundary.is_some_and(|boundary| {
+                let parameter_count = typed
+                    .machine_states(adapter)
+                    .first()
+                    .map(|entry| {
+                        typed
+                            .state_parameters(entry)
+                            .iter()
+                            .filter(|parameter| !parameter.is_self)
+                            .count()
+                    })
+                    .unwrap_or_default();
+                method.parameter_count.checked_add(1) == Some(parameter_count)
+                    && target_name == boundary.name.as_str()
+            });
+        if self_forwarded {
+            continue;
+        }
+        names.push(target_name);
+    }
+    names.sort_unstable();
+    names.dedup();
+    Ok(names)
+}
+
+fn exact_authored_invocations(
+    plan: &ProviderPlan,
+    method: &omega_effects::provider_plan::ServiceMethod,
+) -> Result<Vec<String>, psi_diagnostics::Diagnostic> {
+    if method
+        .synchronous_invocations
+        .iter()
+        .any(|target| target.is_empty())
+    {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` exact overload `{}` has an empty synchronous-invocation identity",
+            plan.name, method.requirement_identity,
+        )));
+    }
+    if method
+        .synchronous_invocations
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` exact overload `{}` synchronous-invocation identities are not strictly increasing",
+            plan.name, method.requirement_identity,
+        )));
+    }
+    Ok(method.synchronous_invocations.clone())
+}
+
 /// Validate every derived candidate before coverage and selection. A partial
 /// candidate may wait for more conformances, but duplicate/stray rows and
 /// malformed binding shapes are invalid in their own right. For checked
@@ -1744,16 +2034,19 @@ pub(crate) fn validate_provider_plan_candidates(
             let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
                 continue;
             };
-            let Some(adapter) = typed
-                .machines()
-                .iter()
-                .find(|candidate| candidate.name.as_str() == machine.as_str())
-            else {
-                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine}` for `{}::{}` is absent from typed machines",
-                    plan.schema.trait_name, row.method,
-                )));
-                continue;
+            let method = match exact_schema_method_for_row(plan, row) {
+                Ok(method) => method,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            let adapter = match exact_checked_adapter(typed, plan, row, machine) {
+                Ok(adapter) => adapter,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
             };
             if adapter.attached_data.as_ref().map(|owner| owner.as_str())
                 != Some(plan.provider_type.as_str())
@@ -1788,21 +2081,25 @@ pub(crate) fn validate_provider_plan_candidates(
                 )));
                 continue;
             }
-            let Some(method) = plan.schema.method_for_row(row) else {
-                continue;
-            };
             let service_ceiling = method.service_reach.as_slice();
             let invocation_ceiling = method.synchronous_invocations.as_slice();
-            let hidden_invocations = invocation_plan
-                .for_machine(adapter.symbol)
-                .into_iter()
-                .flat_map(|summary| summary.inferred_transitive.iter().copied())
-                .filter(|target| {
-                    !is_self_forwarded_invocation(typed, adapter, &plan.schema, method, *target)
-                })
-                .filter_map(|target| invocation_service_name(typed, adapter, target))
-                .filter(|target| !invocation_ceiling.contains(target))
-                .collect::<Vec<_>>();
+            let hidden_invocations = match exact_checked_adapter_invocations(
+                typed,
+                &invocation_plan,
+                plan,
+                method,
+                row,
+                machine,
+            ) {
+                Ok(invocations) => invocations
+                    .into_iter()
+                    .filter(|target| !invocation_ceiling.contains(target))
+                    .collect::<Vec<_>>(),
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    Vec::new()
+                }
+            };
             if !hidden_invocations.is_empty() {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "adapter `{}` does not refine `{}::{}`: its body may synchronously invoke boundary binding(s) [{}], but the requirement omits those `invokes` edges",
@@ -1848,62 +2145,45 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_names: &[String],
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
-    let selected = selected_names
-        .iter()
-        .filter_map(|name| plans.iter().find(|plan| plan.name == *name))
-        .collect::<Vec<_>>();
+    let selected = exact_selected_synchronous_plans(plans, selected_names)?;
     let inferred = psi_effects::infer_synchronous_invocations(typed);
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
+    let mut diagnostics = Vec::new();
     for (source_index, source) in selected.iter().enumerate() {
         for method in &source.schema.methods {
-            let row = source
-                .rows
-                .iter()
-                .find(|row| source.schema.row_binds_method(row, method));
-            let checked_targets = row.and_then(|row| {
-                let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
-                    return None;
-                };
-                let adapter = typed
-                    .machines()
-                    .iter()
-                    .find(|candidate| candidate.name.as_str() == machine)?;
-                let summary = inferred.for_machine(adapter.symbol)?;
-                Some(
-                    summary
-                        .inferred_transitive
-                        .iter()
-                        .filter(|target| {
-                            !is_self_forwarded_invocation(
-                                typed,
-                                adapter,
-                                &source.schema,
-                                method,
-                                **target,
-                            )
-                        })
-                        .filter_map(|target| invocation_service_name(typed, adapter, *target))
-                        .collect::<Vec<_>>(),
-                )
-            });
-            let target_names = checked_targets
-                .as_deref()
-                .unwrap_or(&method.synchronous_invocations);
+            let row = match exact_row_for_schema_method(source, method) {
+                Ok(row) => row,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            let target_names = match &row.binding {
+                ProviderBinding::CheckedAdapter { machine } => exact_checked_adapter_invocations(
+                    typed, &inferred, source, method, row, machine,
+                ),
+                _ => exact_authored_invocations(source, method),
+            };
+            let target_names = match target_names {
+                Ok(target_names) => target_names,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
             for target_name in target_names {
-                if let Some(target_index) = selected.iter().position(|target| {
-                    target.schema.trait_name == *target_name
-                        || target
-                            .schema
-                            .trait_name
-                            .rsplit("::")
-                            .next()
-                            .is_some_and(|leaf| leaf == target_name)
-                }) && !edges[source_index].contains(&target_index)
+                if let Some(target_index) = selected
+                    .iter()
+                    .position(|target| target.schema.trait_name == target_name)
+                    && !edges[source_index].contains(&target_index)
                 {
                     edges[source_index].push(target_index);
                 }
             }
         }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
     }
 
     let mut color = vec![0u8; selected.len()];
@@ -1928,60 +2208,64 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
     Ok(())
 }
 
-fn invocation_service_name(
-    typed: &TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
-    target: psi_effects::InvocationTarget,
-) -> Option<String> {
-    let symbol = match target {
-        psi_effects::InvocationTarget::Parameter(index) => typed
-            .machine_states(machine)
-            .first()
-            .into_iter()
-            .flat_map(|state| typed.state_parameters(state))
-            .filter(|parameter| !parameter.is_self)
-            .nth(index as usize)
-            .map(|parameter| {
-                typed
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                    .type_symbol(&typed.type_reference_table)
-            })?,
-        psi_effects::InvocationTarget::Service(symbol) => symbol,
-    };
-    typed
-        .traits()
-        .iter()
-        .find(|definition| definition.is_boundary && definition.symbol == symbol)
-        .map(|definition| definition.name.as_str().to_owned())
-}
+fn exact_selected_synchronous_plans<'plans>(
+    plans: &'plans [ProviderPlan],
+    selected_names: &[String],
+) -> Result<Vec<&'plans ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
+    let mut selected = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut seen_names = Vec::new();
+    for name in selected_names {
+        if name.is_empty() {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "selected synchronous-invocation ProviderPlan name is empty",
+            ));
+            continue;
+        }
+        if seen_names.contains(name) {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected synchronous-invocation ProviderPlan `{name}` is listed more than once",
+            )));
+            continue;
+        }
+        seen_names.push(name.clone());
+        let matches = plans
+            .iter()
+            .filter(|plan| plan.name == *name)
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [plan] => selected.push(*plan),
+            _ => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected synchronous-invocation ProviderPlan `{name}` resolves to {} exact candidate plans",
+                matches.len(),
+            ))),
+        }
+    }
 
-/// A selected checked adapter may take the satisfied boundary receiver as one
-/// extra leading parameter. Calls made through that value stay within the
-/// selected provider artifact, so composition erases them from the realized
-/// component-boundary graph. Other boundary parameters remain ordinary
-/// invocation targets and continue to refine the requirement ceiling.
-fn is_self_forwarded_invocation(
-    typed: &TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
-    schema: &omega_effects::provider_plan::ServiceSchema,
-    method: &omega_effects::provider_plan::ServiceMethod,
-    target: psi_effects::InvocationTarget,
-) -> bool {
-    let psi_effects::InvocationTarget::Parameter(0) = target else {
-        return false;
-    };
-    let Some(boundary) = typed.traits().iter().find(|definition| {
-        definition.is_boundary && same_semantic_name(definition.name.as_str(), &schema.trait_name)
-    }) else {
-        return false;
-    };
-    psi_effects::has_self_forwarded_boundary_parameter(
-        typed,
-        machine,
-        boundary.symbol,
-        method.parameter_count,
-    )
+    let mut seen_schemas = Vec::new();
+    for plan in &selected {
+        if plan.schema.trait_name.is_empty() {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected synchronous-invocation ProviderPlan `{}` has an empty exact schema identity",
+                plan.name,
+            )));
+            continue;
+        }
+        if seen_schemas.contains(&plan.schema.trait_name) {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected synchronous-invocation schema `{}` is realized by more than one selected ProviderPlan",
+                plan.schema.trait_name,
+            )));
+            continue;
+        }
+        seen_schemas.push(plan.schema.trait_name.clone());
+    }
+
+    if diagnostics.is_empty() {
+        Ok(selected)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 fn synchronous_cycle_from(
@@ -2449,6 +2733,457 @@ mod tests {
                 .contains("cyclic synchronous `invokes` graph")
                 && diagnostic.message.contains("Alpha -> Beta -> Alpha")
         }));
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum SelectedInvocationDrift {
+        None,
+        EmptySelectedName,
+        MissingSelectedPlan,
+        DuplicateSelectedName,
+        DuplicatePlanName,
+        DuplicateSelectedSchema,
+        EmptyMethodIdentity,
+        DuplicateMethodIdentity,
+        EmptyRowIdentity,
+        CrossRowIdentity,
+        MissingRow,
+        DuplicateRow,
+        EmptyInvocation,
+        DuplicateInvocation,
+    }
+
+    #[test]
+    fn selected_synchronous_invocation_identity_drift_rejects_exactly() {
+        let cases = [
+            (SelectedInvocationDrift::None, None),
+            (
+                SelectedInvocationDrift::EmptySelectedName,
+                Some("name is empty"),
+            ),
+            (
+                SelectedInvocationDrift::MissingSelectedPlan,
+                Some("resolves to 0 exact candidate plans"),
+            ),
+            (
+                SelectedInvocationDrift::DuplicateSelectedName,
+                Some("listed more than once"),
+            ),
+            (
+                SelectedInvocationDrift::DuplicatePlanName,
+                Some("resolves to 2 exact candidate plans"),
+            ),
+            (
+                SelectedInvocationDrift::DuplicateSelectedSchema,
+                Some("realized by more than one selected ProviderPlan"),
+            ),
+            (
+                SelectedInvocationDrift::EmptyMethodIdentity,
+                Some("schema method `run` has no exact"),
+            ),
+            (
+                SelectedInvocationDrift::DuplicateMethodIdentity,
+                Some("contains 2 schema methods"),
+            ),
+            (
+                SelectedInvocationDrift::EmptyRowIdentity,
+                Some("binds 0 exact synchronous-invocation rows"),
+            ),
+            (
+                SelectedInvocationDrift::CrossRowIdentity,
+                Some("binds 0 exact synchronous-invocation rows"),
+            ),
+            (
+                SelectedInvocationDrift::MissingRow,
+                Some("binds 0 exact synchronous-invocation rows"),
+            ),
+            (
+                SelectedInvocationDrift::DuplicateRow,
+                Some("binds 2 exact synchronous-invocation rows"),
+            ),
+            (
+                SelectedInvocationDrift::EmptyInvocation,
+                Some("empty synchronous-invocation identity"),
+            ),
+            (
+                SelectedInvocationDrift::DuplicateInvocation,
+                Some("not strictly increasing"),
+            ),
+        ];
+
+        for (drift, expected) in cases {
+            let mut alpha = selection_plan("alpha", &["run"], &["run"]);
+            alpha.schema.trait_name = "pkg::Alpha".to_owned();
+            alpha.schema.methods[0].synchronous_invocations = vec!["pkg::Beta".to_owned()];
+            let mut beta = selection_plan("beta", &["run"], &["run"]);
+            beta.schema.trait_name = "pkg::Beta".to_owned();
+            let mut plans = vec![alpha, beta];
+            let mut selected = vec!["alpha".to_owned(), "beta".to_owned()];
+            match drift {
+                SelectedInvocationDrift::None => {}
+                SelectedInvocationDrift::EmptySelectedName => selected[0].clear(),
+                SelectedInvocationDrift::MissingSelectedPlan => {
+                    selected[0] = "missing".to_owned();
+                }
+                SelectedInvocationDrift::DuplicateSelectedName => {
+                    selected[1] = selected[0].clone();
+                }
+                SelectedInvocationDrift::DuplicatePlanName => {
+                    let duplicate = plans[0].clone();
+                    plans.push(duplicate);
+                }
+                SelectedInvocationDrift::DuplicateSelectedSchema => {
+                    plans[1].schema.trait_name = plans[0].schema.trait_name.clone();
+                }
+                SelectedInvocationDrift::EmptyMethodIdentity => {
+                    plans[0].schema.methods[0].requirement_identity.clear();
+                }
+                SelectedInvocationDrift::DuplicateMethodIdentity => {
+                    let duplicate = plans[0].schema.methods[0].clone();
+                    plans[0].schema.methods.push(duplicate);
+                }
+                SelectedInvocationDrift::EmptyRowIdentity => {
+                    plans[0].rows[0].requirement_identity.clear();
+                }
+                SelectedInvocationDrift::CrossRowIdentity => {
+                    plans[0].rows[0].requirement_identity = "pkg::Other::run".to_owned();
+                }
+                SelectedInvocationDrift::MissingRow => plans[0].rows.clear(),
+                SelectedInvocationDrift::DuplicateRow => {
+                    let duplicate = plans[0].rows[0].clone();
+                    plans[0].rows.push(duplicate);
+                }
+                SelectedInvocationDrift::EmptyInvocation => {
+                    plans[0].schema.methods[0].synchronous_invocations = vec![String::new()];
+                }
+                SelectedInvocationDrift::DuplicateInvocation => {
+                    plans[0].schema.methods[0].synchronous_invocations =
+                        vec!["pkg::Beta".to_owned(), "pkg::Beta".to_owned()];
+                }
+            }
+
+            let result = validate_selected_synchronous_invocation_cycles(
+                &TypedTrees::default(),
+                &plans,
+                &selected,
+            );
+            match expected {
+                None => result.expect("exact selected direct graph is valid"),
+                Some(expected) => {
+                    let diagnostics = result.expect_err("identity drift must fail closed");
+                    assert!(
+                        diagnostics
+                            .iter()
+                            .any(|diagnostic| diagnostic.message.contains(expected)),
+                        "{drift:?}: expected `{expected}`, got {diagnostics:?}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn selected_synchronous_invocation_edges_require_complete_schema_identity() {
+        let mut alpha = selection_plan("alpha", &["run"], &["run"]);
+        alpha.schema.trait_name = "a::Alpha".to_owned();
+        alpha.schema.methods[0].synchronous_invocations = vec!["a::Beta".to_owned()];
+        let mut beta = selection_plan("beta", &["run"], &["run"]);
+        beta.schema.trait_name = "b::Beta".to_owned();
+        beta.schema.methods[0].synchronous_invocations = vec!["a::Alpha".to_owned()];
+
+        validate_selected_synchronous_invocation_cycles(
+            &TypedTrees::default(),
+            &[alpha.clone(), beta.clone()],
+            &["alpha".to_owned(), "beta".to_owned()],
+        )
+        .expect("same-leaf foreign schema must not manufacture an edge");
+
+        alpha.schema.methods[0].synchronous_invocations = vec!["b::Beta".to_owned()];
+        let diagnostics = validate_selected_synchronous_invocation_cycles(
+            &TypedTrees::default(),
+            &[alpha, beta],
+            &["alpha".to_owned(), "beta".to_owned()],
+        )
+        .expect_err("the exact canonical Alpha -> Beta -> Alpha graph must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("a::Alpha -> b::Beta -> a::Alpha")
+        }));
+    }
+
+    fn boundary_trait(
+        symbol: u32,
+        name: &str,
+    ) -> psi_typed_trees::trait_definition::TraitDefinition {
+        psi_typed_trees::trait_definition::TraitDefinition {
+            symbol: psi_symbols::SymbolHandle::from_arena_index(symbol),
+            name: psi_typed_trees::name::Identifier::generated(name),
+            is_boundary: true,
+            ..Default::default()
+        }
+    }
+
+    fn checked_invocation_fixture(
+        parameter_trait: u32,
+        parameter_count: usize,
+    ) -> (
+        TypedTrees,
+        ProviderPlan,
+        psi_effects::InvocationInferencePlan,
+    ) {
+        let source = psi_symbols::SymbolHandle::from_arena_index(31);
+        let target = psi_symbols::SymbolHandle::from_arena_index(32);
+        let foreign_source = psi_symbols::SymbolHandle::from_arena_index(33);
+        let machine_symbol = psi_symbols::SymbolHandle::from_arena_index(34);
+        let mut typed = TypedTrees::default();
+        typed.push_trait_definition(boundary_trait(31, "pkg::Source"));
+        typed.push_trait_definition(boundary_trait(32, "pkg::Target"));
+        typed.push_trait_definition(boundary_trait(33, "other::Source"));
+        let type_symbol = match parameter_trait {
+            31 => source,
+            32 => target,
+            33 => foreign_source,
+            other => psi_symbols::SymbolHandle::from_arena_index(other),
+        };
+        let type_reference =
+            typed
+                .type_reference_table
+                .insert(psi_typed_trees::types::TypeReferenceNode::Named {
+                    symbol: type_symbol,
+                    name: psi_typed_trees::name::Identifier::generated("binding"),
+                });
+        let mut entry = psi_typed_trees::state::State::default();
+        typed.push_state_parameter(
+            &mut entry,
+            psi_typed_trees::signature::StateParameter {
+                type_reference,
+                name: psi_typed_trees::name::Identifier::generated("binding"),
+                ..Default::default()
+            },
+        );
+        let mut machine = psi_typed_trees::machine::Machine {
+            symbol: machine_symbol,
+            name: psi_typed_trees::name::Identifier::generated("Provider::run"),
+            attached_data: Some(psi_typed_trees::name::Identifier::generated("Provider")),
+            ..Default::default()
+        };
+        typed.push_machine_state(&mut machine, entry);
+        typed.push_machine(machine);
+
+        let mut plan = selection_plan("provider", &["run"], &["run"]);
+        plan.provider_type = "Provider".to_owned();
+        plan.schema.trait_name = "pkg::Source".to_owned();
+        plan.schema.methods[0].requirement_owner = "pkg::Source".to_owned();
+        plan.schema.methods[0].parameter_count = parameter_count;
+        plan.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine: "Provider::run".to_owned(),
+        };
+        let inferred = psi_effects::InvocationInferencePlan {
+            machines: vec![psi_effects::MachineInvocationInference {
+                machine: machine_symbol,
+                published: Vec::new(),
+                inferred_direct: vec![psi_effects::InvocationTarget::Parameter(0)],
+                inferred_transitive: vec![psi_effects::InvocationTarget::Parameter(0)],
+                effective: vec![psi_effects::InvocationTarget::Parameter(0)],
+            }],
+        };
+        (typed, plan, inferred)
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum CheckedInvocationDrift {
+        None,
+        MissingOwner,
+        DuplicateOwner,
+        AbsentMachine,
+        DuplicateMachine,
+        AbsentInference,
+        DuplicateInference,
+        OutOfRangeParameter,
+        UnknownParameterType,
+        InvalidService,
+        UnknownService,
+        NonBoundaryService,
+        DuplicateBoundarySymbol,
+    }
+
+    #[test]
+    fn checked_synchronous_invocation_targets_reject_every_exact_drift() {
+        let cases = [
+            (CheckedInvocationDrift::None, None),
+            (
+                CheckedInvocationDrift::MissingOwner,
+                Some("neither one exact boundary trait nor one exact boundary operator"),
+            ),
+            (
+                CheckedInvocationDrift::DuplicateOwner,
+                Some("resolves to 2 exact boundary traits"),
+            ),
+            (
+                CheckedInvocationDrift::AbsentMachine,
+                Some("is absent from typed machines"),
+            ),
+            (
+                CheckedInvocationDrift::DuplicateMachine,
+                Some("resolves to 2 exact typed machines"),
+            ),
+            (
+                CheckedInvocationDrift::AbsentInference,
+                Some("0 exact synchronous-invocation inference summaries"),
+            ),
+            (
+                CheckedInvocationDrift::DuplicateInference,
+                Some("2 exact synchronous-invocation inference summaries"),
+            ),
+            (
+                CheckedInvocationDrift::OutOfRangeParameter,
+                Some("no exact non-self synchronous-invocation parameter 1"),
+            ),
+            (
+                CheckedInvocationDrift::UnknownParameterType,
+                Some("resolves to 0 exact boundary traits"),
+            ),
+            (
+                CheckedInvocationDrift::InvalidService,
+                Some("invalid exact synchronous-invocation service symbol"),
+            ),
+            (
+                CheckedInvocationDrift::UnknownService,
+                Some("resolves to 0 exact boundary traits"),
+            ),
+            (
+                CheckedInvocationDrift::NonBoundaryService,
+                Some("resolves to 0 exact boundary traits"),
+            ),
+            (
+                CheckedInvocationDrift::DuplicateBoundarySymbol,
+                Some("resolves to 2 exact boundary traits"),
+            ),
+        ];
+
+        for (drift, expected) in cases {
+            let parameter_trait = if matches!(drift, CheckedInvocationDrift::UnknownParameterType) {
+                99
+            } else {
+                32
+            };
+            let (mut typed, mut plan, mut inferred) =
+                checked_invocation_fixture(parameter_trait, 1);
+            match drift {
+                CheckedInvocationDrift::None => {}
+                CheckedInvocationDrift::MissingOwner => {
+                    plan.schema.methods[0].requirement_owner = "pkg::Missing".to_owned();
+                }
+                CheckedInvocationDrift::DuplicateOwner => {
+                    typed.push_trait_definition(boundary_trait(35, "pkg::Source"));
+                }
+                CheckedInvocationDrift::AbsentMachine => {
+                    plan.rows[0].binding = ProviderBinding::CheckedAdapter {
+                        machine: "Provider::missing".to_owned(),
+                    };
+                }
+                CheckedInvocationDrift::DuplicateMachine => {
+                    let duplicate = typed.machines()[0].clone();
+                    typed.push_machine(duplicate);
+                }
+                CheckedInvocationDrift::AbsentInference => inferred.machines.clear(),
+                CheckedInvocationDrift::DuplicateInference => {
+                    let duplicate = inferred.machines[0].clone();
+                    inferred.machines.push(duplicate);
+                }
+                CheckedInvocationDrift::OutOfRangeParameter => {
+                    inferred.machines[0].inferred_transitive =
+                        vec![psi_effects::InvocationTarget::Parameter(1)];
+                }
+                CheckedInvocationDrift::UnknownParameterType => {}
+                CheckedInvocationDrift::InvalidService => {
+                    inferred.machines[0].inferred_transitive =
+                        vec![psi_effects::InvocationTarget::Service(
+                            psi_symbols::SymbolHandle::invalid(),
+                        )];
+                }
+                CheckedInvocationDrift::UnknownService => {
+                    inferred.machines[0].inferred_transitive =
+                        vec![psi_effects::InvocationTarget::Service(
+                            psi_symbols::SymbolHandle::from_arena_index(99),
+                        )];
+                }
+                CheckedInvocationDrift::NonBoundaryService => {
+                    typed.push_trait_definition(
+                        psi_typed_trees::trait_definition::TraitDefinition {
+                            symbol: psi_symbols::SymbolHandle::from_arena_index(99),
+                            name: psi_typed_trees::name::Identifier::generated("pkg::Plain"),
+                            ..Default::default()
+                        },
+                    );
+                    inferred.machines[0].inferred_transitive =
+                        vec![psi_effects::InvocationTarget::Service(
+                            psi_symbols::SymbolHandle::from_arena_index(99),
+                        )];
+                }
+                CheckedInvocationDrift::DuplicateBoundarySymbol => {
+                    typed.push_trait_definition(boundary_trait(32, "pkg::DuplicateTarget"));
+                }
+            }
+            let method = &plan.schema.methods[0];
+            let row = &plan.rows[0];
+            let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+                unreachable!()
+            };
+            let result =
+                exact_checked_adapter_invocations(&typed, &inferred, &plan, method, row, machine);
+            match expected {
+                None => assert_eq!(
+                    result.expect("exact checked target resolves"),
+                    vec!["pkg::Target".to_owned()],
+                ),
+                Some(expected) => assert!(
+                    result
+                        .expect_err("checked invocation identity drift must reject")
+                        .message
+                        .contains(expected),
+                    "{drift:?}: expected `{expected}`",
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn self_forwarding_erases_only_the_exact_schema_receiver() {
+        let (typed, plan, inferred) = checked_invocation_fixture(31, 0);
+        let ProviderBinding::CheckedAdapter { machine } = &plan.rows[0].binding else {
+            unreachable!()
+        };
+        assert_eq!(
+            exact_checked_adapter_invocations(
+                &typed,
+                &inferred,
+                &plan,
+                &plan.schema.methods[0],
+                &plan.rows[0],
+                machine,
+            )
+            .expect("exact receiver forwarding resolves"),
+            Vec::<String>::new(),
+        );
+
+        let (typed, plan, inferred) = checked_invocation_fixture(33, 0);
+        let ProviderBinding::CheckedAdapter { machine } = &plan.rows[0].binding else {
+            unreachable!()
+        };
+        assert_eq!(
+            exact_checked_adapter_invocations(
+                &typed,
+                &inferred,
+                &plan,
+                &plan.schema.methods[0],
+                &plan.rows[0],
+                machine,
+            )
+            .expect("same-leaf foreign receiver remains an external edge"),
+            vec!["other::Source".to_owned()],
+        );
     }
 
     #[test]
