@@ -21009,6 +21009,28 @@ fn runtime_tick_count_monotonic_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_gui_memory_dc_blit_canary_is_targetless_and_interprets() {
+    let canary = pass_canary("host/runtime_gui_memory_dc_blit_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("memory-DC blit canary should compile to checked trees");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        None,
+        "targetless checking must not select an authored target entry"
+    );
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.error, None,
+        "virtual GDI memory-DC blit should not decline: {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "virtual GDI memory-DC blit should report all eight scanlines"
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn runtime_gui_memory_dc_blit_exit_canary_runs() {
@@ -21018,13 +21040,8 @@ fn runtime_gui_memory_dc_blit_exit_canary_runs() {
     let canary = pass_canary("host/runtime_gui_memory_dc_blit_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gui-blit-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("gui memory-dc blit canary should compile");
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x64")
+        .expect("gui memory-dc blit canary should compile from its Windows root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("gui memory-dc blit canary should run");
@@ -39384,12 +39401,6 @@ fn domain_operator_competing_binding_meanings_fail_at_use_site() {
 /// `_canary_runs` twins are `#[cfg(windows)]`-gated the same way.
 #[cfg_attr(not(windows), allow(dead_code))]
 const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
-    // gdi32 memory-DC blit: the canary IS the windows pixel path
-    // (CreateCompatibleDC + StretchDIBits); on darwin the Gui provider
-    // substitution swaps in MacosGui, which has no dc_create -- a
-    // permanent macOS resolution red until it was windows-gated
-    // (2026-07-11r; was a named suite-baseline member).
-    "host/runtime_gui_memory_dc_blit_exit",
     // Session slice 2's positioned-io contract canary: the windows_x64 impl
     // COMPOSES save-cursor/seek/op/restore over msvcrt rows, but the canary's
     // darwin lowering hits the pwrite simple-arg host-call fence (the
@@ -46080,6 +46091,7 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("providers/external_leaf_dllimport_compile", "macos_arm64"),
     ("providers/runtime_import_call_argument_exit", "macos_arm64"),
     ("capabilities/windows_provides_import_exit", "windows_x64"),
+    ("host/runtime_gui_memory_dc_blit_exit", "windows_x64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
