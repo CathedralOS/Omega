@@ -1293,6 +1293,7 @@ dependencies = [
  "psi-effects",
  "psi-facts",
  "psi-language-semantics",
+ "psi-numerics",
  "psi-symbol-resolved-trees",
  "psi-symbols",
  "psi-syntax-trees",
