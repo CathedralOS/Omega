@@ -816,8 +816,9 @@ Remaining:
   down from 22,945 to 712 lines. Its regression corpus is a 25-line root over
   separate 701-line final-validation, 1,197-line place-replay, and 1,037-line
   guard/assembly families instead of a second responsibility embedded in
-  production. Imported and indirect-call replay now has a 1,879-line parent;
-  runtime byte/line/text-boundary replay is a separate 504-line responsibility,
+  production. Imported-call replay now has a 1,335-line parent, while table and
+  vtable indirect calls form a separate 549-line responsibility. Runtime
+  byte/line/text-boundary replay is a separate 504-line responsibility,
   and syscall replay plus exact relocation-target derivation is a separate
   507-line responsibility. Compiler footprint
   derivation now has a 509-line composition/partition parent over a declarative
