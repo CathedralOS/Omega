@@ -716,10 +716,14 @@ Remaining:
   exact-cast family select their existing ordered recognizers through seven
   declarative registries and one generic dispatch path rather than repeated
   `or_else` permutations. The production parent shrank from 10,926 to 5,626
-  lines, the extracted producer is 4,769 lines, and the test parent shrank from
-  10,785 to 2,915 lines. This is a semantics-preserving responsibility split,
-  not a trust promotion: the full low generator, row proofs, and composition
-  bridges remain open, and no trust-graph node becomes derived from the spike.
+  lines; shared convergence is now a 493-line orchestration module plus four
+  responsibility modules for cast chains, affine forms, products/divisors, and
+  shifts/cross-family composition, none larger than 1,317 lines. The test
+  parent shrank from 10,785 to 2,915 lines, and its forty classifier cases are
+  separated into chain, affine-join, and nominal-cleanup modules, none larger
+  than 3,411 lines. This is a semantics-preserving responsibility split, not a
+  trust promotion: the full low generator, row proofs, and composition bridges
+  remain open, and no trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical

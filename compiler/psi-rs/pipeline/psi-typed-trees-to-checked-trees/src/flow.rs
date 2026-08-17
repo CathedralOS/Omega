@@ -26,95 +26,95 @@ mod terminal_debug;
 mod terminal_scalar;
 mod terminal_unit;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_affine_cast_affine_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_affine_cast_affine_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_affine_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_affine_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_affine_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_affine_fork_join_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_affine_fork_join_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_cast_then_affine_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_cast_then_signed_affine_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_arithmetic_then_shift_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_distinct_root_affine_product_join_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_affine_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_divide_remainder_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_same_root_affine_product_join_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_mixed_shift_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_shift_then_arithmetic_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_multiply_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_signed_affine_cast_affine_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_offset_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_signed_affine_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_shift_left_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::affine::exact_signed_affine_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_shift_right_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_affine_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_signed_affine_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_cast_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_cast_then_signed_multiply_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_cast_then_offset_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_computed_prefix_cast_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_computed_prefix_cast_chain_then_computed_suffix_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_computed_prefix_mixed_conversion_chain_then_computed_suffix_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_distinct_root_affine_fork_join_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_computed_prefix_widen_chain_then_computed_suffix_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_distinct_root_affine_product_join_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_divide_remainder_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_multiply_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_offset_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_shift_left_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_mixed_add_subtract_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::cast_chains::exact_shift_right_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_mixed_shift_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::products::exact_cast_then_divide_remainder_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_mixed_shift_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::products::exact_cast_then_multiply_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_multiply_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::products::exact_cast_then_signed_multiply_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_offset_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::products::exact_runtime_divisor_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_runtime_divisor_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::products::exact_signed_multiply_chain_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::products::exact_signed_multiply_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_same_root_affine_product_join_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_affine_shift_cast_sandwich_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_shift_cast_shift_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_arithmetic_then_shift_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_shift_left_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_cast_then_mixed_shift_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_shift_left_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_cast_then_shift_left_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_shift_right_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_cast_then_shift_right_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_shift_then_arithmetic_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_divide_remainder_cast_sandwich_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_signed_affine_cast_affine_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_divide_remainder_cross_cast_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_signed_affine_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_divide_remainder_cross_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_signed_affine_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_mixed_shift_chain_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_signed_multiply_chain_cast_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_shift_cast_shift_runtime_parameter_positions_for_test;
 #[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::exact_signed_multiply_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::shared_convergence::shifts::exact_shift_left_chain_runtime_parameter_positions_for_test;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
