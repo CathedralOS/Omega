@@ -39480,6 +39480,10 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("build/uefi_program_entry_missing_storage_roots", "uefi_x64"),
     ("build/uefi_program_entry_unqualified_image", "uefi_x64"),
     ("build/uefi_program_entry_wrong_calling_policy", "uefi_x64"),
+    (
+        "collections/deep_nested_runtime_indexed_write_rejected",
+        "linux_x64",
+    ),
     ("host/terminal_host_call_value", "linux_x64"),
     ("calls/machine_self_call_recursion_rejected", "linux_x64"),
     ("calls/guard_call_vs_call_rejected", "linux_x64"),
