@@ -977,16 +977,19 @@ fn reconstruct_machine_semantics(
                     else {
                         unreachable!("validator requires exact-divide integer result type")
                     };
+                    let definition_axiom_count = axioms.len();
                     let mut available_bounds = axioms.clone();
                     available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: exact_integer_divide_obligation(
+                            proposition: exact_integer_divide_obligation_with_definitions(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &available_bounds,
+                                definition_axiom_count,
+                                &machine_parameter_values,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1013,16 +1016,19 @@ fn reconstruct_machine_semantics(
                     else {
                         unreachable!("validator requires exact-remainder integer result type")
                     };
+                    let definition_axiom_count = axioms.len();
                     let mut available_bounds = axioms.clone();
                     available_bounds.extend(machine.contract.requires.iter().cloned());
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: exact_integer_remainder_obligation(
+                            proposition: exact_integer_remainder_obligation_with_definitions(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &available_bounds,
+                                definition_axiom_count,
+                                &machine_parameter_values,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -7969,6 +7975,103 @@ fn exact_integer_same_root_affine_product_join_obligation(
     Some(canonical_conjunction(signature.selected_bounds))
 }
 
+fn exact_integer_affine_equation_root(
+    coefficient: i128,
+    offset: i128,
+    target: i128,
+) -> Option<Option<i128>> {
+    if coefficient == 0 {
+        return None;
+    }
+    let numerator = target.checked_sub(offset)?;
+    if numerator.checked_rem(coefficient)? != 0 {
+        return Some(None);
+    }
+    Some(Some(numerator.checked_div(coefficient)?))
+}
+
+fn exact_integer_affine_value(coefficient: i128, offset: i128, root: i128) -> Option<i128> {
+    coefficient.checked_mul(root)?.checked_add(offset)
+}
+
+fn exact_integer_same_root_affine_divide_remainder_join_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<Proposition> {
+    if integer_type.sign() != IntegerSign::Signed {
+        return None;
+    }
+    let left = exact_integer_affine_fork_branch(
+        integer_type,
+        left,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    let right = exact_integer_affine_fork_branch(
+        integer_type,
+        right,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )?;
+    if left.root != right.root
+        || matches!(left.coefficient, IntegerOffset::Nonnegative(0))
+        || matches!(right.coefficient, IntegerOffset::Nonnegative(0))
+        || !left
+            .definition_indices
+            .is_disjoint(&right.definition_indices)
+        || left.definition_indices.iter().next_back()? >= right.definition_indices.iter().next()?
+    {
+        return None;
+    }
+    let signature = exact_integer_signature_interval(
+        integer_type,
+        &left.root,
+        semantic_axioms,
+        definition_axiom_count,
+    )?;
+    if signature.selected_bounds.len() != 2 {
+        return None;
+    }
+    let left_coefficient = integer_offset_as_i128(left.coefficient)?;
+    let left_offset = integer_offset_as_i128(left.offset)?;
+    let right_coefficient = integer_offset_as_i128(right.coefficient)?;
+    let right_offset = integer_offset_as_i128(right.offset)?;
+    let mut forbidden_roots = BTreeSet::new();
+    if let Some(root) = exact_integer_affine_equation_root(right_coefficient, right_offset, 0)?
+        && root >= signature.interval.0
+        && root <= signature.interval.1
+    {
+        forbidden_roots.insert(root);
+    }
+    if let Some(root) = exact_integer_affine_equation_root(right_coefficient, right_offset, -1)?
+        && root >= signature.interval.0
+        && root <= signature.interval.1
+        && exact_integer_affine_value(left_coefficient, left_offset, root)?
+            == integer_value_as_i128(integer_type.minimum_value())?
+    {
+        forbidden_roots.insert(root);
+    }
+    if forbidden_roots.is_empty() {
+        return Some(canonical_conjunction(signature.selected_bounds));
+    }
+    let interval_size = signature
+        .interval
+        .1
+        .checked_sub(signature.interval.0)?
+        .checked_add(1)?;
+    if interval_size == i128::try_from(forbidden_roots.len()).ok()? {
+        Some(Proposition::Falsehood)
+    } else {
+        None
+    }
+}
+
 fn exact_integer_distinct_root_affine_fork_join_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
@@ -10345,6 +10448,30 @@ fn is_minimum_divide(
             == Some(integer_type.minimum_value())
 }
 
+fn exact_integer_divide_obligation_with_definitions(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Proposition {
+    if known_integer_term_value(integer_type, &left, semantic_axioms).is_none()
+        && known_integer_term_value(integer_type, &right, semantic_axioms).is_none()
+        && let Some(obligation) = exact_integer_same_root_affine_divide_remainder_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    exact_integer_divide_obligation(integer_type, left, right, semantic_axioms)
+}
+
 fn exact_integer_divide_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
@@ -10382,6 +10509,30 @@ fn exact_integer_divide_obligation(
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
         _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, false),
     }
+}
+
+fn exact_integer_remainder_obligation_with_definitions(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Proposition {
+    if known_integer_term_value(integer_type, &left, semantic_axioms).is_none()
+        && known_integer_term_value(integer_type, &right, semantic_axioms).is_none()
+        && let Some(obligation) = exact_integer_same_root_affine_divide_remainder_join_obligation(
+            integer_type,
+            left.clone(),
+            right.clone(),
+            semantic_axioms,
+            definition_axiom_count,
+            machine_parameter_values,
+        )
+    {
+        return obligation;
+    }
+    exact_integer_remainder_obligation(integer_type, left, right, semantic_axioms)
 }
 
 fn exact_integer_remainder_obligation(
@@ -17460,6 +17611,252 @@ mod tests {
             ),
             None,
             "the correlated quadratic family is signed-only",
+        );
+    }
+
+    #[test]
+    fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
+        let root_id = ValueId::new(1821).expect("divide/remainder root");
+        let root = ScalarTerm::value(root_id, ScalarType::Integer(integer_type));
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("divide/remainder value"),
+                ScalarType::Integer(integer_type),
+            )
+        };
+        let literal = |value| {
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).expect("literal")
+        };
+        let left_offset = value(1822);
+        let left = value(1823);
+        let right_product = value(1824);
+        let right = value(1825);
+        let definitions = vec![
+            Proposition::Equal(
+                left_offset.clone(),
+                ScalarTerm::exact_integer_add(integer_type, root.clone(), literal(64))
+                    .expect("root + 64"),
+            ),
+            Proposition::Equal(
+                left.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, left_offset.clone(), literal(-2))
+                    .expect("left branch * -2"),
+            ),
+            Proposition::Equal(
+                right_product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, root.clone(), literal(2))
+                    .expect("root * 2"),
+            ),
+            Proposition::Equal(
+                right.clone(),
+                ScalarTerm::exact_integer_add(integer_type, right_product.clone(), literal(1))
+                    .expect("right branch + 1"),
+            ),
+        ];
+        let parameters = BTreeSet::from([root_id]);
+        let lower = Proposition::LessOrEqual(literal(-1), root.clone());
+        let upper = Proposition::LessOrEqual(root.clone(), literal(0));
+        let mut bounded = definitions.clone();
+        bounded.extend([
+            Proposition::LessOrEqual(literal(-10), root.clone()),
+            lower.clone(),
+            upper.clone(),
+        ]);
+        let expected = canonical_conjunction(vec![lower.clone(), upper.clone()]);
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            Some(expected.clone()),
+            "the odd divisor has no integer zero and MIN never coincides with divisor -1",
+        );
+        assert_eq!(
+            exact_integer_divide_obligation_with_definitions(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            expected.clone(),
+        );
+        assert_eq!(
+            exact_integer_remainder_obligation_with_definitions(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            expected,
+        );
+
+        let mut zero_definitions = definitions.clone();
+        zero_definitions[3] = Proposition::Equal(
+            right.clone(),
+            ScalarTerm::exact_integer_add(integer_type, right_product, literal(0))
+                .expect("right branch + 0"),
+        );
+        let mut partial_zero = zero_definitions.clone();
+        partial_zero.extend([lower.clone(), upper.clone()]);
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &partial_zero,
+                zero_definitions.len(),
+                &parameters,
+            ),
+            None,
+            "one zero-divisor lattice point makes safety partial",
+        );
+        let mut all_zero = zero_definitions.clone();
+        all_zero.extend([
+            Proposition::LessOrEqual(literal(0), root.clone()),
+            Proposition::LessOrEqual(root.clone(), literal(0)),
+        ]);
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &all_zero,
+                zero_definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::Falsehood),
+            "a singleton zero-divisor interval is wholly unsafe",
+        );
+
+        let coincident_offset = value(1826);
+        let coincident_left = value(1827);
+        let identity_right = value(1828);
+        let coincident_definitions = vec![
+            Proposition::Equal(
+                coincident_offset.clone(),
+                ScalarTerm::exact_integer_subtract(integer_type, root.clone(), literal(63))
+                    .expect("root - 63"),
+            ),
+            Proposition::Equal(
+                coincident_left.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, coincident_offset, literal(2))
+                    .expect("coincident numerator"),
+            ),
+            Proposition::Equal(
+                identity_right.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, root.clone(), literal(1))
+                    .expect("identity divisor"),
+            ),
+        ];
+        let mut all_forbidden = coincident_definitions.clone();
+        all_forbidden.extend([lower.clone(), upper.clone()]);
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                coincident_left.clone(),
+                identity_right,
+                &all_forbidden,
+                coincident_definitions.len(),
+                &parameters,
+            ),
+            Some(Proposition::Falsehood),
+            "zero at x=0 and the MIN/-1 coincidence at x=-1 cover the whole interval",
+        );
+
+        let mut coincident_partial = definitions.clone();
+        coincident_partial[0] = Proposition::Equal(
+            left_offset,
+            ScalarTerm::exact_integer_subtract(integer_type, root.clone(), literal(63))
+                .expect("root - 63"),
+        );
+        coincident_partial[1] = Proposition::Equal(
+            left.clone(),
+            ScalarTerm::exact_integer_multiply(integer_type, value(1822), literal(2))
+                .expect("coincident left"),
+        );
+        let mut coincident_bounded = coincident_partial.clone();
+        coincident_bounded.extend([lower.clone(), upper.clone()]);
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &coincident_bounded,
+                coincident_partial.len(),
+                &parameters,
+            ),
+            None,
+            "one MIN/-1 coincidence also makes safety partial",
+        );
+
+        let mut one_sided = definitions.clone();
+        one_sided.push(lower.clone());
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &one_sided,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "both unary signature endpoints are mandatory",
+        );
+        let bounds_in_definition_carrier = bounded.clone();
+        let all_axioms_are_definitions = bounds_in_definition_carrier.len();
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &bounds_in_definition_carrier,
+                all_axioms_are_definitions,
+                &parameters,
+            ),
+            None,
+            "operation-definition axioms never manufacture signature authority",
+        );
+        let other_root_id = ValueId::new(1829).expect("other root");
+        let other_root = ScalarTerm::value(other_root_id, ScalarType::Integer(integer_type));
+        let mut distinct_definitions = definitions.clone();
+        distinct_definitions[2] = Proposition::Equal(
+            value(1824),
+            ScalarTerm::exact_integer_multiply(integer_type, other_root, literal(2))
+                .expect("other root * 2"),
+        );
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &distinct_definitions,
+                distinct_definitions.len(),
+                &BTreeSet::from([root_id, other_root_id]),
+            ),
+            None,
+            "distinct roots remain fenced",
+        );
+        assert_eq!(
+            exact_integer_same_root_affine_divide_remainder_join_obligation(
+                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type"),
+                left,
+                right,
+                &bounded,
+                definitions.len(),
+                &parameters,
+            ),
+            None,
+            "the exact forbidden-root family is signed-only",
         );
     }
 

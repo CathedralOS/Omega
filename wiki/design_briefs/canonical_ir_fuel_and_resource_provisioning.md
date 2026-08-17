@@ -210,6 +210,13 @@ endpoints, and evaluating endpoint and vertex-adjacent lattice candidates are
 verifier-only work and add no executable operation or fuel charge. A constant
 collapse fence, containment decision, or falsehood result never removes a
 retained branch charge.
+A same-root signed affine divide/remainder safety join likewise charges every
+exact operation in both complete affine branches and the outer exact divide or
+remainder separately. Selecting the two unary signature endpoints, solving the
+divisor-zero and correlated signed `MIN / -1` lattice equations, and deciding
+complete safety, complete unsafety, or partial safety are verifier-only work
+and add no executable operation or fuel charge. A correlation decision never
+removes a retained branch charge.
 A finite partial exact-cast chain likewise charges every retained cast and its
 ordinary value leaves. Ordered carrier-intersection replay is verifier work and
 adds no executable operation or fuel charge; every cast obligation remains

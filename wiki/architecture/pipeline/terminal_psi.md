@@ -827,10 +827,27 @@ carrier drift, conversions, overlapping or reordered definitions, and stale
 evidence remain fenced. Existing constant-factor, runtime-factor, chain, cast,
 and affine families keep priority; this correlated family precedes the
 distinct-root product rectangle.
+One same-root signature-bounded signed affine divide/remainder safety join
+admits an outer exact divide or remainder when its two nonempty
+landed-literal affine branches have disjoint source-ordered definition walks
+and terminate at the same direct signed fixed-native signature parameter with
+nonzero coefficients. The verifier selects only the tightest unary signature
+lower and upper bounds, then solves the divisor's exact integer-lattice zero
+and `-1` equations. A divisor `-1` root is unsafe only when the correlated
+dividend equals the carrier minimum at the same root. No forbidden root emits
+the canonical two-bound conjunction; forbidden roots covering the complete
+integer interval emit falsehood; partial safety or checked arithmetic failure
+admits no family. Every operation in both branches and the outer operation
+retains independent evidence. Bounds are read only from the retained machine
+signature, never from operation-definition axioms. Distinct roots, relational
+or one-sided premises, unsigned carriers, constant collapse, computed roots,
+conversions, malformed walks, and stale evidence remain fenced. Existing
+literal, direct-runtime, chain, cast, and carrier-total divide/remainder forms
+retain priority.
 Terminal retains every operation and obligation, and every
 operation's evidence is checked independently. Two computed operands outside
-the admitted affine fork/join, affine quadratic product-join, and distinct-root
-affine product-join families,
+the admitted affine fork/join, affine quadratic product-join, distinct-root
+affine product-join, and same-root affine divide/remainder safety-join families,
 nonconstant siblings, runtime or computed multiply factors or shift counts,
 signed negative multiply factors, right-associated or reversed shapes, local or
 block-parameter roots, exact operations outside the admitted chain family, and

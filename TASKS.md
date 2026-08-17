@@ -566,6 +566,20 @@ Remaining:
   collapse, distinct roots, relational premises, one-sided bounds, unsigned
   carriers, malformed walks, computed roots, conversions, and stale evidence
   remain fenced.
+  A same-root signature-bounded signed affine divide/remainder safety join now
+  admits one outer exact divide or remainder whose two disjoint, nonempty,
+  ordered landed-literal affine branches end at the same direct signed
+  fixed-native parameter with nonzero coefficients. The verifier selects the
+  tightest landed unary lower and upper signature bounds and solves the exact
+  integer-lattice equations for divisor zero and divisor `-1`. A `-1` root is
+  forbidden only when the correlated dividend evaluates to the carrier
+  minimum at that exact root. No forbidden root emits the canonical two-bound
+  conjunction; forbidden roots covering the whole integer interval emit
+  falsehood; a partially unsafe interval or checked equation/evaluation
+  failure admits no family. Every branch operation and the outer divide or
+  remainder retains separate evidence. Distinct roots, constant collapse,
+  relational premises, one-sided bounds, unsigned carriers, malformed walks,
+  computed roots, conversions, and stale evidence remain fenced.
   A distinct-root signature-bounded signed affine product join now admits one
   outer exact multiply whose two disjoint, nonempty, ordered landed-literal
   affine branches end at different direct signed fixed-native parameters. The
