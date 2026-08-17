@@ -816,9 +816,10 @@ Remaining:
   down from 22,945 to 712 lines. Its regression corpus is a 25-line root over
   separate 701-line final-validation, 1,197-line place-replay, and 1,037-line
   guard/assembly families instead of a second responsibility embedded in
-  production. A dedicated 2,872-line module owns
-  target-specific import, syscall, indirect-call, and runtime-text replay plus
-  exact operand/storage relocation-site derivation. Compiler footprint
+  production. Imported and indirect-call replay now has a 1,879-line parent;
+  runtime byte/line/text-boundary replay is a separate 504-line responsibility,
+  and syscall replay plus exact relocation-target derivation is a separate
+  507-line responsibility. Compiler footprint
   derivation now has a 509-line composition/partition parent over a declarative
   four-family registry: 249-line control/entry, 621-line storage/place,
   866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
