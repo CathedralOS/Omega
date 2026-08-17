@@ -752,7 +752,10 @@ Remaining:
   isolated 767-line Unit-cleanup, 179-line scalar-graph, 506-line content-ledger,
   957-line structural-control, 457-line attached-Unit, and 852-line
   structural-return families instead of a second responsibility embedded in
-  production. The crate root is now 6,550 lines. These
+  production. Proposition vocabulary, evidence-term identity, contract lanes,
+  package invocations, and producer provenance now form one 906-line evidence
+  module behind a single lower-and-install API. The crate root is now 5,660
+  lines. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.

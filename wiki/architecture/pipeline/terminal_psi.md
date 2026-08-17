@@ -1549,6 +1549,9 @@ APIs retain their existing crate-root contract. Root-level producer regressions
 are a small shared-fixture parent over isolated Unit-cleanup, scalar-graph,
 content-ledger, structural-control, attached-Unit, and structural-return
 families rather than a second responsibility embedded in the production root.
+Proposition vocabulary, evidence-term identity, contract lanes, package
+invocations, and producer provenance likewise share one evidence-publication
+module behind a single parent-facing installation API.
 Additional sufficient-form families should follow that shape: one closed
 responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
