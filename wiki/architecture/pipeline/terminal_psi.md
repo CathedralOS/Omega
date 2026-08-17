@@ -1568,6 +1568,11 @@ The verifier reconstruction corpus follows the same ownership boundary: its
 former 9,239-line sufficient-form test parent is a 15-line root over fifteen
 cast, conversion, add/subtract, multiply/affine, join, shift, and divide-policy
 modules. All 76 cases remain, and no family module exceeds 1,248 lines.
+Terminal-module validation likewise has a 5,287-line parent, down from 7,498,
+over separate structural/service foundation (956 lines), public error
+vocabulary (803), evidence/proposition custody (410), and call-graph acyclicity
+(68) modules. The public validation vocabulary remains re-exported at the crate
+boundary.
 Additional sufficient-form families should follow that shape: one closed
 responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
