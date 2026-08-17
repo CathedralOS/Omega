@@ -38,7 +38,9 @@ cat canonical-bytes/types.gamma \
     terminal-ledger-spike/call_composition.gamma \
     terminal-ledger-spike/ledger.gamma \
     terminal-ledger-spike/structural_effect_decode.gamma \
-    terminal-ledger-spike/structural_effect.gamma > "$T/typed.gamma"
+    terminal-ledger-spike/structural_effect.gamma \
+    terminal-ledger-spike/call_decode.gamma \
+    terminal-ledger-spike/call_ledger.gamma > "$T/typed.gamma"
 
 set +e
 "$T/typeck.exe" < "$T/typed.gamma"
@@ -58,6 +60,31 @@ fixture_expr() {
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" > "$T/matching.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike_asymmetric.hex" > "$T/asymmetric.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" > "$T/structural-effect.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" > "$T/call-composition.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 36 0 \
+  > "$T/call-type-identity-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 96 11 \
+  > "$T/call-domain-carrier-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 203 11 \
+  > "$T/call-boundary-requirement-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 391 21 \
+  > "$T/call-unit-target-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 403 20 \
+  > "$T/call-unit-argument-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 419 2 \
+  > "$T/call-unit-transfer-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 616 11 \
+  > "$T/call-boundary-target-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 628 10 \
+  > "$T/call-boundary-argument-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 644 2 \
+  > "$T/call-boundary-receipt-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 652 1 \
+  > "$T/call-boundary-receipt-index-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --drop-last \
+  > "$T/call-truncated.expr"
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --append-byte 0 \
+  > "$T/call-trailing.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 74 0 \
   > "$T/structural-erased-field.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 334 2 \
@@ -146,6 +173,32 @@ run_function structural-establish-target-drift run_structural_effect_spike \
   "$T/structural-establish-target-drift.expr" 0
 run_function structural-missing-discard run_structural_effect_spike \
   "$T/structural-missing-discard.expr" 0
+run_function call-composition-bytes run_call_composition_spike \
+  "$T/call-composition.expr" 1
+run_function call-composition-byte-schema-mutations \
+  call_composition_byte_schema_mutation_self_test "$T/call-composition.expr" 1
+run_function call-type-identity-drift run_call_composition_spike \
+  "$T/call-type-identity-drift.expr" 0
+run_function call-domain-carrier-drift run_call_composition_spike \
+  "$T/call-domain-carrier-drift.expr" 0
+run_function call-boundary-requirement-drift run_call_composition_spike \
+  "$T/call-boundary-requirement-drift.expr" 0
+run_function call-unit-target-drift run_call_composition_spike \
+  "$T/call-unit-target-drift.expr" 0
+run_function call-unit-argument-drift run_call_composition_spike \
+  "$T/call-unit-argument-drift.expr" 0
+run_function call-unit-transfer-drift run_call_composition_spike \
+  "$T/call-unit-transfer-drift.expr" 0
+run_function call-boundary-target-drift run_call_composition_spike \
+  "$T/call-boundary-target-drift.expr" 0
+run_function call-boundary-argument-drift run_call_composition_spike \
+  "$T/call-boundary-argument-drift.expr" 0
+run_function call-boundary-receipt-drift run_call_composition_spike \
+  "$T/call-boundary-receipt-drift.expr" 0
+run_function call-boundary-receipt-index-drift run_call_composition_spike \
+  "$T/call-boundary-receipt-index-drift.expr" 0
+run_function call-truncated run_call_composition_spike "$T/call-truncated.expr" 0
+run_function call-trailing run_call_composition_spike "$T/call-trailing.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")

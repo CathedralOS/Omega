@@ -221,6 +221,27 @@
     ((CSCons scalar rest) (CSCons scalar (CSCons scalar rest)))
     (CSNil CSNil)))
 
+(def calls_without_unit () CallSchemas
+  (match (canonical_call_schemas)
+    ((CSCons scalar rest)
+      (match rest
+        ((CSCons unit tail) (CSCons scalar tail))
+        (CSNil CSNil)))
+    (CSNil CSNil)))
+
+(def calls_with_duplicate_boundary () CallSchemas
+  (match (canonical_call_schemas)
+    ((CSCons scalar rest)
+      (match rest
+        ((CSCons unit tail)
+          (match tail
+            ((CSCons boundary end)
+              (CSCons scalar
+                (CSCons unit (CSCons boundary (CSCons boundary end)))))
+            (CSNil CSNil)))
+        (CSNil CSNil)))
+    (CSNil CSNil)))
+
 (def calls_with_weakened_scalar_evidence () CallSchemas
   (match (canonical_call_schemas)
     ((CSCons scalar rest)

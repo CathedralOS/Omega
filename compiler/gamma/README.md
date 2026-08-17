@@ -17,8 +17,8 @@ emits assembly; the chain targets one level down at each step:
   run `test-canonical-bytes.sh`.
 - `terminal-ledger-spike/` — the Q7 typed, canonical-byte semantic-ledger
   feasibility spike, including separate scalar leaf, structural/effect leaf,
-  and three-row call-composition tables plus independently owned
-  decoder/evaluator modules; run
+  and three-row call-composition tables plus independently owned scalar,
+  structural/effect, and Unit/boundary decoder/evaluator modules; run
   `test-terminal-ledger-spike.sh`.
 
 ```
