@@ -97,6 +97,8 @@ Must not own:
 - `omega-image-emission/src/checked/footprints.rs` owns compiler atomic and
   instruction footprint derivation, body/fixed-mechanics partition validation,
   and exact footprint composition.
+- `omega-image-emission/src/checked/place_copy_shapes.rs` owns the closed
+  compiler place-copy shape vocabulary and its exact classifier.
 - `omega-image-emission/src/checked/relocations.rs` owns exact compiler
   relocation-set validation, relocation-symbol custody, and validation that
   non-relocated instruction bits remain unchanged.
