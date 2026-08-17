@@ -747,8 +747,10 @@ Remaining:
   terminal-module assembly is now a separate 1,061-line responsibility behind
   one parent-facing builder. Content conservation, identity reshuffling, and
   partition composition now form one 788-line lowering module with only three
-  public APIs and two explicit internal contracts. The crate root is now
-  10,617 lines. These
+  public APIs and two explicit internal contracts. The 4,027-line root-level
+  regression corpus is now a separately compiled test module instead of a
+  second responsibility embedded in production. The crate root is now 6,550
+  lines. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
