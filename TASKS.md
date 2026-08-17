@@ -756,8 +756,10 @@ Remaining:
   package invocations, and producer provenance now form one 906-line evidence
   module behind a single lower-and-install API. Scalar and structural crash
   routes, argument-root substitution, and canonical proposition construction
-  now form one 1,608-line module with eight explicit internal contracts. The
-  crate root is now 4,064 lines. These
+  now form one 1,608-line module with eight explicit internal contracts.
+  Terminal operation emission and proof finalization now form one 597-line
+  module with five explicit entry points. The crate root is now 3,477 lines.
+  These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
