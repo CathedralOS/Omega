@@ -1,0 +1,443 @@
+; Q7 spike decoder for the closed arithmetic/control/call PSITERM v11 slice.
+; Fixed-width little-endian fields are consumed directly from Bytes.  The spike
+; accepts only small nonzero u64 identities (upper four bytes zero), which is an
+; explicit measured limitation rather than a host-language integer accident.
+
+(def both ((a Int) (b Int)) Int (if a b 0))
+(def same ((a Int) (b Int)) Int (eq a b))
+(def nonzero ((a Int)) Int (if (eq a 0) 0 1))
+
+(def read_u8 ((bs Bytes)) RInt
+  (match bs
+    (BNil RIntBad)
+    ((B h t) (if (lt h 0) RIntBad (if (lt h 256) (RInt h t) RIntBad)))))
+
+(def read_le ((bs Bytes) (n Int) (factor Int) (acc Int)) RInt
+  (if (eq n 0) (RInt acc bs)
+    (match (read_u8 bs)
+      (RIntBad RIntBad)
+      ((RInt h t) (read_le t (- n 1) (* factor 256) (+ acc (* h factor)))))))
+
+(def read_u16 ((bs Bytes)) RInt (read_le bs 2 1 0))
+(def read_u32 ((bs Bytes)) RInt (read_le bs 4 1 0))
+
+(def consume_zeroes ((bs Bytes) (n Int)) RBytes
+  (if (eq n 0) (RBytes bs)
+    (match (read_u8 bs)
+      (RIntBad RBytesBad)
+      ((RInt h t) (if (eq h 0) (consume_zeroes t (- n 1)) RBytesBad)))))
+
+(def read_u64_small ((bs Bytes)) RInt
+  (match (read_u32 bs)
+    (RIntBad RIntBad)
+    ((RInt low rest)
+      (match (consume_zeroes rest 4)
+        (RBytesBad RIntBad)
+        ((RBytes tail) (RInt low tail))))))
+
+(def read_id ((bs Bytes)) RInt
+  (match (read_u64_small bs)
+    (RIntBad RIntBad)
+    ((RInt id rest) (if (eq id 0) RIntBad (RInt id rest)))))
+
+(def expect_byte ((bs Bytes) (want Int)) RBytes
+  (match (read_u8 bs)
+    (RIntBad RBytesBad)
+    ((RInt got rest) (if (eq got want) (RBytes rest) RBytesBad))))
+
+(def expect_zero_count ((bs Bytes)) RBytes
+  (match (read_u32 bs)
+    (RIntBad RBytesBad)
+    ((RInt n rest) (if (eq n 0) (RBytes rest) RBytesBad))))
+
+(def expect_zero_sections ((bs Bytes) (n Int)) RBytes
+  (if (eq n 0) (RBytes bs)
+    (match (expect_zero_count bs)
+      (RBytesBad RBytesBad)
+      ((RBytes rest) (expect_zero_sections rest (- n 1))))))
+
+(def consume_fill ((bs Bytes) (n Int) (fill Int)) RBytes
+  (if (eq n 0) (RBytes bs)
+    (match (read_u8 bs)
+      (RIntBad RBytesBad)
+      ((RInt h rest)
+        (if (eq h fill) (consume_fill rest (- n 1) fill) RBytesBad)))))
+
+(def read_i8_payload ((bs Bytes)) RInt
+  (match (read_u8 bs)
+    (RIntBad RIntBad)
+    ((RInt low rest)
+      (let fill (if (lt low 128) 0 255)
+        (match (consume_fill rest 15 fill)
+          (RBytesBad RIntBad)
+          ((RBytes tail) (RInt (if (lt low 128) low (- low 256)) tail)))))))
+
+(def read_i8_integer_value ((bs Bytes)) RInt
+  (match (read_u8 bs)
+    (RIntBad RIntBad)
+    ((RInt tag rest) (if (eq tag 1) (read_i8_payload rest) RIntBad))))
+
+(def read_integer_type ((bs Bytes)) RInt
+  (match (read_u8 bs)
+    (RIntBad RIntBad)
+    ((RInt tag rest)
+      (match (read_u16 rest)
+        (RIntBad RIntBad)
+        ((RInt bits tail)
+          (if (both (eq tag 1) (eq bits 8)) (RInt 2 tail) RIntBad))))))
+
+(def read_scalar_type ((bs Bytes)) RInt
+  (match (read_u8 bs)
+    (RIntBad RIntBad)
+    ((RInt tag rest)
+      (if (eq tag 1) (RInt 1 rest)
+        (if (eq tag 2) (read_integer_type rest) RIntBad)))))
+
+(def read_decl ((bs Bytes)) RDecl
+  (match (read_id bs)
+    (RIntBad RDeclBad)
+    ((RInt id rest)
+      (match (read_scalar_type rest)
+        (RIntBad RDeclBad)
+        ((RInt ty tail) (RDecl (Decl id ty) tail))))))
+
+(def read_decls_n ((bs Bytes) (n Int)) RDecls
+  (if (eq n 0) (RDecls DNil bs)
+    (match (read_decl bs)
+      (RDeclBad RDeclsBad)
+      ((RDecl h rest)
+        (match (read_decls_n rest (- n 1))
+          (RDeclsBad RDeclsBad)
+          ((RDecls t tail) (RDecls (DCons h t) tail)))))))
+
+(def read_decls ((bs Bytes)) RDecls
+  (match (read_u32 bs)
+    (RIntBad RDeclsBad)
+    ((RInt n rest) (read_decls_n rest n))))
+
+(def read_ids_n ((bs Bytes) (n Int)) RInts
+  (if (eq n 0) (RInts INil bs)
+    (match (read_id bs)
+      (RIntBad RIntsBad)
+      ((RInt h rest)
+        (match (read_ids_n rest (- n 1))
+          (RIntsBad RIntsBad)
+          ((RInts t tail) (RInts (ICons h t) tail)))))))
+
+(def read_ids ((bs Bytes)) RInts
+  (match (read_u32 bs)
+    (RIntBad RIntsBad)
+    ((RInt n rest) (read_ids_n rest n))))
+
+(def read_expr ((bs Bytes)) RExpr
+  (match (read_u8 bs)
+    (RIntBad RExprBad)
+    ((RInt tag rest)
+      (if (eq tag 1)
+        (match (read_id rest)
+          (RIntBad RExprBad)
+          ((RInt id tail)
+            (match (read_scalar_type tail)
+              (RIntBad RExprBad)
+              ((RInt ty end) (if (eq ty 2) (RExpr (Val id) end) RExprBad)))))
+        (if (eq tag 3)
+          (match (read_integer_type rest)
+            (RIntBad RExprBad)
+            ((RInt ty tail)
+              (match (read_i8_integer_value tail)
+                (RIntBad RExprBad)
+                ((RInt value end) (if (eq ty 2) (RExpr (Lit value) end) RExprBad)))))
+          RExprBad)))))
+
+(def read_prop ((bs Bytes)) RProp
+  (match (read_u8 bs)
+    (RIntBad RPropBad)
+    ((RInt tag rest)
+      (if (eq tag 6)
+        (match (read_expr rest)
+          (RExprBad RPropBad)
+          ((RExpr left tail)
+            (match (read_expr tail)
+              (RExprBad RPropBad)
+              ((RExpr right end) (RProp (Le left right) end)))))
+        RPropBad))))
+
+(def read_props_n ((bs Bytes) (n Int)) RProps
+  (if (eq n 0) (RProps PNil bs)
+    (match (read_prop bs)
+      (RPropBad RPropsBad)
+      ((RProp h rest)
+        (match (read_props_n rest (- n 1))
+          (RPropsBad RPropsBad)
+          ((RProps t tail) (RProps (PCons h t) tail)))))))
+
+(def read_props ((bs Bytes)) RProps
+  (match (read_u32 bs)
+    (RIntBad RPropsBad)
+    ((RInt n rest) (read_props_n rest n))))
+
+(def read_exact_kind ((bs Bytes) (tag Int)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt left r1)
+      (match (read_id r1)
+        (RIntBad RKindBad)
+        ((RInt right r2)
+          (match (read_id r2)
+            (RIntBad RKindBad)
+            ((RInt obligation rest)
+              (if (eq tag 24) (RKind (KExactAdd left right obligation) rest)
+                (if (eq tag 27) (RKind (KExactDiv left right obligation) rest)
+                  (if (eq tag 28) (RKind (KExactRem left right obligation) rest)
+                    RKindBad))))))))))
+
+(def read_binary_kind ((bs Bytes) (tag Int)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt left r1)
+      (match (read_id r1)
+        (RIntBad RKindBad)
+        ((RInt right rest)
+          (if (eq tag 3) (RKind (KWrapAdd left right) rest)
+            (if (eq tag 12) (RKind (KLess left right) rest) RKindBad)))))))
+
+(def read_wrapping_partial_kind ((bs Bytes) (tag Int)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt left r1)
+      (match (read_id r1)
+        (RIntBad RKindBad)
+        ((RInt right r2)
+          (match (read_id r2)
+            (RIntBad RKindBad)
+            ((RInt obligation rest)
+              (if (eq tag 29) (RKind (KWrapDiv left right obligation) rest)
+                (if (eq tag 30) (RKind (KWrapRem left right obligation) rest)
+                  RKindBad)))))))))
+
+(def read_call_kind ((bs Bytes)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt callee r1)
+      (match (read_ids r1)
+        (RIntsBad RKindBad)
+        ((RInts arguments r2)
+          (match (read_ids r2)
+            (RIntsBad RKindBad)
+            ((RInts obligations r3)
+              (match (expect_zero_count r3)
+                (RBytesBad RKindBad)
+                ((RBytes rest) (RKind (KCall callee arguments obligations) rest))))))))))
+
+(def read_kind ((bs Bytes)) RKind
+  (match (read_u8 bs)
+    (RIntBad RKindBad)
+    ((RInt tag rest)
+      (if (eq tag 24) (read_exact_kind rest tag)
+        (if (eq tag 27) (read_exact_kind rest tag)
+          (if (eq tag 28) (read_exact_kind rest tag)
+            (if (eq tag 3) (read_binary_kind rest tag)
+              (if (eq tag 12) (read_binary_kind rest tag)
+                (if (eq tag 29) (read_wrapping_partial_kind rest tag)
+                  (if (eq tag 30) (read_wrapping_partial_kind rest tag)
+                    (if (eq tag 33) (read_call_kind rest) RKindBad)))))))))))
+
+(def read_op ((bs Bytes)) ROp
+  (match (read_id bs)
+    (RIntBad ROpBad)
+    ((RInt id r1)
+      (match (read_u8 r1)
+        (RIntBad ROpBad)
+        ((RInt result_tag r2)
+          (if (eq result_tag 1)
+            (match (read_decl r2)
+              (RDeclBad ROpBad)
+              ((RDecl result r3)
+                (match (read_kind r3)
+                  (RKindBad ROpBad)
+                  ((RKind kind rest) (ROp (Op id result kind) rest)))))
+            ROpBad))))))
+
+(def read_ops_n ((bs Bytes) (n Int)) ROps
+  (if (eq n 0) (ROps ONil bs)
+    (match (read_op bs)
+      (ROpBad ROpsBad)
+      ((ROp h rest)
+        (match (read_ops_n rest (- n 1))
+          (ROpsBad ROpsBad)
+          ((ROps t tail) (ROps (OCons h t) tail)))))))
+
+(def read_ops ((bs Bytes)) ROps
+  (match (read_u32 bs)
+    (RIntBad ROpsBad)
+    ((RInt n rest) (read_ops_n rest n))))
+
+(def read_edge ((bs Bytes)) REdge
+  (match (read_id bs)
+    (RIntBad REdgeBad)
+    ((RInt id r1)
+      (match (read_id r1)
+        (RIntBad REdgeBad)
+        ((RInt target r2)
+          (match (read_ids r2)
+            (RIntsBad REdgeBad)
+            ((RInts arguments r3)
+              (match (expect_zero_count r3)
+                (RBytesBad REdgeBad)
+                ((RBytes rest) (REdge (Edge id target arguments) rest))))))))))
+
+(def read_term ((bs Bytes)) RTerm
+  (match (read_u8 bs)
+    (RIntBad RTermBad)
+    ((RInt tag rest)
+      (if (eq tag 1)
+        (match (read_edge rest)
+          (REdgeBad RTermBad)
+          ((REdge edge tail) (RTerm (Jump edge) tail)))
+        (if (eq tag 2)
+          (match (read_id rest)
+            (RIntBad RTermBad)
+            ((RInt edge r1)
+              (match (read_id r1)
+                (RIntBad RTermBad)
+                ((RInt value r2)
+                  (match (expect_zero_count r2)
+                    (RBytesBad RTermBad)
+                    ((RBytes tail) (RTerm (Ret edge value) tail)))))))
+          (if (eq tag 3)
+            (match (read_id rest)
+              (RIntBad RTermBad)
+              ((RInt condition r1)
+                (match (read_edge r1)
+                  (REdgeBad RTermBad)
+                  ((REdge yes r2)
+                    (match (read_edge r2)
+                      (REdgeBad RTermBad)
+                      ((REdge no tail) (RTerm (Cond condition yes no) tail)))))))
+            RTermBad))))))
+
+(def read_block ((bs Bytes)) RBlock
+  (match (read_id bs)
+    (RIntBad RBlockBad)
+    ((RInt id r1)
+      (match (read_decls r1)
+        (RDeclsBad RBlockBad)
+        ((RDecls parameters r2)
+          (match (read_ops r2)
+            (ROpsBad RBlockBad)
+            ((ROps operations r3)
+              (match (read_term r3)
+                (RTermBad RBlockBad)
+                ((RTerm term rest) (RBlock (Block id parameters operations term) rest))))))))))
+
+(def read_blocks_n ((bs Bytes) (n Int)) RBlocks
+  (if (eq n 0) (RBlocks BLNil bs)
+    (match (read_block bs)
+      (RBlockBad RBlocksBad)
+      ((RBlock h rest)
+        (match (read_blocks_n rest (- n 1))
+          (RBlocksBad RBlocksBad)
+          ((RBlocks t tail) (RBlocks (BLCons h t) tail)))))))
+
+(def read_blocks ((bs Bytes)) RBlocks
+  (match (read_u32 bs)
+    (RIntBad RBlocksBad)
+    ((RInt n rest) (read_blocks_n rest n))))
+
+(def read_contract ((bs Bytes)) RContract
+  (match (read_id bs)
+    (RIntBad RContractBad)
+    ((RInt id r1)
+      (match (expect_zero_count r1)
+        (RBytesBad RContractBad)
+        ((RBytes r2)
+          (match (read_props r2)
+            (RPropsBad RContractBad)
+            ((RProps requires r3)
+              (match (expect_zero_count r3)
+                (RBytesBad RContractBad)
+                ((RBytes rest) (RContract (Contract id requires) rest))))))))))
+
+(def read_machine_tail ((id Int) (parameters Decls) (result Decl) (bs Bytes)) RMachine
+  (match (expect_zero_sections bs 6)
+    (RBytesBad RMachineBad)
+    ((RBytes r1)
+      (match (read_id r1)
+        (RIntBad RMachineBad)
+        ((RInt entry r2)
+          (match (read_blocks r2)
+            (RBlocksBad RMachineBad)
+            ((RBlocks blocks r3)
+              (match (read_contract r3)
+                (RContractBad RMachineBad)
+                ((RContract contract rest)
+                  (RMachine (Machine id parameters result entry blocks contract) rest))))))))))
+
+(def read_machine ((bs Bytes)) RMachine
+  (match (read_id bs)
+    (RIntBad RMachineBad)
+    ((RInt id r1)
+      (match (expect_byte r1 0)
+        (RBytesBad RMachineBad)
+        ((RBytes r2)
+          (match (read_decls r2)
+            (RDeclsBad RMachineBad)
+            ((RDecls parameters r3)
+              (match (expect_zero_count r3)
+                (RBytesBad RMachineBad)
+                ((RBytes r4)
+                  (match (expect_byte r4 1)
+                    (RBytesBad RMachineBad)
+                    ((RBytes r5)
+                      (match (read_decl r5)
+                        (RDeclBad RMachineBad)
+                        ((RDecl result rest)
+                          (read_machine_tail id parameters result rest))))))))))))))
+
+(def read_machines_n ((bs Bytes) (n Int)) RMachines
+  (if (eq n 0) (RMachines MNil bs)
+    (match (read_machine bs)
+      (RMachineBad RMachinesBad)
+      ((RMachine h rest)
+        (match (read_machines_n rest (- n 1))
+          (RMachinesBad RMachinesBad)
+          ((RMachines t tail) (RMachines (MCons h t) tail)))))))
+
+(def read_header ((bs Bytes)) RBytes
+  (match (expect_byte bs 80) (RBytesBad RBytesBad) ((RBytes a)
+  (match (expect_byte a 83) (RBytesBad RBytesBad) ((RBytes b)
+  (match (expect_byte b 73) (RBytesBad RBytesBad) ((RBytes c)
+  (match (expect_byte c 84) (RBytesBad RBytesBad) ((RBytes d)
+  (match (expect_byte d 69) (RBytesBad RBytesBad) ((RBytes e)
+  (match (expect_byte e 82) (RBytesBad RBytesBad) ((RBytes f)
+  (match (expect_byte f 77) (RBytesBad RBytesBad) ((RBytes g)
+  (match (expect_byte g 0)  (RBytesBad RBytesBad) ((RBytes rest)
+    (RBytes rest))))))))))))))))))
+
+(def decode_module ((bs Bytes)) RModule
+  (match (read_header bs)
+    (RBytesBad RModuleBad)
+    ((RBytes r1)
+      (match (read_u16 r1)
+        (RIntBad RModuleBad)
+        ((RInt format r2)
+          (if (eq format 11)
+            (match (read_u16 r2)
+              (RIntBad RModuleBad)
+              ((RInt vocabulary r3)
+                (match (read_id r3)
+                  (RIntBad RModuleBad)
+                  ((RInt entry r4)
+                    (match (expect_zero_sections r4 10)
+                      (RBytesBad RModuleBad)
+                      ((RBytes r5)
+                        (match (read_u32 r5)
+                          (RIntBad RModuleBad)
+                          ((RInt count r6)
+                            (match (read_machines_n r6 count)
+                              (RMachinesBad RModuleBad)
+                              ((RMachines machines tail)
+                                (match tail
+                                  (BNil (RModule (Module vocabulary entry machines)))
+                                  (z RModuleBad))))))))))))
+            RModuleBad))))))

@@ -655,8 +655,18 @@ Remaining:
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
-  The Gamma spike, low generator, row proofs, and composition bridges remain
-  open.
+  The bounded Gamma spike is complete. It canonical-decodes two exact current
+  `PSITERM\0` v11 fixtures and audits a 22-row ledger covering exact/wrapping
+  arithmetic, signed toward-zero divide/remainder and `MIN / -1`, conditional
+  equations, branch-local scope/invalidation, all-predecessor merge rejection
+  and acceptance, exact call-clause enumeration/substitution, and strict
+  justification ranks. Matching/asymmetric/malformed cases agree between the
+  Beta-written reference interpreter and the independent Python evaluator.
+  The 1,026-byte fixture yields a 1,546-byte modeled ledger and 1,352-byte
+  prospective certificate; the typed core is 1,329 lines / 51,170 bytes / 143
+  functions and measured 0.25 s / 3,031,040 B max RSS on the recorded Apple M4
+  Pro Beta-reference run. The full low generator, row proofs, and composition
+  bridges remain open; no trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical

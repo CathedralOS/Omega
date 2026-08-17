@@ -78,14 +78,31 @@ constructor given the wrong argument type, divergent `match` arms, a pattern fro
 the wrong type, a return-type mismatch) and accepts well-typed `Nat`/`List` code —
 "just enough to make the proof kernel safe to write, no more."
 
-The pragmatic question is whether to grow the current gamma toward the target or
-to treat the current gamma as a stepping stone and introduce the
-interpreter-first functional gamma as its successor.
+Gamma now also hosts the bounded Q7 canonical semantic-ledger feasibility spike
+in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
+current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
+semantic rows. Both the Beta-written reference interpreter and the independent
+Python evaluator agree on the positive fixture, an asymmetric join rejection,
+and malformed-byte rejection. The measured core is 1,329 lines rather than a
+permutation-expanded verifier; its decomposition into decoder, typed row
+vocabulary, validators, emitters, and sequencing helpers is the intended shape
+for the production low generator.
+
+The spike also makes one scaling limit concrete: the monomorphic type system
+requires a distinct parse-result ADT for each decoded type. That repetition is
+an engineering/audit cost, not a reason to weaken the canonical-byte endpoint.
+The full port should first factor the reusable decoder layer; if the complete
+closed vocabulary cannot remain auditable under this restriction, that is the
+point for an explicit Gamma rung-design correction.
+
+The architectural fork is now settled: the functional interpreter-first Gamma
+defines meaning, while the old imperative compiler-first surface remains a
+parked compatibility artifact. Future acceleration must be checked against the
+reference interpreter; it cannot become a second definition.
 
 ## Open questions
 
-- Interpreter-first reconciliation (above) — the single biggest fork for the
-  current repo trajectory.
+- Retirement or differential validation of the parked compiler-first surface.
 - Totality vs partiality, and the fuel discipline for interpreters.
-- The minimal type system: just enough to make the proof kernel safe to write,
-  no more.
+- Whether the full canonical decoder remains auditable with monomorphic result
+  ADTs or needs one explicit, minimal type-system ergonomics correction.

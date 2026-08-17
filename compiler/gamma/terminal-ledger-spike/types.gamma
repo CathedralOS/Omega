@@ -1,0 +1,101 @@
+; Q7 canonical-semantic-ledger Gamma spike: closed data vocabulary.
+;
+; This is deliberately a bounded PSITERM v11 slice, not a second production
+; format.  decode.gamma consumes the real canonical bytes pinned by
+; psi-terminal-codec/tests/ledger_spike.rs.  The closed types make every byte,
+; operation row, premise scope, invalidation, and justification edge visible.
+
+(data Bytes (BNil) (B Int Bytes))
+(data Ints (INil) (ICons Int Ints))
+(data Decl (Decl Int Int))                       ; id, scalar type: Bool=1, i8=2
+(data Decls (DNil) (DCons Decl Decls))
+
+(data Expr
+  (Val Int)
+  (Lit Int)
+  (Add Expr Expr)
+  (TzDiv Expr Expr)
+  (TzRem Expr Expr)
+  (WrapAdd Expr Expr)
+  (WrapDiv Expr Expr)
+  (WrapRem Expr Expr)
+  (Less Expr Expr))
+
+(data Prop (Le Expr Expr))
+(data Props (PNil) (PCons Prop Props))
+
+(data OpKind
+  (KExactAdd Int Int Int)
+  (KWrapAdd Int Int)
+  (KExactDiv Int Int Int)
+  (KExactRem Int Int Int)
+  (KWrapDiv Int Int Int)
+  (KWrapRem Int Int Int)
+  (KLess Int Int)
+  (KCall Int Ints Ints))
+(data Op (Op Int Decl OpKind))
+(data Ops (ONil) (OCons Op Ops))
+
+(data Edge (Edge Int Int Ints))                 ; edge id, target block, arguments
+(data Term (Jump Edge) (Cond Int Edge Edge) (Ret Int Int))
+(data Block (Block Int Decls Ops Term))
+(data Blocks (BLNil) (BLCons Block Blocks))
+(data Contract (Contract Int Props))
+(data Machine (Machine Int Decls Decl Int Blocks Contract))
+(data Machines (MNil) (MCons Machine Machines))
+(data Module (Module Int Int Machines))          ; vocabulary, entry machine
+
+; Parser result types.  Gamma has no parametric types, so each result is
+; explicit; that repetition is measured as part of the rung-feasibility spike.
+(data RInt (RInt Int Bytes) (RIntBad))
+(data RBytes (RBytes Bytes) (RBytesBad))
+(data RDecl (RDecl Decl Bytes) (RDeclBad))
+(data RDecls (RDecls Decls Bytes) (RDeclsBad))
+(data RInts (RInts Ints Bytes) (RIntsBad))
+(data RExpr (RExpr Expr Bytes) (RExprBad))
+(data RProp (RProp Prop Bytes) (RPropBad))
+(data RProps (RProps Props Bytes) (RPropsBad))
+(data RKind (RKind OpKind Bytes) (RKindBad))
+(data ROp (ROp Op Bytes) (ROpBad))
+(data ROps (ROps Ops Bytes) (ROpsBad))
+(data REdge (REdge Edge Bytes) (REdgeBad))
+(data RTerm (RTerm Term Bytes) (RTermBad))
+(data RBlock (RBlock Block Bytes) (RBlockBad))
+(data RBlocks (RBlocks Blocks Bytes) (RBlocksBad))
+(data RContract (RContract Contract Bytes) (RContractBad))
+(data RMachine (RMachine Machine Bytes) (RMachineBad))
+(data RMachines (RMachines Machines Bytes) (RMachinesBad))
+(data RModule (RModule Module) (RModuleBad))
+
+; Canonical semantic-ledger rows.  Scope and invalidation are independent:
+; rank prevents circular justification, while scope/dominance decide whether a
+; premise is actually available.
+(data Formula
+  (SafetyFitsI8 Int Expr)
+  (SafetyExactDiv Int Int Int)
+  (SafetyNonZero Int Int)
+  (ResultEq Int Expr)
+  (ConditionalEq Int Int Int)
+  (BranchPremise Int Int)
+  (EdgeArgument Int Int Int)
+  (MergeEq Int Int)
+  (AuthoredRequirement Int Int Prop)
+  (CallRequirement Int Int Prop))
+(data Origin
+  (PrimitiveOrigin Int)
+  (BranchOrigin Int Int)
+  (EdgeOrigin Int)
+  (MergeOrigin Int)
+  (CallOrigin Int Int))
+(data Scope
+  (MachineScope Int)
+  (BlockScope Int)
+  (EdgeScope Int)
+  (UntilBlock Int))
+(data Row (Row Int Origin Formula Int Scope Ints))
+(data Rows (LNil) (LCons Row Rows))
+(data RLedger (RLedger Rows) (RLedgerBad))
+(data Build (Built Rows Int Ints) (BuildBad))
+(data ReqBuild (ReqBuilt Rows Int) (ReqBuildBad))
+(data Calc (CalcOk Int) (CalcBad))
+(data Metrics (Metrics Int Int Int))             ; rows, ledger bytes, certificate bytes
