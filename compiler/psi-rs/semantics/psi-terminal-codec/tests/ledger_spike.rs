@@ -1,11 +1,14 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BindingRelevance, Block, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, ServiceDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
+    EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
@@ -20,6 +23,7 @@ const MATCHING_BYTES: &str = include_str!("fixtures/terminal_ledger_spike.hex");
 const ASYMMETRIC_BYTES: &str = include_str!("fixtures/terminal_ledger_spike_asymmetric.hex");
 const STRUCTURAL_EFFECT_BYTES: &str =
     include_str!("fixtures/terminal_ledger_structural_effect.hex");
+const CALL_COMPOSITION_BYTES: &str = include_str!("fixtures/terminal_ledger_call_composition.hex");
 
 #[test]
 fn gamma_ledger_spike_fixtures_are_exact_current_terminal_bytes() {
@@ -67,6 +71,190 @@ fn gamma_structural_effect_ledger_fixture_is_exact_current_terminal_bytes() {
 
     let identity = semantic_fingerprint(&module).expect("structural/effect fixture identity");
     assert_ne!(identity.as_bytes(), &[0; 32]);
+}
+
+#[test]
+fn gamma_call_composition_ledger_fixture_is_exact_current_terminal_bytes() {
+    let module = call_composition_ledger_fixture();
+    validate_module(&module).expect("call-composition ledger spike must validate");
+    let bytes = encode_module(&module).expect("call-composition ledger spike must encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()),
+        Ok(bytes.clone())
+    );
+    assert_eq!(
+        hex(&bytes),
+        CALL_COMPOSITION_BYTES
+            .split_whitespace()
+            .collect::<String>(),
+        "call-composition fixture bytes drifted; reviewed replacement:\n{}",
+        wrapped_hex(&bytes)
+    );
+
+    let identity = semantic_fingerprint(&module).expect("call-composition fixture identity");
+    assert_ne!(identity.as_bytes(), &[0; 32]);
+}
+
+fn call_composition_ledger_fixture() -> TerminalModule {
+    let resource = structural_type_id(10);
+    let pending = structural_domain_id(10);
+    let caller_place = place_id(10);
+    let callee_place = place_id(20);
+    let parameter = |place, position, is_self| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self,
+        structural_type: resource,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: vec![pending],
+    };
+
+    let caller = TerminalMachine {
+        id: machine_id(10),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(caller_place, 0, false)],
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: caller_place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: vec![EntryClaim {
+            claim: claim_id(1),
+            input: caller_place,
+            path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(10),
+        blocks: vec![Block {
+            id: block_id(10),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(10),
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: machine_id(20),
+                    structural_arguments: vec![StructuralArgument {
+                        place: caller_place,
+                        path: Vec::new(),
+                    }],
+                    claim_transfers: vec![ClaimTransfer {
+                        claim: claim_id(1),
+                        argument_index: 0,
+                    }],
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(10),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(10),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+
+    let callee = TerminalMachine {
+        id: machine_id(20),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(callee_place, 0, false)],
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: callee_place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: vec![EntryClaim {
+            claim: claim_id(1),
+            input: callee_place,
+            path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(20),
+        blocks: vec![Block {
+            id: block_id(20),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(20),
+                result: OperationResult::Unit,
+                kind: OperationKind::BoundaryCall {
+                    boundary: boundary_machine_id(10),
+                    structural_arguments: vec![StructuralArgument {
+                        place: callee_place,
+                        path: Vec::new(),
+                    }],
+                    completion_receipts: vec![CompletionReceipt {
+                        claim: claim_id(1),
+                        argument_index: 0,
+                    }],
+                    requirement_obligations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(20),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(20),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: caller.id,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: resource,
+            identity: "Spike::Resource".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: pending,
+            identity: "Spike::Resource::Pending".into(),
+            carrier: resource,
+        }],
+        services: Vec::new(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_machine_id(10),
+            identity: "Spike::Resource::settle".into(),
+            attachment: Some(resource),
+            structural_parameters: vec![parameter(place_id(30), 0, true)],
+            result: None,
+            requires: vec![StructuralDomainRequirement {
+                argument_index: 0,
+                domain: pending,
+            }],
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
+        machines: vec![caller, callee],
+    }
 }
 
 fn structural_effect_ledger_fixture() -> TerminalModule {
@@ -733,4 +921,8 @@ id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(place_id, PlaceId);
 id_constructor!(service_id, ServiceId);
+id_constructor!(structural_type_id, StructuralTypeId);
 id_constructor!(structural_field_id, StructuralFieldId);
+id_constructor!(structural_domain_id, StructuralDomainId);
+id_constructor!(boundary_machine_id, BoundaryMachineId);
+id_constructor!(claim_id, ClaimId);

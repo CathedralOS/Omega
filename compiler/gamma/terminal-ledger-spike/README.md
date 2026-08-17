@@ -8,7 +8,7 @@ small, typed, interpreter-defined program rather than another Rust verifier.
 
 ## Trust boundary and inputs
 
-`psi-terminal-codec/tests/ledger_spike.rs` constructs three ordinary current
+`psi-terminal-codec/tests/ledger_spike.rs` constructs four ordinary current
 `TerminalModule` values and pins their exact `PSITERM\0` v11 encodings. The Rust
 fixture builder and `bytes_to_gamma.py` are untrusted test transport. The typed
 Gamma program begins with the reusable, PSITERM-neutral primitives in
@@ -21,10 +21,11 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
    types, wrong section counts, and shape drift;
 4. resolves every retained leaf operation through one exact row in either the
    scalar table in `schema.gamma` or the distinct structural/effect table;
-5. resolves scalar calls through the exact `Call` row in the separate
+5. resolves scalar, Unit, and boundary calls through the separate exact
    three-row composition table in `call_composition.gamma`; and
 6. emits and audits a ranked 54-row scalar ledger or 3-row structural/effect
-   ledger.
+   ledger, or validates exact Unit/boundary composition sites without inventing
+   primitive rows.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
 keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte
@@ -64,8 +65,11 @@ in-module `Call`, structural in-module `CallUnit`, and exact external
 binder shape, clause coverage, capture-free substitution, claim or receipt
 transfer, guarded outcomes, crash-route composition, evidence lifetime, fuel,
 and frontier policy as independent axes. The canonical scalar fixture consumes
-its table row end to end. Bounded Unit and boundary composition inputs exercise
-the same checker. Missing, duplicate, cross-kind, weakened-evidence,
+its table row end to end. A separate 697-byte canonical fixture decodes an exact
+qualified affine resource, structural requirement, claim transfer, `CallUnit`,
+boundary signature, completion receipt, and `BoundaryCall`, then exercises the
+other two rows through the same checker. Missing, duplicate, cross-kind,
+weakened-evidence,
 wrong-requirement, weakened-frontier, signature, state-version,
 move/reborrow, coverage, substitution, outcome, crash, and evidence-lifetime
 drift all reject in both evaluators.
@@ -140,12 +144,13 @@ these are feasibility observations, not performance promises:
 | --- | ---: |
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
-| Assembled typed Gamma core | 3,748 lines / 150,159 bytes |
+| Canonical Unit/boundary call fixture bytes | 697 |
+| Assembled typed Gamma core | 4,545 lines / 180,717 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 3,712 lines / 148,786 bytes / 313 functions |
-| Closed data declarations | 125 |
-| Typed functions, assembled | 319 |
-| Maximum source nesting | 21 |
+| Spike-specific typed core | 4,509 lines / 179,344 bytes / 383 functions |
+| Closed data declarations | 166 |
+| Typed functions, assembled | 389 |
+| Maximum source nesting | 25 |
 | Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
 | Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
 | Prospective scalar reconstruction certificate | 2,984 modeled bytes |
@@ -160,10 +165,11 @@ interpreter while deleting operation-specific builder branches. The important
 scaling result is structural: new leaf meaning is one isolated data row, and
 the ledger orchestrator is no longer the owner of operation permutations.
 `schema.gamma` is 327 lines; call/control/premise orchestration remains separate
-from primitive denotation. The 328-line `call_composition.gamma` owns its three
+from primitive denotation. The 349-line `call_composition.gamma` owns its three
 rows and generic axis checker, while `ledger.gamma` sequences the resulting
 rows. Structural/effect byte decoding is separate from its schema and ledger
-evaluation.
+evaluation. Unit/boundary byte decoding and composition evaluation are likewise
+isolated in `call_decode.gamma` and `call_ledger.gamma`.
 
 The first literal transport spelling used one constructor per byte and exposed
 a parser-stack failure. That did not require weakening the endpoint: a typed,
@@ -178,11 +184,12 @@ primitives are now factored into `../canonical-bytes/` and have an independent
 typed/interpreter gate. The largest measured audit tax is mechanical repetition:
 Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
-adds 1,128 lines and 42,263 bytes to the assembled core, but the code remains
-bounded, typechecked, separated into decoder versus schema/evaluator modules,
-and at nesting depth 21 after the call table. The call vocabulary, table, and
-integration add 429 assembled lines / 18,481 bytes / 35 functions without
-adding another call-kind evaluator. That is an engineering and audit cost, not an actual
+adds 1,128 lines and 42,263 bytes to the assembled core, while canonical
+Unit/boundary decoding and evaluation bring the full bounded assembly to 4,545
+lines and 180,717 bytes. The code remains bounded, typechecked, separated into
+decoder versus schema/evaluator modules, and at nesting depth 25. All three call
+variants still traverse one axis checker rather than adding call-kind evaluator
+branches. That is an engineering and audit cost, not an actual
 language-design blocker or a reason to weaken the canonical-byte endpoint.
 
 ## Gate

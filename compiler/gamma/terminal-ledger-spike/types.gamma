@@ -362,6 +362,61 @@
 (data RSEMachine (RSEMachine SEMachine Bytes) (RSEMachineBad))
 (data RSEMachines (RSEMachines SEMachines Bytes) (RSEMachinesBad))
 (data RSEModule (RSEModule SEModule) (RSEModuleBad))
+
+; Canonical-byte call-composition fixture vocabulary.  It reuses the exact
+; structural type/parameter/place declarations above, but keeps domains,
+; boundary signatures, claims, and call operations in a separate module.
+(data CCDomain (CCDomain Int Ints Int))          ; id, identity, carrier
+(data CCDomains (CCDNil) (CCDCons CCDomain CCDomains))
+(data CCRequirement (CCRequirement Int Int))     ; argument index, domain
+(data CCRequirements (CCRNil) (CCRCons CCRequirement CCRequirements))
+(data CCBoundaryResult (CCBoundaryUnit) (CCBoundaryScalar Int))
+(data CCBoundary
+  (CCBoundary Int Ints Int SEParameters CCBoundaryResult CCRequirements Ints))
+(data CCBoundaries (CCBNil) (CCBCons CCBoundary CCBoundaries))
+(data CCEntryClaim (CCEntryClaim Int Int))       ; claim, whole-place input
+(data CCEntryClaims (CCENil) (CCECons CCEntryClaim CCEntryClaims))
+(data CCArgument (CCArgument Int))               ; whole structural place
+(data CCArguments (CCANil) (CCACons CCArgument CCArguments))
+(data CCTransfer (CCTransfer Int Int))            ; claim, argument index
+(data CCTransfers (CCTNil) (CCTCons CCTransfer CCTransfers))
+(data CCOpKind
+  (CCCallUnit Int CCArguments CCTransfers Ints)
+  (CCBoundaryCall Int CCArguments CCTransfers Ints))
+(data CCOp (CCOp Int SEResult CCOpKind))
+(data CCOps (CCONil) (CCOCons CCOp CCOps))
+(data CCBlock (CCBlock Int Decls CCOps SETerminator))
+(data CCBlocks (CCBLNil) (CCBLCons CCBlock CCBlocks))
+(data CCMachine
+  (CCMachine Int Int Decls SEParameters SEResult SEPlaces CCEntryClaims Ints
+    Int CCBlocks Contract))
+(data CCMachines (CCMNil) (CCMCons CCMachine CCMachines))
+(data CCModule
+  (CCModule Int Int SETypes CCDomains SEServices CCBoundaries CCMachines))
+(data RCCDomain (RCCDomain CCDomain Bytes) (RCCDomainBad))
+(data RCCDomains (RCCDomains CCDomains Bytes) (RCCDomainsBad))
+(data RCCRequirement
+  (RCCRequirement CCRequirement Bytes)
+  (RCCRequirementBad))
+(data RCCRequirements
+  (RCCRequirements CCRequirements Bytes)
+  (RCCRequirementsBad))
+(data RCCBoundary (RCCBoundary CCBoundary Bytes) (RCCBoundaryBad))
+(data RCCBoundaries (RCCBoundaries CCBoundaries Bytes) (RCCBoundariesBad))
+(data RCCEntryClaim (RCCEntryClaim CCEntryClaim Bytes) (RCCEntryClaimBad))
+(data RCCEntryClaims (RCCEntryClaims CCEntryClaims Bytes) (RCCEntryClaimsBad))
+(data RCCArgument (RCCArgument CCArgument Bytes) (RCCArgumentBad))
+(data RCCArguments (RCCArguments CCArguments Bytes) (RCCArgumentsBad))
+(data RCCTransfer (RCCTransfer CCTransfer Bytes) (RCCTransferBad))
+(data RCCTransfers (RCCTransfers CCTransfers Bytes) (RCCTransfersBad))
+(data RCCOpKind (RCCOpKind CCOpKind Bytes) (RCCOpKindBad))
+(data RCCOp (RCCOp CCOp Bytes) (RCCOpBad))
+(data RCCOps (RCCOps CCOps Bytes) (RCCOpsBad))
+(data RCCBlock (RCCBlock CCBlock Bytes) (RCCBlockBad))
+(data RCCBlocks (RCCBlocks CCBlocks Bytes) (RCCBlocksBad))
+(data RCCMachine (RCCMachine CCMachine Bytes) (RCCMachineBad))
+(data RCCMachines (RCCMachines CCMachines Bytes) (RCCMachinesBad))
+(data RCCModule (RCCModule CCModule) (RCCModuleBad))
 (data SEKind (SELBooleanField) (SELPortWrite) (SELEstablish))
 (data SEResultRule (SEBooleanResult) (SEUnitSemanticResult))
 (data SECustodyRule

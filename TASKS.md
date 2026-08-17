@@ -657,7 +657,7 @@ Remaining:
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
-  The bounded Gamma spike is complete. It canonical-decodes three exact current
+  The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v11 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
@@ -674,9 +674,12 @@ Remaining:
   Python evaluator.
   The 1,983-byte fixture yields a 3,607-byte modeled ledger and 2,984-byte
   prospective certificate; the 695-byte structural/effect fixture yields a
-  185-byte modeled ledger and 164-byte prospective certificate. The assembled
-  typed core is 3,748 lines / 150,159 bytes / 319 functions, with maximum
-  source nesting 21. Its PSITERM-neutral byte cursor and
+  185-byte modeled ledger and 164-byte prospective certificate. A separate
+  697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
+  custody, including qualified affine resources, structural requirements,
+  claim transfer, completion receipt, and boundary identity. The assembled
+  typed core is 4,545 lines / 180,717 bytes / 389 functions, with maximum
+  source nesting 25. Its PSITERM-neutral byte cursor and
   checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
   36-line reusable layer; tags, bounded `u64` identities, strings, recursive
   vocabulary, and monomorphic type-specific results remain spike-owned. The
@@ -700,12 +703,14 @@ Remaining:
   requirement coverage, capture-free substitution, claim/receipt transfer,
   guarded outcomes, crash routes, evidence lifetime, fuel, and frontier policy
   remain independently visible. The canonical scalar call consumes its row end
-  to end; bounded Unit and boundary inputs exercise the same checker. Missing,
+  to end; canonical-byte Unit and boundary sites exercise the same checker.
+  Missing,
   duplicate, cross-kind, weakened-evidence, wrong-requirement,
   weakened-frontier, signature, state-version, move/reborrow, coverage,
-  substitution, outcome, crash, and evidence-lifetime drift reject. Full
-  canonical-byte Unit/boundary call integration, the full low generator, row
-  proofs, and composition bridges remain open; no trust-graph node becomes
+  substitution, outcome, crash, evidence-lifetime, raw identity, target,
+  argument, transfer, receipt, truncation, and trailing-byte drift reject. The
+  full low generator, row proofs, and composition bridges remain open; no
+  trust-graph node becomes
   derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per

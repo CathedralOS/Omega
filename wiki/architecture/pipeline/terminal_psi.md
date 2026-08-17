@@ -1584,7 +1584,7 @@ noncanonical custody rejects. The entry deliberately reports `fully-derived
 false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
 
-The bounded Gamma feasibility spike now starts from three exact current
+The bounded Gamma feasibility spike now starts from four exact current
 `PSITERM\0` v11 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
@@ -1596,8 +1596,9 @@ branch-local scope/invalidation, and an all-predecessor merge; changing only one
 predecessor value rejects. The 1,983-byte scalar fixture produces a 3,607-byte
 modeled ledger and a 2,984-byte prospective reconstruction certificate. The
 695-byte structural/effect fixture produces a 185-byte ledger and a 164-byte
-prospective certificate. The assembled typed core is 3,748 lines (150,159
-bytes, 319 functions) with maximum source nesting 21. A separately gated
+prospective certificate. A separate 697-byte fixture canonical-decodes exact
+Unit and boundary call custody. The assembled typed core is 4,545 lines
+(180,717 bytes, 389 functions) with maximum source nesting 25. A separately gated
 36-line PSITERM-neutral byte layer owns the checked byte cursor and fixed-width
 primitives, while bounded `u64` identities, tags, recursive vocabulary, and
 monomorphic semantic result types remain spike-local. This clears the required
@@ -1624,10 +1625,12 @@ Calls retain separate composition algebra. Three exact-unique rows for scalar
 in-module, structural in-module, and boundary calls feed one generic checker
 whose target/result, binder, requirement, substitution, transfer, outcome,
 crash-route, evidence-lifetime, fuel, and frontier axes remain independently
-visible. The canonical scalar call consumes its row end to end, while bounded
-Unit and boundary inputs exercise the same checker. Missing, duplicate,
-altered, cross-kind, and per-axis drift reject. Full canonical-byte
-Unit/boundary call integration, the full decoder and low generator, row proofs,
+visible. The canonical scalar call consumes its row end to end, while the
+697-byte call fixture decodes and validates exact qualified resource,
+requirement, transfer, receipt, and boundary identities for `CallUnit` and
+`BoundaryCall` through the same checker. Missing, duplicate, altered,
+cross-kind, per-axis, raw-identity, target, argument, transfer, receipt,
+truncation, and trailing-byte drift reject. The full low generator, row proofs,
 and composition bridges remain required; the bounded spike marks no trust-graph
 dependency derived.
 
