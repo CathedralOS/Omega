@@ -368,6 +368,29 @@
             0)
           0)))))
 
+(def integer_literal_custody_self_test () Int
+  (let exact (TerminalSignedValue (U128 5 0 0 0))
+    (let unsigned (TerminalUnsignedValue (U128 5 0 0 0))
+      (let wide (TerminalSignedValue (U128 256 0 0 0))
+        (let kind (KIntConst exact)
+          (match kind
+            ((KIntConst retained)
+              (if (terminal_integer_value_equal retained exact)
+                (match (view_leaf kind)
+                  ((LeafView leaf value right obligation)
+                    (if (leaf_kind_equal leaf LIntConst)
+                      (if (eq value 5)
+                        (match (view_leaf (KIntConst unsigned))
+                          (InvalidLeaf
+                            (match (view_leaf (KIntConst wide))
+                              (InvalidLeaf 1)
+                              (z 0)))
+                          (z 0))
+                        0)
+                      0))
+                  (z 0))
+                0))))))))
+
 (def build_call_exact
   ((operation Int) (result Decl) (known Decls) (rank Int) (target Int)
    (callee_id Int) (callee_result Decl) (p0 Decl) (p1 Decl) (a0 Int) (a1 Int)
@@ -431,6 +454,7 @@
           (build_leaf_from_schema schema operation result known machine block rank
             left right obligation))
         (z BuildBad)))
+    (InvalidLeaf BuildBad)
     (NotLeaf
       (match kind
         ((KCall target arguments obligations)
@@ -1107,14 +1131,16 @@
     (if (typed_environment_self_test)
       (if (conversion_typed_environment_self_test)
         (if (full_scalar_type_environment_self_test)
-          (if (call_typed_environment_self_test)
-            (if (call_composition_self_test)
-              (match (decode_module bytes)
-                (RModuleBad 0)
-                ((RModule module)
-                  (match (build_module_ledger_with_tables schemas call_schemas module)
-                    (RLedgerBad 0)
-                    ((RLedger rows) 1))))
+          (if (integer_literal_custody_self_test)
+            (if (call_typed_environment_self_test)
+              (if (call_composition_self_test)
+                (match (decode_module bytes)
+                  (RModuleBad 0)
+                  ((RModule module)
+                    (match (build_module_ledger_with_tables schemas call_schemas module)
+                      (RLedgerBad 0)
+                      ((RLedger rows) 1))))
+                0)
               0)
             0)
           0)

@@ -3,6 +3,18 @@
 ; Signed payloads retain their exact two's-complement bits. Mathematical signed
 ; interpretation belongs to the semantic consumer, not the byte decoder.
 
+(def terminal_integer_value_equal
+  ((left TerminalIntegerValue) (right TerminalIntegerValue)) Int
+  (match left
+    ((TerminalSignedValue left_bits)
+      (match right
+        ((TerminalSignedValue right_bits) (u128_equal left_bits right_bits))
+        ((TerminalUnsignedValue right_bits) 0)))
+    ((TerminalUnsignedValue left_bits)
+      (match right
+        ((TerminalSignedValue right_bits) 0)
+        ((TerminalUnsignedValue right_bits) (u128_equal left_bits right_bits))))))
+
 (def read_terminal_integer_value ((bs Bytes)) RTerminalIntegerValue
   (match (read_u8 bs)
     (RIntBad RTerminalIntegerValueBad)

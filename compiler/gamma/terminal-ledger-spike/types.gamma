@@ -49,7 +49,7 @@
 (data Props (PNil) (PCons Prop Props))
 
 (data OpKind
-  (KIntConst Int)
+  (KIntConst TerminalIntegerValue)
   (KBoolConst Int)
   (KBoolNot Int)
   (KBoolEq Int Int)
@@ -181,7 +181,8 @@
   (LeafSchema LeafKind ResultShape OperandShape Denotation GoalShape FactShape
     CrashShape FuelShape FrontierShape))
 (data LeafSchemas (LSNil) (LSCons LeafSchema LeafSchemas))
-(data LeafView (LeafView LeafKind Int Int Int) (NotLeaf))
+(data LeafView (LeafView LeafKind Int Int Int) (InvalidLeaf) (NotLeaf))
+(data NarrowI8 (NarrowI8 Int) (NarrowI8Bad))
 (data RLeafSchema
   (LeafSchemaFound LeafSchema)
   (LeafSchemaMissing)
