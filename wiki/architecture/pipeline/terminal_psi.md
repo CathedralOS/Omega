@@ -1534,12 +1534,14 @@ The six exact binary cohorts and exact-cast cohort select named ordered
 registries through generic dispatch rather than repeating family permutations
 inside the crate root. Structural scalar-return custody likewise has one
 dedicated lowering/orchestration module whose nominal-cleanup specialization is
-isolated behind the same entry point; general structural returns, structural
-Unit control, and scalar-graph construction do not share that module. Additional
-sufficient-form families should follow that shape: one closed responsibility per
-module, explicit precedence at the registry, and no authority beyond the
-certificate proved against the unchanged canonical ledger. This refactoring
-rule does not make the current Rust producer or its registries trusted.
+isolated behind the same entry point and whose expression-shape validation is a
+separate subordinate responsibility. Structural Unit control has its own module;
+general structural returns and scalar-graph construction share neither path.
+Additional sufficient-form families should follow that shape: one closed
+responsibility per module, explicit precedence at the registry, and no authority
+beyond the certificate proved against the unchanged canonical ledger. This
+refactoring rule does not make the current Rust producer or its registries
+trusted.
 
 Premise availability is path- and version-sensitive. Ranking ledger nodes makes
 cyclic justification unrepresentable but does not by itself make a fact

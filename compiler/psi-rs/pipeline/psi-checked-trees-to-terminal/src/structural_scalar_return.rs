@@ -6,7 +6,9 @@
 
 use super::*;
 
+mod expressions;
 mod nominal;
+use expressions::*;
 use nominal::lower_nominal_structural_scalar_return_machine;
 
 pub(super) fn lower_structural_scalar_return_machine(
