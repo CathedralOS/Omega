@@ -136,6 +136,16 @@
     ((BoolNot x) (match b ((BoolNot y) (expr_equal x y)) (z 0)))
     ((BoolEq x y) (match b ((BoolEq p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((IntEq x y) (match b ((IntEq p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((BitNot x) (match b ((BitNot y) (expr_equal x y)) (z 0)))
+    ((WidenI8I16 x) (match b ((WidenI8I16 y) (expr_equal x y)) (z 0)))
+    ((CastI16I8 x) (match b ((CastI16I8 y) (expr_equal x y)) (z 0)))
+    ((BitAnd x y) (match b ((BitAnd p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((BitOr x y) (match b ((BitOr p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((BitXor x y) (match b ((BitXor p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((WrapShl x y) (match b ((WrapShl p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((WrapShr x y) (match b ((WrapShr p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((ExactShl x y) (match b ((ExactShl p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((ExactShr x y) (match b ((ExactShr p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Add x y) (match b ((Add p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Sub x y) (match b ((Sub p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Mul x y) (match b ((Mul p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
@@ -165,6 +175,16 @@
     ((BoolNot x) (BoolNot (subst_expr x p0 a0 p1 a1)))
     ((BoolEq x y) (BoolEq (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((IntEq x y) (IntEq (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((BitNot x) (BitNot (subst_expr x p0 a0 p1 a1)))
+    ((WidenI8I16 x) (WidenI8I16 (subst_expr x p0 a0 p1 a1)))
+    ((CastI16I8 x) (CastI16I8 (subst_expr x p0 a0 p1 a1)))
+    ((BitAnd x y) (BitAnd (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((BitOr x y) (BitOr (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((BitXor x y) (BitXor (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((WrapShl x y) (WrapShl (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((WrapShr x y) (WrapShr (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((ExactShl x y) (ExactShl (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((ExactShr x y) (ExactShr (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Add x y) (Add (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Sub x y) (Sub (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Mul x y) (Mul (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
@@ -273,10 +293,18 @@
         (if (lt left 0) 0 (if (lt left 2) (eq right 0) 0)))
       (UnaryBooleanOperand
         (if (eq right 0) (decls_has_exact known left 1) 0))
+      (UnaryIntegerOperand
+        (if (eq right 0) (decls_has_exact known left 2) 0))
+      (WidenI8ToI16Operand
+        (if (eq right 0) (decls_has_exact known left 2) 0))
+      (CastI16ToI8Operand
+        (if (eq right 0) (decls_has_exact known left 3) 0))
       (BinaryBooleanOperands
         (if (decls_has_exact known left 1) (decls_has_exact known right 1) 0))
       (BinaryIntegerOperands
-        (if (decls_has_exact known left 2) (decls_has_exact known right 2) 0)))
+        (if (decls_has_exact known left 2) (decls_has_exact known right 2) 0))
+      (ShiftI8ByI16Operands
+        (if (decls_has_exact known left 2) (decls_has_exact known right 3) 0)))
     0))
 
 (def typed_environment_self_test () Int
@@ -301,6 +329,16 @@
                 0)
               0)
             0)
+          0)
+        0)
+      0)))
+
+(def conversion_typed_environment_self_test () Int
+  (let known (DCons (Decl 1 2) (DCons (Decl 4 3) DNil))
+    (if (valid_leaf_result (Decl 3 3) known WidenI8ToI16Operand 1 0 3)
+      (if (valid_leaf_result (Decl 3 2) known CastI16ToI8Operand 4 0 2)
+        (if (valid_leaf_result (Decl 3 2) known ShiftI8ByI16Operands 1 4 2)
+          (eq (valid_leaf_result (Decl 3 2) known ShiftI8ByI16Operands 1 1 2) 0)
           0)
         0)
       0)))
@@ -590,6 +628,14 @@
             (if (eq obligation 109) 128
               (if (eq obligation 110) 256 100))))
         100))
+    ((SafetyCastI16ToI8 obligation operand)
+      (if (if (eq obligation 111) (eq operand 12) 0) 512 100))
+    ((SafetyShiftLeftI8 obligation value count)
+      (if (if (eq value 10) (eq count 12) 0)
+        (if (eq obligation 112) 1024 100)
+        100))
+    ((SafetyShiftCountI8 obligation count)
+      (if (if (eq obligation 113) (eq count 12) 0) 2048 100))
     (z 0)))
 
 (def base_result_code ((result Int) (expr Expr)) Int
@@ -627,13 +673,27 @@
             (if (eq result 46) (if (expr_equal expr (LessEq (Val 10) (Val 41))) 4194304 1000)
               1000)))))))
 
+(def bitwise_conversion_shift_result_code ((result Int) (expr Expr)) Int
+  (if (eq result 47) (if (expr_equal expr (WidenI8I16 (Val 10))) 8388608 1000)
+    (if (eq result 48) (if (expr_equal expr (CastI16I8 (Val 12))) 16777216 1000)
+      (if (eq result 49) (if (expr_equal expr (BitNot (Val 10))) 33554432 1000)
+        (if (eq result 50) (if (expr_equal expr (BitAnd (Val 10) (Val 11))) 67108864 1000)
+          (if (eq result 51) (if (expr_equal expr (BitOr (Val 10) (Val 11))) 134217728 1000)
+            (if (eq result 52) (if (expr_equal expr (BitXor (Val 10) (Val 11))) 268435456 1000)
+              (if (eq result 53) (if (expr_equal expr (WrapShl (Val 10) (Val 12))) 536870912 1000)
+                (if (eq result 54) (if (expr_equal expr (WrapShr (Val 10) (Val 12))) 1073741824 1000)
+                  (if (eq result 55) (if (expr_equal expr (ExactShl (Val 10) (Val 12))) 2147483648 1000)
+                    (if (eq result 56) (if (expr_equal expr (ExactShr (Val 10) (Val 12))) 4294967296 1000)
+                      1000)))))))))))
+
 (def result_code ((formula Formula)) Int
   (match formula
     ((ResultEq result expr)
       (if (lt result 32) (base_result_code result expr)
         (if (lt result 39) (cohort_result_code result expr)
           (if (lt result 41) (saturating_divisor_result_code result expr)
-            (scalar_logic_result_code result expr)))))
+            (if (lt result 47) (scalar_logic_result_code result expr)
+              (bitwise_conversion_shift_result_code result expr))))))
     (z 0)))
 
 (def control_code ((formula Formula)) Int
@@ -701,11 +761,11 @@
                                 (formulas_count remaining kind)))))))))))))))))
 
 (def exact_ledger_inventory ((rows Rows)) Int
-  (if (eq (rows_len rows) 41)
+  (if (eq (rows_len rows) 54)
     (if (if (eq (formulas_count rows 0) 2) (eq (formulas_code rows 0) 3) 0)
       (if (if (eq (formulas_count rows 1) 2) (eq (formulas_code rows 1) 3) 0)
-        (if (if (eq (formulas_count rows 2) 9) (eq (formulas_code rows 2) 511) 0)
-          (if (if (eq (formulas_count rows 3) 23) (eq (formulas_code rows 3) 8388607) 0)
+        (if (if (eq (formulas_count rows 2) 12) (eq (formulas_code rows 2) 4095) 0)
+          (if (if (eq (formulas_count rows 3) 33) (eq (formulas_code rows 3) 8589934591) 0)
             (if (eq (formulas_count rows 4) 5) (eq (formulas_code rows 4) 31) 0)
             0)
           0)
@@ -720,6 +780,16 @@
     ((BoolNot operand) (+ 1 (expression_size operand)))
     ((BoolEq a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((IntEq a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((BitNot operand) (+ 1 (expression_size operand)))
+    ((WidenI8I16 operand) (+ 1 (expression_size operand)))
+    ((CastI16I8 operand) (+ 1 (expression_size operand)))
+    ((BitAnd a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((BitOr a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((BitXor a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((WrapShl a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((WrapShr a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((ExactShl a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((ExactShr a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Add a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Sub a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Mul a b) (+ 1 (+ (expression_size a) (expression_size b))))
@@ -746,6 +816,9 @@
     ((SafetyFitsI8 obligation expr) (+ 9 (expression_size expr)))
     ((SafetyExactDiv obligation left right) 25)
     ((SafetyNonZero obligation divisor) 17)
+    ((SafetyCastI16ToI8 obligation operand) 17)
+    ((SafetyShiftCountI8 obligation count) 17)
+    ((SafetyShiftLeftI8 obligation value count) 25)
     ((ResultEq result expr) (+ 9 (expression_size expr)))
     ((BranchPremise condition truth) 17)
     ((EdgeArgument edge parameter value) 25)
@@ -811,11 +884,13 @@
 (def spike_type_shape_valid ((caller Machine) (callee Machine)) Int
   (let caller_parameters (machine_parameters caller)
     (let callee_parameters (machine_parameters callee)
-      (if (eq (decls_len caller_parameters) 2)
+      (if (eq (decls_len caller_parameters) 3)
         (if (eq (decls_len callee_parameters) 2)
           (if (decls_unique caller_parameters)
             (if (decls_unique callee_parameters)
-              (if (decls_all_i8 caller_parameters)
+              (if (if (decls_has_exact caller_parameters 10 2)
+                    (if (decls_has_exact caller_parameters 11 2)
+                      (decls_has_exact caller_parameters 12 3) 0) 0)
                 (if (decls_all_i8 callee_parameters)
                   (if (eq (decl_ty (machine_result caller)) 2)
                     (if (eq (decl_ty (machine_result callee)) 2)
@@ -958,16 +1033,29 @@
         rest))
     (LSNil LSNil)))
 
+(def schemas_with_weakened_exact_shift_left ((schemas LeafSchemas)) LeafSchemas
+  (match schemas
+    (LSNil LSNil)
+    ((LSCons schema rest)
+      (if (leaf_kind_equal (schema_kind schema) LExactShl)
+        (LSCons
+          (LeafSchema LExactShl ResultI8 ShiftI8ByI16Operands DExactShl GoalShiftCountI8
+            FactEquation CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+          rest)
+        (LSCons schema (schemas_with_weakened_exact_shift_left rest))))))
+
 (def run_spike_with_schemas ((schemas LeafSchemas) (bytes Bytes)) Int
   (if (arithmetic_self_test)
     (if (typed_environment_self_test)
-      (if (call_typed_environment_self_test)
-        (match (decode_module bytes)
-          (RModuleBad 0)
-          ((RModule module)
-            (match (build_module_ledger_with_schemas schemas module)
-              (RLedgerBad 0)
-              ((RLedger rows) 1))))
+      (if (conversion_typed_environment_self_test)
+        (if (call_typed_environment_self_test)
+          (match (decode_module bytes)
+            (RModuleBad 0)
+            ((RModule module)
+              (match (build_module_ledger_with_schemas schemas module)
+                (RLedgerBad 0)
+                ((RLedger rows) 1))))
+          0)
         0)
       0)
     0))
@@ -980,7 +1068,10 @@
     (if (eq (run_spike_with_schemas (schemas_without_first) bytes) 0)
       (if (eq (run_spike_with_schemas (schemas_with_duplicate_first) bytes) 0)
         (if (eq (run_spike_with_schemas (schemas_with_altered_first) bytes) 0)
-          (eq (run_spike_with_schemas (schemas_with_altered_first_denotation) bytes) 0)
+          (if (eq (run_spike_with_schemas (schemas_with_altered_first_denotation) bytes) 0)
+            (eq (run_spike_with_schemas
+                  (schemas_with_weakened_exact_shift_left (canonical_leaf_schemas)) bytes) 0)
+            0)
           0)
         0)
       0)
