@@ -1552,6 +1552,9 @@ families rather than a second responsibility embedded in the production root.
 Proposition vocabulary, evidence-term identity, contract lanes, package
 invocations, and producer provenance likewise share one evidence-publication
 module behind a single parent-facing installation API.
+Scalar and structural crash routes, argument-root substitution, and canonical
+proposition construction likewise share one crash/proposition module with an
+explicit internal contract surface.
 Additional sufficient-form families should follow that shape: one closed
 responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
