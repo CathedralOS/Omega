@@ -4,6 +4,7 @@ use super::affine_cleanup::{
     nominal_cleanup_contract_receiver, nominal_cleanups, validate_nominal_affine_cleanup_shape,
     validate_partial_affine_cleanup_shape,
 };
+use super::crash::{substitute_crash_routes, validate_crash_frontiers};
 use super::structural_operations::{validate_service_reach, validate_unit_operation_static};
 use super::*;
 
