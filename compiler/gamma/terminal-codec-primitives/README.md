@@ -1,8 +1,13 @@
 # Canonical terminal-codec primitives
 
 This directory layers exact terminal-codec grammar over the semantics-neutral
-`../canonical-bytes/` cursor. It currently owns the codec's length-prefixed
-UTF-8 string rule:
+`../canonical-bytes/` cursor. It owns the current envelope prefix:
+
+- exact `PSITERM\0` magic;
+- exact format marker 11; and
+- exact current vocabulary marker 16, retained in the typed result.
+
+It also owns the codec's length-prefixed UTF-8 string rule:
 
 - a little-endian `u32` byte count;
 - at most 1 MiB, matching `MAX_CONTENT_IDENTITY_BYTES`;
@@ -10,7 +15,8 @@ UTF-8 string rule:
 - canonical UTF-8 scalar encodings only—no overlong forms, surrogates, values
   above U+10FFFF, isolated continuation bytes, truncation, or normalization.
 
-The result retains a separate captured byte spine and unread input tail. It
-does not assign semantic meaning to an identity, path, or label. Run
+Each result retains its unread input tail; strings additionally retain a
+separate captured byte spine. The module does not assign semantic meaning to an
+identity, path, or label. Run
 `sh compiler/gamma/test-terminal-codec-primitives.sh` for the typed and
 independent-interpreter contract.

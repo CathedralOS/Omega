@@ -412,7 +412,7 @@
             (RSEMachines (SEMCons machine machines) end)))))))
 
 (def finish_structural_effect_module
-  ((format Int) (vocabulary Int) (entry Int) (types SETypes)
+  ((vocabulary Int) (entry Int) (types SETypes)
    (services SEServices) (bs Bytes)) RSEModule
   (match (expect_zero_sections bs 7)
     (RBytesBad RSEModuleBad)
@@ -423,34 +423,28 @@
           (match (read_se_machines_n r2 count)
             (RSEMachinesBad RSEModuleBad)
             ((RSEMachines machines end)
-              (if (if (eq format 11) (match end (BNil 1) (z 0)) 0)
+              (if (match end (BNil 1) (z 0))
                 (RSEModule (SEModule vocabulary entry types services machines))
                 RSEModuleBad))))))))
 
 (def read_structural_effect_sections
-  ((format Int) (vocabulary Int) (entry Int) (types SETypes) (bs Bytes)) RSEModule
+  ((vocabulary Int) (entry Int) (types SETypes) (bs Bytes)) RSEModule
   (match (expect_zero_count bs)
     (RBytesBad RSEModuleBad)
     ((RBytes r1)
       (match (read_se_services r1)
         (RSEServicesBad RSEModuleBad)
         ((RSEServices services rest)
-          (finish_structural_effect_module format vocabulary entry types services rest))))))
+          (finish_structural_effect_module vocabulary entry types services rest))))))
 
 (def decode_structural_effect_module ((bs Bytes)) RSEModule
-  (match (read_header bs)
-    (RBytesBad RSEModuleBad)
-    ((RBytes r1)
-      (match (read_u16 r1)
+  (match (read_terminal_header bs)
+    (RTerminalHeaderBad RSEModuleBad)
+    ((RTerminalHeader vocabulary r1)
+      (match (read_id r1)
         (RIntBad RSEModuleBad)
-        ((RInt format r2)
-          (match (read_u16 r2)
-            (RIntBad RSEModuleBad)
-            ((RInt vocabulary r3)
-              (match (read_id r3)
-                (RIntBad RSEModuleBad)
-                ((RInt entry r4)
-                  (match (read_se_types r4)
-                    (RSETypesBad RSEModuleBad)
-                    ((RSETypes types rest)
-                      (read_structural_effect_sections format vocabulary entry types rest))))))))))))
+        ((RInt entry r2)
+          (match (read_se_types r2)
+            (RSETypesBad RSEModuleBad)
+            ((RSETypes types rest)
+              (read_structural_effect_sections vocabulary entry types rest))))))))

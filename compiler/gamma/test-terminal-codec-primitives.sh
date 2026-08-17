@@ -28,6 +28,7 @@ build_beta_program interp.beta "$T/interp.exe"
 cat canonical-bytes/types.gamma \
     terminal-codec-primitives/types.gamma \
     canonical-bytes/decode.gamma \
+    terminal-codec-primitives/header.gamma \
     terminal-codec-primitives/utf8.gamma \
     terminal-codec-primitives/tests.gamma > "$T/typed.gamma"
 
@@ -41,7 +42,7 @@ if [ "$type_status" != 1 ]; then
 fi
 
 python3 erase_types.py < "$T/typed.gamma" > "$T/run.gamma"
-printf '\n(terminal_utf8_self_test)\n' >> "$T/run.gamma"
+printf '\n(terminal_codec_primitives_self_test)\n' >> "$T/run.gamma"
 
 set +e
 beta_output=$("$T/interp.exe" < "$T/run.gamma")
@@ -59,4 +60,4 @@ if [ "$python_status" != 1 ] || [ "$python_output" != 1 ]; then
   exit 1
 fi
 
-echo "terminal codec primitives: bounded canonical UTF-8 contract -> 1 (Beta/Python agree)"
+echo "terminal codec primitives: current header and canonical UTF-8 contract -> 1 (Beta/Python agree)"
