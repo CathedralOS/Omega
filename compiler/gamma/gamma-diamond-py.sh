@@ -22,6 +22,23 @@ G="$T/g.exe"
 
 N=${1:-100}
 PASS=0; FAIL=0
+
+# Atom patterns beginning with lowercase are variable/catch-all patterns, not
+# nullary constructors.  Keep this fixed fence alongside the generated corpus:
+# the canonical Beta interpreter has always implemented it and the ledger spike
+# depends on it for fail-closed decoder arms.
+printf '%s' '(match (Cons 1 Nil) (Nil 0) (other 42))' > "$T/catch-all.gamma"
+set +e
+ro=$(python3 gamma_ref.py < "$T/catch-all.gamma" 2>/dev/null); rc=$?
+io=$("$G" < "$T/catch-all.gamma" 2>/dev/null); ic=$?
+set -e
+if [ "$rc" = "$ic" ] && [ "$ro" = "$io" ] && [ "$rc" = 42 ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL catch-all pattern: gamma_ref=(out'$ro' rc$rc) interp=(out'$io' rc$ic)"
+fi
+
 i=1
 while [ "$i" -le "$N" ]; do
   s=$((660000 + i))

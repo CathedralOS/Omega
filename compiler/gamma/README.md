@@ -13,6 +13,8 @@ emits assembly; the chain targets one level down at each step:
 - `rebuild.sh` — rebuild `gamma_x64_windows.exe` from `gamma.alpha` (assemble via beta, stamp).
 - `build.sh PROG.gamma` → `build/PROG.exe` — run the full chain on a gamma program.
 - `examples/` — gamma programs.
+- `terminal-ledger-spike/` — the Q7 typed, canonical-byte semantic-ledger
+  feasibility spike; run `test-terminal-ledger-spike.sh`.
 
 ```
 ./rebuild.sh

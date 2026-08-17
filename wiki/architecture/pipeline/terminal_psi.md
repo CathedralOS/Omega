@@ -1581,6 +1581,20 @@ cyclic, unreachable, duplicate, or noncanonical custody rejects. The entry
 deliberately reports `fully-derived false`: this inventory is the prerequisite
 for, not an implementation of, the low canonical ledger.
 
+The bounded Gamma feasibility spike now starts from two exact current
+`PSITERM\0` v11 byte fixtures and reconstructs a typed 22-row ledger. It covers
+exact/wrapping arithmetic, signed toward-zero divide/remainder including
+`MIN / -1`, exact call-clause enumeration and substitution, ranked
+justification, branch-local scope/invalidation, and an all-predecessor merge;
+changing only one predecessor value rejects. The 1,026-byte fixture produces a
+1,546-byte modeled ledger and a 1,352-byte prospective reconstruction
+certificate. The typed core is 1,329 lines (51,170 bytes, 143 functions), and
+the Beta reference route measured 0.25 seconds and 3,031,040 bytes maximum RSS
+on the recorded Apple M4 Pro run. This clears the required feasibility gate; it
+does not make the bounded subset production-authoritative or mark any trust-graph
+dependency derived. The full decoder, closed row table, low proofs, and
+composition bridges remain required.
+
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution
 model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,
 native lowering, and installation belong to the separate native-refinement

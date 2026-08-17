@@ -30,7 +30,8 @@ hash_inputs() {
         -not -path '*/target/*' -not -path '*/build/*' -not -path '*/.git/*' \
         \( -name '*.beta' -o -name '*.alpha' -o -name '*.gamma' -o -name '*.alp' \
            -o -name '*.omg' -o -name '*.sh' -o -name '*.py' -o -name '*.rs' \
-           -o -name '*.s' -o -name '*.toml' -o -name '*.md5' -o -name '*.elab' \) -print 2>/dev/null
+           -o -name '*.s' -o -name '*.toml' -o -name '*.md5' -o -name '*.elab' \
+           -o -name '*.hex' \) -print 2>/dev/null
     done; } | sort | xargs shasum 2>/dev/null | shasum | cut -d' ' -f1
 }
 
@@ -75,6 +76,7 @@ step "proof kernel — TRUST-ANCHOR DIAMOND: independent check_ref.py agrees on 
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
 step "gamma — MEANING DIAMOND: independent gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs beta
 step "gamma — static type checker"                    gamma       test-typeck.sh
+step "gamma — canonical terminal semantic-ledger spike" gamma test-terminal-ledger-spike.sh ../psi-rs/semantics/psi-terminal-codec
 step "gamma — the proof kernel, written IN gamma"    gamma       test-checker.sh
 step "diamond — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel  checker-diamond.sh gamma
 step "diamond — definitional eq vs operational eval"  proof-kernel       semantics-diamond.sh gamma

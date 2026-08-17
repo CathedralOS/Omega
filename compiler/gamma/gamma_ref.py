@@ -90,9 +90,13 @@ class Ev:
                 raise Trap()
             _, name, args = scrut
             for pat, body in [(a[0], a[1]) for a in e[2:]]:
-                if isinstance(pat, str):               # nullary pattern
-                    if pat == name and len(args) == 0:
-                        return self.ev(body, env)
+                if isinstance(pat, str):
+                    if pat[:1].isupper():              # nullary constructor pattern
+                        if pat == name and len(args) == 0:
+                            return self.ev(body, env)
+                    else:                              # variable/catch-all pattern
+                        env2 = dict(env); env2[pat] = scrut
+                        return self.ev(body, env2)
                 elif pat[0] == name and len(pat) - 1 == len(args):
                     env2 = dict(env)
                     for v, val in zip(pat[1:], args):
