@@ -784,11 +784,12 @@ Remaining:
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
   Terminal-module validation has begun the same split: its parent shrank from
-  7,498 to 4,765 lines, with structural/service foundation (956 lines), public
-  error vocabulary (803), content-conservation validation/replay (534),
-  evidence/proposition custody (410), and call-graph acyclicity (68) in separate
-  responsibilities. Public validation types remain re-exported from the crate
-  boundary.
+  7,498 to 3,899 lines, with structural/service foundation (956 lines), public
+  error vocabulary (803), structural ownership/frontier cleanup (750),
+  content-conservation validation/replay (534), evidence/proposition custody
+  (410), contract proposition scope (120), and call-graph acyclicity (68) in
+  separate responsibilities. Public validation types remain re-exported from
+  the crate boundary.
   These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
