@@ -678,18 +678,20 @@ Remaining:
   697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
   custody, including qualified affine resources, structural requirements,
   claim transfer, completion receipt, and boundary identity. The assembled
-  typed core is 4,689 lines / 186,767 bytes / 401 functions, with maximum
+  typed core is 4,743 lines / 188,883 bytes / 406 functions, with maximum
   source nesting 25. Its PSITERM-neutral byte cursor, checked
   `u8`/little-endian `u16`/`u32`, and exact low/high-half `u64` primitives are
-  now a separately gated 64-line reusable layer. A separately gated 156-line
+  now a separately gated 64-line reusable layer. A separately gated 202-line
   terminal-codec layer owns the exact current magic/format/vocabulary envelope
   plus canonical Boolean, optional full-width semantic-ID, and length-prefixed
-  UTF-8 grammar; it rejects header/scalar drift plus overlong, surrogate,
-  out-of-range, isolated-continuation, and truncated encodings. All three
-  bounded decoders consume the shared header result, and structural consumers
-  use the shared scalar results. The bounded spike narrows identities to a zero
-  high half only in an explicit adapter after complete unsigned decoding; tags,
-  recursive vocabulary, and monomorphic type-specific results remain
+  UTF-8 grammar, together with the complete Boolean/fixed-signed/
+  fixed-unsigned/address scalar-type grammar and exact widths `1..=128`; it
+  rejects header/scalar/type drift plus overlong, surrogate, out-of-range,
+  isolated-continuation, and truncated encodings. All three bounded decoders
+  consume the shared header result and structural consumers use the shared
+  scalar/type results. The bounded spike narrows identities to a zero high half
+  and types to Boolean/i8/i16 only in explicit adapters after complete decoding;
+  tags, recursive vocabulary, and monomorphic type-specific results remain
   spike-owned. The
   bounded thirty-two-kind scalar leaf slice now resolves through five composed,
   exact-unique policy-cohort schema tables: each row owns result shape,

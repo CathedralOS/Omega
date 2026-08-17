@@ -20,6 +20,11 @@ semantic identities (`0` for absent, `1` plus one exact nonzero `u64` for
 present). It retains the complete `U64`; a bounded consumer may narrow only in
 an explicit adapter after decoding.
 
+The scalar-type layer owns the complete current type grammar: Boolean, fixed
+signed or unsigned integers, and unsigned address integers, each with an exact
+width in `1..=128`. The bounded spike maps only Boolean, signed i8, and signed
+i16 into its local vocabulary after this complete decoder succeeds.
+
 Each result retains its unread input tail; strings additionally retain a
 separate captured byte spine. The module does not assign semantic meaning to an
 identity, path, or label. Run

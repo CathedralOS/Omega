@@ -18,8 +18,8 @@ The layer deliberately owns only:
 
 It does not know the `PSITERM\0` marker, vocabulary versions, collection counts,
 semantic identities, terminal tags, or any recursive terminal type. The exact
-current terminal envelope, canonical scalar grammar, and length-prefixed UTF-8
-string grammar are the adjacent, independently gated
+current terminal envelope, canonical scalar and scalar-type grammar, and
+length-prefixed UTF-8 string grammar are the adjacent, independently gated
 `../terminal-codec-primitives/` responsibility rather than part of this raw
 byte layer.
 The bounded ledger spike still narrows decoded identities to a zero high half

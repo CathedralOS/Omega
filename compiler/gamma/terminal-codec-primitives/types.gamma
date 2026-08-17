@@ -8,3 +8,16 @@
   (ROptionalU64None Bytes)
   (ROptionalU64Some U64 Bytes)
   (ROptionalU64Bad))
+(data TerminalIntegerType
+  (TerminalFixedSigned Int)
+  (TerminalFixedUnsigned Int)
+  (TerminalAddress Int))
+(data TerminalScalarType
+  (TerminalBoolean)
+  (TerminalInteger TerminalIntegerType))
+(data RTerminalIntegerType
+  (RTerminalIntegerType TerminalIntegerType Bytes)
+  (RTerminalIntegerTypeBad))
+(data RTerminalScalarType
+  (RTerminalScalarType TerminalScalarType Bytes)
+  (RTerminalScalarTypeBad))

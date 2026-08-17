@@ -140,6 +140,95 @@
       0)
     0))
 
+(def terminal_integer_type_equal
+  ((left TerminalIntegerType) (right TerminalIntegerType)) Int
+  (match left
+    ((TerminalFixedSigned left_bits)
+      (match right
+        ((TerminalFixedSigned right_bits) (eq left_bits right_bits))
+        ((TerminalFixedUnsigned right_bits) 0)
+        ((TerminalAddress right_bits) 0)))
+    ((TerminalFixedUnsigned left_bits)
+      (match right
+        ((TerminalFixedSigned right_bits) 0)
+        ((TerminalFixedUnsigned right_bits) (eq left_bits right_bits))
+        ((TerminalAddress right_bits) 0)))
+    ((TerminalAddress left_bits)
+      (match right
+        ((TerminalFixedSigned right_bits) 0)
+        ((TerminalFixedUnsigned right_bits) 0)
+        ((TerminalAddress right_bits) (eq left_bits right_bits))))))
+
+(def terminal_scalar_type_equal
+  ((left TerminalScalarType) (right TerminalScalarType)) Int
+  (match left
+    (TerminalBoolean
+      (match right (TerminalBoolean 1) ((TerminalInteger integer) 0)))
+    ((TerminalInteger left_integer)
+      (match right
+        (TerminalBoolean 0)
+        ((TerminalInteger right_integer)
+          (terminal_integer_type_equal left_integer right_integer))))))
+
+(def rterminal_scalar_type_exact_one
+  ((result RTerminalScalarType) (want TerminalScalarType) (tail Int)) Int
+  (match result
+    (RTerminalScalarTypeBad 0)
+    ((RTerminalScalarType got rest)
+      (if (terminal_scalar_type_equal got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def rterminal_scalar_type_bad ((result RTerminalScalarType)) Int
+  (match result
+    (RTerminalScalarTypeBad 1)
+    ((RTerminalScalarType got rest) 0)))
+
+(def terminal_type_positive_test () Int
+  (if (rterminal_scalar_type_exact_one
+        (read_terminal_scalar_type (B 1 (B 9 BNil))) TerminalBoolean 9)
+    (if (rterminal_scalar_type_exact_one
+          (read_terminal_scalar_type
+            (B 2 (B 1 (B 1 (B 0 (B 9 BNil))))))
+          (TerminalInteger (TerminalFixedSigned 1)) 9)
+      (if (rterminal_scalar_type_exact_one
+            (read_terminal_scalar_type
+              (B 2 (B 1 (B 128 (B 0 (B 9 BNil))))))
+            (TerminalInteger (TerminalFixedSigned 128)) 9)
+        (if (rterminal_scalar_type_exact_one
+              (read_terminal_scalar_type
+                (B 2 (B 2 (B 64 (B 0 (B 9 BNil))))))
+              (TerminalInteger (TerminalFixedUnsigned 64)) 9)
+          (rterminal_scalar_type_exact_one
+            (read_terminal_scalar_type
+              (B 2 (B 3 (B 128 (B 0 (B 9 BNil))))))
+            (TerminalInteger (TerminalAddress 128)) 9)
+          0)
+        0)
+      0)
+    0))
+
+(def terminal_type_negative_test () Int
+  (if (rterminal_scalar_type_bad (read_terminal_scalar_type (B 0 BNil)))
+    (if (rterminal_scalar_type_bad
+          (read_terminal_scalar_type (B 2 (B 4 (B 8 (B 0 BNil))))))
+      (if (rterminal_scalar_type_bad
+            (read_terminal_scalar_type (B 2 (B 1 (B 0 (B 0 BNil))))))
+        (if (rterminal_scalar_type_bad
+              (read_terminal_scalar_type (B 2 (B 2 (B 129 (B 0 BNil))))))
+          (if (rterminal_scalar_type_bad
+                (read_terminal_scalar_type (B 2 (B 3 (B 0 (B 0 BNil))))))
+            (if (rterminal_scalar_type_bad
+                  (read_terminal_scalar_type (B 2 (B 1 BNil))))
+              1 0)
+            0)
+          0)
+        0)
+      0)
+    0))
+
 (def terminal_utf8_positive_test () Int
   (if (rutf8_exact_empty (read_utf8_string (B 0 (B 0 (B 0 (B 0 BNil))))) BNil)
     (if (rutf8_exact_empty
@@ -195,7 +284,11 @@
     (if (terminal_header_negative_test)
       (if (terminal_scalar_positive_test)
         (if (terminal_scalar_negative_test)
-          (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+          (if (terminal_type_positive_test)
+            (if (terminal_type_negative_test)
+              (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+              0)
+            0)
           0)
         0)
       0)
