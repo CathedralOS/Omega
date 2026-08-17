@@ -20,8 +20,10 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
 3. rejects truncation, trailing bytes, unknown tags, invalid identities, wrong
    types, wrong section counts, and shape drift;
 4. resolves every retained leaf operation through one exact row in either the
-   scalar table in `schema.gamma` or the distinct structural/effect table; and
-5. emits and audits a ranked 54-row scalar ledger or 3-row structural/effect
+   scalar table in `schema.gamma` or the distinct structural/effect table;
+5. resolves scalar calls through the exact `Call` row in the separate
+   three-row composition table in `call_composition.gamma`; and
+6. emits and audits a ranked 54-row scalar ledger or 3-row structural/effect
    ledger.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
@@ -56,6 +58,18 @@ substitution:
 - obligation 105: `caller.value11 <= 127`;
 - obligation 106: `-128 <= caller.value10`.
 
+The call table contains exactly the three closed terminal variants: scalar
+in-module `Call`, structural in-module `CallUnit`, and exact external
+`BoundaryCall`. One generic checker keeps target/result custody, positional
+binder shape, clause coverage, capture-free substitution, claim or receipt
+transfer, guarded outcomes, crash-route composition, evidence lifetime, fuel,
+and frontier policy as independent axes. The canonical scalar fixture consumes
+its table row end to end. Bounded Unit and boundary composition inputs exercise
+the same checker. Missing, duplicate, cross-kind, weakened-evidence,
+wrong-requirement, weakened-frontier, signature, state-version,
+move/reborrow, coverage, substitution, outcome, crash, and evidence-lifetime
+drift all reject in both evaluators.
+
 The separate structural/effect fixture covers the three remaining leaf kinds
 without pretending that they are scalar equations:
 
@@ -72,7 +86,7 @@ The structural/effect decoder and evaluator are separate modules. Mutating
 field relevance, field identity, service, port, cleanup machine,
 establishment destination, or affine retirement rejects in both evaluators.
 
-## Closed leaf schema
+## Closed leaf and call schemas
 
 The bounded operation slice no longer dispatches through one hand-written
 builder per primitive. `schema.gamma` contains exactly thirty-two declarative
@@ -90,16 +104,20 @@ post-discharge fact, crash policy, and local fuel/frontier behavior. A generic
 interpreter emits the rows. Exact lookup rejects both missing and duplicate
 rows.
 
-Calls are intentionally not disguised as leaf rows: clause coverage,
-capture-free substitution, and outcome/control responsibilities remain in the
-separate call algebra. The gate runs the complete fixture with a missing row, a
+Calls are intentionally not disguised as leaf rows. Their three-row
+exact-unique table and generic composition checker live in
+`call_composition.gamma`; clause coverage, capture-free substitution,
+outcome/control, crash-route, evidence-lifetime, fuel, and frontier
+responsibilities remain separate from primitive denotation. The gate runs the
+complete fixture with a missing row, a
 duplicate row, and an altered row; all three reject while the canonical table
 reconstructs the byte-identical 54-row ledger. This is the bounded
 thirty-two-kind scalar table. A second exact-unique table covers structural
 `EstablishTrivialAffineLocal`/`BooleanStructuralField` and effectful `PortWrite`
 with place/frontier/effect vocabulary rather than scalar permutations. Missing,
-duplicate, and weakened-frontier structural rows reject. The composition algebra
-for the three closed call variants remains separate.
+duplicate, and weakened-frontier structural rows reject. Missing, duplicate,
+and altered call rows reject, and all eight dynamic call-custody checks remain
+independently mandatory.
 
 The generator carries exact typed declarations for every known value. Leaf
 operands, call arguments, block parameters, and newly introduced results are
@@ -122,12 +140,12 @@ these are feasibility observations, not performance promises:
 | --- | ---: |
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
-| Assembled typed Gamma core | 3,319 lines / 131,678 bytes |
+| Assembled typed Gamma core | 3,748 lines / 150,159 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 3,283 lines / 130,305 bytes / 278 functions |
-| Closed data declarations | 110 |
-| Typed functions, assembled | 284 |
-| Maximum source nesting | 20 |
+| Spike-specific typed core | 3,712 lines / 148,786 bytes / 313 functions |
+| Closed data declarations | 125 |
+| Typed functions, assembled | 319 |
+| Maximum source nesting | 21 |
 | Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
 | Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
 | Prospective scalar reconstruction certificate | 2,984 modeled bytes |
@@ -142,8 +160,10 @@ interpreter while deleting operation-specific builder branches. The important
 scaling result is structural: new leaf meaning is one isolated data row, and
 the ledger orchestrator is no longer the owner of operation permutations.
 `schema.gamma` is 327 lines; call/control/premise orchestration remains separate
-in `ledger.gamma`; structural/effect byte decoding is separate from its schema
-and ledger evaluation.
+from primitive denotation. The 328-line `call_composition.gamma` owns its three
+rows and generic axis checker, while `ledger.gamma` sequences the resulting
+rows. Structural/effect byte decoding is separate from its schema and ledger
+evaluation.
 
 The first literal transport spelling used one constructor per byte and exposed
 a parser-stack failure. That did not require weakening the endpoint: a typed,
@@ -160,7 +180,9 @@ Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
 adds 1,128 lines and 42,263 bytes to the assembled core, but the code remains
 bounded, typechecked, separated into decoder versus schema/evaluator modules,
-and at nesting depth 20. That is an engineering and audit cost, not an actual
+and at nesting depth 21 after the call table. The call vocabulary, table, and
+integration add 429 assembled lines / 18,481 bytes / 35 functions without
+adding another call-kind evaluator. That is an engineering and audit cost, not an actual
 language-design blocker or a reason to weaken the canonical-byte endpoint.
 
 ## Gate

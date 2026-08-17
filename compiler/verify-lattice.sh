@@ -77,7 +77,7 @@ step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.
 step "gamma — MEANING DIAMOND: independent gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs beta
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
-step "gamma — canonical terminal ledger + closed leaf schemas" gamma test-terminal-ledger-spike.sh psi-rs/semantics/psi-terminal-codec
+step "gamma — canonical terminal ledger + closed leaf/call schemas" gamma test-terminal-ledger-spike.sh psi-rs/semantics/psi-terminal-codec
 step "gamma — the proof kernel, written IN gamma"    gamma       test-checker.sh
 step "diamond — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel  checker-diamond.sh gamma
 step "diamond — definitional eq vs operational eval"  proof-kernel       semantics-diamond.sh gamma
