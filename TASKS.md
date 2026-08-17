@@ -642,7 +642,8 @@ Remaining:
 
   First expose the migration state honestly: add exact trust-graph nodes for the
   Rust decoder/verifier, each sufficient-form reduction family, the ledger
-  framework, and each unproved denotation schema. Every dependency must resolve
+  framework, each unproved leaf denotation schema, and each unproved call-
+  composition row. Every dependency must resolve
   through an acyclic graph to a registered root with kind, semantic subject,
   digest/version, owner, scope, rationale, and accepting policy; unknown leaves
   reject. Do not encode an uncertified reducer as an admitted program premise.
@@ -650,7 +651,8 @@ Remaining:
   Current migration inventory: the canonical proof synopsis now publishes one
   validated source-bound trust graph for the exact Rust decoder, proof kernel,
   verifier, eight sufficient-form reduction families, the current unproved
-  ledger framework, and all 38 closed `OperationKind` denotation rows. Node
+  ledger framework, 35 closed leaf-schema rows, and three separate call-
+  composition rows covering all 38 `OperationKind` variants. Node
   digests bind the exact deciding Rust/specification bytes and explicit
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
@@ -674,8 +676,9 @@ Remaining:
   post-discharge fact, crash policy, fuel, and frontier behavior, while calls
   remain separate coverage/substitution algebra. Missing, duplicate, and
   altered table rows reject end to end without changing the canonical 22-row
-  ledger. The full 38-kind table, low generator, row proofs, and composition
-  bridges remain open; no trust-graph node becomes derived from the spike.
+  ledger. The full 35-row leaf table, three call-composition definitions, low
+  generator, row proofs, and composition bridges remain open; no trust-graph
+  node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
