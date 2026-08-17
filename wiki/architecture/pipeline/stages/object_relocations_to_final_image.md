@@ -103,6 +103,9 @@ Must not own:
 - `omega-image-emission/src/checked/instruction_specs.rs` reconstructs the
   exhaustive expected-byte, class, position, and relocation recipe tuple for
   every retained compiler instruction validation kind.
+- `omega-image-emission/src/checked/instruction_specs/buffer_wire_text.rs` owns
+  bit-field, bounded-buffer, wire-codec, and text-materialization instruction
+  specifications.
 - `omega-image-emission/src/checked/instruction_specs/control_entry.rs` owns
   fixed mechanics, runtime guards, return transport, and entry transport
   instruction specifications.
