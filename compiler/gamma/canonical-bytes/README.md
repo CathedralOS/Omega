@@ -13,7 +13,9 @@ The layer deliberately owns only:
 - fixed-width little-endian `u16` and `u32` reads;
 - exact little-endian `u64` reads as independently checked low/high `u32`
   halves, plus equality and nonzero validation that never cross Gamma's signed
-  `Int` range; and
+  `Int` range;
+- exact little-endian `u128` reads as four independently checked low-to-high
+  `u32` limbs, plus equality and zero validation; and
 - exact-byte and zero-byte consumption.
 
 It does not know the `PSITERM\0` marker, vocabulary versions, collection counts,

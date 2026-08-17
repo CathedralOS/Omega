@@ -31,6 +31,7 @@ cat canonical-bytes/types.gamma \
     terminal-codec-primitives/header.gamma \
     terminal-codec-primitives/scalars.gamma \
     terminal-codec-primitives/scalar_types.gamma \
+    terminal-codec-primitives/integer_values.gamma \
     terminal-codec-primitives/utf8.gamma \
     terminal-codec-primitives/tests.gamma > "$T/typed.gamma"
 
@@ -62,4 +63,4 @@ if [ "$python_status" != 1 ] || [ "$python_output" != 1 ]; then
   exit 1
 fi
 
-echo "terminal codec primitives: current header/scalar/type/UTF-8 contract -> 1 (Beta/Python agree)"
+echo "terminal codec primitives: current header/scalar/type/integer-value/UTF-8 contract -> 1 (Beta/Python agree)"

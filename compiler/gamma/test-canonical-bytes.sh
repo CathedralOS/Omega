@@ -57,4 +57,4 @@ if [ "$python_status" != 1 ] || [ "$python_output" != 1 ]; then
   exit 1
 fi
 
-echo "canonical bytes: typed u8/u16/u32/u64/nonzero/truncation/exact-byte/zero contract -> 1 (Beta/Python agree)"
+echo "canonical bytes: typed u8/u16/u32/u64/u128/nonzero/truncation/exact-byte/zero contract -> 1 (Beta/Python agree)"

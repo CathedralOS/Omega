@@ -21,3 +21,9 @@
 (data RTerminalScalarType
   (RTerminalScalarType TerminalScalarType Bytes)
   (RTerminalScalarTypeBad))
+(data TerminalIntegerValue
+  (TerminalSignedValue U128)
+  (TerminalUnsignedValue U128))
+(data RTerminalIntegerValue
+  (RTerminalIntegerValue TerminalIntegerValue Bytes)
+  (RTerminalIntegerValueBad))

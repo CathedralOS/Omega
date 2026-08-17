@@ -28,26 +28,25 @@
       (RBytesBad RBytesBad)
       ((RBytes rest) (expect_zero_sections rest (- n 1))))))
 
-(def consume_fill ((bs Bytes) (n Int) (fill Int)) RBytes
-  (if (eq n 0) (RBytes bs)
-    (match (read_u8 bs)
-      (RIntBad RBytesBad)
-      ((RInt h rest)
-        (if (eq h fill) (consume_fill rest (- n 1) fill) RBytesBad)))))
-
-(def read_i8_payload ((bs Bytes)) RInt
-  (match (read_u8 bs)
-    (RIntBad RIntBad)
-    ((RInt low rest)
-      (let fill (if (lt low 128) 0 255)
-        (match (consume_fill rest 15 fill)
-          (RBytesBad RIntBad)
-          ((RBytes tail) (RInt (if (lt low 128) low (- low 256)) tail)))))))
+(def narrow_spike_i8_bits ((bits U128) (rest Bytes)) RInt
+  (match bits
+    ((U128 limb0 limb1 limb2 limb3)
+      (let low (% limb0 256)
+        (let fill (if (lt low 128) 0 4294967295)
+          (let expected0 (if (eq fill 0) low (+ 4294967040 low))
+            (if (both (eq limb0 expected0)
+                  (both (eq limb1 fill)
+                    (both (eq limb2 fill) (eq limb3 fill))))
+              (RInt (if (lt low 128) low (- low 256)) rest)
+              RIntBad)))))))
 
 (def read_i8_integer_value ((bs Bytes)) RInt
-  (match (read_u8 bs)
-    (RIntBad RIntBad)
-    ((RInt tag rest) (if (eq tag 1) (read_i8_payload rest) RIntBad))))
+  (match (read_terminal_integer_value bs)
+    (RTerminalIntegerValueBad RIntBad)
+    ((RTerminalIntegerValue value rest)
+      (match value
+        ((TerminalSignedValue bits) (narrow_spike_i8_bits bits rest))
+        ((TerminalUnsignedValue bits) RIntBad)))))
 
 (def narrow_spike_integer_type
   ((integer TerminalIntegerType) (rest Bytes)) RInt

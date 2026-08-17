@@ -8,3 +8,5 @@
 (data RBytes (RBytes Bytes) (RBytesBad))
 (data U64 (U64 Int Int))                    ; exact low/high u32 halves
 (data RU64 (RU64 U64 Bytes) (RU64Bad))
+(data U128 (U128 Int Int Int Int))           ; exact low-to-high u32 limbs
+(data RU128 (RU128 U128 Bytes) (RU128Bad))

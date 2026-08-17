@@ -25,6 +25,12 @@ signed or unsigned integers, and unsigned address integers, each with an exact
 width in `1..=128`. The bounded spike maps only Boolean, signed i8, and signed
 i16 into its local vocabulary after this complete decoder succeeds.
 
+The integer-value layer owns the complete current payload grammar: tag `1`
+retains one signed value's exact 128-bit two's-complement bits and tag `2`
+retains one unsigned value's exact 128-bit bits. It does not narrow either form
+to Gamma `Int`; bounded consumers must validate and narrow explicitly after the
+shared decoder succeeds.
+
 Each result retains its unread input tail; strings additionally retain a
 separate captured byte spine. The module does not assign semantic meaning to an
 identity, path, or label. Run
