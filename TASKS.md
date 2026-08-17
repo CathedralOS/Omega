@@ -748,10 +748,11 @@ Remaining:
   one parent-facing builder. Content conservation, identity reshuffling, and
   partition composition now form one 788-line lowering module with only three
   public APIs and two explicit internal contracts. The root-level regression
-  corpus is now a separately compiled 2,588-line test parent over isolated
-  767-line Unit-cleanup, 179-line scalar-graph, and 506-line content-ledger
-  families instead of a second responsibility embedded in production. The
-  crate root is now 6,550 lines. These
+  corpus is now a separately compiled 334-line fixture/orchestration parent over
+  isolated 767-line Unit-cleanup, 179-line scalar-graph, 506-line content-ledger,
+  957-line structural-control, 457-line attached-Unit, and 852-line
+  structural-return families instead of a second responsibility embedded in
+  production. The crate root is now 6,550 lines. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
