@@ -796,7 +796,7 @@ Remaining:
   (68) in separate responsibilities. Public validation types remain
   re-exported from the crate boundary.
   Final-image validation has begun the same responsibility split: its parent is
-  down from 22,945 to 14,321 lines. A dedicated 2,872-line module owns
+  down from 22,945 to 13,577 lines. A dedicated 2,872-line module owns
   target-specific import, syscall, indirect-call, and runtime-text replay plus
   exact operand/storage relocation-site derivation; a 2,657-line module owns
   compiler atomic/instruction footprint derivation, body/fixed-mechanics
@@ -804,7 +804,9 @@ Remaining:
   module owns assembly footprints, operand-loader semantics, exact instruction
   bytes, and retained relocation checks behind two parent entry points; and a
   1,598-line module owns exact compiler relocation sets, symbol custody, and
-  unchanged instruction-bit validation. These
+  unchanged instruction-bit validation. Compiler atomic-operation replay and
+  recursive runtime-operand storage-site derivation now form a separate
+  752-line responsibility. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
