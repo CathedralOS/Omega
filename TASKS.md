@@ -732,8 +732,12 @@ Remaining:
   shift/cross-family responsibilities, none larger than 1,083 lines. Six exact
   binary cohorts plus exact cast consume named ordered registries through two
   generic dispatchers rather than maintaining another set of repeated
-  `or_else` permutations; the crate root is now 19,850 lines. This is a
-  semantics-preserving responsibility split, not a trust promotion: the full
+  `or_else` permutations. Structural scalar-return custody is now separate as
+  a 551-line lowering/orchestration module with its 1,431-line nominal-cleanup
+  specialization behind one parent-facing entry point; general structural
+  returns, structural Unit control, and scalar-graph construction remain
+  separate responsibilities. The crate root is now 17,883 lines. These are
+  semantics-preserving responsibility splits, not trust promotions: the full
   low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
 
