@@ -813,7 +813,7 @@ Remaining:
   (68) in separate responsibilities. Public validation types remain
   re-exported from the crate boundary.
   Final-image validation has begun the same responsibility split: its parent is
-  down from 22,945 to 10,634 lines. A dedicated 2,872-line module owns
+  down from 22,945 to 9,608 lines. A dedicated 2,872-line module owns
   target-specific import, syscall, indirect-call, and runtime-text replay plus
   exact operand/storage relocation-site derivation; a 2,657-line module owns
   compiler atomic/instruction footprint derivation, body/fixed-mechanics
@@ -828,7 +828,9 @@ Remaining:
   2,161-line responsibility. Place-pair and place-copy shapes map to exact
   architecture-specific relocation sites in a separate 505-line module. The
   closed place-write shape vocabulary and its exact classifier family form a
-  separate 304-line responsibility. These
+  separate 304-line responsibility. Retained place-write encoding plus exact
+  register and relocation-site derivation form a separate 1,039-line
+  responsibility. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
