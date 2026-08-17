@@ -1,18 +1,25 @@
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
+    BindingRelevance, Block, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, ServiceDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
 use psi_terminal_codec::{
     canonical_proposition_order_key, decode_module, encode_module, semantic_fingerprint,
 };
+use psi_terminal_verifier::validate_module;
 
 const MATCHING_BYTES: &str = include_str!("fixtures/terminal_ledger_spike.hex");
 const ASYMMETRIC_BYTES: &str = include_str!("fixtures/terminal_ledger_spike_asymmetric.hex");
+const STRUCTURAL_EFFECT_BYTES: &str =
+    include_str!("fixtures/terminal_ledger_structural_effect.hex");
 
 #[test]
 fn gamma_ledger_spike_fixtures_are_exact_current_terminal_bytes() {
@@ -36,6 +43,225 @@ fn gamma_ledger_spike_fixtures_are_exact_current_terminal_bytes() {
 
         let identity = semantic_fingerprint(&module).expect("spike fixture identity");
         assert_ne!(identity.as_bytes(), &[0; 32]);
+    }
+}
+
+#[test]
+fn gamma_structural_effect_ledger_fixture_is_exact_current_terminal_bytes() {
+    let module = structural_effect_ledger_fixture();
+    validate_module(&module).expect("structural/effect ledger spike must validate");
+    let bytes = encode_module(&module).expect("structural/effect ledger spike must encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()),
+        Ok(bytes.clone())
+    );
+    assert_eq!(
+        hex(&bytes),
+        STRUCTURAL_EFFECT_BYTES
+            .split_whitespace()
+            .collect::<String>(),
+        "structural/effect fixture bytes drifted; reviewed replacement:\n{}",
+        wrapped_hex(&bytes)
+    );
+
+    let identity = semantic_fingerprint(&module).expect("structural/effect fixture identity");
+    assert_ne!(identity.as_bytes(), &[0; 32]);
+}
+
+fn structural_effect_ledger_fixture() -> TerminalModule {
+    let boolean_box = StructuralTypeId::new(1).expect("Boolean-box type");
+    let empty_record = StructuralTypeId::new(2).expect("empty-record type");
+    let input = place_id(1);
+    let local = place_id(2);
+    let field = structural_field_id(1);
+    let service = service_id(1);
+
+    let entry = TerminalMachine {
+        id: machine_id(1),
+        attachment: None,
+        parameters: vec![ValueDeclaration {
+            id: value_id(10),
+            scalar_type: ScalarType::Boolean,
+        }],
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: input,
+            position: 0,
+            is_self: false,
+            structural_type: boolean_box,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        }],
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: value_id(11),
+            scalar_type: ScalarType::Boolean,
+        }),
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: input,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: Vec::new(),
+        published_service_ceiling: vec![service],
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(10),
+        blocks: vec![Block {
+            id: block_id(10),
+            parameters: Vec::new(),
+            operations: vec![
+                scalar_operation(
+                    10,
+                    ValueDeclaration {
+                        id: value_id(12),
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    OperationKind::BooleanStructuralField {
+                        source: input,
+                        field,
+                    },
+                ),
+                Operation {
+                    id: operation_id(11),
+                    result: OperationResult::Unit,
+                    kind: OperationKind::PortWrite {
+                        service,
+                        port: 0x3f8,
+                        value: 0x4b,
+                    },
+                },
+            ],
+            terminator: Terminator::Return {
+                edge: edge_id(10),
+                value: value_id(12),
+                cleanup_actions: vec![TerminalAffineCleanupAction::InvokeNominal(
+                    NominalAffineCleanup {
+                        place: input,
+                        structural_type: boolean_box,
+                        cleanup_machine: machine_id(3),
+                        cleanup_receiver: None,
+                        requirement_obligations: Vec::new(),
+                    },
+                )],
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+
+    let establish = TerminalMachine {
+        id: machine_id(2),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: local,
+            kind: StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type: empty_record,
+            },
+        }],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(20),
+        blocks: vec![Block {
+            id: block_id(20),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(20),
+                result: OperationResult::Unit,
+                kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(20),
+                trivial_affine_discards: vec![local],
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(2),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+
+    let cleanup = TerminalMachine {
+        id: machine_id(3),
+        attachment: Some(boolean_box),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(30),
+        blocks: vec![Block {
+            id: block_id(30),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(30),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(3),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: boolean_box,
+                identity: "Spike::BooleanBox".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: field,
+                        identity: "flag".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: empty_record,
+                identity: "Spike::Empty".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: vec![ServiceDeclaration {
+            id: service,
+            identity: "PortSpace".into(),
+            parents: Vec::new(),
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
+        machines: vec![entry, establish, cleanup],
     }
 }
 
@@ -505,3 +731,6 @@ id_constructor!(operation_id, OperationId);
 id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
+id_constructor!(place_id, PlaceId);
+id_constructor!(service_id, ServiceId);
+id_constructor!(structural_field_id, StructuralFieldId);

@@ -227,6 +227,9 @@
   (SafetyShiftCountI8 Int Int)
   (SafetyShiftLeftI8 Int Int Int)
   (ResultEq Int Expr)
+  (StructuralFieldEq Int Int Int)
+  (AffinePlaceEstablished Int Int)
+  (PortWriteEffect Int Int Int)
   (BranchPremise Int Int)
   (EdgeArgument Int Int Int)
   (MergeEq Int Int)
@@ -250,3 +253,78 @@
 (data ReqBuild (ReqBuilt Rows Int) (ReqBuildBad))
 (data Calc (CalcOk Int) (CalcBad))
 (data Metrics (Metrics Int Int Int))             ; rows, ledger bytes, certificate bytes
+
+; Structural/effect leaf vocabulary remains separate from the scalar schema.
+; These rows own exact place custody, affine-frontier transitions, and effects.
+(data SEField (SEField Int Int Int Ints))       ; id, relevance, scalar type, identity
+(data SEFields (SEFNil) (SEFCons SEField SEFields))
+(data SEType (SEType Int Ints SEFields))        ; bounded record types only
+(data SETypes (SETNil) (SETCons SEType SETypes))
+(data SEService (SEService Int Ints Ints))      ; id, identity, parent ids
+(data SEServices (SESNil) (SESCons SEService SEServices))
+(data SEParameter (SEParameter Int Int Int Int Int Ints))
+(data SEParameters (SEPNil) (SEPCons SEParameter SEParameters))
+(data SEPlaceKind
+  (SEParameterPlace Int Int)
+  (SETrivialAffineLocal Int Int))
+(data SEPlace (SEPlace Int SEPlaceKind))
+(data SEPlaces (SEPlNil) (SEPlCons SEPlace SEPlaces))
+(data SEResult (SEUnitResult) (SEScalarResult Decl))
+(data SEOpKind
+  (SEEstablish Int)
+  (SEBooleanField Int Int)
+  (SEPortWrite Int Int Int))
+(data SEOp (SEOp Int SEResult SEOpKind))
+(data SEOps (SEONil) (SEOCons SEOp SEOps))
+(data SETerminator
+  (SEReturnNominal Int Int Int Int Int)
+  (SEReturnUnit Int Ints))
+(data SEBlock (SEBlock Int Decls SEOps SETerminator))
+(data SEBlocks (SEBNil) (SEBCons SEBlock SEBlocks))
+(data SEMachine
+  (SEMachine Int Int Decls SEParameters SEResult SEPlaces Ints Int SEBlocks Contract))
+(data SEMachines (SEMNil) (SEMCons SEMachine SEMachines))
+(data SEModule (SEModule Int Int SETypes SEServices SEMachines))
+(data RSEField (RSEField SEField Bytes) (RSEFieldBad))
+(data RSEFields (RSEFields SEFields Bytes) (RSEFieldsBad))
+(data RSEType (RSEType SEType Bytes) (RSETypeBad))
+(data RSETypes (RSETypes SETypes Bytes) (RSETypesBad))
+(data RSEService (RSEService SEService Bytes) (RSEServiceBad))
+(data RSEServices (RSEServices SEServices Bytes) (RSEServicesBad))
+(data RSEParameter (RSEParameter SEParameter Bytes) (RSEParameterBad))
+(data RSEParameters (RSEParameters SEParameters Bytes) (RSEParametersBad))
+(data RSEPlace (RSEPlace SEPlace Bytes) (RSEPlaceBad))
+(data RSEPlaces (RSEPlaces SEPlaces Bytes) (RSEPlacesBad))
+(data RSEResult (RSEResult SEResult Bytes) (RSEResultBad))
+(data RSEOpKind (RSEOpKind SEOpKind Bytes) (RSEOpKindBad))
+(data RSEOp (RSEOp SEOp Bytes) (RSEOpBad))
+(data RSEOps (RSEOps SEOps Bytes) (RSEOpsBad))
+(data RSETerminator (RSETerminator SETerminator Bytes) (RSETerminatorBad))
+(data RSEBlock (RSEBlock SEBlock Bytes) (RSEBlockBad))
+(data RSEBlocks (RSEBlocks SEBlocks Bytes) (RSEBlocksBad))
+(data RSEMachine (RSEMachine SEMachine Bytes) (RSEMachineBad))
+(data RSEMachines (RSEMachines SEMachines Bytes) (RSEMachinesBad))
+(data RSEModule (RSEModule SEModule) (RSEModuleBad))
+(data SEKind (SELBooleanField) (SELPortWrite) (SELEstablish))
+(data SEResultRule (SEBooleanResult) (SEUnitSemanticResult))
+(data SECustodyRule
+  (SEExactLiveBooleanField)
+  (SEExactPublishedService)
+  (SEExactEmptyAffineLocal))
+(data SEAction
+  (SEReadBooleanField)
+  (SEEmitPortWrite)
+  (SEEstablishAffinePlace))
+(data SEEffectRule (SENoExternalEffect) (SEPortWriteExternalEffect))
+(data SEFrontierRule
+  (SERequiresKeepsAffinePlace)
+  (SEKeepsPlaceFrontier)
+  (SEAddsAffinePlace))
+(data SESchema
+  (SESchema SEKind SEResultRule SECustodyRule SEAction SEEffectRule
+    FuelShape SEFrontierRule))
+(data SESchemas (SELSNil) (SELSCons SESchema SESchemas))
+(data RSESchema
+  (SESchemaFound SESchema)
+  (SESchemaMissing)
+  (SESchemaDuplicate))

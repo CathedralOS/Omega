@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 2,191 lines rather than a
+and malformed-byte rejection. The assembled core is 3,319 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
@@ -92,14 +92,21 @@ and altered schema rows reject end to end. Exact cast, exact-right-shift, and
 exact-left-shift retain distinct canonical goals; widening and wrapping shifts
 remain total. Its value environment retains exact typed declarations across i8
 and i16, so duplicate IDs and type drift cannot cross the generic schema
-boundary. That decomposition into decoder, typed row vocabulary, schema table,
+boundary. A separate 695-byte fixture and exact-unique table now cover
+`BooleanStructuralField`, `EstablishTrivialAffineLocal`, and `PortWrite` through
+their own place/frontier/effect vocabulary; they produce a 3-row, 185-byte
+ledger and reject relevance, custody, service, effect, cleanup, and retirement
+drift. Structural/effect byte decoding is isolated from its schema/evaluator.
+That decomposition into decoder, typed row vocabulary, schema tables,
 validators, and sequencing helpers is the intended shape for the production low
-generator. The only unmodeled leaf rows are structural/effectful and therefore
-need a separate place/frontier/effect vocabulary, not scalar-row permutations.
+generator.
 
 The spike also makes one scaling limit concrete: the monomorphic type system
-requires a distinct parse-result ADT for each decoded type. That repetition is
-an engineering/audit cost, not a reason to weaken the canonical-byte endpoint.
+requires a distinct parse-result ADT for each decoded type. Completing the
+structural/effect slice grows the assembled core to 131,678 bytes, 110 data
+declarations, and 284 typed functions, while remaining at nesting depth 20.
+That repetition is an engineering/audit cost, not a reason to weaken the
+canonical-byte endpoint.
 The reusable PSITERM-neutral byte cursor and checked fixed-width primitives are
 now factored and independently gated in `compiler/gamma/canonical-bytes/`.
 Type-specific results and the bounded `u64` identity limitation remain explicit

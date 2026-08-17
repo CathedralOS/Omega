@@ -35,7 +35,9 @@ cat canonical-bytes/types.gamma \
     canonical-bytes/decode.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/schema.gamma \
-    terminal-ledger-spike/ledger.gamma > "$T/typed.gamma"
+    terminal-ledger-spike/ledger.gamma \
+    terminal-ledger-spike/structural_effect_decode.gamma \
+    terminal-ledger-spike/structural_effect.gamma > "$T/typed.gamma"
 
 set +e
 "$T/typeck.exe" < "$T/typed.gamma"
@@ -54,6 +56,21 @@ fixture_expr() {
 
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" > "$T/matching.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike_asymmetric.hex" > "$T/asymmetric.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" > "$T/structural-effect.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 74 0 \
+  > "$T/structural-erased-field.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 334 2 \
+  > "$T/structural-field-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 352 2 \
+  > "$T/structural-service-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 360 249 \
+  > "$T/structural-port-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 401 2 \
+  > "$T/structural-cleanup-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 535 1 \
+  > "$T/structural-establish-target-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 552 0 \
+  > "$T/structural-missing-discard.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 0 0 > "$T/bad-magic.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
@@ -110,6 +127,23 @@ run_function boolean-type-drift run_spike "$T/boolean-type-drift.expr" 0
 run_function widen-result-drift run_spike "$T/widen-result-drift.expr" 0
 run_function cast-operand-drift run_spike "$T/cast-operand-drift.expr" 0
 run_function missing-cast-obligation run_spike "$T/missing-cast-obligation.expr" 0
+run_function structural-effect run_structural_effect_spike "$T/structural-effect.expr" 1
+run_function structural-effect-schema-mutations \
+  structural_effect_schema_mutation_self_test "$T/structural-effect.expr" 1
+run_function structural-erased-field run_structural_effect_spike \
+  "$T/structural-erased-field.expr" 0
+run_function structural-field-drift run_structural_effect_spike \
+  "$T/structural-field-drift.expr" 0
+run_function structural-service-drift run_structural_effect_spike \
+  "$T/structural-service-drift.expr" 0
+run_function structural-port-drift run_structural_effect_spike \
+  "$T/structural-port-drift.expr" 0
+run_function structural-cleanup-drift run_structural_effect_spike \
+  "$T/structural-cleanup-drift.expr" 0
+run_function structural-establish-target-drift run_structural_effect_spike \
+  "$T/structural-establish-target-drift.expr" 0
+run_function structural-missing-discard run_structural_effect_spike \
+  "$T/structural-missing-discard.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")
@@ -118,3 +152,11 @@ if [ "$metrics" != "(Metrics 54 3607 2984)" ]; then
   exit 1
 fi
 echo "terminal ledger spike: $metrics (rows / ledger bytes / prospective certificate bytes)"
+
+make_program measure_structural_effect_spike "$T/structural-effect.expr"
+structural_metrics=$("$T/interp.exe" < "$T/run.gamma")
+if [ "$structural_metrics" != "(Metrics 3 185 164)" ]; then
+  echo "terminal ledger spike: structural/effect metrics drifted: $structural_metrics" >&2
+  exit 1
+fi
+echo "terminal ledger spike: $structural_metrics (structural/effect rows / ledger bytes / prospective certificate bytes)"
