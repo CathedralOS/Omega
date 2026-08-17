@@ -733,10 +733,11 @@ Remaining:
   binary cohorts plus exact cast consume named ordered registries through two
   generic dispatchers rather than maintaining another set of repeated
   `or_else` permutations. Structural scalar-return custody is now separate as
-  a 551-line lowering/orchestration module with its 1,431-line nominal-cleanup
-  specialization behind one parent-facing entry point; general structural
-  returns, structural Unit control, and scalar-graph construction remain
-  separate responsibilities. The crate root is now 17,883 lines. These are
+  a 553-line lowering/orchestration module over a 258-line expression-shape
+  responsibility and a 1,431-line nominal-cleanup specialization behind one
+  parent-facing entry point. The distinct structural Unit control path is a
+  601-line module; general structural returns and scalar-graph construction
+  remain separate responsibilities. The crate root is now 17,036 lines. These are
   semantics-preserving responsibility splits, not trust promotions: the full
   low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
