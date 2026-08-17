@@ -106,6 +106,9 @@ Must not own:
 - `omega-image-emission/src/checked/instruction_specs/control_entry.rs` owns
   fixed mechanics, runtime guards, return transport, and entry transport
   instruction specifications.
+- `omega-image-emission/src/checked/instruction_specs/storage_place.rs` owns
+  compiler atomic, place-copy, place-write, and storage-result instruction
+  specifications.
 - `omega-image-emission/src/checked/place_copy_shapes.rs` owns the closed
   compiler place-copy shape vocabulary, its exact classifier, and indexed or
   pointee offset decomposition shared by copy and write replay.
