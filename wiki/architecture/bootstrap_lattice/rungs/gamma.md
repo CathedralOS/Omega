@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,545 lines rather than a
+and malformed-byte rejection. The assembled core is 4,569 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
@@ -111,14 +111,15 @@ generator.
 
 The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. Completing the
-structural/effect and canonical call slices grows the assembled core to 180,717
-bytes, 166 data declarations, and 389 typed functions, at nesting depth 25.
+structural/effect and canonical call slices grows the assembled core to 181,674
+bytes, 168 data declarations, and 392 typed functions, at nesting depth 25.
 That repetition is an engineering/audit cost, not a reason to weaken the
 canonical-byte endpoint.
-The reusable PSITERM-neutral byte cursor and checked fixed-width primitives are
-now factored and independently gated in `compiler/gamma/canonical-bytes/`.
-Type-specific results and the bounded `u64` identity limitation remain explicit
-in the spike. If the complete closed vocabulary cannot remain auditable after
+The reusable PSITERM-neutral byte cursor, checked fixed-width primitives, and
+exact low/high-half `u64` carrier are now factored and independently gated in
+`compiler/gamma/canonical-bytes/`. Type-specific results and the spike's
+explicit post-decode zero-high-half identity limitation remain local to the
+bounded fixture. If the complete closed vocabulary cannot remain auditable after
 that extraction, that is the point for an explicit Gamma rung-design
 correction.
 

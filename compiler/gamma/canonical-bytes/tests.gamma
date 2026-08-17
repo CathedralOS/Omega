@@ -30,6 +30,48 @@
 (def rbytes_bad ((result RBytes)) Int
   (match result (RBytesBad 1) ((RBytes rest) 0)))
 
+(def ru64_exact_empty ((result RU64) (want U64)) Int
+  (match result
+    (RU64Bad 0)
+    ((RU64 got rest)
+      (if (u64_equal got want) (match rest (BNil 1) ((B h t) 0)) 0))))
+
+(def ru64_exact_one ((result RU64) (want U64) (tail Int)) Int
+  (match result
+    (RU64Bad 0)
+    ((RU64 got rest)
+      (if (u64_equal got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def ru64_bad ((result RU64)) Int
+  (match result (RU64Bad 1) ((RU64 got rest) 0)))
+
+(def u64_self_test () Int
+  (if (ru64_exact_empty
+        (read_u64 (B 255 (B 255 (B 255 (B 255
+          (B 255 (B 255 (B 255 (B 255 BNil)))))))))
+        (U64 4294967295 4294967295))
+    (if (ru64_exact_empty
+          (read_u64 (B 0 (B 0 (B 0 (B 0
+            (B 0 (B 0 (B 0 (B 128 BNil)))))))))
+          (U64 0 2147483648))
+      (if (ru64_exact_one
+            (read_nonzero_u64 (B 1 (B 0 (B 0 (B 0
+              (B 0 (B 0 (B 0 (B 0 (B 9 BNil))))))))))
+            (U64 1 0) 9)
+        (if (ru64_bad
+              (read_nonzero_u64 (B 0 (B 0 (B 0 (B 0
+                (B 0 (B 0 (B 0 (B 0 BNil))))))))))
+          (ru64_bad
+            (read_u64 (B 1 (B 2 (B 3 (B 4 (B 5 (B 6 (B 7 BNil)))))))))
+          0)
+        0)
+      0)
+    0))
+
 (def canonical_bytes_self_test () Int
   (if (rint_exact_empty (read_u8 (B 255 BNil)) 255)
     (if (rint_bad (read_u8 (B 256 BNil)))
@@ -37,10 +79,13 @@
         (if (rint_exact_one (read_u16 (B 52 (B 18 (B 9 BNil)))) 4660 9)
           (if (rint_exact_empty (read_u32 (B 120 (B 86 (B 52 (B 18 BNil))))) 305419896)
             (if (rint_bad (read_u32 (B 1 (B 2 (B 3 BNil)))))
-              (if (rbytes_exact_one (expect_byte (B 80 (B 9 BNil)) 80) 9)
-                (if (rbytes_bad (expect_byte (B 81 BNil) 80))
-                  (if (rbytes_exact_one (consume_zeroes (B 0 (B 0 (B 7 BNil))) 2) 7)
-                    (rbytes_bad (consume_zeroes (B 0 (B 1 BNil)) 2))
+              (if (u64_self_test)
+                (if (rbytes_exact_one (expect_byte (B 80 (B 9 BNil)) 80) 9)
+                  (if (rbytes_bad (expect_byte (B 81 BNil) 80))
+                    (if (rbytes_exact_one
+                          (consume_zeroes (B 0 (B 0 (B 7 BNil))) 2) 7)
+                      (rbytes_bad (consume_zeroes (B 0 (B 1 BNil)) 2))
+                      0)
                     0)
                   0)
                 0)

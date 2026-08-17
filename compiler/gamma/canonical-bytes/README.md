@@ -10,15 +10,20 @@ The layer deliberately owns only:
 - the immutable `Bytes` spine;
 - generic integer and byte-tail success/failure cursors;
 - checked byte reads;
-- fixed-width little-endian `u16` and `u32` reads; and
+- fixed-width little-endian `u16` and `u32` reads;
+- exact little-endian `u64` reads as independently checked low/high `u32`
+  halves, plus equality and nonzero validation that never cross Gamma's signed
+  `Int` range; and
 - exact-byte and zero-byte consumption.
 
 It does not know the `PSITERM\0` marker, vocabulary versions, collection counts,
 semantic identities, strings, terminal tags, or any recursive terminal type.
-The bounded ledger spike therefore continues to own its small-`u64` limitation
-and every monomorphic type-specific parser result. The full canonical decoder
-must resolve those honestly rather than laundering them into this primitive
-layer.
+The bounded ledger spike still narrows decoded identities to a zero high half
+because its fixture vocabulary stores identities as `Int`; that consumer-side
+limit is explicit even though this shared layer now retains the complete
+unsigned range. Every monomorphic type-specific parser result also remains
+spike-owned. The full canonical decoder must preserve the shared `U64` carrier
+rather than laundering identities into a signed host integer.
 
 Run `sh compiler/gamma/test-canonical-bytes.sh` for the typed and independent
 interpreter contract.
