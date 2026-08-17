@@ -741,10 +741,12 @@ Remaining:
   352-line partial-affine responsibilities. Attached Unit closure assembly is
   an 826-line orchestrator over 132-line provider discovery, 203-line exact
   call closure, 487-line type/domain/service catalog, and 168-line parameter
-  transfer responsibilities. General structural returns and scalar-graph
-  construction remain separate. The crate root is now 13,390 lines. These are
-  semantics-preserving responsibility splits, not trust promotions: the full
-  low generator, row proofs, and composition bridges remain open, and no
+  transfer responsibilities. Result-bearing boundary custody and general
+  structural-result transfer are separate 393-line and 314-line modules over a
+  shared 246-line structural-type retention responsibility. Scalar-graph
+  construction remains separate. The crate root is now 12,452 lines. These
+  are semantics-preserving responsibility splits, not trust promotions: the
+  full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
