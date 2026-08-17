@@ -258,18 +258,6 @@
 (def small_u32_codec_test_bytes ((value Int) (tail Bytes)) Bytes
   (B value (B 0 (B 0 (B 0 tail)))))
 
-(def terminal_integer_value_equal
-  ((left TerminalIntegerValue) (right TerminalIntegerValue)) Int
-  (match left
-    ((TerminalSignedValue left_bits)
-      (match right
-        ((TerminalSignedValue right_bits) (u128_equal left_bits right_bits))
-        ((TerminalUnsignedValue right_bits) 0)))
-    ((TerminalUnsignedValue left_bits)
-      (match right
-        ((TerminalSignedValue right_bits) 0)
-        ((TerminalUnsignedValue right_bits) (u128_equal left_bits right_bits))))))
-
 (def rterminal_integer_value_exact_one
   ((result RTerminalIntegerValue) (want TerminalIntegerValue) (tail Int)) Int
   (match result

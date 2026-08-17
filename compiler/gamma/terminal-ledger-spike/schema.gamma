@@ -186,7 +186,10 @@
 
 (def view_leaf ((kind OpKind)) LeafView
   (match kind
-    ((KIntConst value) (LeafView LIntConst value 0 0))
+    ((KIntConst value)
+      (match (narrow_spike_i8_value value)
+        (NarrowI8Bad InvalidLeaf)
+        ((NarrowI8 narrowed) (LeafView LIntConst narrowed 0 0))))
     ((KBoolConst value) (LeafView LBoolConst value 0 0))
     ((KBoolNot operand) (LeafView LBoolNot operand 0 0))
     ((KBoolEq left right) (LeafView LBoolEq left right 0))
