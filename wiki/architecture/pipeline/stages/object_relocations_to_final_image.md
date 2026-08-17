@@ -100,6 +100,9 @@ Must not own:
 - `omega-image-emission/src/checked/place_copy_shapes.rs` owns the closed
   compiler place-copy shape vocabulary, its exact classifier, and indexed or
   pointee offset decomposition shared by copy and write replay.
+- `omega-image-emission/src/checked/place_copy_sites.rs` maps retained
+  place-pair and place-copy shapes to exact architecture-specific relocation
+  address sites.
 - `omega-image-emission/src/checked/relocations.rs` owns exact compiler
   relocation-set validation, relocation-symbol custody, and validation that
   non-relocated instruction bits remain unchanged.
