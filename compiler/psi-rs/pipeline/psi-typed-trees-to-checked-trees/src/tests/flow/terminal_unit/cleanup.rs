@@ -1,0 +1,1914 @@
+//! Unit cleanup and structural-return producer tests.
+
+use super::*;
+
+#[test]
+fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Quartet { first: Token; second: Token; third: Token; fourth: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::enter(value: Quartet) {
+            Sink::take(value.third);
+            Sink::take(value.first);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_none(),
+        "path-sensitive cleanup must not leak through the root-only terminal lane"
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine)
+        .expect("direct-field transfers with exact affine sibling cleanup");
+    let moved_paths = plan.machine.operations[..2]
+        .iter()
+        .map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                claim_transfers,
+                ..
+            } if structural_arguments.len() == 1 && claim_transfers.is_empty() => {
+                assert_eq!(structural_arguments[0].source_parameter_index, 0);
+                structural_arguments[0].path.clone()
+            }
+            _ => panic!("partial cleanup requires source-ordered direct Unit calls"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        moved_paths,
+        vec![
+            vec![CheckedUnitStructuralPathSegment::Field("third".to_owned())],
+            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
+        ]
+    );
+    assert!(matches!(
+        plan.machine.operations.last(),
+        Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 2,
+            trivial_affine_discards,
+            ..
+        }) if trivial_affine_discards.is_empty()
+    ));
+    assert_eq!(plan.residual_affine_discards.len(), 2);
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| {
+                assert_eq!(discard.source_parameter_index, 0);
+                assert!(discard.type_identity.contains("Token"));
+                discard.path.clone()
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            vec![CheckedUnitStructuralPathSegment::Field("fourth".to_owned())],
+            vec![CheckedUnitStructuralPathSegment::Field("second".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn retains_mixed_prefix_disjoint_field_transfers_with_maximal_residual_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Deep { low: Token; middle: Token; high: Token; }
+        data Branch { head: Token; deep: Deep; tail: Token; }
+        data Outer { first: Token; left: Branch; right: Branch; last: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::enter(value: Outer) {
+            Sink::take(value.left.deep.middle);
+            Sink::take(value.right.tail);
+            Sink::take(value.first);
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("mixed disjoint field moves have an exact maximal residual plan");
+    assert_eq!(
+        plan.machine.operations[..3]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => structural_arguments[0].path.clone(),
+                _ => panic!("partial cleanup begins with source-ordered Unit calls"),
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("middle".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("right".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("tail".to_owned()),
+            ],
+            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
+        ]
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| discard.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![CheckedUnitStructuralPathSegment::Field("last".to_owned())],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("right".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("right".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("head".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("tail".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("high".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("low".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("head".to_owned()),
+            ],
+        ]
+    );
+}
+
+#[test]
+fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data One { right: Token; }
+        data Inner { right: Token; }
+        data Outer { left: Token; inner: Inner; }
+        data Pair { left: Token; right: Token; }
+        data Mixed { left: Token; count: u64; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::missing(value: One) {
+            Sink::take(value.right);
+        }
+        machine Root::complete(value: Pair) {
+            Sink::take(value.right);
+            Sink::take(value.left);
+        }
+        machine Root::scalar(value: Mixed) {
+            Sink::take(value.right);
+        }
+        "#,
+    );
+
+    for machine in ["missing", "complete", "scalar"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside the exact partial-cleanup slice"
+        );
+    }
+}
+
+#[test]
+fn unit_body_retains_empty_affine_local_prefix_and_reverse_cleanup() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Token { value: u64; }
+        data Root {}
+
+        machine Root::cleanup(first: Token, second: Token) {
+            let one: Empty = Empty {};
+            let two: Empty = Empty {};
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "cleanup");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("bounded Unit local cleanup plan");
+    assert_eq!(plan.trivial_affine_locals.len(), 2);
+    assert_eq!(plan.trivial_affine_locals[0].declaration_ordinal, 0);
+    assert_eq!(plan.trivial_affine_locals[1].declaration_ordinal, 1);
+    assert!(matches!(
+        plan.operations.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                declaration_ordinal: 0,
+                ..
+            },
+            psi_checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                declaration_ordinal: 1,
+                ..
+            },
+            psi_checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+                ..
+            }
+        ] if trivial_affine_local_discard_ordinals == &[1, 0]
+            && trivial_affine_discards == &[1, 0]
+    ));
+}
+
+#[test]
+fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Nonempty { value: u64; }
+        data Qualified {}
+        domain Qualified::Owned;
+        data Nominal {}
+        machine Nominal::drop(&mut self) {}
+        data Root {}
+
+        machine Root::mutable_local() {
+            let mut local: Empty = Empty {};
+        }
+        machine Root::nonempty_local() {
+            let local: Nonempty = Nonempty { value: 1 };
+        }
+        machine Root::qualified_local(value: Qualified in Owned) {
+            let local: Qualified in Owned = value;
+        }
+        machine Root::nominal_cleanup_local() {
+            let local: Nominal = Nominal {};
+        }
+        machine Root::local_after_effect()
+        reaches PortIo
+        {
+            asm { out 32, 7 }
+            let local: Empty = Empty {};
+        }
+        "#,
+    );
+
+    for machine in [
+        "mutable_local",
+        "nonempty_local",
+        "qualified_local",
+        "nominal_cleanup_local",
+        "local_after_effect",
+    ] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside the bounded Unit affine-local slice"
+        );
+    }
+}
+
+#[test]
+fn no_code_unit_and_scalar_returns_reject_reachable_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Nominal {}
+        machine Nominal::drop(&mut self) {}
+        data Wrapper<T> { value: T; }
+        data Plain { value: u64; }
+        data Root {}
+
+        machine Root::plain_unit(value: Plain) {}
+        machine Root::nested_unit(value: Wrapper<Nominal>) {}
+        machine Root::nested_scalar(value: Wrapper<Nominal>) -> u64 { 7 }
+        "#,
+    );
+
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "plain_unit"))
+            .is_some(),
+        "ordinary affine records remain eligible for checked no-code disposal"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "nested_unit"))
+            .is_none(),
+        "Unit return must not erase nested generic nominal cleanup"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, "nested_scalar"))
+            .is_none(),
+        "scalar return must not erase nested generic nominal cleanup"
+    );
+}
+
+#[test]
+fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization() {
+    let checked = checked(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::measure(token: Token) -> u64 { 7u64 }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("scalar return retains its nominal cleanup");
+    let [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)] =
+        plan.cleanup_actions.as_slice()
+    else {
+        panic!("scalar return cleanup is exactly one nominal action")
+    };
+    assert_eq!(cleanup.source_parameter_index, 0);
+    assert!(cleanup.requirements.is_empty());
+    let target = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(cleanup.cleanup_machine)
+        .expect("scalar nominal cleanup target remains executable");
+    assert!(matches!(
+        target.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit { .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        ]
+    ));
+}
+
+#[test]
+fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order() {
+    let checked = checked(
+        r#"
+        data First { value: u64; }
+        machine First::drop(&mut self) {}
+        data Helper {}
+        machine Helper::touch() {}
+        data Second { value: u64; }
+        machine Second::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::measure(first: First, second: Second) -> u64 { 7u64 }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("scalar return retains its complete nominal cleanup frontier");
+    assert_eq!(
+        plan.cleanup_actions
+            .iter()
+            .map(|action| match action {
+                psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                    cleanup,
+                ) => cleanup.source_parameter_index,
+                psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                    panic!("the all-nominal case must not publish a trivial discard")
+                }
+            })
+            .collect::<Vec<_>>(),
+        vec![1, 0],
+        "nominal scalar-return cleanup order is reverse authored order"
+    );
+    assert!(plan.cleanup_actions.iter().all(|action| matches!(
+        action,
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+            cleanup
+        ) if cleanup.requirements.is_empty()
+    )));
+    let target_operation_lengths = plan
+        .cleanup_actions
+        .iter()
+        .map(|action| {
+            let psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                cleanup,
+            ) = action
+            else {
+                unreachable!("all-nominal action list")
+            };
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(cleanup.cleanup_machine)
+                .expect("each nominal cleanup target remains executable")
+                .operations
+                .len()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(target_operation_lengths, vec![2, 1]);
+}
+
+#[test]
+fn scalar_return_retains_mixed_cleanup_actions_in_reverse_parameter_order() {
+    let checked = checked(
+        r#"
+        data First { value: u64; }
+        machine First::drop(&mut self) {}
+        data Plain { value: u64; }
+        data Second { value: u64; }
+        machine Second::drop(&mut self) {}
+        data Root {}
+        machine Root::measure(first: First, plain: Plain, second: Second) -> u64 { 7u64 }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("the complete mixed scalar cleanup frontier is retained");
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("mixed cleanup actions preserve one reverse-authored stream")
+    };
+    assert_eq!(second.source_parameter_index, 2);
+    assert_eq!(first.source_parameter_index, 0);
+}
+
+#[test]
+fn scalar_return_retains_contextual_requirements_for_finite_all_nominal_roots() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; enabled: bool; observed: bool; }
+        machine Token::drop(&mut self)
+        requires
+            self.ready;
+            !self.enabled
+        {}
+
+        data Root {}
+        machine Root::measure(first: Token, second: Token) -> u64
+        requires
+            first.observed;
+            first.ready;
+            !first.enabled;
+            second.ready;
+            !second.enabled
+        { 7u64 }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("closed scalar return retains its contextual nominal cleanups");
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "enabled", false),
+            (0, "observed", true),
+            (0, "ready", true),
+            (1, "enabled", false),
+            (1, "ready", true),
+        ],
+        "caller facts remain canonical and retain an unrelated supported premise",
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("contextual scalar cleanups remain in reverse authored root order")
+    };
+    assert_eq!(second.source_parameter_index, 1);
+    assert_eq!(first.source_parameter_index, 0);
+    for cleanup in [second, first] {
+        assert_eq!(
+            cleanup
+                .requirements
+                .iter()
+                .map(|requirement| { (requirement.field_identity.as_str(), requirement.expected) })
+                .collect::<Vec<_>>(),
+            vec![("enabled", false), ("ready", true)],
+        );
+    }
+}
+
+#[test]
+fn scalar_return_rejects_the_exact_nominal_root_missing_a_cleanup_premise() {
+    let diagnostics = contextual_cleanup_diagnostics(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+        requires first.ready, plain.observed
+        { 7u64 }
+        "#,
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at scalar return edge")
+            && diagnostic.message.contains("missing second.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
+fn scalar_return_retains_mixed_contextual_facts_and_cleanup_order() {
+    let mixed = checked(
+        r#"
+        data Token { ready: bool; enabled: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready, !self.enabled
+        {}
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+        requires
+            first.ready;
+            !first.enabled;
+            plain.observed;
+            second.ready;
+            !second.enabled
+        { 7u64 }
+        "#,
+    );
+    let plan = mixed
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&mixed, "measure"))
+        .expect("mixed contextual roots retain one complete checked cleanup stream");
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "enabled", false),
+            (0, "ready", true),
+            (1, "observed", true),
+            (2, "enabled", false),
+            (2, "ready", true),
+        ],
+        "supported trivial-root facts remain caller assumptions",
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("mixed contextual actions preserve reverse authored root order")
+    };
+    assert_eq!(second.source_parameter_index, 2);
+    assert_eq!(first.source_parameter_index, 0);
+    for cleanup in [second, first] {
+        assert_eq!(
+            cleanup
+                .requirements
+                .iter()
+                .map(|requirement| { (requirement.field_identity.as_str(), requirement.expected) })
+                .collect::<Vec<_>>(),
+            vec![("enabled", false), ("ready", true)],
+        );
+    }
+}
+
+#[test]
+fn contextual_scalar_cleanup_keeps_all_trivial_roots_fenced() {
+    let all_trivial = checked(
+        r#"
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(plain: Plain) -> u64
+        requires plain.observed
+        { 7u64 }
+        "#,
+    );
+    assert!(
+        all_trivial
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&all_trivial, "measure"))
+            .is_none(),
+        "contextual scalar cleanup remains tied to at least one nominal action",
+    );
+}
+
+#[test]
+fn nominal_scalar_cleanup_retains_finite_branch_free_primitive_locals() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(token: Token, plain: Plain) -> u64
+        requires token.ready, plain.observed
+        {
+            let base: u64 = 3u64 + 4u64;
+            let doubled: u64 = base * 2u64;
+            doubled
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("finite dependency-ordered scalar locals compose with mixed contextual cleanup");
+    assert_eq!(
+        plan.bindings
+            .iter()
+            .map(|binding| (binding.statement_ordinal, binding.primitive_type))
+            .collect::<Vec<_>>(),
+        vec![(0, PrimitiveType::U64), (1, PrimitiveType::U64)],
+    );
+    assert_eq!(plan.return_statement_ordinal, 2);
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(0, "ready", true), (1, "observed", true)],
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("mixed cleanup remains reverse-authored after the scalar binding prefix")
+    };
+    assert_eq!(cleanup.source_parameter_index, 0);
+    assert_eq!(
+        cleanup
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![("ready", true)],
+    );
+}
+
+#[test]
+fn nominal_scalar_cleanup_retains_interleaved_scalar_inputs_before_locals() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(
+            first: Token,
+            offset: u64,
+            plain: Plain,
+            scale: u64,
+            second: Token
+        ) -> u64
+        requires first.ready, plain.observed, second.ready
+        {
+            let shifted: u64 = offset ^ 1u64;
+            let scaled: u64 = shifted | scale;
+            scaled
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("direct scalar inputs compose with branch-free mixed contextual cleanup");
+    assert_eq!(
+        plan.structural_parameters
+            .iter()
+            .map(|parameter| parameter.position)
+            .collect::<Vec<_>>(),
+        vec![0, 2, 4],
+    );
+    assert_eq!(
+        plan.scalar_parameters
+            .iter()
+            .map(|parameter| (parameter.source_position, parameter.primitive_type))
+            .collect::<Vec<_>>(),
+        vec![(1, PrimitiveType::U64), (3, PrimitiveType::U64)],
+        "scalar inputs retain authored positions in dense scalar order",
+    );
+    let mut complete_partition = plan
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.position)
+        .chain(
+            plan.scalar_parameters
+                .iter()
+                .map(|parameter| parameter.source_position),
+        )
+        .collect::<Vec<_>>();
+    complete_partition.sort_unstable();
+    assert_eq!(complete_partition, vec![0, 1, 2, 3, 4]);
+    assert_eq!(
+        plan.bindings
+            .iter()
+            .map(|binding| binding.statement_ordinal)
+            .collect::<Vec<_>>(),
+        vec![0, 1],
+    );
+    assert_eq!(plan.return_statement_ordinal, 2);
+
+    let shifted = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(
+            plan.state,
+            0,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+        )
+        .expect("first local expression");
+    assert!(matches!(
+        shifted,
+        CheckedScalarExpression::IntegerBinary { left, .. }
+            if matches!(left.as_ref(), CheckedScalarExpression::Parameter { position: 0, .. })
+    ));
+    let scaled = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(
+            plan.state,
+            1,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
+        )
+        .expect("second local expression");
+    assert!(matches!(
+        scaled,
+        CheckedScalarExpression::IntegerBinary { left, right, .. }
+            if matches!(left.as_ref(), CheckedScalarExpression::Local { position: 2, .. })
+                && matches!(right.as_ref(), CheckedScalarExpression::Parameter { position: 1, .. })
+    ));
+    let returned = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(plan.state, 2, CheckedScalarExpressionRole::Return)
+        .expect("return expression");
+    assert!(matches!(
+        returned,
+        CheckedScalarExpression::Local { position: 3, .. }
+    ));
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "ready", true),
+            (2, "observed", true),
+            (4, "ready", true)
+        ],
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(2),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("cleanup retains reverse authored structural-root order")
+    };
+    assert_eq!(second.source_parameter_index, 4);
+    assert_eq!(first.source_parameter_index, 0);
+}
+
+#[test]
+fn nominal_scalar_cleanup_accepts_one_final_short_circuit_boolean_decision() {
+    let checked = checked(
+        r#"
+        data Token {}
+        machine Token::drop(&mut self) {}
+        data Root {}
+
+        machine Root::and_return(token: Token, left: bool, right: bool) -> bool {
+            let inverted: bool = !right;
+            left && inverted
+        }
+        machine Root::or_return(token: Token, left: bool, right: bool) -> bool {
+            let inverted: bool = !right;
+            left || inverted
+        }
+        "#,
+    );
+
+    for (machine, expected_or) in [("and_return", false), ("or_return", true)] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| panic!("`{machine}` should retain one final Boolean decision"));
+        assert_eq!(plan.bindings.len(), 1);
+        assert_eq!(plan.return_statement_ordinal, 1);
+        assert_eq!(
+            plan.scalar_parameters
+                .iter()
+                .map(|parameter| parameter.source_position)
+                .collect::<Vec<_>>(),
+            vec![1, 2],
+        );
+        assert!(matches!(
+            plan.cleanup_actions.as_slice(),
+            [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                cleanup
+            )] if cleanup.source_parameter_index == 0
+        ));
+        let returned = checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(plan.state, 1, CheckedScalarExpressionRole::Return)
+            .expect("checked short-circuit return expression");
+        assert!(match returned {
+            CheckedScalarExpression::Boolean(expression) if expected_or => {
+                matches!(expression.as_ref(), CheckedBooleanExpression::Or { .. })
+            }
+            CheckedScalarExpression::Boolean(expression) => {
+                matches!(expression.as_ref(), CheckedBooleanExpression::And { .. })
+            }
+            _ => false,
+        });
+    }
+}
+
+#[test]
+fn nominal_scalar_cleanup_retains_contextual_short_circuit_return() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+        data Root {}
+
+        machine Root::measure(token: Token, left: bool, right: bool) -> bool
+        requires token.ready
+        {
+            left && right
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("contextual short-circuit cleanup retains its checked scalar-return plan");
+    assert_eq!(plan.caller_requirements.len(), 1);
+    assert!(matches!(
+        plan.cleanup_actions.as_slice(),
+        [psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)]
+            if cleanup.requirements.len() == 1
+    ));
+}
+
+#[test]
+fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discard() {
+    let checked = checked(
+        r#"
+        data Token {}
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let drop = machine_named(&checked, "drop");
+
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(enter)
+            .is_none(),
+        "nominal cleanup must not leak through the trivial-discard lane"
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("exact empty nominal-cleanup plan");
+    assert_eq!(plan.machine.structural_parameters.len(), 1);
+    assert_eq!(
+        plan.machine.structural_parameters[0].multiplicity,
+        Multiplicity::Affine
+    );
+    assert!(
+        plan.machine.structural_parameters[0]
+            .qualifications
+            .is_empty()
+    );
+    assert!(plan.machine.entry_claims.is_empty());
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 0,
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+        }] if trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+    assert_eq!(plan.cleanups[0].source_parameter_index, 0);
+    assert_eq!(
+        plan.cleanups[0].type_identity,
+        plan.machine.structural_parameters[0].type_identity
+    );
+    assert_eq!(plan.cleanups[0].cleanup_machine, drop);
+    assert_eq!(
+        plan.cleanups[0].cleanup_state,
+        checked.machine_states(
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == drop)
+                .expect("drop machine"),
+        )[0]
+        .symbol
+    );
+    let token_shape = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == plan.cleanups[0].type_identity)
+        .expect("cleanup type shape");
+    assert!(record_fields(token_shape).is_empty());
+}
+
+#[test]
+fn retains_exactly_one_executable_drop_in_a_two_root_nominal_cleanup_list() {
+    let checked = checked(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data First {}
+        machine First::drop(&mut self) { Helper::touch(); }
+        data Second {}
+        machine Second::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(first: First, second: Second) {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("one executable and one empty cleanup are retained");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0]
+    );
+    let operation_counts = plan
+        .cleanups
+        .iter()
+        .map(|cleanup| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(cleanup.cleanup_machine)
+                .expect("cleanup has an exact Unit plan")
+                .operations
+                .len()
+                - 1
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(operation_counts, vec![0, 1]);
+}
+
+#[test]
+fn retains_two_executable_drop_bodies_with_distinct_helpers() {
+    let checked = checked(
+        r#"
+        data FirstHelper {}
+        machine FirstHelper::touch() {}
+        data SecondHelper {}
+        machine SecondHelper::touch() {}
+
+        data First {}
+        machine First::drop(&mut self) { FirstHelper::touch(); }
+        data Second {}
+        machine Second::drop(&mut self) { SecondHelper::touch(); }
+
+        data Root {}
+        machine Root::enter(first: First, second: Second) {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("both bounded executable cleanup actions are retained");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0]
+    );
+    let cleanup_targets = plan
+        .cleanups
+        .iter()
+        .map(|cleanup| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(cleanup.cleanup_machine)
+                .expect("cleanup target")
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(cleanup_targets[0].machine, cleanup_targets[1].machine);
+    assert!(
+        cleanup_targets
+            .iter()
+            .all(|target| target.operations.len() == 2)
+    );
+    let helper_targets = cleanup_targets
+        .iter()
+        .map(|target| match &target.operations[0] {
+            CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => *target_machine,
+            _ => panic!("executable cleanup starts with its helper call"),
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(helper_targets[0], helper_targets[1]);
+}
+
+#[test]
+fn retains_five_call_executable_drop_body_in_source_order() {
+    let checked = checked(
+        r#"
+        data FirstHelper {}
+        machine FirstHelper::touch() {}
+        data SecondHelper {}
+        machine SecondHelper::touch() {}
+        data ThirdHelper {}
+        machine ThirdHelper::touch() {}
+        data FourthHelper {}
+        machine FourthHelper::touch() {}
+        data FifthHelper {}
+        machine FifthHelper::touch() {}
+
+        data Token { value: u64; }
+        machine Token::drop(&mut self) {
+            FirstHelper::touch();
+            SecondHelper::touch();
+            ThirdHelper::touch();
+            FourthHelper::touch();
+            FifthHelper::touch();
+        }
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("five-call executable cleanup is retained");
+    let [cleanup] = plan.cleanups.as_slice() else {
+        panic!("entry retains one nominal cleanup")
+    };
+    let target = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(cleanup.cleanup_machine)
+        .expect("cleanup has an exact Unit plan");
+    assert_eq!(target.operations.len(), 6);
+    let helper_targets = target.operations[..5]
+        .iter()
+        .map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => *target_machine,
+            _ => panic!("cleanup prefix remains a helper call"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        helper_targets,
+        [
+            "FirstHelper::touch",
+            "SecondHelper::touch",
+            "ThirdHelper::touch",
+            "FourthHelper::touch",
+            "FifthHelper::touch"
+        ]
+        .map(|name| machine_named(&checked, name))
+    );
+    assert!(matches!(
+        target.operations[5],
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+    ));
+}
+
+#[test]
+fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("one-scalar-field nominal-cleanup plan");
+    let token_shape = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == plan.cleanups[0].type_identity)
+        .expect("cleanup type shape");
+    let [field] = record_fields(token_shape) else {
+        panic!("bounded nominal cleanup retains exactly one field")
+    };
+    assert_eq!(field.identity, "value");
+    assert_eq!(field.relevance, BindingRelevance::Relevant);
+    assert!(matches!(
+        field.field_type,
+        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64)
+    ));
+    assert!(plan.machine.entry_claims.is_empty());
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+            ..
+        }] if trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
+fn retains_contextual_nominal_cleanup_boolean_requirement_at_the_return_edge() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires token.ready
+        {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("contextually proved nominal cleanup plan");
+    let [cleanup] = plan.cleanups.as_slice() else {
+        panic!("one cleanup action")
+    };
+    let [requirement] = cleanup.requirements.as_slice() else {
+        panic!("one contextual cleanup requirement")
+    };
+    assert_eq!(requirement.field_identity, "ready");
+    assert!(requirement.expected);
+}
+
+#[test]
+fn canonicalizes_multiple_contextual_cleanup_requirements_independent_of_caller_order() {
+    let checked = checked(
+        r#"
+        data Token { armed: bool; extra: bool; ready: bool; }
+        machine Token::drop(&mut self)
+        requires
+            self.ready;
+            self.armed == true
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires
+            token.armed;
+            token.ready == true;
+            token.extra
+        {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("order-independent contextual nominal cleanup plan");
+    let [cleanup] = plan.cleanups.as_slice() else {
+        panic!("one cleanup action")
+    };
+    assert_eq!(
+        cleanup
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![("armed", true), ("ready", true)],
+        "checked cleanup requirements use canonical declaration-identity order"
+    );
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(0, "armed", true), (0, "extra", true), (0, "ready", true)],
+        "the machine plan retains the full canonical supported caller superset"
+    );
+}
+
+#[test]
+fn retains_contextual_multi_root_cleanups_with_distinct_targets() {
+    let checked = checked(
+        r#"
+        data First { armed: bool; }
+        machine First::drop(&mut self)
+        requires self.armed
+        {}
+
+        data Second { ready: bool; }
+        machine Second::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(first: First, second: Second)
+        requires
+            second.ready;
+            first.armed
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("distinct contextual cleanup targets are retained");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0],
+        "contextual roots retain reverse declaration cleanup order"
+    );
+    assert_ne!(
+        plan.cleanups[0].cleanup_machine, plan.cleanups[1].cleanup_machine,
+        "distinct nominal types retain distinct cleanup targets"
+    );
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| {
+                cleanup
+                    .requirements
+                    .iter()
+                    .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>(),
+        vec![vec![("ready", true)], vec![("armed", true)]],
+        "each reverse-ordered action retains its target-local requirement"
+    );
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(0, "armed", true), (1, "ready", true)],
+        "caller requirements remain canonical in source-root order"
+    );
+}
+
+#[test]
+fn retains_shared_contextual_target_for_each_reverse_ordered_root() {
+    let checked = checked(
+        r#"
+        data Token { first_only: bool; ready: bool; second_only: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires
+            second.second_only;
+            first.ready;
+            second.ready;
+            first.first_only
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("shared contextual cleanup target is retained for both roots");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0],
+        "shared-target actions retain reverse declaration order"
+    );
+    assert_eq!(
+        plan.cleanups[0].cleanup_machine, plan.cleanups[1].cleanup_machine,
+        "same-type roots share the exact contextual cleanup target"
+    );
+    assert!(plan.cleanups.iter().all(|cleanup| {
+        matches!(
+            cleanup.requirements.as_slice(),
+            [requirement] if requirement.field_identity == "ready" && requirement.expected
+        )
+    }));
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "first_only", true),
+            (0, "ready", true),
+            (1, "ready", true),
+            (1, "second_only", true),
+        ],
+        "root-specific caller facts remain attached to their source parameter"
+    );
+}
+
+#[test]
+fn retains_contextual_requirements_with_an_executable_cleanup_body() {
+    let checked = checked(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data Token { ready: bool; padding: u8; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        { Helper::touch(); }
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires second.ready, first.ready
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("contextual executable cleanup plan");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0]
+    );
+    assert!(plan.cleanups.iter().all(|cleanup| {
+        matches!(
+            cleanup.requirements.as_slice(),
+            [requirement] if requirement.field_identity == "ready" && requirement.expected
+        )
+    }));
+    let target = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(plan.cleanups[0].cleanup_machine)
+        .expect("contextual executable cleanup target");
+    assert!(matches!(
+        target.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit { .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        ]
+    ));
+}
+
+#[test]
+fn canonicalizes_shallow_boolean_cleanup_requirement_spellings() {
+    let checked = checked(
+        r#"
+        data Token { a: bool; b: bool; c: bool; d: bool; e: bool; f: bool; }
+        machine Token::drop(&mut self)
+        requires
+            self.a;
+            !self.b;
+            self.c == true;
+            true == self.d;
+            self.e != true;
+            false != self.f
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires
+            token.a == true;
+            token.b == false;
+            true == token.c;
+            token.d != false;
+            false == token.e;
+            token.f
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("both Boolean polarities form one contextual cleanup plan");
+    assert_eq!(
+        plan.cleanups[0]
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![
+            ("a", true),
+            ("b", false),
+            ("c", true),
+            ("d", true),
+            ("e", false),
+            ("f", true),
+        ]
+    );
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![
+            ("a", true),
+            ("b", false),
+            ("c", true),
+            ("d", true),
+            ("e", false),
+            ("f", true),
+        ]
+    );
+}
+
+#[test]
+fn rejects_shared_contextual_target_when_one_root_lacks_its_premise() {
+    let diagnostics = contextual_cleanup_diagnostics(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires first.ready
+        {}
+        "#,
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at Unit return edge")
+            && diagnostic.message.contains("missing second.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
+fn executable_cleanup_still_rejects_a_missing_root_premise() {
+    let diagnostics = contextual_cleanup_diagnostics(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        { Helper::touch(); }
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires first.ready
+        {}
+        "#,
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("missing second.ready == true required by Token::drop")
+    }));
+}
+
+#[test]
+fn rejects_multiple_contextual_cleanup_requirements_when_one_is_missing() {
+    let source = r#"
+        data Token { armed: bool; ready: bool; }
+        machine Token::drop(&mut self)
+        requires
+            self.ready;
+            self.armed
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires token.armed
+        {}
+    "#;
+    let diagnostics = contextual_cleanup_diagnostics(source);
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at Unit return edge")
+            && diagnostic.message.contains("missing token.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
+fn rejects_contextual_cleanup_requirement_set_with_a_mismatched_caller_clause() {
+    let source = r#"
+        data Token { armed: bool; ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires token.armed
+        {}
+    "#;
+    let diagnostics = contextual_cleanup_diagnostics(source);
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at Unit return edge")
+            && diagnostic.message.contains("missing token.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
+fn fences_non_boolean_caller_clauses_out_of_the_bounded_contextual_cleanup_lane() {
+    let checked = checked(
+        r#"
+        data Token { count: u64; ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires
+            token.ready;
+            token.count == 1
+        {}
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "a non-Boolean-field caller clause must fail closed out of this bounded lane"
+    );
+}
+
+#[test]
+fn retains_wide_flat_mixed_primitive_record_for_whole_root_nominal_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { flag: bool; tag: u8; delta: i16; payload: u64; address: addr; }
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(token: Token) {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("wide flat scalar nominal-cleanup plan");
+    let token_shape = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == plan.cleanups[0].type_identity)
+        .expect("cleanup type shape");
+    let [flag, tag, delta, payload, address] = record_fields(token_shape) else {
+        panic!("bounded nominal cleanup retains every flat primitive field")
+    };
+    for (field, identity, primitive) in [
+        (flag, "flag", PrimitiveType::Bool),
+        (tag, "tag", PrimitiveType::U8),
+        (delta, "delta", PrimitiveType::I16),
+        (payload, "payload", PrimitiveType::U64),
+        (address, "address", PrimitiveType::Addr),
+    ] {
+        assert_eq!(field.identity, identity);
+        assert_eq!(field.relevance, BindingRelevance::Relevant);
+        assert!(matches!(
+            field.field_type,
+            CheckedUnitStructuralFieldType::Scalar(actual) if actual == primitive
+        ));
+    }
+    assert!(plan.machine.entry_claims.is_empty());
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+            ..
+        }] if trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
+fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed_for_unsupported_shapes()
+ {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Token {}
+        machine Token::drop(&mut self) {}
+        machine Token::self_cleanup(self) {}
+        data Leaf {}
+        data Structural { value: Leaf; }
+        machine Structural::drop(&mut self) {}
+        data Fixed { values: [Leaf; 2]; }
+        machine Fixed::drop(&mut self) {}
+        data ErasedOnly { proof [erased]: u64; }
+        machine ErasedOnly::drop(&mut self) {}
+        data ScalarAndErased { value: u64; proof [erased]: u64; }
+        machine ScalarAndErased::drop(&mut self) {}
+        data Float { value: f64; }
+        machine Float::drop(&mut self) {}
+        data Qualified { value: u64; }
+        domain Qualified::Owned;
+        machine Qualified::drop(&mut self) {}
+        data Generic<T> {}
+        machine Generic::drop(&mut self) {}
+        data Wrapper { token: Token; }
+        data Sink { marker: u64; }
+        machine Sink::take(token: Token) {}
+
+        data Root {}
+        machine Root::exact(token: Token) {}
+        machine Root::two(first: Token, second: Token) {}
+        machine Root::three(first: Token, second: Token, third: Token) {}
+        machine Root::five(first: Token, second: Token, third: Token, fourth: Token, fifth: Token) {}
+        machine Root::with_local(token: Token) {
+            let local: Empty = Empty {};
+        }
+        machine Root::with_call(token: Token) {
+            Sink::take(token);
+        }
+        machine Root::with_contract(token: Token)
+        ensures true
+        {}
+        machine Root::structural(value: Structural) {}
+        machine Root::fixed(value: Fixed) {}
+        machine Root::erased(value: ErasedOnly) {}
+        machine Root::scalar_and_erased(value: ScalarAndErased) {}
+        machine Root::floating(value: Float) {}
+        machine Root::qualified(value: Qualified in Owned) {}
+        machine Root::generic(value: Generic<u64>) {}
+        machine Root::nested(value: Wrapper) {}
+
+        data NonemptyRoot { marker: u64; }
+        machine NonemptyRoot::attached_nonempty(token: Token) {}
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_nominal_affine_unit_cleanups;
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "exact"))
+            .is_some()
+    );
+    let ordered = plans
+        .for_machine(machine_named(&checked, "two"))
+        .expect("two whole affine roots have an ordered cleanup plan");
+    assert_eq!(
+        ordered
+            .cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        [1, 0],
+        "independent roots clean in reverse declaration order"
+    );
+    assert_eq!(
+        ordered.cleanups[0].cleanup_machine, ordered.cleanups[1].cleanup_machine,
+        "same-type roots may share their exact cleanup target"
+    );
+    let three = plans
+        .for_machine(machine_named(&checked, "three"))
+        .expect("three whole affine roots have an ordered cleanup plan");
+    assert_eq!(
+        three
+            .cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        [2, 1, 0],
+        "three independent roots clean in reverse declaration order"
+    );
+    assert!(
+        three
+            .cleanups
+            .iter()
+            .all(|cleanup| cleanup.cleanup_machine == three.cleanups[0].cleanup_machine),
+        "same-type roots may share one exact cleanup target"
+    );
+    let five = plans
+        .for_machine(machine_named(&checked, "five"))
+        .expect("five whole affine roots have an ordered cleanup plan");
+    assert_eq!(
+        five.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        [4, 3, 2, 1, 0],
+        "five independent roots clean in reverse declaration order"
+    );
+    assert!(
+        five.cleanups
+            .iter()
+            .all(|cleanup| cleanup.cleanup_machine == five.cleanups[0].cleanup_machine),
+        "same-type roots may share one exact cleanup target"
+    );
+    for machine in [
+        "with_local",
+        "with_call",
+        "with_contract",
+        "self_cleanup",
+        "structural",
+        "fixed",
+        "erased",
+        "scalar_and_erased",
+        "floating",
+        "qualified",
+        "generic",
+        "nested",
+        "attached_nonempty",
+    ] {
+        assert!(
+            plans
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside the exact nominal-cleanup slice"
+        );
+    }
+    assert_eq!(
+        plans.machines.len(),
+        4,
+        "rejected candidates must not leave partial cleanup plans"
+    );
+}

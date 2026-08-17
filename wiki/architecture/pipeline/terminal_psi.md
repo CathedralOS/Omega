@@ -1525,11 +1525,13 @@ orchestration module over separate cast-chain, affine, product/divisor, and
 shift/cross-family producer modules; its focused tests likewise separate chain,
 affine-join, and nominal-cleanup responsibilities. Exact binary and cast
 families are ordered declarative classifier registries consumed by one generic
-dispatch path. Additional sufficient-form families should follow that shape:
-one closed responsibility per module, explicit precedence at the registry, and
-no authority beyond the certificate proved against the unchanged canonical
-ledger. This refactoring rule does not make the current Rust producer or its
-registries trusted.
+dispatch path. Structural Unit planning likewise separates return analysis,
+control/boundary construction, cleanup, call closure, and type/shape custody
+behind a small orchestrator. Additional sufficient-form families should follow
+that shape: one closed responsibility per module, explicit precedence at the
+registry, and no authority beyond the certificate proved against the unchanged
+canonical ledger. This refactoring rule does not make the current Rust producer
+or its registries trusted.
 
 Premise availability is path- and version-sensitive. Ranking ledger nodes makes
 cyclic justification unrepresentable but does not by itself make a fact
