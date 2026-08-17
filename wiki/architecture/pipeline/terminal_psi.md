@@ -1564,6 +1564,10 @@ lowering likewise form one responsibility behind fourteen explicit internal
 contracts; orchestration and public result assembly remain in the crate root.
 Reachable scalar-call discovery and multi-machine terminal assembly are a
 separate responsibility behind two explicit entry points.
+The verifier reconstruction corpus follows the same ownership boundary: its
+former 9,239-line sufficient-form test parent is a 15-line root over fifteen
+cast, conversion, add/subtract, multiply/affine, join, shift, and divide-policy
+modules. All 76 cases remain, and no family module exceeds 1,248 lines.
 Additional sufficient-form families should follow that shape: one closed
 responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
