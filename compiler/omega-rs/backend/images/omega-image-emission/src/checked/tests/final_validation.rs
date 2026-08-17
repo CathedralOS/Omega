@@ -1,0 +1,701 @@
+//! Final image, instruction-boundary, and executable-region validation regressions.
+
+use super::*;
+
+#[test]
+fn compiler_validation_identity_without_a_footprint_derivation_rejects() {
+    use omega_machine_bytes::CompilerInstructionValidationKind;
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion, StateGuardOperator};
+
+    let place = Place::at(RuntimeStorageRegion::RuntimeFrame, 16)
+        .with_step(PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::Machine,
+            index_offset: 24,
+            index_byte_size: 8,
+            element_byte_size: 4,
+        })
+        .expect("indexed place");
+    let diagnostic = require_compiler_instruction_footprint(
+        omega_target::Architecture::Aarch64,
+        &psi_arena::Arena::new(),
+        CompilerInstructionValidationKind::PlaceValueGuard {
+            place,
+            byte_size: 4,
+            expected_value: 7,
+            failure_branch_distance: 12,
+            operator: StateGuardOperator::Equal,
+        },
+        41,
+    )
+    .expect_err("an unsupported final-body footprint must not be omitted");
+
+    assert!(diagnostic.message.contains("instruction #41"));
+    assert!(
+        diagnostic
+            .message
+            .contains("no target footprint derivation")
+    );
+}
+
+#[test]
+fn aarch64_indirect_call_replay_reconstructs_bytes_and_page_sites() {
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, HostBindingMechanism, ValueLocation, ValueShape,
+        evaluate_call_plan,
+    };
+    use omega_target_operations::{
+        InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+    };
+    use std::sync::Arc;
+
+    let operands = vec![
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 4,
+            },
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::ImmediateInteger(7),
+        },
+    ];
+    let plan = evaluate_call_plan(
+        CallingPolicy::Aapcs64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: Some(ValueShape::integer(4, 4)),
+        },
+    )
+    .expect("AAPCS64 vtable plan");
+    let mechanism = HostBindingMechanism::VtableField {
+        table: Arc::from("Protocol"),
+        field: Arc::from("invoke"),
+        byte_offset: 8,
+    };
+    let (bytes, sites) =
+        encode_aarch64_indirect_call_replay(&operands, &[], &mechanism, &plan, true)
+            .expect("final AArch64 vtable replay");
+
+    let lowered = operands
+        .iter()
+        .map(super::aarch64_outbound_syscall_operand)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("AArch64 replay operands");
+    let result_register = match plan.result.as_ref().expect("result").locations.as_slice() {
+        [ValueLocation::Register { register, .. }] => *register,
+        other => panic!("unexpected result placement: {other:?}"),
+    };
+    let inner =
+        omega_isa_aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+            lowered.iter().copied(),
+            &plan.parameters,
+            result_register,
+            8,
+        )
+        .expect("AAPCS64 vtable bytes");
+    let expected = omega_isa_aarch64::encode_foreign_float_control_prefix_bytes()
+        .into_iter()
+        .chain(inner)
+        .chain(omega_isa_aarch64::encode_foreign_float_control_suffix_bytes())
+        .collect::<Vec<_>>();
+    assert_eq!(bytes, expected);
+    assert_eq!(
+        sites,
+        vec![
+            (
+                36,
+                super::OutboundCallRelocationTarget::Storage(RuntimeStorageRegion::RuntimeFrame)
+            ),
+            (
+                12,
+                super::OutboundCallRelocationTarget::Storage(RuntimeStorageRegion::Machine)
+            ),
+        ]
+    );
+
+    let table_operands = vec![
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            },
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::Machine,
+                byte_offset: 16,
+                byte_count: 8,
+            },
+        },
+    ];
+    let table_plan = evaluate_call_plan(
+        CallingPolicy::Aapcs64,
+        &CallSignature {
+            parameters: Vec::new(),
+            result: Some(ValueShape::integer(24, 8)),
+        },
+    )
+    .expect("AAPCS64 table-function plan");
+    let table_mechanism = HostBindingMechanism::TableFunction {
+        table: Arc::from("Services"),
+        field: Arc::from("allocate"),
+        byte_offset: 40,
+    };
+    let (_, table_sites) = encode_aarch64_indirect_call_replay(
+        &table_operands,
+        &[],
+        &table_mechanism,
+        &table_plan,
+        true,
+    )
+    .expect("final AArch64 table-function replay");
+    assert_eq!(
+        table_sites,
+        vec![
+            (
+                12,
+                super::OutboundCallRelocationTarget::Storage(RuntimeStorageRegion::RuntimeFrame)
+            ),
+            (
+                24,
+                super::OutboundCallRelocationTarget::Storage(RuntimeStorageRegion::Machine)
+            ),
+        ]
+    );
+}
+
+#[test]
+fn outbound_syscall_storage_sites_cover_runtime_descriptors_and_addresses() {
+    use omega_target_operations::{
+        InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+    };
+
+    let operands = vec![
+        InstructionOperand {
+            kind: InstructionOperandKind::ImmediateInteger(7),
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeStringPointer {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 16,
+                is_bounded_buffer: false,
+            },
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimePointeeStringLength {
+                region: RuntimeStorageRegion::Machine,
+                byte_offset: 24,
+            },
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeStorageAddress {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+            },
+        },
+        InstructionOperand {
+            kind: InstructionOperandKind::DataAddress {
+                data: Handle::invalid(),
+            },
+        },
+    ];
+
+    let x86_sites =
+        outbound_syscall_argument_storage_sites(omega_target::Architecture::X86_64, &operands)
+            .expect("x86 descriptor/address sites");
+    assert_eq!(
+        x86_sites,
+        vec![
+            (
+                omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 1) - 2,
+                RuntimeStorageRegion::RuntimeFrame,
+            ),
+            (
+                omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 2) - 2,
+                RuntimeStorageRegion::Machine,
+            ),
+            (
+                omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 3) - 2,
+                RuntimeStorageRegion::RuntimeFrame,
+            ),
+        ]
+    );
+
+    let aarch64_operands = operands
+        .iter()
+        .map(super::aarch64_outbound_syscall_operand)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("AArch64 descriptor/address operands");
+    let aarch64_sites =
+        outbound_syscall_argument_storage_sites(omega_target::Architecture::Aarch64, &operands)
+            .expect("AArch64 descriptor/address sites");
+    assert_eq!(
+        aarch64_sites,
+        vec![
+            (
+                omega_isa_aarch64::operand_width(&aarch64_operands[0]),
+                RuntimeStorageRegion::RuntimeFrame,
+            ),
+            (
+                aarch64_operands[..2]
+                    .iter()
+                    .map(omega_isa_aarch64::operand_width)
+                    .sum(),
+                RuntimeStorageRegion::Machine,
+            ),
+            (
+                aarch64_operands[..3]
+                    .iter()
+                    .map(omega_isa_aarch64::operand_width)
+                    .sum(),
+                RuntimeStorageRegion::RuntimeFrame,
+            ),
+        ]
+    );
+
+    let symbols = vec![std::sync::Arc::<str>::from("literal.data")];
+    let x86_data_sites = outbound_syscall_argument_data_sites(
+        omega_target::Architecture::X86_64,
+        &operands,
+        &symbols,
+    )
+    .expect("x86 data-object site");
+    assert_eq!(
+        x86_data_sites,
+        vec![(
+            omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 4) - 2,
+            std::sync::Arc::<str>::from("literal.data"),
+        )]
+    );
+    let aarch64_data_sites = outbound_syscall_argument_data_sites(
+        omega_target::Architecture::Aarch64,
+        &operands,
+        &symbols,
+    )
+    .expect("AArch64 data-object site");
+    assert_eq!(
+        aarch64_data_sites,
+        vec![(
+            aarch64_operands[..4]
+                .iter()
+                .map(omega_isa_aarch64::operand_width)
+                .sum(),
+            std::sync::Arc::<str>::from("literal.data"),
+        )]
+    );
+}
+
+#[test]
+fn rejects_native_image_when_encoded_text_size_differs_from_plan() {
+    let target = NativeTarget::linux_arm64();
+    let object = ObjectPlan::with_capacity(target, 0, 0);
+    let relocations = RelocationPlan::with_target(target);
+    let semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
+
+    let diagnostic = emit_checked_executable_image(
+        ExecutableImageInput {
+            target,
+            object: &object,
+            relocations: &relocations,
+            encoded_machine_code: &omega_machine_bytes::EncodedMachinePlan::with_capacity(
+                target, 0, 0, 0,
+            )
+            .code,
+            encoded_machine_semantics: &semantics,
+            text_bytes: &[0xaa, 0xbb],
+            data_bytes: &[],
+            subsystem: 3,
+        },
+        4,
+    )
+    .expect_err("encoded/planned byte mismatch should fail before image dispatch");
+
+    assert!(diagnostic.message.contains("encoded 2 machine byte(s)"));
+    assert!(diagnostic.message.contains("planned 4 byte(s)"));
+}
+
+#[test]
+fn final_text_changes_only_inside_declared_relocation_bits() {
+    let encoded = [0xe8, 0, 0, 0, 0, 0xc3];
+    let mut relocated = encoded;
+    relocated[1..5].copy_from_slice(&0x1234_5678u32.to_le_bytes());
+    let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+    relocations.push_record(RelocationRecord {
+        origin: RelocationOrigin::Instruction {
+            function_symbol_handle: Handle::invalid(),
+            selected_instruction_index: 1,
+        },
+        section: SectionKind::Text,
+        offset: 1,
+        byte_width: 4,
+        symbol_handle: Handle::invalid(),
+        addend: 0,
+        kind: RelocationKind::X86_64Relative32,
+    });
+
+    let evidence = validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
+        .expect("declared displacement bytes may change");
+    assert_eq!(evidence.text_relocation_count, 1);
+    assert_ne!(evidence.encoded_text_fingerprint, 0);
+    assert_ne!(evidence.derivation_fingerprint, 0);
+    let mut addend_relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+    let mut addend_record = relocations
+        .records()
+        .next()
+        .expect("relocation record")
+        .1
+        .clone();
+    addend_record.addend = 4;
+    addend_relocations.push_record(addend_record);
+    let addend_evidence =
+        validate_final_text_relocation_envelope(&encoded, &relocated, &addend_relocations)
+            .expect("addend remains valid envelope evidence");
+    assert_ne!(
+        evidence.relocation_envelope_fingerprint, addend_evidence.relocation_envelope_fingerprint,
+        "semantic addends must participate in the final relocation identity"
+    );
+    relocated[0] = 0x90;
+    let diagnostic = validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
+        .expect_err("an opcode mutation outside the displacement must reject");
+    assert!(diagnostic.message.contains("byte 0"));
+}
+
+#[test]
+fn compiler_functions_retain_a_complete_final_instruction_partition() {
+    use omega_machine_bytes::{
+        CheckedInstructionValidationKind, CompilerInstructionValidationKind,
+        EncodedMachineFunction, EncodedMachineInstruction,
+    };
+    use omega_machine_instructions::{BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin};
+    use psi_arena::HandleSpan;
+
+    let target = NativeTarget::linux_x64();
+    let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, 1);
+    let storage_symbol = object.layout.symbols.insert(SymbolPlan {
+        name: omega_object_file::runtime_frame_storage_symbol_name(),
+        section: SymbolSection::Section(SectionKind::Bss),
+        offset: 0,
+        size: 64,
+        kind: SymbolKind::Object,
+        import_library: String::new(),
+    });
+    let enter = omega_isa_x86_64::encode_function_enter_bytes();
+    let dispatch =
+        omega_isa_x86_64::encode_dispatch_loop_enter_bytes(7).expect("dispatch loop entry");
+    let guard = omega_isa_x86_64::encode_dispatch_guard_compare_static_bytes(
+        4,
+        4,
+        9,
+        16,
+        omega_target_operations::StateGuardOperator::Equal,
+        false,
+    )
+    .expect("static dispatch guard");
+    let leave = omega_isa_x86_64::encode_return_bytes();
+    let guard_byte_offset = enter.len() + dispatch.len();
+    let mut final_guard = guard.clone();
+    final_guard[2..10].copy_from_slice(&0x1234_5678_9abc_def0u64.to_le_bytes());
+    let final_bytes = enter
+        .into_iter()
+        .chain(dispatch.iter().copied())
+        .chain(final_guard)
+        .chain(leave)
+        .collect::<Vec<_>>();
+    let mut relocations = RelocationPlan::with_target(target);
+    relocations.push_record(RelocationRecord {
+        origin: RelocationOrigin::Instruction {
+            function_symbol_handle: Handle::invalid(),
+            selected_instruction_index: 6,
+        },
+        section: SectionKind::Text,
+        offset: guard_byte_offset + 2,
+        byte_width: 8,
+        symbol_handle: storage_symbol,
+        addend: 0,
+        kind: RelocationKind::Absolute64,
+    });
+    let mut plan =
+        omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 5, final_bytes.len());
+    let enter_bytes = plan.code.bytes.insert_many(enter);
+    let dispatch_bytes = plan.code.bytes.insert_many(dispatch);
+    let guard_bytes = plan.code.bytes.insert_many(guard);
+    let leave_bytes = plan.code.bytes.insert_many(leave);
+    let first = plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 4,
+        bytes: enter_bytes,
+        compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionEnter),
+        ..EncodedMachineInstruction::default()
+    });
+    let dispatch_row = plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 5,
+        bytes: dispatch_bytes,
+        compiler_validation_kind: Some(CompilerInstructionValidationKind::DispatchLoopEnter {
+            entry_dispatch_index: 7,
+        }),
+        ..EncodedMachineInstruction::default()
+    });
+    plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 6,
+        bytes: guard_bytes,
+        compiler_validation_kind: Some(CompilerInstructionValidationKind::DispatchStaticGuard {
+            operator: omega_target_operations::StateGuardOperator::Equal,
+            storage_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: 4,
+            byte_size: 4,
+            expected_value: 9,
+            skip_byte_distance: 16,
+            is_float: false,
+        }),
+        ..EncodedMachineInstruction::default()
+    });
+    plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 7,
+        ..EncodedMachineInstruction::default()
+    });
+    plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 8,
+        bytes: leave_bytes,
+        compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
+        ..EncodedMachineInstruction::default()
+    });
+    let function = plan.code.functions.insert(EncodedMachineFunction {
+        source_key: Default::default(),
+        byte_offset: 0,
+        byte_count: final_bytes.len(),
+        instructions: HandleSpan::from_parts(first, 5),
+    });
+    plan.code.byte_count = final_bytes.len();
+    let mut semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
+    semantics
+        .boundaries
+        .footprints
+        .boundary_contract_fingerprint = Some(0x1234);
+    let enter_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::function_enter_register_writes(),
+        omega_isa_x86_64::function_enter_additional_machine_state(),
+    );
+    let return_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::return_register_writes(),
+        omega_isa_x86_64::return_additional_machine_state(),
+    );
+    semantics
+        .boundaries
+        .footprints
+        .fragments
+        .push(BoundaryFootprintFragment {
+            origin: BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+            evidence: omega_calling_conventions::compose_state_footprints([
+                &enter_footprint,
+                &return_footprint,
+            ]),
+        });
+    semantics
+        .boundaries
+        .footprints
+        .fragments
+        .push(BoundaryFootprintFragment {
+            origin: BoundaryFootprintFragmentOrigin::DispatchScaffold,
+            evidence: omega_calling_conventions::StateFootprintEvidence::new(
+                omega_isa_x86_64::dispatch_loop_enter_register_writes(),
+                omega_calling_conventions::MachineStateSet::empty(),
+            ),
+        });
+    semantics
+        .boundaries
+        .footprints
+        .fragments
+        .push(BoundaryFootprintFragment {
+            origin: BoundaryFootprintFragmentOrigin::StaticGuardComparison,
+            evidence: omega_calling_conventions::StateFootprintEvidence::new(
+                omega_isa_x86_64::dispatch_guard_compare_static_register_writes(false),
+                omega_isa_x86_64::dispatch_guard_compare_static_additional_machine_state(),
+            ),
+        });
+
+    let evidence = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &final_bytes,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect("retained function rows should enumerate exact final boundaries");
+    assert_eq!(evidence.function_count, 1);
+    assert_eq!(evidence.instruction_count, 5);
+    assert_eq!(evidence.zero_width_instruction_count, 1);
+    assert_eq!(evidence.checked_assembly_instruction_count, 0);
+    assert_eq!(evidence.fixed_mechanics_instruction_count, 2);
+    assert_ne!(evidence.fixed_mechanics_footprint_fingerprint, 0);
+    assert_eq!(evidence.body_specification_instruction_count, 2);
+    assert_ne!(evidence.body_specification_footprint_fingerprint, 0);
+    assert_eq!(
+        evidence.composed_footprint_fingerprint,
+        semantics
+            .boundaries
+            .footprints
+            .composed_evidence()
+            .evidence_fingerprint()
+    );
+
+    let mut unclassified = plan.code.clone();
+    unclassified
+        .instructions
+        .get_mut(dispatch_row)
+        .compiler_validation_kind = None;
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &unclassified,
+        &final_bytes,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("a byte-bearing row without validation authority must reject");
+    assert!(diagnostic.message.contains("exactly one"));
+
+    let mut conflicting = plan.code.clone();
+    conflicting
+        .instructions
+        .get_mut(dispatch_row)
+        .checked_validation_kind = Some(CheckedInstructionValidationKind::FullFence);
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &conflicting,
+        &final_bytes,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("a row with two validation authorities must reject");
+    assert!(diagnostic.message.contains("exactly one"));
+
+    let mut mismatched_mechanics = semantics.clone();
+    mismatched_mechanics
+        .boundaries
+        .footprints
+        .fragments
+        .retain(|fragment| fragment.origin != BoundaryFootprintFragmentOrigin::CallReturnMechanics);
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &final_bytes,
+        &object,
+        &relocations,
+        &mismatched_mechanics,
+    )
+    .expect_err("final call-return footprint without its StatePlan fragment must reject");
+    assert!(diagnostic.message.contains("CallReturnMechanics"));
+
+    let mut mismatched_semantics = semantics.clone();
+    mismatched_semantics
+        .boundaries
+        .footprints
+        .fragments
+        .retain(|fragment| {
+            fragment.origin != BoundaryFootprintFragmentOrigin::StaticGuardComparison
+        });
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &final_bytes,
+        &object,
+        &relocations,
+        &mismatched_semantics,
+    )
+    .expect_err("final guard footprint without its StatePlan fragment must reject");
+    assert!(diagnostic.message.contains("StatePlan-validated"));
+
+    let missing_relocations = RelocationPlan::with_target(target);
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &final_bytes,
+        &object,
+        &missing_relocations,
+        &semantics,
+    )
+    .expect_err("a static guard without its retained relocation must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("storage-address relocation shape")
+    );
+
+    let mut mutated = final_bytes.clone();
+    mutated[guard_byte_offset] ^= 0xff;
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &mutated,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("a static guard opcode mutation must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("fixed target instruction specification")
+    );
+
+    let mut mutated = final_bytes.clone();
+    mutated[0] ^= 0xff;
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &mutated,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("mutated fixed mechanics must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("fixed target instruction specification")
+    );
+
+    let mut mutated = final_bytes.clone();
+    mutated[enter.len()] ^= 0xff;
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &mutated,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("mutated dispatch specification bytes must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("fixed target instruction specification")
+    );
+
+    plan.code.functions.get_mut(function).instructions = HandleSpan::from_parts(first, 4);
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &final_bytes,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("a function without its retained return row must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("entry and return validation rows")
+    );
+}

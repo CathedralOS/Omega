@@ -813,7 +813,10 @@ Remaining:
   (68) in separate responsibilities. Public validation types remain
   re-exported from the crate boundary.
   Final-image validation has begun the same responsibility split: its parent is
-  down from 22,945 to 3,718 lines. A dedicated 2,872-line module owns
+  down from 22,945 to 712 lines. Its regression corpus is a 25-line root over
+  separate 701-line final-validation, 1,197-line place-replay, and 1,037-line
+  guard/assembly families instead of a second responsibility embedded in
+  production. A dedicated 2,872-line module owns
   target-specific import, syscall, indirect-call, and runtime-text replay plus
   exact operand/storage relocation-site derivation; a 2,657-line module owns
   compiler atomic/instruction footprint derivation, body/fixed-mechanics
