@@ -28,7 +28,7 @@
         ((LCons second tail) (+ 2 (rows_len tail)))))))
 
 (def decl_id ((decl Decl)) Int (match decl ((Decl id ty) id)))
-(def decl_ty ((decl Decl)) Int (match decl ((Decl id ty) ty)))
+(def decl_ty ((decl Decl)) TerminalScalarType (match decl ((Decl id ty) ty)))
 
 (def decls_ids ((decls Decls)) Ints
   (match decls
@@ -44,12 +44,12 @@
     ((DCons declaration rest)
       (if (eq (decl_id declaration) id) 1 (decls_has_id rest id)))))
 
-(def decls_has_exact ((decls Decls) (id Int) (ty Int)) Int
+(def decls_has_exact ((decls Decls) (id Int) (ty TerminalScalarType)) Int
   (match decls
     (DNil 0)
     ((DCons declaration rest)
       (if (eq (decl_id declaration) id)
-        (if (eq (decl_ty declaration) ty)
+        (if (terminal_scalar_type_equal (decl_ty declaration) ty)
           (if (decls_has_id rest id) 0 1)
           0)
         (decls_has_exact rest id ty)))))
@@ -74,7 +74,9 @@
 (def decls_all_i8 ((decls Decls)) Int
   (match decls
     (DNil 1)
-    ((DCons h t) (if (eq (decl_ty h) 2) (decls_all_i8 t) 0))))
+    ((DCons h t)
+      (if (terminal_scalar_type_equal (decl_ty h) (spike_i8_type))
+        (decls_all_i8 t) 0))))
 
 (def machine_id ((machine Machine)) Int
   (match machine ((Machine id parameters result entry blocks contract) id)))
@@ -101,7 +103,7 @@
 
 (def machine_at ((machines Machines) (index Int)) Machine
   (match machines
-    (MNil (Machine 0 DNil (Decl 0 0) 0 BLNil (Contract 0 PNil)))
+    (MNil (Machine 0 DNil (Decl 0 (spike_boolean_type)) 0 BLNil (Contract 0 PNil)))
     ((MCons h t) (if (eq index 0) h (machine_at t (- index 1))))))
 
 (def first_decl_id ((decls Decls)) Int
@@ -113,12 +115,13 @@
     (z 0)))
 
 (def first_decl ((decls Decls)) Decl
-  (match decls ((DCons h t) h) (z (Decl 0 0))))
+  (match decls ((DCons h t) h) (z (Decl 0 (spike_boolean_type)))))
 
 (def second_decl ((decls Decls)) Decl
   (match decls
-    ((DCons h t) (match t ((DCons s rest) s) (z (Decl 0 0))))
-    (z (Decl 0 0))))
+    ((DCons h t)
+      (match t ((DCons s rest) s) (z (Decl 0 (spike_boolean_type)))))
+    (z (Decl 0 (spike_boolean_type)))))
 
 (def first_int ((values Ints)) Int
   (match values ((ICons h t) h) (z 0)))
@@ -278,13 +281,14 @@
                   rows)
                 next))))))))
 
-(def fresh_result ((result Decl) (known Decls) (result_ty Int)) Int
+(def fresh_result
+  ((result Decl) (known Decls) (result_ty TerminalScalarType)) Int
   (if (decls_has_id known (decl_id result)) 0
-    (eq (decl_ty result) result_ty)))
+    (terminal_scalar_type_equal (decl_ty result) result_ty)))
 
 (def valid_leaf_result
   ((result Decl) (known Decls) (shape OperandShape) (left Int) (right Int)
-   (result_ty Int)) Int
+   (result_ty TerminalScalarType)) Int
   (if (fresh_result result known result_ty)
     (match shape
       (IntegerLiteralPayload
@@ -292,35 +296,42 @@
       (BooleanLiteralPayload
         (if (lt left 0) 0 (if (lt left 2) (eq right 0) 0)))
       (UnaryBooleanOperand
-        (if (eq right 0) (decls_has_exact known left 1) 0))
+        (if (eq right 0) (decls_has_exact known left (spike_boolean_type)) 0))
       (UnaryIntegerOperand
-        (if (eq right 0) (decls_has_exact known left 2) 0))
+        (if (eq right 0) (decls_has_exact known left (spike_i8_type)) 0))
       (WidenI8ToI16Operand
-        (if (eq right 0) (decls_has_exact known left 2) 0))
+        (if (eq right 0) (decls_has_exact known left (spike_i8_type)) 0))
       (CastI16ToI8Operand
-        (if (eq right 0) (decls_has_exact known left 3) 0))
+        (if (eq right 0) (decls_has_exact known left (spike_i16_type)) 0))
       (BinaryBooleanOperands
-        (if (decls_has_exact known left 1) (decls_has_exact known right 1) 0))
+        (if (decls_has_exact known left (spike_boolean_type))
+          (decls_has_exact known right (spike_boolean_type)) 0))
       (BinaryIntegerOperands
-        (if (decls_has_exact known left 2) (decls_has_exact known right 2) 0))
+        (if (decls_has_exact known left (spike_i8_type))
+          (decls_has_exact known right (spike_i8_type)) 0))
       (ShiftI8ByI16Operands
-        (if (decls_has_exact known left 2) (decls_has_exact known right 3) 0)))
+        (if (decls_has_exact known left (spike_i8_type))
+          (decls_has_exact known right (spike_i16_type)) 0)))
     0))
 
 (def typed_environment_self_test () Int
-  (let known (DCons (Decl 1 2) (DCons (Decl 2 1) DNil))
-    (if (decls_unique known)
-      (if (decls_has_exact known 1 2)
-        (if (eq (decls_has_exact known 1 1) 0)
-          (if (decls_has_exact known 2 1)
-            (if (valid_leaf_result (Decl 3 2) known BinaryIntegerOperands 1 1 2)
-              (if (valid_leaf_result (Decl 3 1) known UnaryBooleanOperand 2 0 1)
-                (if (valid_leaf_result (Decl 3 2) known IntegerLiteralPayload (- 0 128) 0 2)
-                  (if (valid_leaf_result (Decl 3 1) known BooleanLiteralPayload 1 0 1)
-                    (if (eq (valid_leaf_result (Decl 3 2) known BinaryIntegerOperands 1 2 2) 0)
-                      (if (eq (valid_leaf_result (Decl 1 2) known BinaryIntegerOperands 1 1 2) 0)
-                        (if (eq (valid_leaf_result (Decl 3 1) known BooleanLiteralPayload 2 0 1) 0)
-                          (eq (decls_unique (DCons (Decl 1 2) known)) 0)
+  (let boolean (spike_boolean_type)
+    (let i8 (spike_i8_type)
+      (let known (DCons (Decl 1 i8) (DCons (Decl 2 boolean) DNil))
+        (if (decls_unique known)
+          (if (decls_has_exact known 1 i8)
+            (if (eq (decls_has_exact known 1 boolean) 0)
+              (if (decls_has_exact known 2 boolean)
+                (if (valid_leaf_result (Decl 3 i8) known BinaryIntegerOperands 1 1 i8)
+                  (if (valid_leaf_result (Decl 3 boolean) known UnaryBooleanOperand 2 0 boolean)
+                    (if (valid_leaf_result (Decl 3 i8) known IntegerLiteralPayload (- 0 128) 0 i8)
+                      (if (valid_leaf_result (Decl 3 boolean) known BooleanLiteralPayload 1 0 boolean)
+                        (if (eq (valid_leaf_result (Decl 3 i8) known BinaryIntegerOperands 1 2 i8) 0)
+                          (if (eq (valid_leaf_result (Decl 1 i8) known BinaryIntegerOperands 1 1 i8) 0)
+                            (if (eq (valid_leaf_result (Decl 3 boolean) known BooleanLiteralPayload 2 0 boolean) 0)
+                              (eq (decls_unique (DCons (Decl 1 i8) known)) 0)
+                              0)
+                            0)
                           0)
                         0)
                       0)
@@ -329,19 +340,33 @@
                 0)
               0)
             0)
-          0)
-        0)
-      0)))
+          0)))))
 
 (def conversion_typed_environment_self_test () Int
-  (let known (DCons (Decl 1 2) (DCons (Decl 4 3) DNil))
-    (if (valid_leaf_result (Decl 3 3) known WidenI8ToI16Operand 1 0 3)
-      (if (valid_leaf_result (Decl 3 2) known CastI16ToI8Operand 4 0 2)
-        (if (valid_leaf_result (Decl 3 2) known ShiftI8ByI16Operands 1 4 2)
-          (eq (valid_leaf_result (Decl 3 2) known ShiftI8ByI16Operands 1 1 2) 0)
-          0)
-        0)
-      0)))
+  (let i8 (spike_i8_type)
+    (let i16 (spike_i16_type)
+      (let known (DCons (Decl 1 i8) (DCons (Decl 4 i16) DNil))
+        (if (valid_leaf_result (Decl 3 i16) known WidenI8ToI16Operand 1 0 i16)
+          (if (valid_leaf_result (Decl 3 i8) known CastI16ToI8Operand 4 0 i8)
+            (if (valid_leaf_result (Decl 3 i8) known ShiftI8ByI16Operands 1 4 i8)
+              (eq (valid_leaf_result (Decl 3 i8) known ShiftI8ByI16Operands 1 1 i8) 0)
+              0)
+            0)
+          0)))))
+
+(def full_scalar_type_environment_self_test () Int
+  (let unsigned128 (TerminalInteger (TerminalFixedUnsigned 128))
+    (let address64 (TerminalInteger (TerminalAddress 64))
+      (let known (DCons (Decl 8 unsigned128) (DCons (Decl 9 address64) DNil))
+        (if (decls_has_exact known 8 unsigned128)
+          (if (decls_has_exact known 9 address64)
+            (if (eq (decls_has_exact known 8 address64) 0)
+              (if (eq (spike_scalar_type_supported unsigned128) 0)
+                (eq (spike_scalar_type_supported address64) 0)
+                0)
+              0)
+            0)
+          0)))))
 
 (def build_call_exact
   ((operation Int) (result Decl) (known Decls) (rank Int) (target Int)
@@ -349,7 +374,7 @@
    (requires Props) (obligations Ints)) Build
   (if (if (decls_has_id known (decl_id result)) 0
         (if (eq target callee_id)
-          (if (eq (decl_ty result) (decl_ty callee_result))
+          (if (terminal_scalar_type_equal (decl_ty result) (decl_ty callee_result))
             (if (decls_has_exact known a0 (decl_ty p0))
               (decls_has_exact known a1 (decl_ty p1)) 0) 0) 0))
     (match (emit_requirements requires obligations
@@ -359,17 +384,19 @@
     BuildBad))
 
 (def call_typed_environment_self_test () Int
-  (let known (DCons (Decl 1 2) (DCons (Decl 2 1) DNil))
-    (match (build_call_exact 99 (Decl 3 2) known 1 7
-             7 (Decl 4 2) (Decl 5 2) (Decl 6 1) 1 2 PNil INil)
-      (BuildBad 0)
-      ((Built rows next final_known)
-        (if (decls_has_exact final_known 3 2)
-          (match (build_call_exact 99 (Decl 3 2) known 1 7
-                   7 (Decl 4 2) (Decl 5 2) (Decl 6 2) 1 2 PNil INil)
-            (BuildBad 1)
-            (z 0))
-          0)))))
+  (let boolean (spike_boolean_type)
+    (let i8 (spike_i8_type)
+      (let known (DCons (Decl 1 i8) (DCons (Decl 2 boolean) DNil))
+        (match (build_call_exact 99 (Decl 3 i8) known 1 7
+                 7 (Decl 4 i8) (Decl 5 i8) (Decl 6 boolean) 1 2 PNil INil)
+          (BuildBad 0)
+          ((Built rows next final_known)
+            (if (decls_has_exact final_known 3 i8)
+              (match (build_call_exact 99 (Decl 3 i8) known 1 7
+                       7 (Decl 4 i8) (Decl 5 i8) (Decl 6 i8) 1 2 PNil INil)
+                (BuildBad 1)
+                (z 0))
+              0)))))))
 
 (def build_call
   ((operation Int) (result Decl) (known Decls) (callee Machine) (rank Int)
@@ -906,12 +933,14 @@
         (if (eq (decls_len callee_parameters) 2)
           (if (decls_unique caller_parameters)
             (if (decls_unique callee_parameters)
-              (if (if (decls_has_exact caller_parameters 10 2)
-                    (if (decls_has_exact caller_parameters 11 2)
-                      (decls_has_exact caller_parameters 12 3) 0) 0)
+              (if (if (decls_has_exact caller_parameters 10 (spike_i8_type))
+                    (if (decls_has_exact caller_parameters 11 (spike_i8_type))
+                      (decls_has_exact caller_parameters 12 (spike_i16_type)) 0) 0)
                 (if (decls_all_i8 callee_parameters)
-                  (if (eq (decl_ty (machine_result caller)) 2)
-                    (if (eq (decl_ty (machine_result callee)) 2)
+                  (if (terminal_scalar_type_equal
+                        (decl_ty (machine_result caller)) (spike_i8_type))
+                    (if (terminal_scalar_type_equal
+                          (decl_ty (machine_result callee)) (spike_i8_type))
                       (if (decls_has_id caller_parameters (decl_id (machine_result caller))) 0
                         (if (decls_has_id callee_parameters (decl_id (machine_result callee))) 0
                           (empty_props (machine_requires caller))))
@@ -1077,14 +1106,16 @@
   (if (arithmetic_self_test)
     (if (typed_environment_self_test)
       (if (conversion_typed_environment_self_test)
-        (if (call_typed_environment_self_test)
-          (if (call_composition_self_test)
-            (match (decode_module bytes)
-              (RModuleBad 0)
-              ((RModule module)
-                (match (build_module_ledger_with_tables schemas call_schemas module)
-                  (RLedgerBad 0)
-                  ((RLedger rows) 1))))
+        (if (full_scalar_type_environment_self_test)
+          (if (call_typed_environment_self_test)
+            (if (call_composition_self_test)
+              (match (decode_module bytes)
+                (RModuleBad 0)
+                ((RModule module)
+                  (match (build_module_ledger_with_tables schemas call_schemas module)
+                    (RLedgerBad 0)
+                    ((RLedger rows) 1))))
+              0)
             0)
           0)
         0)

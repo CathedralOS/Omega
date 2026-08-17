@@ -40,6 +40,7 @@ cat canonical-bytes/types.gamma \
     terminal-codec-primitives/scalar_types.gamma \
     terminal-codec-primitives/integer_values.gamma \
     terminal-codec-primitives/utf8.gamma \
+    terminal-ledger-spike/scalar_types.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/schema.gamma \
     terminal-ledger-spike/call_composition.gamma \

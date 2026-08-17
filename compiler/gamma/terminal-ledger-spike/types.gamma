@@ -7,7 +7,7 @@
 ; operation row, premise scope, invalidation, and justification edge visible.
 
 (data Ints (INil) (ICons Int Ints))
-(data Decl (Decl Int Int))                       ; id, scalar type: Bool=1, i8=2, i16=3
+(data Decl (Decl Int TerminalScalarType))        ; bounded ID, exact decoded scalar type
 (data Decls (DNil) (DCons Decl Decls))
 
 (data Expr
@@ -370,7 +370,9 @@
 (data CCDomains (CCDNil) (CCDCons CCDomain CCDomains))
 (data CCRequirement (CCRequirement Int Int))     ; argument index, domain
 (data CCRequirements (CCRNil) (CCRCons CCRequirement CCRequirements))
-(data CCBoundaryResult (CCBoundaryUnit) (CCBoundaryScalar Int))
+(data CCBoundaryResult
+  (CCBoundaryUnit)
+  (CCBoundaryScalar TerminalScalarType))
 (data CCBoundary
   (CCBoundary Int Ints Int SEParameters CCBoundaryResult CCRequirements Ints))
 (data CCBoundaries (CCBNil) (CCBCons CCBoundary CCBoundaries))

@@ -123,7 +123,12 @@ duplicate, and weakened-frontier structural rows reject. Missing, duplicate,
 and altered call rows reject, and all eight dynamic call-custody checks remain
 independently mandatory.
 
-The generator carries exact typed declarations for every known value. Leaf
+The generator carries exact `TerminalScalarType` declarations for every known
+value, including unsupported full-width signed, unsigned, and address types;
+the bounded operation rows reject types outside their explicit Boolean/i8/i16
+policy without collapsing the declaration. The three supported constructors and
+that bounded-policy predicate live in `scalar_types.gamma`; shared type equality
+remains in the terminal-codec layer. Leaf
 operands, call arguments, block parameters, and newly introduced results are
 checked against that environment; duplicate identities and type drift reject
 before any row is published. Boolean-producing leaves publish ordinary result
@@ -145,12 +150,12 @@ these are feasibility observations, not performance promises:
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
 | Canonical Unit/boundary call fixture bytes | 697 |
-| Assembled typed Gamma core | 4,844 lines / 192,885 bytes |
+| Assembled typed Gamma core | 4,928 lines / 196,822 bytes |
 | Shared canonical-byte layer | 97 lines / 3,389 bytes / 13 functions |
-| Shared terminal-codec primitive layer | 267 lines / 11,125 bytes / 16 functions |
-| Spike-specific typed core | 4,480 lines / 178,371 bytes / 383 functions |
+| Shared terminal-codec primitive layer | 297 lines / 12,277 bytes / 18 functions |
+| Spike-specific typed core | 4,534 lines / 181,156 bytes / 390 functions |
 | Closed data declarations | 181 |
-| Typed functions, assembled | 412 |
+| Typed functions, assembled | 419 |
 | Maximum source nesting | 25 |
 | Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
 | Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
@@ -192,8 +197,9 @@ decoding are also shared; required identities have exact equality and canonical
 unsigned order, and the fixture's zero-high-half limit is applied only by its
 explicit consumer adapter. The complete Boolean/fixed-signed/fixed-unsigned/address
 scalar-type grammar and exact signed/unsigned 128-bit integer-value payloads are
-shared as well; the fixture's Boolean/i8/i16 type subset and canonical signed-i8
-sign-extension rule are separate adapters. Exact fixtures reject format,
+shared as well; declarations and boundary results retain that complete scalar
+type, while the fixture's Boolean/i8/i16 operation subset and canonical
+signed-i8 sign-extension rule are separate adapters. Exact fixtures reject format,
 vocabulary, type-width, integer tag/sign-extension, and malformed-UTF-8 drift.
 Both layers have independent typed/interpreter gates. The bounded spike
 explicitly narrows identities to a zero high half only after the byte layer has
@@ -202,8 +208,8 @@ mechanical repetition:
 Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
 adds 1,128 lines and 42,263 bytes to the assembled core, while canonical
-Unit/boundary decoding and evaluation bring the full bounded assembly to 4,844
-lines and 192,885 bytes. The code remains bounded, typechecked, separated into
+Unit/boundary decoding and evaluation bring the full bounded assembly to 4,928
+lines and 196,822 bytes. The code remains bounded, typechecked, separated into
 decoder versus schema/evaluator modules, and at nesting depth 25. All three call
 variants still traverse one axis checker rather than adding call-kind evaluator
 branches. That is an engineering and audit cost, not an actual

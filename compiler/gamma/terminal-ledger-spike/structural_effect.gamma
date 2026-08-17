@@ -155,7 +155,8 @@
 (def se_entry_result_place_shape ((result SEResult) (places SEPlaces)) Int
   (match result
     ((SEScalarResult declaration)
-      (if (decls_has_exact (DCons declaration DNil) 11 1)
+      (if (decls_has_exact
+            (DCons declaration DNil) 11 (spike_boolean_type))
         (match places
           ((SEPlCons place rest)
             (match rest
@@ -177,7 +178,7 @@
       entry blocks contract)
       (if (if (eq id 1) (eq attachment 0) 0)
         (if (if (eq (decls_len parameters) 1)
-              (decls_has_exact parameters 10 1) 0)
+              (decls_has_exact parameters 10 (spike_boolean_type)) 0)
           (if (se_entry_parameter_shape structural_parameters)
             (if (se_entry_result_place_shape result places)
               (if (if (eq (ints_len services) 1) (ints_has services 1) 0)
@@ -243,7 +244,8 @@
 (def se_boolean_field_result_valid ((result SEResult)) Int
   (match result
     ((SEScalarResult declaration)
-      (decls_has_exact (DCons declaration DNil) 12 1))
+      (decls_has_exact
+        (DCons declaration DNil) 12 (spike_boolean_type)))
     (z 0)))
 
 (def se_boolean_field_operation_valid ((operation SEOp)) Int

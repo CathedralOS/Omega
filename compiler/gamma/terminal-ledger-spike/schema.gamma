@@ -220,8 +220,11 @@
     ((KLess left right) (LeafView LLess left right 0))
     ((KCall target arguments obligations) NotLeaf)))
 
-(def result_shape_type ((shape ResultShape)) Int
-  (match shape (ResultI8 2) (ResultI16 3) (ResultBool 1)))
+(def result_shape_type ((shape ResultShape)) TerminalScalarType
+  (match shape
+    (ResultI8 (spike_i8_type))
+    (ResultI16 (spike_i16_type))
+    (ResultBool (spike_boolean_type))))
 
 (def denotation_expression ((denotation Denotation) (left Int) (right Int)) Expr
   (match denotation

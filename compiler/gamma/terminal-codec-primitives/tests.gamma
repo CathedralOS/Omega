@@ -192,36 +192,6 @@
       0)
     0))
 
-(def terminal_integer_type_equal
-  ((left TerminalIntegerType) (right TerminalIntegerType)) Int
-  (match left
-    ((TerminalFixedSigned left_bits)
-      (match right
-        ((TerminalFixedSigned right_bits) (eq left_bits right_bits))
-        ((TerminalFixedUnsigned right_bits) 0)
-        ((TerminalAddress right_bits) 0)))
-    ((TerminalFixedUnsigned left_bits)
-      (match right
-        ((TerminalFixedSigned right_bits) 0)
-        ((TerminalFixedUnsigned right_bits) (eq left_bits right_bits))
-        ((TerminalAddress right_bits) 0)))
-    ((TerminalAddress left_bits)
-      (match right
-        ((TerminalFixedSigned right_bits) 0)
-        ((TerminalFixedUnsigned right_bits) 0)
-        ((TerminalAddress right_bits) (eq left_bits right_bits))))))
-
-(def terminal_scalar_type_equal
-  ((left TerminalScalarType) (right TerminalScalarType)) Int
-  (match left
-    (TerminalBoolean
-      (match right (TerminalBoolean 1) ((TerminalInteger integer) 0)))
-    ((TerminalInteger left_integer)
-      (match right
-        (TerminalBoolean 0)
-        ((TerminalInteger right_integer)
-          (terminal_integer_type_equal left_integer right_integer))))))
-
 (def rterminal_scalar_type_exact_one
   ((result RTerminalScalarType) (want TerminalScalarType) (tail Int)) Int
   (match result

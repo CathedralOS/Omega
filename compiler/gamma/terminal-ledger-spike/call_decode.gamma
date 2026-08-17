@@ -62,9 +62,9 @@
     ((RInt tag rest)
       (if (eq tag 0) (RSEResult SEUnitResult rest)
         (if (eq tag 1)
-          (match (read_scalar_type rest)
-            (RIntBad RSEResultBad)
-            ((RInt scalar_type end)
+          (match (read_terminal_scalar_type rest)
+            (RTerminalScalarTypeBad RSEResultBad)
+            ((RTerminalScalarType scalar_type end)
               (RSEResult (SEScalarResult (Decl 1 scalar_type)) end)))
           RSEResultBad)))))
 
