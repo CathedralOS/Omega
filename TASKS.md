@@ -828,9 +828,10 @@ Remaining:
   1,598-line module owns exact compiler relocation sets, symbol custody, and
   unchanged instruction-bit validation. Compiler atomic-operation replay and
   recursive runtime-operand storage-site derivation now form a separate
-  752-line responsibility. The closed place-copy shape vocabulary and its
-  exact classifier plus indexed/pointee offset decomposition form a separate
-  2,161-line responsibility. Place-pair and place-copy shapes map to exact
+  752-line responsibility. The closed place-copy shape vocabulary and exact
+  classifier form a 1,218-line responsibility; indexed and pointee offset
+  decomposition is a separate 946-line responsibility. Place-pair and
+  place-copy shapes map to exact
   architecture-specific relocation sites in a separate 505-line module. The
   closed place-write shape vocabulary and its exact classifier family form a
   separate 304-line responsibility. Retained place-write encoding plus exact

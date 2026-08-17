@@ -13,6 +13,7 @@ mod atomic_replay;
 mod footprints;
 mod instruction_relocations;
 mod instruction_specs;
+mod place_copy_offsets;
 mod place_copy_shapes;
 mod place_copy_sites;
 mod place_write_shapes;
@@ -34,11 +35,11 @@ use instruction_relocations::{
     validate_compiler_instruction_relocation_recipe,
 };
 use instruction_specs::expected_compiler_instruction_spec;
-use place_copy_shapes::{
-    CompilerBodyPlaceCopyShape, compiler_body_place_copy_shape,
+use place_copy_offsets::{
     compiler_double_indexed_place_offsets, compiler_exit_indirect_result_copy_offsets,
     compiler_single_direct_indexed_place_offsets, compiler_single_indexed_place_offsets,
 };
+use place_copy_shapes::{CompilerBodyPlaceCopyShape, compiler_body_place_copy_shape};
 use place_copy_sites::{compiler_place_copy_address_sites, compiler_place_pair_address_sites};
 use place_write_shapes::{
     CompilerBodyPlaceIntegerWriteShape, compiler_body_place_address_write_shape,

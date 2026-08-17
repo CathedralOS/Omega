@@ -125,7 +125,8 @@ Must not own:
   compiler atomic, place-copy, place-write, and storage-result instruction
   specifications.
 - `omega-image-emission/src/checked/place_copy_shapes.rs` owns the closed
-  compiler place-copy shape vocabulary, its exact classifier, and indexed or
+  compiler place-copy shape vocabulary and its exact classifier.
+- `omega-image-emission/src/checked/place_copy_offsets.rs` owns indexed and
   pointee offset decomposition shared by copy and write replay.
 - `omega-image-emission/src/checked/place_copy_sites.rs` maps retained
   place-pair and place-copy shapes to exact architecture-specific relocation
