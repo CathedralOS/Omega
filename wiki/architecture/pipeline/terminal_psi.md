@@ -1520,8 +1520,10 @@ causing rejection; agreement with the low result grants them no authority.
 
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely
-because it invokes them. Shared Boolean/integer convergence is isolated as one
-producer module with its own focused test module; its exact binary and cast
+because it invokes them. Shared Boolean/integer convergence has a small
+orchestration module over separate cast-chain, affine, product/divisor, and
+shift/cross-family producer modules; its focused tests likewise separate chain,
+affine-join, and nominal-cleanup responsibilities. Exact binary and cast
 families are ordered declarative classifier registries consumed by one generic
 dispatch path. Additional sufficient-form families should follow that shape:
 one closed responsibility per module, explicit precedence at the registry, and
