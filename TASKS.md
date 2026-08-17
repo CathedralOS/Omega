@@ -795,11 +795,12 @@ Remaining:
   projection (146), contract proposition scope (120), and call-graph acyclicity
   (68) in separate responsibilities. Public validation types remain
   re-exported from the crate boundary.
-  Final-image validation has begun the same responsibility split: the first
-  checked-assembly extraction reduces its 22,945-line parent to 21,405 lines,
-  while a dedicated 1,547-line module owns assembly footprints, operand-loader
-  semantics, exact instruction bytes, and retained relocation checks behind two
-  parent entry points.
+  Final-image validation has begun the same responsibility split: its parent is
+  down from 22,945 to 18,547 lines. A dedicated 2,872-line module owns
+  target-specific import, syscall, indirect-call, and runtime-text replay plus
+  exact operand/storage relocation-site derivation; a separate 1,547-line
+  module owns assembly footprints, operand-loader semantics, exact instruction
+  bytes, and retained relocation checks behind two parent entry points.
   These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no

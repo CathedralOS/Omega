@@ -89,6 +89,9 @@ Must not own:
 - `omega-image-emission/src/checked/assembly.rs` owns checked-assembly
   footprints, operand-loader semantics, exact instruction bytes, and their
   retained relocation checks.
+- `omega-image-emission/src/checked/runtime_imports.rs` owns target-specific
+  import, syscall, indirect-call, and runtime-text replay plus exact operand and
+  storage relocation-site derivation.
 - `omega-image-elf/src/lib.rs` owns ELF emission orchestration; ELF constants, byte writing, section/address planning, entry-symbol lookup, layout helpers, and header/program-header writing live in focused sibling modules.
 - `omega-image-pe/src/lib.rs` owns PE emission orchestration; PE constants, byte writing, section/RVA planning, imports, entry-symbol lookup, and headers live in focused sibling modules.
 - `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; image command/section/linkedit planning, import thunks, bind info, AArch64 thunk patching, and entry-symbol lookup live in focused sibling modules.
