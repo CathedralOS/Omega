@@ -709,9 +709,17 @@ Remaining:
   weakened-frontier, signature, state-version, move/reborrow, coverage,
   substitution, outcome, crash, evidence-lifetime, raw identity, target,
   argument, transfer, receipt, truncation, and trailing-byte drift reject. The
-  full low generator, row proofs, and composition bridges remain open; no
-  trust-graph node becomes
-  derived from the spike.
+  first Rust producer-modularity checkpoint is also complete. Structural Unit
+  planning no longer owns the shared Boolean/integer convergence classifier
+  body: that sufficient-form family and its forty focused tests live in
+  dedicated `shared_convergence` modules. The six exact binary families and
+  exact-cast family select their existing ordered recognizers through seven
+  declarative registries and one generic dispatch path rather than repeated
+  `or_else` permutations. The production parent shrank from 10,926 to 5,626
+  lines, the extracted producer is 4,769 lines, and the test parent shrank from
+  10,785 to 2,915 lines. This is a semantics-preserving responsibility split,
+  not a trust promotion: the full low generator, row proofs, and composition
+  bridges remain open, and no trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
