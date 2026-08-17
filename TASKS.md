@@ -745,7 +745,10 @@ Remaining:
   structural-result transfer are separate 393-line and 314-line modules over a
   shared 246-line structural-type retention responsibility. Scalar-graph
   terminal-module assembly is now a separate 1,061-line responsibility behind
-  one parent-facing builder. The crate root is now 11,396 lines. These
+  one parent-facing builder. Content conservation, identity reshuffling, and
+  partition composition now form one 788-line lowering module with only three
+  public APIs and two explicit internal contracts. The crate root is now
+  10,617 lines. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.

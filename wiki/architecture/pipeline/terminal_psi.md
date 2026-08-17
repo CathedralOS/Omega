@@ -1543,8 +1543,10 @@ type/domain/service publication, and parameter-transfer modules. General
 structural-result transfer and result-bearing boundary custody have distinct
 modules over one shared structural-type retention responsibility. Scalar-graph
 terminal-module assembly is likewise isolated behind one parent-facing builder
-and shares none of those paths. Additional sufficient-form families should
-follow that shape: one closed responsibility per module, explicit
+and shares none of those paths. Content conservation, identity reshuffling, and
+partition composition likewise share one lowering module whose three public
+APIs retain their existing crate-root contract. Additional sufficient-form
+families should follow that shape: one closed responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
 against the unchanged canonical ledger. This refactoring rule does not make the
 current Rust producer or its registries trusted.
