@@ -14,15 +14,29 @@ use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use crate::{ModuleError, ValidatedTerminalModule, validate_module};
 
 mod affine_joins;
+mod integer_divide_remainder;
 
 #[cfg(test)]
-use affine_joins::exact_integer_affine_quadratic_range;
+use integer_divide_remainder::{
+    exact_integer_divide_obligation, exact_integer_remainder_obligation,
+};
+use integer_divide_remainder::{
+    exact_integer_divide_obligation_with_definitions,
+    exact_integer_remainder_obligation_with_definitions, is_maximum_divide, is_minimum_divide,
+    saturating_integer_divide_obligation, saturating_integer_remainder_obligation,
+    wrapping_integer_divide_obligation, wrapping_integer_remainder_obligation,
+};
+
 use affine_joins::{
     exact_integer_affine_fork_join_obligation,
     exact_integer_distinct_root_affine_fork_join_obligation,
     exact_integer_distinct_root_affine_product_join_obligation,
-    exact_integer_same_root_affine_divide_remainder_join_obligation,
     exact_integer_same_root_affine_product_join_obligation,
+};
+#[cfg(test)]
+use affine_joins::{
+    exact_integer_affine_quadratic_range,
+    exact_integer_same_root_affine_divide_remainder_join_obligation,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9801,329 +9815,6 @@ fn exact_integer_cumulative_multiply_obligation(
             ])
         }
     }
-}
-
-fn is_maximum_divide(
-    integer_type: psi_core::IntegerType,
-    term: &ScalarTerm,
-    divisor: &ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> bool {
-    let definition = semantic_axioms
-        .iter()
-        .rev()
-        .find_map(|axiom| match axiom {
-            Proposition::Equal(left, right) if left == term => Some(right),
-            Proposition::Equal(left, right) if right == term => Some(left),
-            _ => None,
-        })
-        .unwrap_or(term);
-    let ScalarTerm::ExactIntegerDivide {
-        scalar_type,
-        left,
-        right,
-    } = definition
-    else {
-        return false;
-    };
-    *scalar_type == integer_type
-        && right.as_ref() == divisor
-        && known_integer_term_value(integer_type, left, semantic_axioms)
-            == Some(integer_type.maximum_value())
-}
-
-fn is_minimum_divide(
-    integer_type: psi_core::IntegerType,
-    term: &ScalarTerm,
-    divisor: &ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> bool {
-    let definition = semantic_axioms
-        .iter()
-        .rev()
-        .find_map(|axiom| match axiom {
-            Proposition::Equal(left, right) if left == term => Some(right),
-            Proposition::Equal(left, right) if right == term => Some(left),
-            _ => None,
-        })
-        .unwrap_or(term);
-    let ScalarTerm::ExactIntegerDivide {
-        scalar_type,
-        left,
-        right,
-    } = definition
-    else {
-        return false;
-    };
-    *scalar_type == integer_type
-        && right.as_ref() == divisor
-        && known_integer_term_value(integer_type, left, semantic_axioms)
-            == Some(integer_type.minimum_value())
-}
-
-fn exact_integer_divide_obligation_with_definitions(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-    definition_axiom_count: usize,
-    machine_parameter_values: &BTreeSet<ValueId>,
-) -> Proposition {
-    if known_integer_term_value(integer_type, &left, semantic_axioms).is_none()
-        && known_integer_term_value(integer_type, &right, semantic_axioms).is_none()
-        && let Some(obligation) = exact_integer_same_root_affine_divide_remainder_join_obligation(
-            integer_type,
-            left.clone(),
-            right.clone(),
-            semantic_axioms,
-            definition_axiom_count,
-            machine_parameter_values,
-        )
-    {
-        return obligation;
-    }
-    exact_integer_divide_obligation(integer_type, left, right, semantic_axioms)
-}
-
-fn exact_integer_divide_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
-    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
-    if let (Some(left), Some(right)) = (known_left, known_right) {
-        return if integer_type.exact_div(left, right).is_some() {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        };
-    }
-    match (integer_type.sign(), known_right) {
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_))) => Proposition::Truth,
-        (IntegerSign::Signed, Some(IntegerValue::Signed(-1))) => {
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
-                unreachable!("signed type has signed minimum")
-            };
-            let boundary = ScalarTerm::integer(
-                integer_type,
-                IntegerValue::Signed(
-                    minimum
-                        .checked_add(1)
-                        .expect("fixed signed minimum is below maximum"),
-                ),
-            )
-            .expect("exact-divide negation boundary remains in the carrier");
-            Proposition::LessOrEqual(boundary, left)
-        }
-        (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, false),
-    }
-}
-
-fn exact_integer_remainder_obligation_with_definitions(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-    definition_axiom_count: usize,
-    machine_parameter_values: &BTreeSet<ValueId>,
-) -> Proposition {
-    if known_integer_term_value(integer_type, &left, semantic_axioms).is_none()
-        && known_integer_term_value(integer_type, &right, semantic_axioms).is_none()
-        && let Some(obligation) = exact_integer_same_root_affine_divide_remainder_join_obligation(
-            integer_type,
-            left.clone(),
-            right.clone(),
-            semantic_axioms,
-            definition_axiom_count,
-            machine_parameter_values,
-        )
-    {
-        return obligation;
-    }
-    exact_integer_remainder_obligation(integer_type, left, right, semantic_axioms)
-}
-
-fn exact_integer_remainder_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
-    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
-    if let (Some(left), Some(right)) = (known_left, known_right) {
-        return if integer_type.exact_rem(left, right).is_some() {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        };
-    }
-    match (integer_type.sign(), known_right) {
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_))) => Proposition::Truth,
-        (IntegerSign::Signed, Some(IntegerValue::Signed(-1))) => {
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
-                unreachable!("signed type has signed minimum")
-            };
-            let boundary = ScalarTerm::integer(
-                integer_type,
-                IntegerValue::Signed(minimum.checked_add(1).expect("minimum has a successor")),
-            )
-            .expect("exact-remainder boundary remains in the carrier");
-            Proposition::LessOrEqual(boundary, left)
-        }
-        (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, false),
-    }
-}
-
-fn wrapping_integer_divide_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
-    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
-    if let (Some(left), Some(right)) = (known_left, known_right) {
-        return if integer_type.wrapping_div(left, right).is_some() {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        };
-    }
-    match (integer_type.sign(), known_right) {
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
-    }
-}
-
-fn wrapping_integer_remainder_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
-    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
-    if let (Some(left), Some(right)) = (known_left, known_right) {
-        return if integer_type.wrapping_rem(left, right).is_some() {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        };
-    }
-    match (integer_type.sign(), known_right) {
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
-    }
-}
-
-fn saturating_integer_divide_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
-    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
-    if let (Some(left), Some(right)) = (known_left, known_right) {
-        return if integer_type.saturating_div(left, right).is_some() {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        };
-    }
-    match (integer_type.sign(), known_right) {
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
-    }
-}
-
-fn saturating_integer_remainder_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
-    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
-    if let (Some(left), Some(right)) = (known_left, known_right) {
-        return if integer_type.saturating_rem(left, right).is_some() {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        };
-    }
-    match (integer_type.sign(), known_right) {
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
-        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
-        | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
-    }
-}
-
-fn runtime_divisor_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-    negative_one_is_total: bool,
-) -> Proposition {
-    if integer_type.sign() == IntegerSign::Signed {
-        let negative_one = ScalarTerm::integer(integer_type, IntegerValue::Signed(-1))
-            .expect("every signed fixed integer carrier admits negative one");
-        let negative_one_bound = Proposition::LessOrEqual(right.clone(), negative_one);
-        if semantic_axioms.contains(&negative_one_bound) {
-            if negative_one_is_total {
-                return negative_one_bound;
-            }
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
-                unreachable!("signed fixed integer has a signed minimum")
-            };
-            if let Ok(minimum_plus_one) = ScalarTerm::integer(
-                integer_type,
-                IntegerValue::Signed(minimum.checked_add(1).expect("minimum has a successor")),
-            ) {
-                let dividend_bound = Proposition::LessOrEqual(minimum_plus_one, left);
-                if semantic_axioms.contains(&dividend_bound) {
-                    return canonical_conjunction(vec![negative_one_bound, dividend_bound]);
-                }
-            }
-        }
-    }
-    if integer_type.sign() == IntegerSign::Signed {
-        if let Ok(negative_two) = ScalarTerm::integer(integer_type, IntegerValue::Signed(-2)) {
-            let negative_bound = Proposition::LessOrEqual(right.clone(), negative_two);
-            if semantic_axioms.contains(&negative_bound) {
-                return negative_bound;
-            }
-        }
-    }
-    let one = match integer_type.sign() {
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-        IntegerSign::Signed => IntegerValue::Signed(1),
-    };
-    let Ok(boundary) = ScalarTerm::integer(integer_type, one) else {
-        return Proposition::Falsehood;
-    };
-    Proposition::LessOrEqual(boundary, right)
 }
 
 fn known_integer_term_value(
