@@ -13,6 +13,10 @@
 (data Expr
   (Val Int)
   (Lit Int)
+  (BoolLit Int)
+  (BoolNot Expr)
+  (BoolEq Expr Expr)
+  (IntEq Expr Expr)
   (Add Expr Expr)
   (Sub Expr Expr)
   (Mul Expr Expr)
@@ -28,12 +32,19 @@
   (WrapRem Expr Expr)
   (SatDiv Expr Expr)
   (SatRem Expr Expr)
-  (Less Expr Expr))
+  (Less Expr Expr)
+  (LessEq Expr Expr))
 
 (data Prop (Le Expr Expr))
 (data Props (PNil) (PCons Prop Props))
 
 (data OpKind
+  (KIntConst Int)
+  (KBoolConst Int)
+  (KBoolNot Int)
+  (KBoolEq Int Int)
+  (KIntEq Int Int)
+  (KLessEq Int Int)
   (KExactAdd Int Int Int)
   (KExactSub Int Int Int)
   (KExactMul Int Int Int)
@@ -58,6 +69,12 @@
 ; their coverage/substitution and control responsibilities are separate ledger
 ; algebra, not leaf denotation rows.
 (data LeafKind
+  (LIntConst)
+  (LBoolConst)
+  (LBoolNot)
+  (LBoolEq)
+  (LIntEq)
+  (LLessEq)
   (LExactAdd)
   (LExactSub)
   (LExactMul)
@@ -75,7 +92,19 @@
   (LSatRem)
   (LLess))
 (data ResultShape (ResultI8) (ResultBool))
+(data OperandShape
+  (IntegerLiteralPayload)
+  (BooleanLiteralPayload)
+  (UnaryBooleanOperand)
+  (BinaryBooleanOperands)
+  (BinaryIntegerOperands))
 (data Denotation
+  (DIntConst)
+  (DBoolConst)
+  (DBoolNot)
+  (DBoolEq)
+  (DIntEq)
+  (DLessEq)
   (DExactAdd)
   (DExactSub)
   (DExactMul)
@@ -93,12 +122,12 @@
   (DSatRem)
   (DLess))
 (data GoalShape (GoalNone) (GoalFitsI8) (GoalExactDiv) (GoalNonZero))
-(data FactShape (FactEquation) (FactConditional))
+(data FactShape (FactEquation))
 (data CrashShape (NeverCrashes) (CrashesUnlessGoal))
 (data FuelShape (ConsumesOneFuel))
 (data FrontierShape (KeepsLocalFrontier))
 (data LeafSchema
-  (LeafSchema LeafKind ResultShape Denotation GoalShape FactShape
+  (LeafSchema LeafKind ResultShape OperandShape Denotation GoalShape FactShape
     CrashShape FuelShape FrontierShape))
 (data LeafSchemas (LSNil) (LSCons LeafSchema LeafSchemas))
 (data LeafView (LeafView LeafKind Int Int Int) (NotLeaf))
@@ -144,7 +173,6 @@
   (SafetyExactDiv Int Int Int)
   (SafetyNonZero Int Int)
   (ResultEq Int Expr)
-  (ConditionalEq Int Int Int)
   (BranchPremise Int Int)
   (EdgeArgument Int Int Int)
   (MergeEq Int Int)

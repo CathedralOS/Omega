@@ -132,6 +132,10 @@
   (match a
     ((Val x) (match b ((Val y) (eq x y)) (z 0)))
     ((Lit x) (match b ((Lit y) (eq x y)) (z 0)))
+    ((BoolLit x) (match b ((BoolLit y) (eq x y)) (z 0)))
+    ((BoolNot x) (match b ((BoolNot y) (expr_equal x y)) (z 0)))
+    ((BoolEq x y) (match b ((BoolEq p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((IntEq x y) (match b ((IntEq p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Add x y) (match b ((Add p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Sub x y) (match b ((Sub p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Mul x y) (match b ((Mul p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
@@ -147,7 +151,8 @@
     ((WrapRem x y) (match b ((WrapRem p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((SatDiv x y) (match b ((SatDiv p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((SatRem x y) (match b ((SatRem p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
-    ((Less x y) (match b ((Less p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))))
+    ((Less x y) (match b ((Less p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((LessEq x y) (match b ((LessEq p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))))
 
 (def prop_equal ((a Prop) (b Prop)) Int
   (match a ((Le x y) (match b ((Le p q) (if (expr_equal x p) (expr_equal y q) 0))))))
@@ -156,6 +161,10 @@
   (match expr
     ((Val x) (if (eq x p0) (Val a0) (if (eq x p1) (Val a1) (Val x))))
     ((Lit x) (Lit x))
+    ((BoolLit x) (BoolLit x))
+    ((BoolNot x) (BoolNot (subst_expr x p0 a0 p1 a1)))
+    ((BoolEq x y) (BoolEq (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((IntEq x y) (IntEq (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Add x y) (Add (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Sub x y) (Sub (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Mul x y) (Mul (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
@@ -171,7 +180,8 @@
     ((WrapRem x y) (WrapRem (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((SatDiv x y) (SatDiv (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((SatRem x y) (SatRem (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
-    ((Less x y) (Less (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))))
+    ((Less x y) (Less (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((LessEq x y) (LessEq (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))))
 
 (def subst_prop ((prop Prop) (p0 Int) (a0 Int) (p1 Int) (a1 Int)) Prop
   (match prop
@@ -248,15 +258,26 @@
                   rows)
                 next))))))))
 
-(def valid_binary_result
-  ((result Decl) (known Decls) (left Int) (right Int)
-   (operand_ty Int) (result_ty Int)) Int
+(def fresh_result ((result Decl) (known Decls) (result_ty Int)) Int
   (if (decls_has_id known (decl_id result)) 0
-    (if (eq (decl_ty result) result_ty)
-      (if (decls_has_exact known left operand_ty)
-        (decls_has_exact known right operand_ty)
-        0)
-      0)))
+    (eq (decl_ty result) result_ty)))
+
+(def valid_leaf_result
+  ((result Decl) (known Decls) (shape OperandShape) (left Int) (right Int)
+   (result_ty Int)) Int
+  (if (fresh_result result known result_ty)
+    (match shape
+      (IntegerLiteralPayload
+        (if (lt left (- 0 128)) 0 (if (lt 127 left) 0 (eq right 0))))
+      (BooleanLiteralPayload
+        (if (lt left 0) 0 (if (lt left 2) (eq right 0) 0)))
+      (UnaryBooleanOperand
+        (if (eq right 0) (decls_has_exact known left 1) 0))
+      (BinaryBooleanOperands
+        (if (decls_has_exact known left 1) (decls_has_exact known right 1) 0))
+      (BinaryIntegerOperands
+        (if (decls_has_exact known left 2) (decls_has_exact known right 2) 0)))
+    0))
 
 (def typed_environment_self_test () Int
   (let known (DCons (Decl 1 2) (DCons (Decl 2 1) DNil))
@@ -264,10 +285,18 @@
       (if (decls_has_exact known 1 2)
         (if (eq (decls_has_exact known 1 1) 0)
           (if (decls_has_exact known 2 1)
-            (if (valid_binary_result (Decl 3 2) known 1 1 2 2)
-              (if (eq (valid_binary_result (Decl 3 2) known 1 2 2 2) 0)
-                (if (eq (valid_binary_result (Decl 1 2) known 1 1 2 2) 0)
-                  (eq (decls_unique (DCons (Decl 1 2) known)) 0)
+            (if (valid_leaf_result (Decl 3 2) known BinaryIntegerOperands 1 1 2)
+              (if (valid_leaf_result (Decl 3 1) known UnaryBooleanOperand 2 0 1)
+                (if (valid_leaf_result (Decl 3 2) known IntegerLiteralPayload (- 0 128) 0 2)
+                  (if (valid_leaf_result (Decl 3 1) known BooleanLiteralPayload 1 0 1)
+                    (if (eq (valid_leaf_result (Decl 3 2) known BinaryIntegerOperands 1 2 2) 0)
+                      (if (eq (valid_leaf_result (Decl 1 2) known BinaryIntegerOperands 1 1 2) 0)
+                        (if (eq (valid_leaf_result (Decl 3 1) known BooleanLiteralPayload 2 0 1) 0)
+                          (eq (decls_unique (DCons (Decl 1 2) known)) 0)
+                          0)
+                        0)
+                      0)
+                    0)
                   0)
                 0)
               0)
@@ -370,7 +399,7 @@
       (match row
         ((Row rank origin formula establishment scope prerequisites)
           (match formula
-            ((ConditionalEq result left right)
+            ((ResultEq result expression)
               (if (eq result condition) rank (find_conditional_rank rest condition)))
             (z (find_conditional_rank rest condition))))))))
 
@@ -570,8 +599,9 @@
         (if (eq result 23) (if (expr_equal expr (TzRem (Val 10) (Val 11))) 8 1000)
           (if (eq result 24) (if (expr_equal expr (WrapDiv (Val 10) (Val 11))) 16 1000)
             (if (eq result 25) (if (expr_equal expr (WrapRem (Val 10) (Val 11))) 32 1000)
-              (if (eq result 31) (if (expr_equal expr (WrapAdd (Val 30) (Val 11))) 128 1000)
-                1000))))))))
+              (if (eq result 26) (if (expr_equal expr (Less (Val 10) (Val 11))) 64 1000)
+                (if (eq result 31) (if (expr_equal expr (WrapAdd (Val 30) (Val 11))) 128 1000)
+                  1000)))))))))
 
 (def cohort_result_code ((result Int) (expr Expr)) Int
   (if (eq result 32) (if (expr_equal expr (Sub (Val 10) (Val 11))) 256 1000)
@@ -588,14 +618,22 @@
     (if (eq result 40) (if (expr_equal expr (SatRem (Val 10) (Val 11))) 65536 1000)
       1000)))
 
+(def scalar_logic_result_code ((result Int) (expr Expr)) Int
+  (if (eq result 41) (if (expr_equal expr (Lit 5)) 131072 1000)
+    (if (eq result 42) (if (expr_equal expr (BoolLit 1)) 262144 1000)
+      (if (eq result 43) (if (expr_equal expr (BoolNot (Val 42))) 524288 1000)
+        (if (eq result 44) (if (expr_equal expr (BoolEq (Val 42) (Val 43))) 1048576 1000)
+          (if (eq result 45) (if (expr_equal expr (IntEq (Val 10) (Val 41))) 2097152 1000)
+            (if (eq result 46) (if (expr_equal expr (LessEq (Val 10) (Val 41))) 4194304 1000)
+              1000)))))))
+
 (def result_code ((formula Formula)) Int
   (match formula
     ((ResultEq result expr)
       (if (lt result 32) (base_result_code result expr)
         (if (lt result 39) (cohort_result_code result expr)
-          (saturating_divisor_result_code result expr))))
-    ((ConditionalEq result left right)
-      (if (if (eq result 26) (if (eq left 10) (eq right 11) 0) 0) 64 1000))
+          (if (lt result 41) (saturating_divisor_result_code result expr)
+            (scalar_logic_result_code result expr)))))
     (z 0)))
 
 (def control_code ((formula Formula)) Int
@@ -663,11 +701,11 @@
                                 (formulas_count remaining kind)))))))))))))))))
 
 (def exact_ledger_inventory ((rows Rows)) Int
-  (if (eq (rows_len rows) 35)
+  (if (eq (rows_len rows) 41)
     (if (if (eq (formulas_count rows 0) 2) (eq (formulas_code rows 0) 3) 0)
       (if (if (eq (formulas_count rows 1) 2) (eq (formulas_code rows 1) 3) 0)
         (if (if (eq (formulas_count rows 2) 9) (eq (formulas_code rows 2) 511) 0)
-          (if (if (eq (formulas_count rows 3) 17) (eq (formulas_code rows 3) 131071) 0)
+          (if (if (eq (formulas_count rows 3) 23) (eq (formulas_code rows 3) 8388607) 0)
             (if (eq (formulas_count rows 4) 5) (eq (formulas_code rows 4) 31) 0)
             0)
           0)
@@ -678,6 +716,10 @@
 (def expression_size ((expr Expr)) Int
   (match expr
     ((Val id) 9) ((Lit value) 9)
+    ((BoolLit value) 2)
+    ((BoolNot operand) (+ 1 (expression_size operand)))
+    ((BoolEq a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((IntEq a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Add a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Sub a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Mul a b) (+ 1 (+ (expression_size a) (expression_size b))))
@@ -693,7 +735,8 @@
     ((WrapRem a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((SatDiv a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((SatRem a b) (+ 1 (+ (expression_size a) (expression_size b))))
-    ((Less a b) (+ 1 (+ (expression_size a) (expression_size b))))))
+    ((Less a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((LessEq a b) (+ 1 (+ (expression_size a) (expression_size b))))))
 
 (def prop_size ((prop Prop)) Int
   (match prop ((Le a b) (+ 1 (+ (expression_size a) (expression_size b))))))
@@ -704,7 +747,6 @@
     ((SafetyExactDiv obligation left right) 25)
     ((SafetyNonZero obligation divisor) 17)
     ((ResultEq result expr) (+ 9 (expression_size expr)))
-    ((ConditionalEq result left right) 25)
     ((BranchPremise condition truth) 17)
     ((EdgeArgument edge parameter value) 25)
     ((MergeEq parameter value) 17)
@@ -902,7 +944,16 @@
   (match (canonical_leaf_schemas)
     ((LSCons first rest)
       (LSCons
-        (LeafSchema LExactAdd ResultI8 DWrapAdd GoalNone FactEquation
+        (LeafSchema LIntConst ResultI8 UnaryBooleanOperand DIntConst GoalNone FactEquation
+          NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+        rest))
+    (LSNil LSNil)))
+
+(def schemas_with_altered_first_denotation () LeafSchemas
+  (match (canonical_leaf_schemas)
+    ((LSCons first rest)
+      (LSCons
+        (LeafSchema LIntConst ResultI8 IntegerLiteralPayload DWrapAdd GoalNone FactEquation
           NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
         rest))
     (LSNil LSNil)))
@@ -928,7 +979,9 @@
   (if (run_spike_with_schemas (canonical_leaf_schemas) bytes)
     (if (eq (run_spike_with_schemas (schemas_without_first) bytes) 0)
       (if (eq (run_spike_with_schemas (schemas_with_duplicate_first) bytes) 0)
-        (eq (run_spike_with_schemas (schemas_with_altered_first) bytes) 0)
+        (if (eq (run_spike_with_schemas (schemas_with_altered_first) bytes) 0)
+          (eq (run_spike_with_schemas (schemas_with_altered_first_denotation) bytes) 0)
+          0)
         0)
       0)
     0))

@@ -58,6 +58,8 @@ fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 0 0 > "$T/bad-magi
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 179 10 > "$T/duplicate-result.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1200 2 > "$T/invalid-boolean.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1220 41 > "$T/boolean-type-drift.expr"
 
 make_program() {
   function=$1
@@ -100,10 +102,12 @@ run_function bad-magic run_spike "$T/bad-magic.expr" 0
 run_function truncated run_spike "$T/truncated.expr" 0
 run_function trailing-byte run_spike "$T/trailing.expr" 0
 run_function duplicate-result run_spike "$T/duplicate-result.expr" 0
+run_function invalid-boolean run_spike "$T/invalid-boolean.expr" 0
+run_function boolean-type-drift run_spike "$T/boolean-type-drift.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")
-if [ "$metrics" != "(Metrics 35 2414 2052)" ]; then
+if [ "$metrics" != "(Metrics 41 2777 2316)" ]; then
   echo "terminal ledger spike: metrics drifted: $metrics" >&2
   exit 1
 fi
