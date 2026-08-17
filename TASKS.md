@@ -779,6 +779,10 @@ Remaining:
   1,297-line module with fourteen explicit internal contracts. Reachable
   scalar-call discovery and multi-machine assembly now form one 158-line
   module with two explicit entry points. The crate root is now 1,017 lines.
+  The verifier's former 9,239-line sufficient-form reconstruction test parent
+  is now a 15-line root over fifteen cast, conversion, add/subtract,
+  multiply/affine, join, shift, and divide-policy responsibilities. All 76
+  cases remain, and no family module exceeds 1,248 lines.
   These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
