@@ -83,13 +83,15 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 1,702 lines rather than a
+and malformed-byte rejection. The assembled core is 1,796 lines rather than a
 permutation-expanded verifier. Its bounded sixteen-kind leaf semantics now
 live in three composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
 fields, while calls and control remain separate algebra. Missing, duplicate,
-and altered schema rows reject end to end. That decomposition into decoder,
-typed row vocabulary, schema table, validators, and sequencing helpers is the intended shape for the
+and altered schema rows reject end to end. Its value environment retains exact
+typed declarations, so duplicate IDs and type drift cannot cross the generic
+schema boundary. That decomposition into decoder, typed row vocabulary, schema
+table, validators, and sequencing helpers is the intended shape for the
 production low generator.
 
 The spike also makes one scaling limit concrete: the monomorphic type system

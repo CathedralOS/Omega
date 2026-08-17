@@ -164,7 +164,7 @@
 (data Row (Row Int Origin Formula Int Scope Ints))
 (data Rows (LNil) (LCons Row Rows))
 (data RLedger (RLedger Rows) (RLedgerBad))
-(data Build (Built Rows Int Ints) (BuildBad))
+(data Build (Built Rows Int Decls) (BuildBad))
 (data ReqBuild (ReqBuilt Rows Int) (ReqBuildBad))
 (data Calc (CalcOk Int) (CalcBad))
 (data Metrics (Metrics Int Int Int))             ; rows, ledger bytes, certificate bytes

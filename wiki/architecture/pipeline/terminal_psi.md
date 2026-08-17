@@ -1592,7 +1592,7 @@ divide/remainder cohorts, signed toward-zero division including
 justification, branch-local scope/invalidation, and an all-predecessor merge;
 changing only one predecessor value rejects. The 1,400-byte fixture produces a
 2,414-byte modeled ledger and a 2,052-byte prospective reconstruction
-certificate. The assembled typed core is 1,702 lines (67,556 bytes, 163
+certificate. The assembled typed core is 1,796 lines (70,758 bytes, 173
 functions). A separately gated 36-line
 PSITERM-neutral byte layer owns the checked byte cursor and fixed-width
 primitives, while bounded `u64` identities, tags, recursive vocabulary, and
@@ -1602,9 +1602,12 @@ or mark any trust-graph dependency derived. Its sixteen primitive variants now
 resolve through three composed exact-unique policy-cohort schema tables whose
 rows own result shape, denotation, goal, post-discharge fact, crash policy,
 fuel, and frontier behavior. Missing, duplicate, and altered rows reject end to
-end; calls retain their separate coverage/substitution algebra. The full
-decoder, remaining 19 leaf rows, three call-composition definitions, low
-proofs, and composition bridges remain required.
+end; calls retain their separate coverage/substitution algebra. Known values
+are exact typed declarations rather than bare IDs, so duplicate result
+identities, operand-type drift, join-parameter overlap, and call argument-type
+drift reject before row publication. The full decoder, remaining 19 leaf rows,
+three call-composition definitions, low proofs, and composition bridges remain
+required.
 
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution
 model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,

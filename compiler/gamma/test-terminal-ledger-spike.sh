@@ -57,6 +57,7 @@ fixture_expr "$FIXTURES/terminal_ledger_spike_asymmetric.hex" > "$T/asymmetric.e
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 0 0 > "$T/bad-magic.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 179 10 > "$T/duplicate-result.expr"
 
 make_program() {
   function=$1
@@ -98,6 +99,7 @@ run_function asymmetric-join run_spike "$T/asymmetric.expr" 0
 run_function bad-magic run_spike "$T/bad-magic.expr" 0
 run_function truncated run_spike "$T/truncated.expr" 0
 run_function trailing-byte run_spike "$T/trailing.expr" 0
+run_function duplicate-result run_spike "$T/duplicate-result.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")
