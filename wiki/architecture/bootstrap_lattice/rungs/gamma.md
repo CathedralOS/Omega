@@ -83,8 +83,8 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 1,664 lines rather than a
-permutation-expanded verifier. Its bounded fourteen-kind leaf semantics now
+and malformed-byte rejection. The assembled core is 1,702 lines rather than a
+permutation-expanded verifier. Its bounded sixteen-kind leaf semantics now
 live in three composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
 fields, while calls and control remain separate algebra. Missing, duplicate,

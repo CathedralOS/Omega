@@ -101,6 +101,8 @@
     ((SatMul x y) (match b ((SatMul p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((WrapDiv x y) (match b ((WrapDiv p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((WrapRem x y) (match b ((WrapRem p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((SatDiv x y) (match b ((SatDiv p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((SatRem x y) (match b ((SatRem p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Less x y) (match b ((Less p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))))
 
 (def prop_equal ((a Prop) (b Prop)) Int
@@ -123,6 +125,8 @@
     ((SatMul x y) (SatMul (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((WrapDiv x y) (WrapDiv (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((WrapRem x y) (WrapRem (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((SatDiv x y) (SatDiv (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((SatRem x y) (SatRem (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Less x y) (Less (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))))
 
 (def subst_prop ((prop Prop) (p0 Int) (a0 Int) (p1 Int) (a1 Int)) Prop
@@ -471,7 +475,10 @@
         100))
     ((SafetyNonZero obligation divisor)
       (if (eq divisor 11)
-        (if (eq obligation 103) 8 (if (eq obligation 104) 16 100))
+        (if (eq obligation 103) 8
+          (if (eq obligation 104) 16
+            (if (eq obligation 109) 128
+              (if (eq obligation 110) 256 100))))
         100))
     (z 0)))
 
@@ -495,10 +502,17 @@
               (if (eq result 38) (if (expr_equal expr (SatAdd (Val 10) (Val 11))) 16384 1000)
                 1000))))))))
 
+(def saturating_divisor_result_code ((result Int) (expr Expr)) Int
+  (if (eq result 39) (if (expr_equal expr (SatDiv (Val 10) (Val 11))) 32768 1000)
+    (if (eq result 40) (if (expr_equal expr (SatRem (Val 10) (Val 11))) 65536 1000)
+      1000)))
+
 (def result_code ((formula Formula)) Int
   (match formula
     ((ResultEq result expr)
-      (if (lt result 32) (base_result_code result expr) (cohort_result_code result expr)))
+      (if (lt result 32) (base_result_code result expr)
+        (if (lt result 39) (cohort_result_code result expr)
+          (saturating_divisor_result_code result expr))))
     ((ConditionalEq result left right)
       (if (if (eq result 26) (if (eq left 10) (eq right 11) 0) 0) 64 1000))
     (z 0)))
@@ -568,11 +582,11 @@
                                 (formulas_count remaining kind)))))))))))))))))
 
 (def exact_ledger_inventory ((rows Rows)) Int
-  (if (eq (rows_len rows) 31)
+  (if (eq (rows_len rows) 35)
     (if (if (eq (formulas_count rows 0) 2) (eq (formulas_code rows 0) 3) 0)
       (if (if (eq (formulas_count rows 1) 2) (eq (formulas_code rows 1) 3) 0)
-        (if (if (eq (formulas_count rows 2) 7) (eq (formulas_code rows 2) 127) 0)
-          (if (if (eq (formulas_count rows 3) 15) (eq (formulas_code rows 3) 32767) 0)
+        (if (if (eq (formulas_count rows 2) 9) (eq (formulas_code rows 2) 511) 0)
+          (if (if (eq (formulas_count rows 3) 17) (eq (formulas_code rows 3) 131071) 0)
             (if (eq (formulas_count rows 4) 5) (eq (formulas_code rows 4) 31) 0)
             0)
           0)
@@ -596,6 +610,8 @@
     ((SatMul a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((WrapDiv a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((WrapRem a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((SatDiv a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((SatRem a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Less a b) (+ 1 (+ (expression_size a) (expression_size b))))))
 
 (def prop_size ((prop Prop)) Int

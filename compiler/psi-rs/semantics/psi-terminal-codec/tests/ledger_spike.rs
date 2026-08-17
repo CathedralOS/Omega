@@ -250,6 +250,24 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                             right: value_id(11),
                         },
                     ),
+                    scalar_operation(
+                        26,
+                        value(39),
+                        OperationKind::SaturatingIntegerDivide {
+                            left: value_id(10),
+                            right: value_id(11),
+                            obligation: obligation_id(109),
+                        },
+                    ),
+                    scalar_operation(
+                        27,
+                        value(40),
+                        OperationKind::SaturatingIntegerRemainder {
+                            left: value_id(10),
+                            right: value_id(11),
+                            obligation: obligation_id(110),
+                        },
+                    ),
                 ],
                 terminator: Terminator::Return {
                     edge: edge_id(104),

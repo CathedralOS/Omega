@@ -659,24 +659,25 @@ Remaining:
   graphs reject, and the current artifact closure reports `fully-derived false`.
   The bounded Gamma spike is complete. It canonical-decodes two exact current
   `PSITERM\0` v11 fixtures and audits a 31-row ledger covering the complete
-  exact/wrapping/saturating add/subtract/multiply cohort, signed toward-zero
-  divide/remainder and `MIN / -1`, conditional
+  exact/wrapping/saturating add/subtract/multiply and divide/remainder cohorts,
+  signed toward-zero division, `MIN / -1`, conditional
   equations, branch-local scope/invalidation, all-predecessor merge rejection
   and acceptance, exact call-clause enumeration/substitution, and strict
   justification ranks. Matching/asymmetric/malformed cases agree between the
   Beta-written reference interpreter and the independent Python evaluator.
-  The 1,308-byte fixture yields a 2,156-byte modeled ledger and 1,812-byte
-  prospective certificate; the assembled typed core is 1,664 lines / 65,644
-  bytes / 162 functions. Its PSITERM-neutral byte cursor and
+  The 1,400-byte fixture yields a 2,414-byte modeled ledger and 2,052-byte
+  prospective certificate; the assembled typed core is 1,702 lines / 67,556
+  bytes / 163 functions. Its PSITERM-neutral byte cursor and
   checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
   36-line reusable layer; tags, bounded `u64` identities, strings, recursive
   vocabulary, and monomorphic type-specific results remain spike-owned. The
-  bounded fourteen-kind leaf slice now resolves through three composed,
+  bounded sixteen-kind leaf slice now resolves through three composed,
   exact-unique policy-cohort schema tables: each row owns result shape,
   denotation, goal, post-discharge fact, crash policy, fuel, and frontier
   behavior, while calls remain separate coverage/substitution algebra.
-  Missing, duplicate, and altered table rows reject end to end without changing the canonical 31-row
-  ledger. The remaining 21 leaf rows, three call-composition definitions, low
+  Missing, duplicate, and altered table rows reject end to end without changing
+  the canonical 35-row ledger. The remaining 19 leaf rows, three
+  call-composition definitions, low
   generator, row proofs, and composition bridges remain open; no trust-graph
   node becomes derived from the spike.
 

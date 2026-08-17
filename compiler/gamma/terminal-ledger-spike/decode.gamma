@@ -183,7 +183,7 @@
                       (if (eq tag 12) (RKind (KLess left right) rest)
                         RKindBad))))))))))))
 
-(def read_wrapping_partial_kind ((bs Bytes) (tag Int)) RKind
+(def read_divisor_gated_kind ((bs Bytes) (tag Int)) RKind
   (match (read_id bs)
     (RIntBad RKindBad)
     ((RInt left r1)
@@ -195,7 +195,9 @@
             ((RInt obligation rest)
               (if (eq tag 29) (RKind (KWrapDiv left right obligation) rest)
                 (if (eq tag 30) (RKind (KWrapRem left right obligation) rest)
-                  RKindBad)))))))))
+                  (if (eq tag 31) (RKind (KSatDiv left right obligation) rest)
+                    (if (eq tag 32) (RKind (KSatRem left right obligation) rest)
+                      RKindBad)))))))))))
 
 (def read_call_kind ((bs Bytes)) RKind
   (match (read_id bs)
@@ -220,7 +222,7 @@
         (if (lt tag 24)
           (if (eq tag 12) (read_binary_kind rest tag) RKindBad)
           (if (lt tag 29) (read_exact_kind rest tag)
-            (if (lt tag 31) (read_wrapping_partial_kind rest tag)
+            (if (lt tag 33) (read_divisor_gated_kind rest tag)
               (if (eq tag 33) (read_call_kind rest) RKindBad))))))))
 
 (def read_op ((bs Bytes)) ROp
