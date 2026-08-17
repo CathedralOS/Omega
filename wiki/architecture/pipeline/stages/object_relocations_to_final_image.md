@@ -98,8 +98,11 @@ Must not own:
   import, syscall, indirect-call, and runtime-text replay plus exact operand and
   storage relocation-site derivation.
 - `omega-image-emission/src/checked/footprints.rs` owns compiler atomic and
-  instruction footprint derivation, body/fixed-mechanics partition validation,
-  and exact footprint composition.
+  instruction footprint family dispatch, body/fixed-mechanics partition
+  validation, and exact footprint composition.
+- `omega-image-emission/src/checked/footprints/{control_entry,storage_place,
+  outbound_calls,buffer_wire_text}.rs` own the four closed compiler-instruction
+  footprint families consumed by that dispatcher.
 - `omega-image-emission/src/checked/instruction_relocations.rs` owns the closed
   compiler instruction-relocation recipe vocabulary and replays each recipe
   against exact final bytes, symbols, and relocation sites.
