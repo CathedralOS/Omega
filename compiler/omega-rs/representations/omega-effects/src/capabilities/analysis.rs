@@ -12,14 +12,17 @@ use crate::capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
 
-/// Exact checked call identity supplied by orchestration. Provider approval
-/// depends only on call topology and target identity; service reach and the
+/// Exact checked boundary-edge identity supplied by orchestration. Provider
+/// approval consumes the retained trait directly; target, signature, and call
+/// coordinates remain independent custody evidence. Service reach and the
 /// independent suspension/blocking axes never participate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryCallCoordinate {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
+    pub boundary_trait_symbol: SymbolHandle,
+    pub boundary_signature_symbol: SymbolHandle,
     pub statement_index: usize,
     pub call_ordinal: usize,
 }
@@ -49,11 +52,27 @@ pub fn build_boundary_provider_approval_registry(
             continue;
         }
 
+        let exact_symbol_owners = program
+            .traits()
+            .iter()
+            .filter(|candidate| candidate.symbol == trait_definition.symbol)
+            .count();
+        let exact_name_owners = program
+            .traits()
+            .iter()
+            .filter(|candidate| {
+                candidate.is_boundary && candidate.name.as_str() == trait_definition.name.as_str()
+            })
+            .count();
+        let has_exact_identity = trait_definition.symbol.is_valid()
+            && !trait_definition.name.as_str().is_empty()
+            && exact_symbol_owners == 1
+            && exact_name_owners == 1;
         let implemented_in_package =
-            boundary_trait_is_implemented(program, trait_definition.symbol);
+            boundary_trait_is_implemented(program, trait_definition.name.as_str());
         registry.register(BoundaryProviderApproval::new(
             trait_definition.symbol,
-            !implemented_in_package,
+            has_exact_identity && !implemented_in_package,
         ));
     }
 
@@ -62,24 +81,19 @@ pub fn build_boundary_provider_approval_registry(
 
 /// Audits every resolved boundary call against exact provider approval.
 pub fn audit_boundary_provider_calls(
-    program: &TypedTrees,
+    _program: &TypedTrees,
     calls: impl IntoIterator<Item = BoundaryCallCoordinate>,
     registry: &BoundaryProviderApprovalRegistry,
 ) -> Vec<UnapprovedBoundaryCall> {
     let mut unapproved = Vec::new();
 
     for call in calls {
-        let Some(boundary_trait_symbol) = boundary_trait_symbol(program, call.target_state_symbol)
-        else {
-            continue;
-        };
-
-        match registry.authorize_boundary_call(boundary_trait_symbol) {
+        match registry.authorize_boundary_call(call.boundary_trait_symbol) {
             BoundaryCallApproval::Unapproved => {
                 unapproved.push(UnapprovedBoundaryCall {
                     machine_symbol: call.machine_symbol,
                     state_symbol: call.state_symbol,
-                    boundary_trait_symbol,
+                    boundary_trait_symbol: call.boundary_trait_symbol,
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
                 });
@@ -90,15 +104,7 @@ pub fn audit_boundary_provider_calls(
     unapproved
 }
 
-fn boundary_trait_is_implemented(program: &TypedTrees, trait_symbol: SymbolHandle) -> bool {
-    let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)
-    else {
-        return false;
-    };
-
+fn boundary_trait_is_implemented(program: &TypedTrees, trait_name: &str) -> bool {
     // PRV4 supply edges: a machine satisfying ONE exact requirement (a
     // checked adapter forwarding already-held authority, or a `via` external
     // leaf) is not an in-package implementation of the trait. Whole-trait
@@ -108,63 +114,6 @@ fn boundary_trait_is_implemented(program: &TypedTrees, trait_symbol: SymbolHandl
         matches!(
             &conformance.subject,
             psi_typed_trees::trait_definition::ConformanceSubject::Carrier(_)
-        ) && conformance.trait_name == trait_definition.name
+        ) && conformance.trait_name.as_str() == trait_name
     })
-}
-
-/// Resolves a call target to the boundary trait signature it reaches. The
-/// target may be a boundary trait signature directly, or an in-package
-/// implementation state whose machine conforms to a boundary trait.
-fn boundary_trait_symbol(
-    program: &TypedTrees,
-    target_symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
-    if !target_symbol.is_valid() {
-        return None;
-    }
-
-    if let Some(found) = program.traits().iter().find_map(|trait_definition| {
-        if !trait_definition.is_boundary {
-            return None;
-        }
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == target_symbol)
-            .map(|_| trait_definition.symbol)
-    }) {
-        return Some(found);
-    }
-
-    // The target is an implementation state; map it back to the boundary trait
-    // signature its machine conforms to, matched by state name.
-    let (machine, state) = program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target_symbol)
-            .map(|state| (machine, state))
-    })?;
-
-    for conformance in program.machine_trait_conformances(machine) {
-        let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|trait_definition| trait_definition.symbol == conformance.symbol)
-        else {
-            continue;
-        };
-        if !trait_definition.is_boundary {
-            continue;
-        }
-        if program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .any(|signature| signature.name == state.name)
-        {
-            return Some(trait_definition.symbol);
-        }
-    }
-
-    None
 }

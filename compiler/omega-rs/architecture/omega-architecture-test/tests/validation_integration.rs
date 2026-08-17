@@ -5533,8 +5533,8 @@ fn rejects_published_service_ceiling_below_reached_services() {
 /// `representations -> pipeline` upward edge.
 mod effects_analysis {
     use omega_effects::{
-        BoundaryCallCoordinate, audit_boundary_provider_calls,
-        build_boundary_provider_approval_registry,
+        BoundaryCallCoordinate, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
+        audit_boundary_provider_calls, build_boundary_provider_approval_registry,
     };
     use psi_effects::{infer_operational_may, infer_service_reaches};
     use psi_typed_trees::TypedTrees;
@@ -5555,22 +5555,56 @@ mod effects_analysis {
         let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(lower(source))
             .expect("checked lowering");
         let flow = &checked.facts.flow.control;
-        let calls = flow
-            .states
-            .iter()
-            .flat_map(|(_, state)| {
-                flow.calls
-                    .span_or_empty(state.calls)
-                    .iter()
-                    .map(move |call| BoundaryCallCoordinate {
+        let mut calls = Vec::new();
+        for (_, state) in flow.states.iter() {
+            for call in flow.calls.span_or_empty(state.calls) {
+                let edges = checked
+                    .facts
+                    .flow
+                    .boundaries
+                    .edges
+                    .span_or_empty(call.boundary_edges);
+                if edges.is_empty() {
+                    let direct = checked
+                        .typed
+                        .traits()
+                        .iter()
+                        .filter(|definition| definition.is_boundary)
+                        .flat_map(|definition| {
+                            checked
+                                .typed
+                                .trait_machine_signatures(definition)
+                                .iter()
+                                .filter(move |signature| signature.symbol == call.target_symbol)
+                                .map(move |signature| (definition.symbol, signature.symbol))
+                        })
+                        .collect::<Vec<_>>();
+                    let [(boundary_trait_symbol, boundary_signature_symbol)] = direct.as_slice()
+                    else {
+                        continue;
+                    };
+                    calls.push(BoundaryCallCoordinate {
                         machine_symbol: state.machine_symbol,
                         state_symbol: state.state_symbol,
                         target_state_symbol: call.target_symbol,
+                        boundary_trait_symbol: *boundary_trait_symbol,
+                        boundary_signature_symbol: *boundary_signature_symbol,
                         statement_index: call.statement_index,
                         call_ordinal: call.call_ordinal,
-                    })
-            })
-            .collect();
+                    });
+                    continue;
+                }
+                calls.extend(edges.iter().map(|edge| BoundaryCallCoordinate {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    target_state_symbol: call.target_symbol,
+                    boundary_trait_symbol: edge.boundary_trait_symbol,
+                    boundary_signature_symbol: edge.boundary_signature_symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                }));
+            }
+        }
         (checked.typed, calls)
     }
 
@@ -5628,7 +5662,7 @@ mod effects_analysis {
     }
 
     #[test]
-    fn provider_approval_ignores_empty_and_unknown_call_coordinates() {
+    fn provider_approval_ignores_empty_and_rejects_unknown_call_coordinates() {
         let program = TypedTrees::default();
         let registry = build_boundary_provider_approval_registry(&program);
 
@@ -5640,20 +5674,87 @@ mod effects_analysis {
             )
             .is_empty()
         );
-        assert!(
-            audit_boundary_provider_calls(
-                &program,
-                [BoundaryCallCoordinate {
-                    machine_symbol: psi_symbols::SymbolHandle::from_arena_index(1),
-                    state_symbol: psi_symbols::SymbolHandle::from_arena_index(2),
-                    target_state_symbol: psi_symbols::SymbolHandle::from_arena_index(3),
-                    statement_index: 4,
-                    call_ordinal: 5,
-                }],
-                &registry,
-            )
-            .is_empty()
+        let unknown = psi_symbols::SymbolHandle::from_arena_index(3);
+        let unapproved = audit_boundary_provider_calls(
+            &program,
+            [BoundaryCallCoordinate {
+                machine_symbol: psi_symbols::SymbolHandle::from_arena_index(1),
+                state_symbol: psi_symbols::SymbolHandle::from_arena_index(2),
+                target_state_symbol: unknown,
+                boundary_trait_symbol: unknown,
+                boundary_signature_symbol: psi_symbols::SymbolHandle::from_arena_index(4),
+                statement_index: 5,
+                call_ordinal: 6,
+            }],
+            &registry,
         );
+        assert_eq!(unapproved.len(), 1);
+        assert_eq!(unapproved[0].boundary_trait_symbol, unknown);
+    }
+
+    #[test]
+    fn provider_approval_audits_each_same_site_boundary_edge_by_exact_trait() {
+        let approved = psi_symbols::SymbolHandle::from_arena_index(1);
+        let denied = psi_symbols::SymbolHandle::from_arena_index(2);
+        let signature = psi_symbols::SymbolHandle::from_arena_index(3);
+        let machine = psi_symbols::SymbolHandle::from_arena_index(4);
+        let state = psi_symbols::SymbolHandle::from_arena_index(5);
+        let target = psi_symbols::SymbolHandle::from_arena_index(6);
+        let registry = BoundaryProviderApprovalRegistry::with_providers(vec![
+            BoundaryProviderApproval::new(approved, true),
+            BoundaryProviderApproval::new(denied, false),
+        ]);
+        let coordinate = |boundary_trait_symbol| BoundaryCallCoordinate {
+            machine_symbol: machine,
+            state_symbol: state,
+            target_state_symbol: target,
+            boundary_trait_symbol,
+            boundary_signature_symbol: signature,
+            statement_index: 7,
+            call_ordinal: 8,
+        };
+
+        let unapproved = audit_boundary_provider_calls(
+            &TypedTrees::default(),
+            [coordinate(approved), coordinate(denied)],
+            &registry,
+        );
+        assert_eq!(unapproved.len(), 1);
+        assert_eq!(unapproved[0].boundary_trait_symbol, denied);
+        assert_eq!(unapproved[0].statement_index, 7);
+        assert_eq!(unapproved[0].call_ordinal, 8);
+    }
+
+    #[test]
+    fn duplicate_boundary_registry_identity_is_denied_without_or_laundering() {
+        for (second_symbol, second_name) in [
+            (psi_symbols::SymbolHandle::from_arena_index(1), "Console"),
+            (psi_symbols::SymbolHandle::from_arena_index(2), "Console"),
+        ] {
+            let first_symbol = psi_symbols::SymbolHandle::from_arena_index(1);
+            let mut program = TypedTrees::default();
+            for (symbol, name) in [(first_symbol, "Console"), (second_symbol, second_name)] {
+                program.push_trait_definition(psi_typed_trees::trait_definition::TraitDefinition {
+                    symbol,
+                    is_boundary: true,
+                    name: psi_typed_trees::name::Identifier::generated(name),
+                    ..Default::default()
+                });
+            }
+
+            let registry = build_boundary_provider_approval_registry(&program);
+            assert!(
+                registry
+                    .providers()
+                    .iter()
+                    .all(|provider| !provider.approved),
+                "duplicate exact symbol or exact authored name must deny every row: {registry:?}",
+            );
+            assert_eq!(
+                registry.authorize_boundary_call(first_symbol),
+                omega_effects::BoundaryCallApproval::Unapproved,
+            );
+        }
     }
 
     #[test]
