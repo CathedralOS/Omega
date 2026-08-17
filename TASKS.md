@@ -784,10 +784,11 @@ Remaining:
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
   Terminal-module validation has begun the same split: its parent shrank from
-  7,498 to 952 lines, with structural/service foundation (956 lines),
+  7,498 to 282 lines, with structural/service foundation (956 lines),
   structural/boundary operation custody (822), public error vocabulary (803),
   structural ownership/frontier cleanup (750), per-machine
-  registration/orchestration (716),
+  registration/orchestration (716), scalar crash/frontier and Boolean-predicate
+  custody (674),
   content-conservation validation/replay (534), operation operand/type custody
   (522), partial/nominal affine cleanup custody (473), evidence/proposition
   custody (410), control-flow/dominance validation (301), proposition-root
