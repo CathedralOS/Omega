@@ -36,6 +36,7 @@ cat canonical-bytes/types.gamma \
     canonical-bytes/decode.gamma \
     terminal-codec-primitives/header.gamma \
     terminal-codec-primitives/scalars.gamma \
+    terminal-codec-primitives/semantic_ids.gamma \
     terminal-codec-primitives/scalar_types.gamma \
     terminal-codec-primitives/integer_values.gamma \
     terminal-codec-primitives/utf8.gamma \

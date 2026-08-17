@@ -8,14 +8,17 @@
 (def both ((a Int) (b Int)) Int (if a b 0))
 (def nonzero ((a Int)) Int (if (eq a 0) 0 1))
 
-(def narrow_spike_identity ((value U64) (rest Bytes)) RInt
-  (match value
-    ((U64 low high) (if (eq high 0) (RInt low rest) RIntBad))))
+(def narrow_spike_identity ((identity TerminalSemanticId) (rest Bytes)) RInt
+  (match identity
+    ((TerminalSemanticId value)
+      (match value
+        ((U64 low high) (if (eq high 0) (RInt low rest) RIntBad))))))
 
 (def read_id ((bs Bytes)) RInt
-  (match (read_nonzero_u64 bs)
-    (RU64Bad RIntBad)
-    ((RU64 value rest) (narrow_spike_identity value rest))))
+  (match (read_terminal_semantic_id bs)
+    (RTerminalSemanticIdBad RIntBad)
+    ((RTerminalSemanticId identity rest)
+      (narrow_spike_identity identity rest))))
 
 (def expect_zero_count ((bs Bytes)) RBytes
   (match (read_u32 bs)

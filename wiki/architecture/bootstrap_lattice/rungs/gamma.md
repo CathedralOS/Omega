@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,798 lines rather than a
+and malformed-byte rejection. The assembled core is 4,844 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
@@ -112,8 +112,9 @@ generator.
 The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. Completing the
 structural/effect and canonical call slices plus the shared terminal envelope,
-scalar, scalar-type, integer-value, and UTF-8 decoders grow the assembled core
-to 190,880 bytes, 179 data declarations, and 409 typed functions, at nesting
+scalar, semantic-identity, scalar-type, integer-value, and UTF-8 decoders grow
+the assembled core to 192,885 bytes, 181 data declarations, and 412 typed
+functions, at nesting
 depth 25.
 That repetition is an engineering/audit cost, not a reason to weaken the
 canonical-byte endpoint.
@@ -126,8 +127,9 @@ bounded fixture. The exact current envelope, signed/unsigned 128-bit integer
 value payloads, and length-prefixed UTF-8 grammar
 are independently factored and gated in
 `compiler/gamma/terminal-codec-primitives/`; one typed header parser serves all
-bounded decoders, canonical Boolean and optional semantic-ID scalars retain
-exact values, the complete current scalar-type grammar retains carrier/sign/
+bounded decoders, canonical Boolean plus optional and required semantic-ID
+carriers retain exact values and canonical identity order, the complete current
+scalar-type grammar retains carrier/sign/
 width, integer values retain their exact raw two's-complement or unsigned bits,
 and strings retain raw bytes without assigning identity or path meaning.
 The bounded fixture narrows IDs and types only in explicit consumer adapters.

@@ -695,14 +695,15 @@ Remaining:
   697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
   custody, including qualified affine resources, structural requirements,
   claim transfer, completion receipt, and boundary identity. The assembled
-  typed core is 4,798 lines / 190,880 bytes / 409 functions, with maximum
+  typed core is 4,844 lines / 192,885 bytes / 412 functions, with maximum
   source nesting 25. Its PSITERM-neutral byte cursor, checked
   `u8`/little-endian `u16`/`u32`, and exact low/high-half `u64` primitives are
   now a separately gated 97-line reusable layer, including an exact four-limb
-  `u128` carrier. A separately gated 225-line
+  `u128` carrier. A separately gated 267-line
   terminal-codec layer owns the exact current magic/format/vocabulary envelope
-  plus canonical Boolean, optional full-width semantic-ID, and length-prefixed
-  UTF-8 grammar, together with the complete Boolean/fixed-signed/
+  plus canonical Boolean, optional and required full-width semantic-ID carriers,
+  exact identity equality/order, and length-prefixed UTF-8 grammar, together
+  with the complete Boolean/fixed-signed/
   fixed-unsigned/address scalar-type grammar and exact widths `1..=128`, plus
   exact signed/unsigned 128-bit integer-value payloads; it
   rejects header/scalar/type/value drift plus overlong, surrogate, out-of-range,

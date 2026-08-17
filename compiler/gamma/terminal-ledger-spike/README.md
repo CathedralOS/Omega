@@ -145,12 +145,12 @@ these are feasibility observations, not performance promises:
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
 | Canonical Unit/boundary call fixture bytes | 697 |
-| Assembled typed Gamma core | 4,798 lines / 190,880 bytes |
+| Assembled typed Gamma core | 4,844 lines / 192,885 bytes |
 | Shared canonical-byte layer | 97 lines / 3,389 bytes / 13 functions |
-| Shared terminal-codec primitive layer | 225 lines / 9,306 bytes / 13 functions |
-| Spike-specific typed core | 4,476 lines / 178,185 bytes / 383 functions |
-| Closed data declarations | 179 |
-| Typed functions, assembled | 409 |
+| Shared terminal-codec primitive layer | 267 lines / 11,125 bytes / 16 functions |
+| Spike-specific typed core | 4,480 lines / 178,371 bytes / 383 functions |
+| Closed data declarations | 181 |
+| Typed functions, assembled | 412 |
 | Maximum source nesting | 25 |
 | Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
 | Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
@@ -187,9 +187,10 @@ The codec's exact current envelope and bounded canonical UTF-8 rule are a
 separate `../terminal-codec-primitives/` responsibility; all three spike
 decoders use one header parser instead of duplicating magic/format checks, and
 the identity consumers use one UTF-8 parser instead of owning an ASCII-only
-parser. Canonical Boolean and optional full-width semantic-ID decoding are also
-shared; the fixture's zero-high-half limit is applied only by its explicit
-consumer adapter. The complete Boolean/fixed-signed/fixed-unsigned/address
+parser. Canonical Boolean plus optional and required full-width semantic-ID
+decoding are also shared; required identities have exact equality and canonical
+unsigned order, and the fixture's zero-high-half limit is applied only by its
+explicit consumer adapter. The complete Boolean/fixed-signed/fixed-unsigned/address
 scalar-type grammar and exact signed/unsigned 128-bit integer-value payloads are
 shared as well; the fixture's Boolean/i8/i16 type subset and canonical signed-i8
 sign-extension rule are separate adapters. Exact fixtures reject format,
@@ -201,8 +202,8 @@ mechanical repetition:
 Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
 adds 1,128 lines and 42,263 bytes to the assembled core, while canonical
-Unit/boundary decoding and evaluation bring the full bounded assembly to 4,798
-lines and 190,880 bytes. The code remains bounded, typechecked, separated into
+Unit/boundary decoding and evaluation bring the full bounded assembly to 4,844
+lines and 192,885 bytes. The code remains bounded, typechecked, separated into
 decoder versus schema/evaluator modules, and at nesting depth 25. All three call
 variants still traverse one axis checker rather than adding call-kind evaluator
 branches. That is an engineering and audit cost, not an actual

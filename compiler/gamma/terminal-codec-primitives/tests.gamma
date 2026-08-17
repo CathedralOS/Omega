@@ -82,32 +82,84 @@
           ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
         0))))
 
-(def roptional_none_one ((result ROptionalU64) (tail Int)) Int
+(def roptional_none_one ((result ROptionalTerminalSemanticId) (tail Int)) Int
   (match result
-    (ROptionalU64Bad 0)
-    ((ROptionalU64Some value rest) 0)
-    ((ROptionalU64None rest)
+    (ROptionalTerminalSemanticIdBad 0)
+    ((ROptionalTerminalSemanticIdSome value rest) 0)
+    ((ROptionalTerminalSemanticIdNone rest)
       (match rest
         (BNil 0)
         ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0))))))
 
 (def roptional_some_one
-  ((result ROptionalU64) (want U64) (tail Int)) Int
+  ((result ROptionalTerminalSemanticId) (want TerminalSemanticId) (tail Int)) Int
   (match result
-    (ROptionalU64Bad 0)
-    ((ROptionalU64None rest) 0)
-    ((ROptionalU64Some got rest)
-      (if (u64_equal got want)
+    (ROptionalTerminalSemanticIdBad 0)
+    ((ROptionalTerminalSemanticIdNone rest) 0)
+    ((ROptionalTerminalSemanticIdSome got rest)
+      (if (terminal_semantic_id_equal got want)
         (match rest
           (BNil 0)
           ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
         0))))
 
-(def roptional_bad ((result ROptionalU64)) Int
+(def roptional_bad ((result ROptionalTerminalSemanticId)) Int
   (match result
-    (ROptionalU64Bad 1)
-    ((ROptionalU64None rest) 0)
-    ((ROptionalU64Some value rest) 0)))
+    (ROptionalTerminalSemanticIdBad 1)
+    ((ROptionalTerminalSemanticIdNone rest) 0)
+    ((ROptionalTerminalSemanticIdSome value rest) 0)))
+
+(def rterminal_semantic_id_exact_one
+  ((result RTerminalSemanticId) (want TerminalSemanticId) (tail Int)) Int
+  (match result
+    (RTerminalSemanticIdBad 0)
+    ((RTerminalSemanticId got rest)
+      (if (terminal_semantic_id_equal got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def rterminal_semantic_id_bad ((result RTerminalSemanticId)) Int
+  (match result
+    (RTerminalSemanticIdBad 1)
+    ((RTerminalSemanticId got rest) 0)))
+
+(def terminal_semantic_id_positive_test () Int
+  (let low (TerminalSemanticId (U64 1 0))
+    (let next (TerminalSemanticId (U64 2 0))
+      (let high (TerminalSemanticId (U64 0 1))
+        (let maximum (TerminalSemanticId (U64 4294967295 4294967295))
+          (if (rterminal_semantic_id_exact_one
+                (read_terminal_semantic_id
+                  (B 1 (B 0 (B 0 (B 0 (B 0 (B 0 (B 0 (B 0 (B 9 BNil))))))))))
+                low 9)
+            (if (rterminal_semantic_id_exact_one
+                  (read_terminal_semantic_id
+                    (repeated_codec_test_byte 255 8 (B 9 BNil)))
+                  maximum 9)
+              (if (terminal_semantic_id_equal low low)
+                (if (eq (terminal_semantic_id_equal low next) 0)
+                  (if (terminal_semantic_id_less low next)
+                    (if (terminal_semantic_id_less next high)
+                      (if (terminal_semantic_id_less high maximum)
+                        (eq (terminal_semantic_id_less maximum high) 0)
+                        0)
+                      0)
+                    0)
+                  0)
+                0)
+              0)
+            0))))))
+
+(def terminal_semantic_id_negative_test () Int
+  (if (rterminal_semantic_id_bad
+        (read_terminal_semantic_id
+          (repeated_codec_test_byte 0 8 BNil)))
+    (if (rterminal_semantic_id_bad
+          (read_terminal_semantic_id (B 1 (B 0 BNil))))
+      1 0)
+    0))
 
 (def terminal_scalar_positive_test () Int
   (if (rint_exact_one (read_terminal_boolean (B 0 (B 9 BNil))) 0 9)
@@ -118,7 +170,7 @@
           (read_optional_semantic_id
             (B 1 (B 255 (B 255 (B 255 (B 255
               (B 255 (B 255 (B 255 (B 255 (B 9 BNil)))))))))))
-          (U64 4294967295 4294967295) 9)
+          (TerminalSemanticId (U64 4294967295 4294967295)) 9)
         0)
       0)
     0))
@@ -345,11 +397,15 @@
     (if (terminal_header_negative_test)
       (if (terminal_scalar_positive_test)
         (if (terminal_scalar_negative_test)
-          (if (terminal_type_positive_test)
-            (if (terminal_type_negative_test)
-              (if (terminal_integer_value_positive_test)
-                (if (terminal_integer_value_negative_test)
-                  (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+          (if (terminal_semantic_id_positive_test)
+            (if (terminal_semantic_id_negative_test)
+              (if (terminal_type_positive_test)
+                (if (terminal_type_negative_test)
+                  (if (terminal_integer_value_positive_test)
+                    (if (terminal_integer_value_negative_test)
+                      (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+                      0)
+                    0)
                   0)
                 0)
               0)

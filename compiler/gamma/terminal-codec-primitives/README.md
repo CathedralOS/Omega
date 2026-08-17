@@ -20,6 +20,12 @@ semantic identities (`0` for absent, `1` plus one exact nonzero `u64` for
 present). It retains the complete `U64`; a bounded consumer may narrow only in
 an explicit adapter after decoding.
 
+The semantic-identity layer owns required nonzero identities as a distinct
+typed carrier over the complete `U64`, plus exact equality and canonical
+unsigned ordering. Counts, tags, and byte offsets therefore cannot be confused
+with identities by the full ledger decoder, and identities above Gamma's signed
+`Int` range remain representable without narrowing.
+
 The scalar-type layer owns the complete current type grammar: Boolean, fixed
 signed or unsigned integers, and unsigned address integers, each with an exact
 width in `1..=128`. The bounded spike maps only Boolean, signed i8, and signed
