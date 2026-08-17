@@ -450,39 +450,103 @@ pub(crate) fn bind_selected_provider_plan_facts(
     facts: omega_effects::SelectedProviderPlanFacts,
     root_grants: &[String],
 ) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
-    let granted_plans = facts
-        .plans()
+    let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let mut granted_plan_identities = Vec::new();
+    for grant in &provider_grants {
+        if !granted_plan_identities.contains(&grant.selected_plan_identity) {
+            granted_plan_identities.push(grant.selected_plan_identity);
+        }
+    }
+    let granted_plans = granted_plan_identities
         .iter()
-        .filter(|plan| {
-            root_grants
-                .iter()
-                .any(|grant| grant == &plan.name || grant == &plan.schema.trait_name)
-        })
+        .filter_map(|identity| facts.plan_by_identity(*identity))
         .collect::<Vec<_>>();
     let mut receipt_updates = Vec::new();
     let mut receipt_diagnostics = Vec::new();
+    let traits = checked.typed.traits();
+    if traits.len() != checked.typed.roots.traits.count() as usize {
+        receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(
+            "admitted qualification receipt binding has an invalid typed trait span",
+        ));
+    }
+    for definition in traits {
+        if checked.typed.trait_machine_signatures(definition).len()
+            != definition.machines.count() as usize
+        {
+            receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "admitted qualification receipt binding has an invalid typed signature span for trait {:?}",
+                definition.symbol,
+            )));
+        }
+    }
+    if !receipt_diagnostics.is_empty() {
+        return Err(receipt_diagnostics);
+    }
     for (handle, fact) in checked.facts.semantic.facts.iter().filter(|(_, fact)| {
         fact.evidence.origin == psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
             && fact.evidence.receipt_identity == 0
     }) {
-        let Some(owner) = checked.typed.traits().iter().find(|definition| {
-            definition.is_boundary && definition.symbol == fact.evidence.source_symbol
-        }) else {
-            receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(
-                "admitted qualification evidence source does not name an exact boundary requirement owner",
-            ));
-            continue;
-        };
-        let Some(requirement) = checked
+        let owners = checked
             .typed
-            .trait_machine_signatures(owner)
+            .traits()
             .iter()
-            .find(|requirement| requirement.symbol == fact.evidence.requirement_symbol)
-        else {
-            receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(
-                "admitted qualification evidence requirement does not belong to its exact boundary owner",
-            ));
-            continue;
+            .filter(|definition| definition.symbol == fact.evidence.source_symbol)
+            .collect::<Vec<_>>();
+        let owner = match owners.as_slice() {
+            [owner] if owner.is_boundary => *owner,
+            [owner] => {
+                receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "admitted qualification evidence source {:?} names non-boundary trait `{}`",
+                    fact.evidence.source_symbol, owner.name,
+                )));
+                continue;
+            }
+            _ => {
+                receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "admitted qualification evidence source {:?} resolves to {} exact typed boundary requirement owners",
+                    fact.evidence.source_symbol,
+                    owners.len(),
+                )));
+                continue;
+            }
+        };
+        let requirement_owners = checked
+            .typed
+            .traits()
+            .iter()
+            .flat_map(|candidate_owner| {
+                checked
+                    .typed
+                    .trait_machine_signatures(candidate_owner)
+                    .iter()
+                    .filter(move |requirement| {
+                        requirement.symbol == fact.evidence.requirement_symbol
+                    })
+                    .map(move |requirement| (candidate_owner, requirement))
+            })
+            .collect::<Vec<_>>();
+        let requirement = match requirement_owners.as_slice() {
+            [(requirement_owner, requirement)] if requirement_owner.symbol == owner.symbol => {
+                *requirement
+            }
+            [(requirement_owner, _)] => {
+                receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "admitted qualification evidence requirement {:?} belongs to exact trait {:?}, not owner {:?}",
+                    fact.evidence.requirement_symbol,
+                    requirement_owner.symbol,
+                    owner.symbol,
+                )));
+                continue;
+            }
+            _ => {
+                receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "admitted qualification evidence requirement {:?} resolves to {} exact typed signatures",
+                    fact.evidence.requirement_symbol,
+                    requirement_owners.len(),
+                )));
+                continue;
+            }
         };
         let requirement_identity = checked
             .typed
@@ -2650,37 +2714,136 @@ pub(crate) fn select_provider_plan_names(
     }
 }
 
-/// Resolve one root grant against the already-selected provider closure.
-///
-/// A trait grant is slot-scoped, so it may bind only the one plan selected for
-/// that slot. Looking through every candidate would let an unselected policy
-/// acquire a receipt or make the lockfile pin whichever candidate happened to
-/// be encountered first.
-pub(crate) fn selected_provider_plan_for_grant<'plans>(
-    plans: &'plans [ProviderPlan],
-    selected: &'plans omega_effects::SelectedProviderPlanFacts,
-    grant: &str,
-) -> Result<Option<&'plans ProviderPlan>, psi_diagnostics::Diagnostic> {
-    let grant_names_provider = plans
-        .iter()
-        .any(|plan| grant == plan.name || grant == plan.schema.trait_name);
-    if !grant_names_provider {
-        return Ok(None);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProviderGrantSelectorKind {
+    PlanName,
+    ProviderSlot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolvedSelectedProviderGrant {
+    pub selector: String,
+    pub selector_kind: ProviderGrantSelectorKind,
+    pub selected_plan_identity: u64,
+    pub selected_plan_name: String,
+    pub selected_slot_name: String,
+}
+
+impl ResolvedSelectedProviderGrant {
+    pub fn commitment(&self) -> String {
+        match self.selector_kind {
+            ProviderGrantSelectorKind::PlanName => {
+                format!("provider plan: {}", self.selected_plan_name)
+            }
+            ProviderGrantSelectorKind::ProviderSlot => {
+                format!("provider slot: {}", self.selected_slot_name)
+            }
+        }
     }
-    let matching = selected
-        .plans()
-        .iter()
-        .filter(|plan| grant == plan.name || grant == plan.schema.trait_name)
-        .collect::<Vec<_>>();
-    match matching.as_slice() {
-        [plan] => Ok(Some(*plan)),
-        [] => Err(psi_diagnostics::Diagnostic::error(format!(
-            "root grant `{grant}` names a provider plan or slot with no selected provider plan"
-        ))),
-        _ => Err(psi_diagnostics::Diagnostic::error(format!(
-            "root grant `{grant}` resolves to multiple selected provider plans"
-        ))),
+}
+
+/// Resolve all provider grants once against the complete candidate inventory
+/// and the already-selected closure. Plan and slot spellings are distinct
+/// selector subjects: the same spelling may name both only when both resolve
+/// to the same selected plan, in which case the exact plan-name form is the
+/// canonical commitment. Non-provider selectors remain absent for the shared
+/// non-provider trust resolver.
+pub(crate) fn resolve_selected_provider_grants(
+    candidates: &[ProviderPlan],
+    selected: &omega_effects::SelectedProviderPlanFacts,
+    root_grants: &[String],
+) -> Result<Vec<ResolvedSelectedProviderGrant>, psi_diagnostics::Diagnostic> {
+    let mut resolved = Vec::new();
+    for grant in root_grants {
+        let plan_name_candidates = candidates
+            .iter()
+            .filter(|plan| plan.name == *grant)
+            .collect::<Vec<_>>();
+        let slot_is_known = candidates
+            .iter()
+            .any(|plan| plan.schema.trait_name == *grant);
+        if plan_name_candidates.is_empty() && !slot_is_known {
+            continue;
+        }
+        if plan_name_candidates.len() > 1 {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "root grant `{grant}` names {} exact provider plan candidates",
+                plan_name_candidates.len(),
+            )));
+        }
+
+        let selected_by_plan_name = selected
+            .plans()
+            .iter()
+            .filter(|plan| plan.name == *grant)
+            .collect::<Vec<_>>();
+        let selected_by_slot = selected
+            .plans()
+            .iter()
+            .filter(|plan| plan.schema.trait_name == *grant)
+            .collect::<Vec<_>>();
+        if selected_by_plan_name.len() > 1 || selected_by_slot.len() > 1 {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "root grant `{grant}` resolves to multiple selected provider plans",
+            )));
+        }
+        let plan_name_plan = selected_by_plan_name.first().copied();
+        let slot_plan = selected_by_slot.first().copied();
+        if !plan_name_candidates.is_empty() && plan_name_plan.is_none() {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "root grant `{grant}` names an unselected provider plan",
+            )));
+        }
+        if slot_is_known && slot_plan.is_none() && plan_name_plan.is_none() {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "root grant `{grant}` names a provider slot with no selected provider plan",
+            )));
+        }
+        let (plan, selector_kind) = match (plan_name_plan, slot_plan) {
+            (Some(plan), Some(slot_plan))
+                if plan.identity_fingerprint() == slot_plan.identity_fingerprint() =>
+            {
+                (plan, ProviderGrantSelectorKind::PlanName)
+            }
+            (Some(_), Some(_)) => {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "root grant `{grant}` names distinct provider plan and slot subjects",
+                )));
+            }
+            (Some(plan), None) => (plan, ProviderGrantSelectorKind::PlanName),
+            (None, Some(plan)) if plan_name_candidates.is_empty() => {
+                (plan, ProviderGrantSelectorKind::ProviderSlot)
+            }
+            (None, Some(_)) => {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "root grant `{grant}` names an unselected provider plan and a different selected provider slot",
+                )));
+            }
+            (None, None) => {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "root grant `{grant}` names a provider plan or slot with no selected provider plan",
+                )));
+            }
+        };
+        let exact_candidate_matches = candidates
+            .iter()
+            .filter(|candidate| *candidate == plan)
+            .count();
+        if exact_candidate_matches != 1 {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "root grant `{grant}` selected provider plan `{}` resolves to {exact_candidate_matches} exact candidate rows",
+                plan.name,
+            )));
+        }
+        resolved.push(ResolvedSelectedProviderGrant {
+            selector: grant.clone(),
+            selector_kind,
+            selected_plan_identity: plan.identity_fingerprint(),
+            selected_plan_name: plan.name.clone(),
+            selected_slot_name: plan.schema.trait_name.clone(),
+        });
     }
+    Ok(resolved)
 }
 
 #[cfg(test)]
@@ -2745,6 +2908,162 @@ mod tests {
                 })
                 .collect(),
             origin_package: String::new(),
+        }
+    }
+
+    #[test]
+    fn provider_grant_ledger_resolves_one_exact_selector_subject() {
+        let first = selection_plan("FirstProvider", &["first"], &["first"]);
+        let candidates = vec![first.clone()];
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            &candidates,
+            &[first.name.clone()],
+        )
+        .expect("selected provider");
+        let grants = resolve_selected_provider_grants(
+            &candidates,
+            &selected,
+            &[
+                "FirstProvider".to_owned(),
+                "Pair".to_owned(),
+                "OtherFact".to_owned(),
+                "Pair".to_owned(),
+            ],
+        )
+        .expect("exact provider selectors");
+
+        assert_eq!(grants.len(), 3);
+        assert_eq!(grants[0].selector_kind, ProviderGrantSelectorKind::PlanName);
+        assert_eq!(grants[0].commitment(), "provider plan: FirstProvider");
+        assert_eq!(
+            grants[1].selector_kind,
+            ProviderGrantSelectorKind::ProviderSlot
+        );
+        assert_eq!(grants[1].commitment(), "provider slot: Pair");
+        assert_eq!(grants[2], grants[1]);
+        assert!(
+            grants
+                .iter()
+                .all(|grant| grant.selected_plan_identity == first.identity_fingerprint())
+        );
+
+        let mut same_subject = first.clone();
+        same_subject.name = same_subject.schema.trait_name.clone();
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&same_subject),
+            &[same_subject.name.clone()],
+        )
+        .expect("same plan and slot subject");
+        let grants = resolve_selected_provider_grants(
+            std::slice::from_ref(&same_subject),
+            &selected,
+            &[same_subject.name.clone()],
+        )
+        .expect("same subject is canonical");
+        assert_eq!(grants[0].selector_kind, ProviderGrantSelectorKind::PlanName);
+    }
+
+    #[test]
+    fn provider_grant_ledger_rejects_ambiguity_and_unselected_subjects() {
+        enum Corruption {
+            DuplicatePlanName,
+            UnselectedPlan,
+            MissingSelectedSlot,
+            DistinctPlanAndSlot,
+            UnselectedPlanAndSelectedSlot,
+            SelectedCandidateDrift,
+        }
+        let cases = [
+            (
+                Corruption::DuplicatePlanName,
+                "2 exact provider plan candidates",
+            ),
+            (Corruption::UnselectedPlan, "unselected provider plan"),
+            (
+                Corruption::MissingSelectedSlot,
+                "provider slot with no selected provider plan",
+            ),
+            (
+                Corruption::DistinctPlanAndSlot,
+                "distinct provider plan and slot subjects",
+            ),
+            (
+                Corruption::UnselectedPlanAndSelectedSlot,
+                "unselected provider plan",
+            ),
+            (
+                Corruption::SelectedCandidateDrift,
+                "resolves to 0 exact candidate rows",
+            ),
+        ];
+
+        for (corruption, expected) in cases {
+            let mut first = selection_plan("FirstProvider", &["first"], &["first"]);
+            first.schema.trait_name = "FirstSlot".to_owned();
+            let mut second = selection_plan("SecondProvider", &["first"], &["first"]);
+            second.schema.trait_name = "SecondSlot".to_owned();
+            let (candidates, selected_candidates, selected_names, grant) = match corruption {
+                Corruption::DuplicatePlanName => {
+                    second.name = first.name.clone();
+                    (
+                        vec![first.clone(), second],
+                        vec![first.clone()],
+                        vec![first.name.clone()],
+                        first.name.clone(),
+                    )
+                }
+                Corruption::UnselectedPlan => (
+                    vec![first.clone(), second.clone()],
+                    vec![first.clone()],
+                    vec![first.name.clone()],
+                    second.name.clone(),
+                ),
+                Corruption::MissingSelectedSlot => (
+                    vec![first.clone(), second.clone()],
+                    vec![first.clone()],
+                    vec![first.name.clone()],
+                    second.schema.trait_name.clone(),
+                ),
+                Corruption::DistinctPlanAndSlot => {
+                    second.schema.trait_name = first.name.clone();
+                    (
+                        vec![first.clone(), second.clone()],
+                        vec![first.clone(), second.clone()],
+                        vec![first.name.clone(), second.name.clone()],
+                        first.name.clone(),
+                    )
+                }
+                Corruption::UnselectedPlanAndSelectedSlot => {
+                    second.schema.trait_name = first.name.clone();
+                    (
+                        vec![first.clone(), second.clone()],
+                        vec![second.clone()],
+                        vec![second.name.clone()],
+                        first.name.clone(),
+                    )
+                }
+                Corruption::SelectedCandidateDrift => {
+                    let mut drifted = first.clone();
+                    drifted.origin_package = "drifted".to_owned();
+                    (
+                        vec![first.clone()],
+                        vec![drifted],
+                        vec![first.name.clone()],
+                        first.name.clone(),
+                    )
+                }
+            };
+            let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+                &selected_candidates,
+                &selected_names,
+            )
+            .expect("selected fixture");
+            let diagnostic = resolve_selected_provider_grants(&candidates, &selected, &[grant])
+                .expect_err("invalid provider selector custody must reject");
+            assert!(
+                diagnostic.message.contains(expected),
+                "expected {expected:?}, got {diagnostic:?}",
+            );
         }
     }
 
@@ -3537,7 +3856,176 @@ mod tests {
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("does not belong to its exact boundary owner")
+                .contains("resolves to 0 exact typed signatures")
+        }));
+    }
+
+    #[test]
+    fn admitted_receipt_owner_and_signature_custody_is_exact_and_atomic() {
+        let owner_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
+        let requirement_symbol = psi_symbols::SymbolHandle::from_arena_index(10);
+        let mut checked = psi_checked_trees::CheckedTrees::default();
+        let requirement_identity = push_boundary_requirement(
+            &mut checked,
+            owner_symbol,
+            "PairBase",
+            requirement_symbol,
+            "first",
+        );
+        let valid = append_admitted_fact(
+            &mut checked,
+            psi_symbols::SymbolHandle::from_arena_index(8),
+            psi_symbols::SymbolHandle::from_arena_index(9),
+            owner_symbol,
+            requirement_symbol,
+        );
+        append_admitted_fact(
+            &mut checked,
+            psi_symbols::SymbolHandle::from_arena_index(11),
+            psi_symbols::SymbolHandle::from_arena_index(12),
+            owner_symbol,
+            psi_symbols::SymbolHandle::from_arena_index(90),
+        );
+        let mut selected = selection_plan("FirstProvider", &["first"], &["first"]);
+        set_exact_requirement(
+            &mut selected,
+            "PairChild",
+            "PairBase",
+            &requirement_identity,
+        );
+
+        let diagnostics = bind_selected_provider_plan_facts(
+            &mut checked,
+            std::slice::from_ref(&selected),
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &[selected.name.clone()],
+            )
+            .expect("selected provider"),
+            &[selected.schema.trait_name.clone()],
+        )
+        .expect_err("late missing signature must reject every staged receipt");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolves to 0 exact typed signatures")
+        }));
+        assert_eq!(
+            checked
+                .facts
+                .semantic
+                .facts
+                .get(valid)
+                .evidence
+                .receipt_identity,
+            0,
+            "late failure must not publish an earlier valid receipt",
+        );
+
+        let mut duplicate_owner = checked.clone();
+        duplicate_owner.typed.push_trait_definition(
+            psi_typed_trees::trait_definition::TraitDefinition {
+                symbol: owner_symbol,
+                is_boundary: true,
+                name: psi_typed_trees::name::Identifier::generated("DuplicatePairBase"),
+                ..Default::default()
+            },
+        );
+        let diagnostics = bind_selected_provider_plan_facts(
+            &mut duplicate_owner,
+            std::slice::from_ref(&selected),
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &[selected.name.clone()],
+            )
+            .expect("selected provider"),
+            &[selected.schema.trait_name.clone()],
+        )
+        .expect_err("duplicate exact owner must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolves to 2 exact typed boundary requirement owners")
+        }));
+
+        let other_owner = psi_symbols::SymbolHandle::from_arena_index(20);
+        let other_requirement = psi_symbols::SymbolHandle::from_arena_index(21);
+        let mut cross_owned = psi_checked_trees::CheckedTrees::default();
+        push_boundary_requirement(
+            &mut cross_owned,
+            owner_symbol,
+            "PairBase",
+            requirement_symbol,
+            "first",
+        );
+        push_boundary_requirement(
+            &mut cross_owned,
+            other_owner,
+            "OtherBase",
+            other_requirement,
+            "other",
+        );
+        append_admitted_fact(
+            &mut cross_owned,
+            psi_symbols::SymbolHandle::from_arena_index(22),
+            psi_symbols::SymbolHandle::from_arena_index(23),
+            owner_symbol,
+            other_requirement,
+        );
+        let diagnostics = bind_selected_provider_plan_facts(
+            &mut cross_owned,
+            std::slice::from_ref(&selected),
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &[selected.name.clone()],
+            )
+            .expect("selected provider"),
+            &[selected.schema.trait_name.clone()],
+        )
+        .expect_err("cross-owned exact signature must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.message.contains("belongs to exact trait") })
+        );
+
+        let mut duplicate_signature = psi_checked_trees::CheckedTrees::default();
+        push_boundary_requirement(
+            &mut duplicate_signature,
+            owner_symbol,
+            "PairBase",
+            requirement_symbol,
+            "first",
+        );
+        push_boundary_requirement(
+            &mut duplicate_signature,
+            other_owner,
+            "OtherBase",
+            requirement_symbol,
+            "duplicate",
+        );
+        append_admitted_fact(
+            &mut duplicate_signature,
+            psi_symbols::SymbolHandle::from_arena_index(24),
+            psi_symbols::SymbolHandle::from_arena_index(25),
+            owner_symbol,
+            requirement_symbol,
+        );
+        let diagnostics = bind_selected_provider_plan_facts(
+            &mut duplicate_signature,
+            std::slice::from_ref(&selected),
+            omega_effects::SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&selected),
+                &[selected.name.clone()],
+            )
+            .expect("selected provider"),
+            &[selected.schema.trait_name.clone()],
+        )
+        .expect_err("duplicate exact signature must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolves to 2 exact typed signatures")
         }));
     }
 

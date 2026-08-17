@@ -226,27 +226,26 @@ pub(super) fn prepare_trust_lockfile(
 
     // Current receipts.
     let mut rows: Vec<PreparedTrustReceipt> = Vec::new();
+    let provider_grants = crate::pipeline::provider_plans::resolve_selected_provider_grants(
+        provider_plans,
+        selected_provider_plans,
+        root_grants,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     for grant in root_grants {
         // A grant naming a DERIVED PROVIDER PLAN (by plan name or boundary
         // slot) pins the SELECTED plan's NORMALIZED IDENTITY. Slot grants use
         // a slot-stable commitment key so changing the selected provider is
         // itself trust drift rather than a silent replacement lock row.
-        if let Some(plan) = crate::pipeline::provider_plans::selected_provider_plan_for_grant(
-            provider_plans,
-            selected_provider_plans,
-            grant,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
+        if let Some(provider_grant) = provider_grants
+            .iter()
+            .find(|provider_grant| provider_grant.selector == *grant)
         {
-            let commitment = if grant == &plan.name {
-                format!("provider plan: {}", plan.name)
-            } else {
-                format!("provider slot: {}", plan.schema.trait_name)
-            };
+            let commitment = provider_grant.commitment();
             if !rows.iter().any(|row| row.commitment == commitment) {
                 rows.push(PreparedTrustReceipt {
                     commitment,
-                    identity: PreparedTrustIdentity::Ready(plan.identity_fingerprint()),
+                    identity: PreparedTrustIdentity::Ready(provider_grant.selected_plan_identity),
                 });
             }
             continue;
