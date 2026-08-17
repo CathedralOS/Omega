@@ -725,10 +725,17 @@ Remaining:
   orchestrator over return analysis, control/boundary construction, cleanup,
   call closure, and type/shape custody modules, none larger than 1,356 lines;
   its fifty-three tests are separated into cleanup and call-closure modules
-  behind a 57-line test root. This is a semantics-preserving responsibility
-  split, not a trust promotion: the full low generator, row proofs, and
-  composition bridges remain open, and no trust-graph node becomes derived
-  from the spike.
+  behind a 57-line test root. The downstream checked-to-terminal producer no
+  longer embeds its 3,891-line shared runtime-parameter classifier in the
+  23,735-line crate root. That classifier now has a 706-line orchestration and
+  registry module over Boolean, conversion, affine, product/divisor, and
+  shift/cross-family responsibilities, none larger than 1,083 lines. Six exact
+  binary cohorts plus exact cast consume named ordered registries through two
+  generic dispatchers rather than maintaining another set of repeated
+  `or_else` permutations; the crate root is now 19,850 lines. This is a
+  semantics-preserving responsibility split, not a trust promotion: the full
+  low generator, row proofs, and composition bridges remain open, and no
+  trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
