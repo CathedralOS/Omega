@@ -79,8 +79,10 @@ Must not own:
   loading, flags, model-specific/control-register access, and port I/O. Those
   modules retain their exact width, byte, clobber, and machine-state contracts;
   `atomics.rs` separately owns load/store and read-modify-write encodings,
-  including the exact prior-value result and relocation-site calculations. The
-  crate root does not reconstruct any of those families.
+  including the exact prior-value result and relocation-site calculations;
+  `syscalls.rs` owns Linux syscall register marshalling, value returns,
+  timespec adapters, and their exact data-relocation offsets. The crate root
+  does not reconstruct any of those families.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
