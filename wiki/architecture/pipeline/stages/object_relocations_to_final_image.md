@@ -86,6 +86,9 @@ Must not own:
 - `omega-image-emission/src/dispatch.rs` owns target-to-image-writer dispatch and final-image construction handoff.
 - `omega-image-emission/src/checked.rs` orchestrates planned-vs-encoded byte
   validation before direct image emission.
+- `omega-image-emission/src/checked/tests.rs` is the regression-corpus root;
+  final-image/instruction-boundary validation, place replay, and runtime-guard/
+  checked-assembly fixtures live in separate subordinate test modules.
 - `omega-image-emission/src/checked/assembly.rs` owns checked-assembly
   footprints, operand-loader semantics, exact instruction bytes, and their
   retained relocation checks.
