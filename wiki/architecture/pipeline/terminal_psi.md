@@ -1518,6 +1518,17 @@ derivation of that same total definition establishes the authoritative ledger
 for every deployed artifact. Optimized implementations may disagree only by
 causing rejection; agreement with the low result grants them no authority.
 
+That producer status is also the module boundary. Structural Unit-plan
+construction must not accumulate every sufficient-form recognizer merely
+because it invokes them. Shared Boolean/integer convergence is isolated as one
+producer module with its own focused test module; its exact binary and cast
+families are ordered declarative classifier registries consumed by one generic
+dispatch path. Additional sufficient-form families should follow that shape:
+one closed responsibility per module, explicit precedence at the registry, and
+no authority beyond the certificate proved against the unchanged canonical
+ledger. This refactoring rule does not make the current Rust producer or its
+registries trusted.
+
 Premise availability is path- and version-sensitive. Ranking ledger nodes makes
 cyclic justification unrepresentable but does not by itself make a fact
 available. A cited evidence token must dominate its use and remain valid along
