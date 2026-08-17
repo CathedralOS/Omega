@@ -1541,9 +1541,10 @@ nominal and partial-affine implementations. Attached Unit closure assembly is a
 separate orchestrator over provider discovery, exact call-closure custody,
 type/domain/service publication, and parameter-transfer modules. General
 structural-result transfer and result-bearing boundary custody have distinct
-modules over one shared structural-type retention responsibility; scalar-graph
-construction shares none of those paths. Additional sufficient-form families
-should follow that shape: one closed responsibility per module, explicit
+modules over one shared structural-type retention responsibility. Scalar-graph
+terminal-module assembly is likewise isolated behind one parent-facing builder
+and shares none of those paths. Additional sufficient-form families should
+follow that shape: one closed responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
 against the unchanged canonical ledger. This refactoring rule does not make the
 current Rust producer or its registries trusted.
