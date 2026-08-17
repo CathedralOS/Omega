@@ -437,6 +437,40 @@ pub(super) fn expected_control_entry_spec(
                             address_site: 0,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
+                        dispatch_index,
+                        case_leave_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_state_write_bytes(dispatch_index, case_leave_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_state_write_bytes(dispatch_index, case_leave_byte_distance)?.to_vec(),
+                        },
+                        5u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchCaseLeave {
+                        loop_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_case_leave_bytes(loop_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_leave_bytes(loop_byte_distance)?.to_vec(),
+                        },
+                        7u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchForwardBranchSkip {
+                        branch_arms_end_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_case_leave_bytes(branch_arms_end_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_leave_bytes(branch_arms_end_byte_distance)?.to_vec(),
+                        },
+                        6u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
         _ => return Ok(None),
     };
     Ok(Some(spec))
