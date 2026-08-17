@@ -21,7 +21,7 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
    types, wrong section counts, and shape drift;
 4. resolves every retained leaf operation through one exact row in the closed
    typed table in `schema.gamma` and denotes that row directly; and
-5. emits and audits one ranked 22-row ledger.
+5. emits and audits one ranked 31-row ledger.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
 keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte
@@ -52,8 +52,11 @@ substitution:
 ## Closed leaf schema
 
 The bounded operation slice no longer dispatches through one hand-written
-builder per primitive. `schema.gamma` contains exactly seven declarative rows:
-exact/wrapping add, exact/wrapping divide and remainder, and signed less-than.
+builder per primitive. `schema.gamma` contains exactly fourteen declarative rows:
+the complete exact/wrapping/saturating add/subtract/multiply cohort,
+exact/wrapping divide and remainder, and signed less-than. The rows are grouped
+into exact-arithmetic, total-arithmetic, and divide/remainder/comparison policy
+tables and composed through one generic table operation.
 Each row owns its result shape, direct denotation, canonical safety goal,
 post-discharge fact, crash policy, and local fuel/frontier behavior. A generic
 interpreter emits the rows. Exact lookup rejects both missing and duplicate
@@ -63,9 +66,9 @@ Calls are intentionally not disguised as leaf rows: clause coverage,
 capture-free substitution, and outcome/control responsibilities remain in the
 separate call algebra. The gate runs the complete fixture with a missing row, a
 duplicate row, and an altered row; all three reject while the canonical table
-reconstructs the byte-identical 22-row ledger. This is the bounded seven-kind
-table, not yet the production 35-row leaf table plus the separate composition
-algebra for the three closed call variants.
+reconstructs the byte-identical 31-row ledger. This is the bounded
+fourteen-kind table, not yet the remaining 21 production leaf rows plus the
+separate composition algebra for the three closed call variants.
 
 ## Measured result
 
@@ -74,30 +77,26 @@ these are feasibility observations, not performance promises:
 
 | Item | Result |
 | --- | ---: |
-| Canonical fixture bytes | 1,026 |
-| Assembled typed Gamma core | 1,483 lines / 57,031 bytes |
+| Canonical fixture bytes | 1,308 |
+| Assembled typed Gamma core | 1,664 lines / 65,644 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 1,447 lines / 55,658 bytes / 148 functions |
+| Spike-specific typed core | 1,628 lines / 64,271 bytes / 156 functions |
 | Closed data declarations | 59 |
-| Typed functions, assembled | 154 |
+| Typed functions, assembled | 162 |
 | Maximum source nesting | 20 |
-| Canonical ledger | 22 rows / 1,546 modeled bytes |
-| Prospective reconstruction certificate | 1,352 modeled bytes |
-| Beta-written typechecker | 0.09 s / 1,949,696 B max RSS |
-| Beta-written reference interpreter | 0.25 s / 3,031,040 B max RSS |
-| Independent Python evaluator | 0.03 s / 10,944,512 B max RSS |
+| Canonical ledger | 31 rows / 2,156 modeled bytes |
+| Prospective reconstruction certificate | 1,812 modeled bytes |
 
 The certificate estimate is deliberately explicit: 32 bytes of header, then
 44 bytes per row plus one 32-byte reference per prerequisite. It is a sizing
 model, not an accepted certificate format.
 
 The schema conversion deliberately adds a small typed vocabulary and generic
-interpreter, so this bounded source grew by 146 lines while deleting the seven
-operation-specific builder branches. The important scaling result is
-structural: new leaf meaning is one isolated data row, and the ledger
-orchestrator is no longer the owner of operation permutations. `schema.gamma`
-is 145 lines; call/control/premise orchestration remains separate in
-`ledger.gamma`.
+interpreter while deleting operation-specific builder branches. The important
+scaling result is structural: new leaf meaning is one isolated data row, and
+the ledger orchestrator is no longer the owner of operation permutations.
+`schema.gamma` is 210 lines; call/control/premise orchestration remains separate
+in `ledger.gamma`.
 
 The first literal transport spelling used one constructor per byte and exposed
 a parser-stack failure. That did not require weakening the endpoint: a typed,
@@ -112,8 +111,8 @@ primitives are now factored into `../canonical-bytes/` and have an independent
 typed/interpreter gate. The largest remaining audit tax is mechanical
 repetition: Gamma currently has no parametric result type, so the bounded
 decoder still declares a result ADT for each parsed semantic type. The full
-decoder and full 35-row leaf schema table should measure that remaining cost before
-making any explicit Gamma rung correction. The spike itself is cleanly
+decoder and remaining 21 leaf schema rows should measure that remaining cost
+before making any explicit Gamma rung correction. The spike itself is cleanly
 expressible and therefore finds no language-design blocker.
 
 ## Gate
